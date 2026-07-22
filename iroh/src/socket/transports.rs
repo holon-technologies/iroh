@@ -576,9 +576,13 @@ mod tests {
         Box::new(ReadyCustomEndpoint {
             id,
             polls,
-            local_addr: CustomAddr::from_parts(1, &[id]),
-            remote_addr: CustomAddr::from_parts(2, &[id]),
-            local_addr_watch: Watchable::new(vec![CustomAddr::from_parts(1, &[id])]),
+            local_addr: CustomAddr::try_from_parts(1, &[id])
+                .expect("test custom address is bounded"),
+            remote_addr: CustomAddr::try_from_parts(2, &[id])
+                .expect("test custom address is bounded"),
+            local_addr_watch: Watchable::new(vec![
+                CustomAddr::try_from_parts(1, &[id]).expect("test custom address is bounded"),
+            ]),
         })
     }
 

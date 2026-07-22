@@ -48,6 +48,11 @@ pub(crate) struct ZoneStore {
 }
 
 impl ZoneStore {
+    /// Returns whether persistent storage is ready to serve all rows.
+    pub(crate) fn is_ready(&self) -> bool {
+        self.store.is_ready()
+    }
+
     /// Create a persistent store
     pub(crate) fn persistent(
         path: impl AsRef<Path>,

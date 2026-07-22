@@ -72,6 +72,17 @@ pub struct Metrics {
     /// Number of client connections which have had any frames rate-limited.
     pub conns_rx_ratelimited_total: Counter,
 
+    /// Accepted sockets rejected by the global connection-rate limit.
+    pub admission_rate_limited: Counter,
+    /// Accepted sockets rejected because all pending-establishment slots are occupied.
+    pub admission_pending_full: Counter,
+    /// Authenticated sessions rejected because global session capacity is full.
+    pub admission_global_session_full: Counter,
+    /// Authenticated sessions rejected because endpoint session capacity is full.
+    pub admission_endpoint_session_full: Counter,
+    /// New `sent_to` relationships omitted because the per-source bound is full.
+    pub sent_to_relationships_dropped: Counter,
+
     /*
      * Metrics about peers
      */

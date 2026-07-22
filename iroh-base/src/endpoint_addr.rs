@@ -10,7 +10,8 @@ use std::{collections::BTreeSet, fmt, net::SocketAddr};
 
 use data_encoding::HEXLOWER;
 use n0_error::stack_error;
-use serde::{Deserialize, Serialize};
+use serde::de::VariantAccess as _;
+use serde::{Deserialize, Serialize, de};
 
 use crate::{EndpointId, PublicKey, RelayUrl};
 
@@ -38,12 +39,60 @@ use crate::{EndpointId, PublicKey, RelayUrl};
 /// [Address Lookup]: https://docs.rs/iroh/*/iroh/index.html#address-lookup
 /// [home relay]: https://docs.rs/iroh/*/iroh/relay/index.html
 /// [Relay server]: https://docs.rs/iroh/*/iroh/index.html#relay-servers
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EndpointAddr {
     /// The endpoint's identifier.
     pub id: EndpointId,
     /// The endpoint's addresses.
     pub addrs: BTreeSet<TransportAddr>,
+}
+
+/// Default maximum opaque bytes in one [`CustomAddr`].
+pub const MAX_CUSTOM_ADDR_BYTES: usize = 512;
+/// Default maximum UTF-8 bytes in one relay URL.
+pub const MAX_RELAY_URL_BYTES: usize = 2_048;
+/// Default maximum transport addresses supplied for one endpoint.
+pub const MAX_ENDPOINT_ADDRS: usize = 34;
+/// Default maximum accounted bytes in one [`EndpointAddr`].
+pub const MAX_ENDPOINT_ADDR_BYTES: usize = 16 * 1_024;
+
+/// Limits applied when constructing endpoint addressing from untrusted input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddressLimits {
+    /// Maximum opaque bytes in one custom transport address.
+    pub max_custom_addr_bytes: usize,
+    /// Maximum UTF-8 bytes in one relay URL.
+    pub max_relay_url_bytes: usize,
+    /// Maximum transport address items supplied for one endpoint.
+    pub max_endpoint_addrs: usize,
+    /// Maximum accounted bytes in one endpoint address.
+    pub max_endpoint_addr_bytes: usize,
+}
+
+impl Default for AddressLimits {
+    fn default() -> Self {
+        Self {
+            max_custom_addr_bytes: MAX_CUSTOM_ADDR_BYTES,
+            max_relay_url_bytes: MAX_RELAY_URL_BYTES,
+            max_endpoint_addrs: MAX_ENDPOINT_ADDRS,
+            max_endpoint_addr_bytes: MAX_ENDPOINT_ADDR_BYTES,
+        }
+    }
+}
+
+/// An endpoint address exceeded a configured input bound.
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta)]
+#[non_exhaustive]
+pub enum AddressLimitError {
+    #[error("custom address contains {actual} bytes, maximum is {maximum}")]
+    CustomAddrBytes { actual: usize, maximum: usize },
+    #[error("endpoint address contains more than {maximum} address items")]
+    EndpointAddrCount { maximum: usize },
+    #[error("relay URL contains {actual} bytes, maximum is {maximum}")]
+    RelayUrlBytes { actual: usize, maximum: usize },
+    #[error("endpoint address accounts for {actual} bytes, maximum is {maximum}")]
+    EndpointAddrBytes { actual: usize, maximum: usize },
 }
 
 /// Available address types.
@@ -101,11 +150,53 @@ impl EndpointAddr {
     }
 
     /// Creates a new [`EndpointAddr`] from its parts.
+    #[deprecated(note = "use EndpointAddr::try_from_parts for bounded construction")]
     pub fn from_parts(id: PublicKey, addrs: impl IntoIterator<Item = TransportAddr>) -> Self {
         Self {
             id,
             addrs: addrs.into_iter().collect(),
         }
+    }
+
+    /// Creates a bounded [`EndpointAddr`] from untrusted parts.
+    pub fn try_from_parts(
+        id: PublicKey,
+        addrs: impl IntoIterator<Item = TransportAddr>,
+    ) -> Result<Self, AddressLimitError> {
+        Self::try_from_parts_with_limits(id, addrs, AddressLimits::default())
+    }
+
+    /// Creates an [`EndpointAddr`] using explicit input limits.
+    pub fn try_from_parts_with_limits(
+        id: PublicKey,
+        addrs: impl IntoIterator<Item = TransportAddr>,
+        limits: AddressLimits,
+    ) -> Result<Self, AddressLimitError> {
+        let mut retained = BTreeSet::new();
+        let mut accounted_bytes = id.as_bytes().len();
+
+        for (index, addr) in addrs.into_iter().enumerate() {
+            if index >= limits.max_endpoint_addrs {
+                return Err(n0_error::e!(AddressLimitError::EndpointAddrCount {
+                    maximum: limits.max_endpoint_addrs,
+                }));
+            }
+            let addr_bytes = validate_transport_addr(&addr, limits)?;
+            if retained.insert(addr) {
+                accounted_bytes = accounted_bytes.saturating_add(addr_bytes);
+                if accounted_bytes > limits.max_endpoint_addr_bytes {
+                    return Err(n0_error::e!(AddressLimitError::EndpointAddrBytes {
+                        actual: accounted_bytes,
+                        maximum: limits.max_endpoint_addr_bytes,
+                    }));
+                }
+            }
+        }
+
+        Ok(Self {
+            id,
+            addrs: retained,
+        })
     }
 
     /// Adds a [`RelayUrl`] address.
@@ -152,6 +243,108 @@ impl EndpointAddr {
     }
 }
 
+impl<'de> Deserialize<'de> for EndpointAddr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct UncheckedEndpointAddr {
+            id: EndpointId,
+            #[serde(deserialize_with = "deserialize_transport_addrs")]
+            addrs: BTreeSet<TransportAddr>,
+        }
+
+        let unchecked = UncheckedEndpointAddr::deserialize(deserializer)?;
+        Self::try_from_parts(unchecked.id, unchecked.addrs).map_err(de::Error::custom)
+    }
+}
+
+fn deserialize_transport_addrs<'de, D>(deserializer: D) -> Result<BTreeSet<TransportAddr>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct TransportAddrsVisitor;
+
+    impl<'de> de::Visitor<'de> for TransportAddrsVisitor {
+        type Value = BTreeSet<TransportAddr>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                formatter,
+                "at most {MAX_ENDPOINT_ADDRS} bounded transport addresses"
+            )
+        }
+
+        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>,
+        {
+            if sequence
+                .size_hint()
+                .is_some_and(|size| size > MAX_ENDPOINT_ADDRS)
+            {
+                return Err(de::Error::custom("endpoint address count exceeds limit"));
+            }
+
+            let limits = AddressLimits::default();
+            let mut addrs = BTreeSet::new();
+            let mut supplied = 0usize;
+            let mut accounted_bytes = 32usize;
+            while let Some(addr) = sequence.next_element::<TransportAddr>()? {
+                supplied = supplied.saturating_add(1);
+                if supplied > limits.max_endpoint_addrs {
+                    return Err(de::Error::custom("endpoint address count exceeds limit"));
+                }
+                let addr_bytes =
+                    validate_transport_addr(&addr, limits).map_err(de::Error::custom)?;
+                if addrs.insert(addr) {
+                    accounted_bytes = accounted_bytes.saturating_add(addr_bytes);
+                    if accounted_bytes > limits.max_endpoint_addr_bytes {
+                        return Err(de::Error::custom(
+                            "endpoint address byte size exceeds limit",
+                        ));
+                    }
+                }
+            }
+            Ok(addrs)
+        }
+    }
+
+    deserializer.deserialize_seq(TransportAddrsVisitor)
+}
+
+fn validate_transport_addr(
+    addr: &TransportAddr,
+    limits: AddressLimits,
+) -> Result<usize, AddressLimitError> {
+    let bytes = match addr {
+        TransportAddr::Relay(url) => {
+            let actual = url.as_str().len();
+            if actual > limits.max_relay_url_bytes {
+                return Err(n0_error::e!(AddressLimitError::RelayUrlBytes {
+                    actual,
+                    maximum: limits.max_relay_url_bytes,
+                }));
+            }
+            1usize.saturating_add(actual)
+        }
+        TransportAddr::Ip(SocketAddr::V4(_)) => 1 + 4 + 2,
+        TransportAddr::Ip(SocketAddr::V6(_)) => 1 + 16 + 2,
+        TransportAddr::Custom(addr) => {
+            let actual = addr.data().len();
+            if actual > limits.max_custom_addr_bytes {
+                return Err(n0_error::e!(AddressLimitError::CustomAddrBytes {
+                    actual,
+                    maximum: limits.max_custom_addr_bytes,
+                }));
+            }
+            1usize.saturating_add(8).saturating_add(actual)
+        }
+    };
+    Ok(bytes)
+}
+
 impl From<EndpointId> for EndpointAddr {
     fn from(endpoint_id: EndpointId) -> Self {
         EndpointAddr::new(endpoint_id)
@@ -165,7 +358,9 @@ impl From<EndpointId> for EndpointAddr {
 ///
 /// Transport ids are freely chosen u64 numbers. A registry for well-known transport ids
 /// is maintained at <https://github.com/n0-computer/iroh/blob/main/TRANSPORTS.md>.
-/// The opaque address data is not validated or size-limited in any way.
+/// New addresses created through fallible parsing or [`CustomAddr::try_from_parts`] are limited to
+/// [`MAX_CUSTOM_ADDR_BYTES`]. The legacy infallible constructor remains temporarily available for
+/// source compatibility and is deprecated.
 ///
 /// # String encoding
 ///
@@ -182,7 +377,7 @@ impl From<EndpointId> for EndpointAddr {
 ///
 /// [`Display`]: std::fmt::Display
 /// [`FromStr`]: std::str::FromStr
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CustomAddr {
     /// The transport id.
     id: u64,
@@ -209,7 +404,9 @@ impl std::str::FromStr for CustomAddr {
         let Ok(data) = HEXLOWER.decode(data_str.as_bytes()) else {
             return Err(CustomAddrParseError::InvalidData);
         };
-        Ok(Self::from_parts(id, &data))
+        Self::try_from_parts(id, &data).map_err(|_| CustomAddrParseError::DataTooLong {
+            maximum: MAX_CUSTOM_ADDR_BYTES,
+        })
     }
 }
 
@@ -230,12 +427,170 @@ pub enum CustomAddrParseError {
     /// Invalid hex-encoded data.
     #[error("invalid data")]
     InvalidData,
+    /// Opaque address data exceeds the supported input limit.
+    #[error("address data exceeds {maximum} bytes")]
+    DataTooLong { maximum: usize },
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum CustomAddrBytes {
     Inline { size: u8, data: [u8; 30] },
     Heap(Box<[u8]>),
+}
+
+impl<'de> Deserialize<'de> for CustomAddrBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier)]
+        enum Variant {
+            Inline,
+            Heap,
+        }
+
+        struct CustomAddrBytesVisitor;
+
+        impl<'de> de::Visitor<'de> for CustomAddrBytesVisitor {
+            type Value = CustomAddrBytes;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a bounded CustomAddrBytes value")
+            }
+
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::EnumAccess<'de>,
+            {
+                let (variant, access) = data.variant::<Variant>()?;
+                match variant {
+                    Variant::Inline => {
+                        access.struct_variant(&["size", "data"], InlineCustomAddrBytesVisitor)
+                    }
+                    Variant::Heap => access
+                        .newtype_variant::<BoundedHeapCustomAddrBytes>()
+                        .map(|bounded| bounded.0),
+                }
+            }
+        }
+
+        deserializer.deserialize_enum(
+            "CustomAddrBytes",
+            &["Inline", "Heap"],
+            CustomAddrBytesVisitor,
+        )
+    }
+}
+
+struct InlineCustomAddrBytesVisitor;
+
+impl<'de> de::Visitor<'de> for InlineCustomAddrBytesVisitor {
+    type Value = CustomAddrBytes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("an inline custom address byte array")
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        let size: u8 = sequence
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+        let data: [u8; 30] = sequence
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+        inline_custom_addr_bytes(size, data).map_err(de::Error::custom)
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            Size,
+            Data,
+        }
+
+        let mut size = None;
+        let mut data = None;
+        while let Some(field) = map.next_key::<Field>()? {
+            match field {
+                Field::Size => {
+                    if size.replace(map.next_value()?).is_some() {
+                        return Err(de::Error::duplicate_field("size"));
+                    }
+                }
+                Field::Data => {
+                    if data.replace(map.next_value()?).is_some() {
+                        return Err(de::Error::duplicate_field("data"));
+                    }
+                }
+            }
+        }
+        let size = size.ok_or_else(|| de::Error::missing_field("size"))?;
+        let data = data.ok_or_else(|| de::Error::missing_field("data"))?;
+        inline_custom_addr_bytes(size, data).map_err(de::Error::custom)
+    }
+}
+
+fn inline_custom_addr_bytes(size: u8, data: [u8; 30]) -> Result<CustomAddrBytes, &'static str> {
+    if usize::from(size) > data.len() {
+        return Err("inline custom address size exceeds storage");
+    }
+    Ok(CustomAddrBytes::Inline { size, data })
+}
+
+struct BoundedHeapCustomAddrBytes(CustomAddrBytes);
+
+impl<'de> Deserialize<'de> for BoundedHeapCustomAddrBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct HeapVisitor;
+
+        impl<'de> de::Visitor<'de> for HeapVisitor {
+            type Value = BoundedHeapCustomAddrBytes;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(
+                    formatter,
+                    "at most {MAX_CUSTOM_ADDR_BYTES} custom address bytes"
+                )
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::SeqAccess<'de>,
+            {
+                if sequence
+                    .size_hint()
+                    .is_some_and(|size| size > MAX_CUSTOM_ADDR_BYTES)
+                {
+                    return Err(de::Error::custom("custom address data exceeds limit"));
+                }
+                let mut bytes = Vec::with_capacity(
+                    sequence.size_hint().unwrap_or(0).min(MAX_CUSTOM_ADDR_BYTES),
+                );
+                while let Some(byte) = sequence.next_element::<u8>()? {
+                    if bytes.len() == MAX_CUSTOM_ADDR_BYTES {
+                        return Err(de::Error::custom("custom address data exceeds limit"));
+                    }
+                    bytes.push(byte);
+                }
+                Ok(BoundedHeapCustomAddrBytes(CustomAddrBytes::Heap(
+                    bytes.into_boxed_slice(),
+                )))
+            }
+        }
+
+        deserializer.deserialize_seq(HeapVisitor)
+    }
 }
 
 impl fmt::Debug for CustomAddrBytes {
@@ -254,7 +609,7 @@ impl fmt::Debug for CustomAddrBytes {
 
 impl From<(u64, &[u8])> for CustomAddr {
     fn from((id, data): (u64, &[u8])) -> Self {
-        Self::from_parts(id, data)
+        Self::from_parts_unchecked(id, data)
     }
 }
 
@@ -289,11 +644,28 @@ impl CustomAddrBytes {
 
 impl CustomAddr {
     /// Creates a new [`CustomAddr`] from a transport id and raw address data.
+    #[deprecated(note = "use CustomAddr::try_from_parts for bounded construction")]
     pub fn from_parts(id: u64, data: &[u8]) -> Self {
+        Self::from_parts_unchecked(id, data)
+    }
+
+    fn from_parts_unchecked(id: u64, data: &[u8]) -> Self {
         Self {
             id,
             data: CustomAddrBytes::copy_from_slice(data),
         }
+    }
+
+    /// Creates a bounded [`CustomAddr`] from untrusted raw address data.
+    pub fn try_from_parts(id: u64, data: &[u8]) -> Result<Self, AddressLimitError> {
+        let maximum = AddressLimits::default().max_custom_addr_bytes;
+        if data.len() > maximum {
+            return Err(n0_error::e!(AddressLimitError::CustomAddrBytes {
+                actual: data.len(),
+                maximum,
+            }));
+        }
+        Ok(Self::from_parts_unchecked(id, data))
     }
 
     /// Returns the transport id.
@@ -336,7 +708,23 @@ impl CustomAddr {
         }
         let id = u64::from_le_bytes(data[..8].try_into().expect("data length checked above"));
         let data = &data[8..];
-        Ok(Self::from_parts(id, data))
+        Self::try_from_parts(id, data).map_err(|_| "address data too long")
+    }
+}
+
+impl<'de> Deserialize<'de> for CustomAddr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct UncheckedCustomAddr {
+            id: u64,
+            data: CustomAddrBytes,
+        }
+
+        let unchecked = UncheckedCustomAddr::deserialize(deserializer)?;
+        Self::try_from_parts(unchecked.id, unchecked.data.as_bytes()).map_err(de::Error::custom)
     }
 }
 
@@ -390,14 +778,15 @@ mod tests {
     #[test]
     fn test_custom_addr_roundtrip() {
         // Small id, small data (e.g., Bluetooth MAC)
-        let addr = CustomAddr::from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]);
+        let addr = CustomAddr::try_from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6])
+            .expect("test address is bounded");
         let s = addr.to_string();
         assert_eq!(s, "1_a1b2c3d4e5f6");
         let parsed: CustomAddr = s.parse().unwrap();
         assert_eq!(addr, parsed);
 
         // Larger id, 32-byte data (e.g., Tor pubkey)
-        let addr = CustomAddr::from_parts(42, &[0xab; 32]);
+        let addr = CustomAddr::try_from_parts(42, &[0xab; 32]).expect("test address is bounded");
         let s = addr.to_string();
         assert_eq!(
             s,
@@ -407,14 +796,15 @@ mod tests {
         assert_eq!(addr, parsed);
 
         // Zero id, empty data
-        let addr = CustomAddr::from_parts(0, &[]);
+        let addr = CustomAddr::try_from_parts(0, &[]).expect("test address is bounded");
         let s = addr.to_string();
         assert_eq!(s, "0_");
         let parsed: CustomAddr = s.parse().unwrap();
         assert_eq!(addr, parsed);
 
         // Large id
-        let addr = CustomAddr::from_parts(0xdeadbeef, &[0x01, 0x02]);
+        let addr =
+            CustomAddr::try_from_parts(0xdeadbeef, &[0x01, 0x02]).expect("test address is bounded");
         let s = addr.to_string();
         assert_eq!(s, "deadbeef_0102");
         let parsed: CustomAddr = s.parse().unwrap();
@@ -434,5 +824,89 @@ mod tests {
 
         // Odd-length hex data
         assert!("1_abc".parse::<CustomAddr>().is_err());
+    }
+
+    #[test]
+    #[allow(deprecated)] // Constructs an old oversized value to test bounded deserialization.
+    fn oversized_custom_addr_is_rejected_at_untrusted_ingress() {
+        let oversized = vec![0xab; 513];
+        let encoded = format!("1_{}", HEXLOWER.encode(&oversized));
+        assert!(
+            encoded.parse::<CustomAddr>().is_err(),
+            "string parsing must enforce the custom-address byte limit"
+        );
+
+        let mut binary = 1_u64.to_le_bytes().to_vec();
+        binary.extend_from_slice(&oversized);
+        assert!(
+            CustomAddr::from_bytes(&binary).is_err(),
+            "binary parsing must enforce the custom-address byte limit"
+        );
+
+        let legacy = CustomAddr::from_parts(1, &oversized);
+        let serialized = postcard::to_stdvec(&legacy).unwrap();
+        assert!(
+            postcard::from_bytes::<CustomAddr>(&serialized).is_err(),
+            "deserialization must reject legacy oversized values"
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)] // Constructs an old oversized value to test bounded deserialization.
+    fn endpoint_addr_deserialization_rejects_excessive_address_count() {
+        let key = crate::SecretKey::generate().public();
+        let addrs = (0..35)
+            .map(|port| TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 10_000 + port))));
+        let legacy = EndpointAddr::from_parts(key, addrs);
+        let serialized = postcard::to_stdvec(&legacy).unwrap();
+
+        assert!(
+            postcard::from_bytes::<EndpointAddr>(&serialized).is_err(),
+            "deserialization must reject excessive endpoint address counts"
+        );
+    }
+
+    #[test]
+    fn fallible_constructors_enforce_all_default_address_limits() {
+        assert!(CustomAddr::try_from_parts(1, &[0_u8; MAX_CUSTOM_ADDR_BYTES]).is_ok());
+        assert!(CustomAddr::try_from_parts(1, &[0_u8; MAX_CUSTOM_ADDR_BYTES + 1]).is_err());
+
+        let key = crate::SecretKey::generate().public();
+        let maximum_count = (0..MAX_ENDPOINT_ADDRS).map(|port| {
+            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 20_000 + port as u16)))
+        });
+        assert!(EndpointAddr::try_from_parts(key, maximum_count).is_ok());
+        let excessive_count = (0..=MAX_ENDPOINT_ADDRS).map(|port| {
+            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 30_000 + port as u16)))
+        });
+        assert!(EndpointAddr::try_from_parts(key, excessive_count).is_err());
+
+        let long_url: RelayUrl = format!("https://example.com/{}", "a".repeat(MAX_RELAY_URL_BYTES))
+            .parse()
+            .unwrap();
+        assert!(
+            EndpointAddr::try_from_parts(key, [TransportAddr::Relay(long_url)]).is_err(),
+            "relay URL encoding must be bounded independently"
+        );
+
+        let byte_heavy = (0..MAX_ENDPOINT_ADDRS - 1).map(|id| {
+            TransportAddr::Custom(CustomAddr::try_from_parts(id as u64, &[0; 512]).unwrap())
+        });
+        assert!(
+            EndpointAddr::try_from_parts(key, byte_heavy).is_err(),
+            "cumulative endpoint address bytes must be bounded"
+        );
+    }
+
+    #[test]
+    fn bounded_custom_addr_serde_preserves_existing_encoding() {
+        for addr in [
+            CustomAddr::try_from_parts(1, &[1, 2, 3]).unwrap(),
+            CustomAddr::try_from_parts(2, &[7; 64]).unwrap(),
+        ] {
+            let encoded = postcard::to_stdvec(&addr).unwrap();
+            let decoded: CustomAddr = postcard::from_bytes(&encoded).unwrap();
+            assert_eq!(decoded, addr);
+        }
     }
 }

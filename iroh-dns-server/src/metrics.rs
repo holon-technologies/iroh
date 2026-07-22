@@ -41,6 +41,10 @@ pub struct Metrics {
     pub store_packets_updated: Counter,
     /// Number of signed packets removed by the eviction task.
     pub store_packets_expired: Counter,
+    /// Number of corrupt persistent rows detected.
+    pub store_corrupt_rows: Counter,
+    /// Number of packet-store actor or eviction failures.
+    pub store_background_failures: Counter,
     /// Current number of zones in the main cache
     pub cache_zones: Gauge,
     /// Current number of zones in the DHT cache

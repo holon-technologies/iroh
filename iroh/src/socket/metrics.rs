@@ -87,6 +87,18 @@ pub struct Metrics {
     pub transport_custom_paths_added: Counter,
     /// Number of custom transport paths closed.
     pub transport_custom_paths_removed: Counter,
+    /// Path candidates rejected by a hard path/source bound.
+    pub path_candidates_rejected: Counter,
+    /// Retained paths evicted to preserve hard path bounds.
+    pub path_candidates_evicted: Counter,
+    /// Remote resolve requests rejected because the per-remote pending queue is full.
+    pub pending_resolve_requests_rejected: Counter,
+    /// Address lookup items rejected after the per-lookup item budget is exhausted.
+    pub address_lookup_items_rejected: Counter,
+    /// Address lookups cancelled after their absolute deadline elapsed.
+    pub address_lookup_deadlines_exceeded: Counter,
+    /// Endpoint address values rejected before entering remote path state.
+    pub endpoint_addresses_rejected: Counter,
 
     /// Number of iterations of the main socket actor loop.
     pub actor_tick_main: Counter,

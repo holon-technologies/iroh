@@ -147,10 +147,10 @@ impl AddressLookup for TestAddrLookup {
             Some(Box::pin(n0_future::stream::once(Ok(Item::new(
                 EndpointInfo {
                     endpoint_id,
-                    data: EndpointData::from_iter([TransportAddr::Custom(CustomAddr::from_parts(
-                        TEST_TRANSPORT_ID,
-                        endpoint_id.as_bytes(),
-                    ))]),
+                    data: EndpointData::from_iter([TransportAddr::Custom(
+                        CustomAddr::try_from_parts(TEST_TRANSPORT_ID, endpoint_id.as_bytes())
+                            .expect("endpoint IDs fit the custom address limit"),
+                    )]),
                 },
                 "test discovery",
                 None,
@@ -406,7 +406,7 @@ mod tests {
     fn mixed_addr(ep: &Endpoint, endpoint_id: EndpointId) -> EndpointAddr {
         let ep_addr = ep.addr();
         let custom_addr = to_custom_addr(endpoint_id);
-        EndpointAddr::from_parts(
+        EndpointAddr::try_from_parts(
             endpoint_id,
             ep_addr
                 .addrs
@@ -414,14 +414,16 @@ mod tests {
                 .cloned()
                 .chain(std::iter::once(TransportAddr::Custom(custom_addr))),
         )
+        .expect("test endpoint address is bounded")
     }
 
     /// Creates an address with only the custom transport address.
     fn custom_only_addr(endpoint_id: EndpointId) -> EndpointAddr {
-        EndpointAddr::from_parts(
+        EndpointAddr::try_from_parts(
             endpoint_id,
             std::iter::once(TransportAddr::Custom(to_custom_addr(endpoint_id))),
         )
+        .expect("test endpoint address is bounded")
     }
 
     /// Returns true if the selected path is the custom transport.
@@ -655,14 +657,15 @@ mod tests {
         eprintln!("ep2 address: {:?}", ep2_addr);
 
         // Create address with both relay and custom
-        let all_addrs = EndpointAddr::from_parts(
+        let all_addrs = EndpointAddr::try_from_parts(
             s2.public(),
             ep2_addr
                 .addrs
                 .iter()
                 .cloned()
                 .chain(std::iter::once(TransportAddr::Custom(custom_addr))),
-        );
+        )
+        .expect("test endpoint address is bounded");
         eprintln!("Connecting with all addresses: {:?}", all_addrs);
 
         // First, connect with relay-only to verify relay works
@@ -681,7 +684,9 @@ mod tests {
             );
         } else {
             // Connect with relay-only address first to verify relay works
-            let relay_only_addr = EndpointAddr::from_parts(s2.public(), relay_addrs.into_iter());
+            let relay_only_addr =
+                EndpointAddr::try_from_parts(s2.public(), relay_addrs.into_iter())
+                    .expect("test endpoint address is bounded");
             eprintln!("Connecting with relay-only address: {:?}", relay_only_addr);
 
             let conn = ep1.connect(relay_only_addr, ECHO_ALPN).await?;

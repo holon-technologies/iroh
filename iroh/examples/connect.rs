@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
         .into_iter()
         .map(TransportAddr::Ip)
         .chain(std::iter::once(TransportAddr::Relay(args.relay_url)));
-    let addr = EndpointAddr::from_parts(args.endpoint_id, addrs);
+    let addr = EndpointAddr::try_from_parts(args.endpoint_id, addrs)?;
 
     // Attempt to connect, over the given ALPN.
     // Returns a Noq connection.

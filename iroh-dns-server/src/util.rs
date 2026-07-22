@@ -20,34 +20,23 @@ use n0_error::{e, stack_error};
 
 /// A lightweight `[u8; 32]` wrapper used as a key for caches and database lookups.
 ///
-/// Does not validate that the bytes are a valid public key on construction.
-/// If constructed from invalid bytes, methods like `Display` and `to_z32`
-/// will panic. In practice, bytes always originate from a validated `PublicKey`
-/// or a database that was written from one.
+/// Raw database bytes must be converted with [`TryFrom`] before this type is constructed.
 #[derive(derive_more::Into, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
 pub(crate) struct PublicKeyBytes([u8; 32]);
 
 #[stack_error(derive, add_meta, from_sources)]
 pub(crate) enum InvalidPublicKeyBytes {
     #[error("invalid z-base-32 encoding")]
-    InvalidEncoding,
+    Encoding,
     #[error("invalid length, must be 32 bytes")]
-    InvalidLength,
+    Length,
+    #[error("bytes do not encode a valid Ed25519 public key")]
+    Key,
 }
 
 impl PublicKeyBytes {
-    /// Wraps raw bytes without validating they are a valid public key.
-    ///
-    /// # Safety (logical)
-    ///
-    /// The caller must ensure the bytes represent a valid Ed25519 public key.
-    /// Passing invalid bytes will cause panics in `Display`, `Debug`, and `to_z32`.
-    pub(crate) fn new_unchecked(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
     pub(crate) fn from_z32(s: &str) -> Result<Self, InvalidPublicKeyBytes> {
-        let pk = PublicKey::from_z32(s).map_err(|_| e!(InvalidPublicKeyBytes::InvalidEncoding))?;
+        let pk = PublicKey::from_z32(s).map_err(|_| e!(InvalidPublicKeyBytes::Encoding))?;
         Ok(Self(*pk.as_bytes()))
     }
 
@@ -61,6 +50,15 @@ impl PublicKeyBytes {
 
     pub(crate) fn from_signed_packet(packet: &SignedPacket) -> Self {
         Self(*packet.public_key().as_bytes())
+    }
+}
+
+impl TryFrom<[u8; 32]> for PublicKeyBytes {
+    type Error = InvalidPublicKeyBytes;
+
+    fn try_from(bytes: [u8; 32]) -> Result<Self, Self::Error> {
+        PublicKey::from_bytes(&bytes).map_err(|_| e!(InvalidPublicKeyBytes::Key))?;
+        Ok(Self(bytes))
     }
 }
 

@@ -3131,7 +3131,8 @@ mod tests {
             .get()
             .into_iter()
             .map(|x| TransportAddr::Ip(x.addr));
-        let endpoint_addr_2 = EndpointAddr::from_parts(endpoint_id_2, addrs);
+        let endpoint_addr_2 = EndpointAddr::try_from_parts(endpoint_id_2, addrs)
+            .expect("test endpoint address is bounded");
         let addr = sock_1
             .resolve_remote(endpoint_addr_2)
             .await
@@ -3197,13 +3198,14 @@ mod tests {
         let _accept_task = AbortOnDropHandle::new(accept_task);
 
         // Add an entry in the RemoteMap of ep_1 with an invalid socket address
-        let empty_addr_2 = EndpointAddr::from_parts(
+        let empty_addr_2 = EndpointAddr::try_from_parts(
             endpoint_id_2,
             [TransportAddr::Ip(
                 // Reserved IP range for documentation (unreachable)
                 SocketAddrV4::new([192, 0, 2, 1].into(), 12345).into(),
             )],
-        );
+        )
+        .expect("test endpoint address is bounded");
         let addr_2 = sock_1.resolve_remote(empty_addr_2).await.unwrap().unwrap();
 
         // Set a low max_idle_timeout so noq gives up on this quickly and our test does
@@ -3231,14 +3233,15 @@ mod tests {
         info!("first connect timed out as expected");
 
         // Provide correct addressing information
-        let correct_addr_2 = EndpointAddr::from_parts(
+        let correct_addr_2 = EndpointAddr::try_from_parts(
             endpoint_id_2,
             sock_2
                 .ip_addrs()
                 .get()
                 .into_iter()
                 .map(|x| TransportAddr::Ip(x.addr)),
-        );
+        )
+        .expect("test endpoint address is bounded");
         let addr_2a = sock_1
             .resolve_remote(correct_addr_2)
             .await

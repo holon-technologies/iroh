@@ -1012,16 +1012,23 @@ async fn stagger_call<
 }
 
 fn add_jitter(delay: &u64) -> Duration {
-    // If delay is 0, return 0 immediately.
-    if *delay == 0 {
+    jittered_delay(*delay, rand::random())
+}
+
+/// Applies a deterministic ±20% jitter draw without overflow or an empty modulo domain.
+fn jittered_delay(delay_ms: u64, draw: u64) -> Duration {
+    if delay_ms == 0 {
         return Duration::ZERO;
     }
 
-    // Calculate jitter as a random value in the range of +/- MAX_JITTER_PERCENT of the delay.
-    let max_jitter = delay.saturating_mul(MAX_JITTER_PERCENT * 2) / 100;
-    let jitter = rand::random::<u64>() % max_jitter;
-
-    Duration::from_millis(delay.saturating_sub(max_jitter / 2).saturating_add(jitter))
+    let radius = delay_ms
+        .saturating_mul(MAX_JITTER_PERCENT)
+        .checked_div(100)
+        .unwrap_or(0)
+        .max(1);
+    let width = radius.saturating_mul(2).saturating_add(1);
+    let offset = draw % width;
+    Duration::from_millis(delay_ms.saturating_sub(radius).saturating_add(offset))
 }
 
 #[cfg(test)]
@@ -1057,6 +1064,22 @@ pub(crate) mod tests {
     fn jitter_test_zero() {
         let jittered_delay = add_jitter(&0);
         assert_eq!(jittered_delay, Duration::from_secs(0));
+    }
+
+    #[test]
+    fn jitter_is_total_at_small_and_maximum_delays() {
+        for delay in [0, 1, 2, 4, 5, 99, 100, u64::MAX] {
+            for draw in [0, 1, u64::MAX / 2, u64::MAX] {
+                let actual = jittered_delay(delay, draw).as_millis();
+                let radius = delay
+                    .saturating_mul(MAX_JITTER_PERCENT)
+                    .checked_div(100)
+                    .unwrap_or(0)
+                    .max(u64::from(delay != 0));
+                assert!(actual >= u128::from(delay.saturating_sub(radius)));
+                assert!(actual <= u128::from(delay.saturating_add(radius)));
+            }
+        }
     }
 
     //Sanity checks that I did the math right

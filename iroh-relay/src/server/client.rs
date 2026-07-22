@@ -1,12 +1,22 @@
 //! The server-side representation of an ongoing client relaying connection.
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use iroh_base::EndpointId;
 use n0_error::{e, stack_error};
 use n0_future::{SinkExt, StreamExt};
 use time::{Date, OffsetDateTime};
-use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio::sync::{
+    Notify,
+    mpsc::{self, error::TrySendError},
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, trace, warn};
 
@@ -27,6 +37,7 @@ use crate::{
     },
     server::{
         ConnectionId, OnDisconnectGuard,
+        admission::SessionLease,
         clients::Clients,
         metrics::Metrics,
         streams::{RecvError as RelayRecvError, RelayedStream, SendError as RelaySendError},
@@ -101,6 +112,16 @@ pub(super) struct Client {
     message_queue: mpsc::Sender<RelayToClientMsg>,
     /// Relay protocol version negotiated for this client.
     protocol_version: ProtocolVersion,
+    /// Owns one global registered-session capacity slot.
+    _session_lease: SessionLease,
+    /// Prevents the actor from running before this client is present in the registry.
+    start_gate: Arc<StartGate>,
+}
+
+#[derive(Debug, Default)]
+struct StartGate {
+    started: AtomicBool,
+    notify: Notify,
 }
 
 impl Client {
@@ -115,6 +136,7 @@ impl Client {
         config: Config<S>,
         clients: &Clients,
         metrics: Arc<Metrics>,
+        session_lease: SessionLease,
     ) -> Result<Client, SpawnError>
     where
         S: BytesStreamSink + Send + 'static,
@@ -132,6 +154,7 @@ impl Client {
         let (packet_send_queue_s, packet_send_queue_r) = mpsc::channel(channel_capacity);
         let (message_send_queue_s, message_send_queue_r) = mpsc::channel(channel_capacity);
         let done = CancellationToken::new();
+        let start_gate = Arc::new(StartGate::default());
 
         let runtime = clients.runtime().clone();
         let actor = Actor {
@@ -139,7 +162,9 @@ impl Client {
             timeout: write_timeout,
             packet_send_queue: packet_send_queue_r,
             message_send_queue: message_send_queue_r,
-            guard,
+            guard: Some(guard),
+            endpoint_id,
+            registered: false,
             clients: clients.clone(),
             client_counter: ClientCounter::new(runtime.wall_clock()),
             ping_tracker: PingTracker::default(),
@@ -149,14 +174,23 @@ impl Client {
 
         // start io loop
         let io_done = done.clone();
+        let actor_start_gate = start_gate.clone();
         let handle = clients.tasks().spawn_owned(
             TaskKind::Relay,
             "relay-server-client",
-            Box::pin(actor.run(io_done).instrument(tracing::info_span!(
-                "client-connection-actor",
-                remote_endpoint = %endpoint_id.fmt_short(),
-                connection_id = %connection_id
-            ))),
+            Box::pin(
+                async move {
+                    actor_start_gate.notify.notified().await;
+                    if actor_start_gate.started.load(Ordering::Acquire) {
+                        actor.run(io_done).await;
+                    }
+                }
+                .instrument(tracing::info_span!(
+                    "client-connection-actor",
+                    remote_endpoint = %endpoint_id.fmt_short(),
+                    connection_id = %connection_id
+                )),
+            ),
         )?;
 
         Ok(Client {
@@ -167,7 +201,15 @@ impl Client {
             packet_queue: packet_send_queue_s,
             message_queue: message_send_queue_s,
             protocol_version,
+            _session_lease: session_lease,
+            start_gate,
         })
+    }
+
+    /// Allows the actor to run after the client has been inserted into the registry.
+    pub(super) fn start(&self) {
+        self.start_gate.started.store(true, Ordering::Release);
+        self.start_gate.notify.notify_one();
     }
 
     pub(super) fn connection_id(&self) -> ConnectionId {
@@ -324,7 +366,9 @@ struct Actor<S> {
     /// Reports the disconnect to access control when dropped.
     ///
     /// Also the owner of this connection's [`EndpointId`] and [`ConnectionId`].
-    guard: OnDisconnectGuard,
+    guard: Option<OnDisconnectGuard>,
+    endpoint_id: EndpointId,
+    registered: bool,
     /// Reference to the other connected clients.
     clients: Clients,
     /// Statistics about the connected clients
@@ -343,7 +387,8 @@ where
         // connection is accepted long before this in the HTTP server, but it is clearer to
         // handle the metric here.
         self.metrics.accepts.inc();
-        if self.client_counter.update(self.guard.endpoint_id()) {
+        self.registered = true;
+        if self.client_counter.update(self.endpoint_id) {
             self.metrics.unique_client_keys.inc();
         }
         match self.run_inner(done).await {
@@ -354,9 +399,6 @@ where
                 debug!("actor finished, exiting");
             }
         }
-
-        self.clients.unregister(self.guard, &self.metrics);
-        self.metrics.disconnects.inc();
     }
 
     async fn run_inner(&mut self, done: CancellationToken) -> Result<(), RunError> {
@@ -518,9 +560,21 @@ where
     ) -> Result<(), ForwardPacketError> {
         self.metrics.send_packets_recv.inc();
         self.clients
-            .send_packet(dst, data, self.guard.endpoint_id(), &self.metrics)?;
+            .send_packet(dst, data, self.endpoint_id, &self.metrics)?;
 
         Ok(())
+    }
+}
+
+impl<S> Drop for Actor<S> {
+    fn drop(&mut self) {
+        if !self.registered {
+            return;
+        }
+        if let Some(guard) = self.guard.take() {
+            self.clients.unregister(guard, &self.metrics);
+            self.metrics.disconnects.inc();
+        }
     }
 }
 
@@ -651,7 +705,9 @@ mod tests {
             timeout: Duration::from_secs(1),
             packet_send_queue: send_queue_r,
             message_send_queue: message_r,
-            guard: OnDisconnectGuard::empty(endpoint_id),
+            guard: Some(OnDisconnectGuard::empty(endpoint_id)),
+            endpoint_id,
+            registered: false,
             clients: clients.clone(),
             client_counter: ClientCounter::new(clients.runtime().wall_clock()),
             ping_tracker: PingTracker::default(),

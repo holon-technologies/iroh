@@ -258,10 +258,10 @@ mod tests {
             .await?;
 
         let key = SecretKey::from_bytes(&[0u8; 32]);
-        let addr = EndpointAddr::from_parts(
+        let addr = EndpointAddr::try_from_parts(
             key.public(),
             [TransportAddr::Relay("https://example.com".parse()?)],
-        );
+        )?;
         let user_data = Some("foobar".parse().unwrap());
         let endpoint_info = EndpointInfo::from(addr.clone()).with_user_data(user_data.clone());
         address_lookup.add_endpoint_info(endpoint_info.clone());
@@ -288,10 +288,10 @@ mod tests {
     async fn test_provenance() -> Result {
         let address_lookup = MemoryLookup::with_provenance("foo");
         let key = SecretKey::from_bytes(&[0u8; 32]);
-        let addr = EndpointAddr::from_parts(
+        let addr = EndpointAddr::try_from_parts(
             key.public(),
             [TransportAddr::Relay("https://example.com".parse()?)],
-        );
+        )?;
         address_lookup.add_endpoint_info(addr);
         let mut stream = address_lookup.resolve(key.public()).unwrap();
         let item = stream.next().await.unwrap()?;

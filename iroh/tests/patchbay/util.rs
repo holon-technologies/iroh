@@ -472,7 +472,8 @@ fn endpoint_builder(device: &Device, relay_map: RelayMap) -> iroh::endpoint::Bui
 }
 
 fn addr_relay_only(addr: EndpointAddr) -> EndpointAddr {
-    EndpointAddr::from_parts(addr.id, addr.addrs.into_iter().filter(|a| a.is_relay()))
+    EndpointAddr::try_from_parts(addr.id, addr.addrs.into_iter().filter(|a| a.is_relay()))
+        .expect("an already validated relay subset remains bounded")
 }
 
 mod relay {

@@ -276,6 +276,14 @@ pub enum AddressLookupFailed {
         }
     )]
     NoResults { errors: Vec<Error> },
+    #[error("Pending remote resolve capacity is full (maximum {maximum})")]
+    ResolveCapacityFull { maximum: usize },
+    #[error("Address lookup emitted more than {maximum} items")]
+    ItemCapacityFull { maximum: usize },
+    #[error("Address lookup exceeded its {duration:?} deadline")]
+    DeadlineExceeded { duration: std::time::Duration },
+    #[error("Endpoint address exceeds a configured count or byte limit")]
+    AddressLimitExceeded,
 }
 
 /// Error returned by address lookup services when failing to perform the lookup.
@@ -1132,10 +1140,10 @@ mod tests {
         })
         .await;
 
-        let ep1_wrong_addr = EndpointAddr::from_parts(
+        let ep1_wrong_addr = EndpointAddr::try_from_parts(
             ep1.id(),
             [TransportAddr::Ip("240.0.0.1:1000".parse().unwrap())],
-        );
+        )?;
         let _conn = ep2.connect(ep1_wrong_addr, TEST_ALPN).await?;
         Ok(())
     }
@@ -1323,7 +1331,7 @@ mod test_dns_pkarr {
             .await?;
         println!("resolved {resolved:?}");
 
-        let expected_addr = EndpointAddr::from_parts(endpoint_id, relay_url);
+        let expected_addr = EndpointAddr::try_from_parts(endpoint_id, relay_url)?;
 
         assert_eq!(resolved.to_endpoint_addr(), expected_addr);
         assert_eq!(resolved.user_data(), Some(&user_data));

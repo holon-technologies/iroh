@@ -11,7 +11,7 @@ use std::panic::AssertUnwindSafe;
 
 #[cfg(not(wasm_browser))]
 use futures_util::FutureExt;
-use iroh_base::{CustomAddr, EndpointId, RelayUrl, TransportAddr};
+use iroh_base::{CustomAddr, EndpointAddr, EndpointId, RelayUrl, TransportAddr};
 #[cfg(not(wasm_browser))]
 use iroh_runtime::Instant;
 use n0_error::StackResultExt;
@@ -85,6 +85,11 @@ const UPGRADE_INTERVAL: Duration = Duration::from_secs(60);
 /// in a high frequency, and to keep data about previous path around for subsequent connections.
 const ACTOR_MAX_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Maximum number of results consumed from one address lookup run.
+const MAX_ADDRESS_LOOKUP_ITEMS: usize = 64;
+/// Maximum duration of one address lookup run.
+const ADDRESS_LOOKUP_DURATION: Duration = Duration::from_secs(15);
+
 /// A stream of events from all paths for all connections.
 ///
 /// The connection is identified using [`ConnId`].  The event `Err` variant happens when the
@@ -103,6 +108,37 @@ type AddrEvents = MergeUnbounded<
         >,
     >,
 >;
+
+/// Accounting state for one bounded address lookup run.
+#[derive(Debug)]
+struct AddressLookupBudget {
+    emitted_items: usize,
+    deadline: Instant,
+}
+
+impl AddressLookupBudget {
+    fn new(now: Instant) -> Self {
+        Self {
+            emitted_items: 0,
+            deadline: now + ADDRESS_LOOKUP_DURATION,
+        }
+    }
+
+    fn admit_item(&mut self, now: Instant) -> Result<(), AddressLookupFailed> {
+        if now >= self.deadline {
+            return Err(n0_error::e!(AddressLookupFailed::DeadlineExceeded {
+                duration: ADDRESS_LOOKUP_DURATION,
+            }));
+        }
+        if self.emitted_items >= MAX_ADDRESS_LOOKUP_ITEMS {
+            return Err(n0_error::e!(AddressLookupFailed::ItemCapacityFull {
+                maximum: MAX_ADDRESS_LOOKUP_ITEMS,
+            }));
+        }
+        self.emitted_items += 1;
+        Ok(())
+    }
+}
 
 /// The state we need to know about a single remote endpoint.
 ///
@@ -182,6 +218,8 @@ struct State {
     //
     /// Stream of Address Lookup results, or always pending if Address Lookup is not running.
     address_lookup_stream: Option<BoxStream<Result<AddressLookupItem, AddressLookupFailed>>>,
+    /// Item and absolute-time budget for the active Address Lookup run.
+    address_lookup_budget: Option<AddressLookupBudget>,
 
     /// The path selector used to pick the preferred path among the candidates.
     path_selector: Arc<dyn PathSelector>,
@@ -220,6 +258,7 @@ impl RemoteStateActor {
                 scheduled_open_path: None,
                 pending_open_paths: VecDeque::new(),
                 address_lookup_stream: None,
+                address_lookup_budget: None,
                 path_selector,
             },
         }
@@ -367,6 +406,26 @@ impl RemoteStateActor {
             };
             #[cfg(wasm_browser)]
             n0_future::pin!(scheduled_hp);
+            #[cfg(wasm_browser)]
+            let address_lookup_deadline = match self.state.address_lookup_budget.as_ref() {
+                Some(budget) => MaybeFuture::Some(time::sleep_until(budget.deadline)),
+                None => MaybeFuture::None,
+            };
+            #[cfg(not(wasm_browser))]
+            let mut address_lookup_deadline = match self.state.address_lookup_budget.as_ref() {
+                Some(budget) => {
+                    match RuntimeSleep::new(self.state.runtime.context().clock(), budget.deadline) {
+                        Ok(sleep) => MaybeFuture::Some(sleep),
+                        Err(error) => {
+                            self.state.runtime.latch_failure(error.to_string());
+                            break;
+                        }
+                    }
+                }
+                None => MaybeFuture::None,
+            };
+            #[cfg(wasm_browser)]
+            n0_future::pin!(address_lookup_deadline);
             if !self.is_idle(&inbox) {
                 #[cfg(wasm_browser)]
                 idle_timeout
@@ -385,6 +444,14 @@ impl RemoteStateActor {
                 _ = shutdown_token.cancelled() => {
                     trace!("actor cancelled");
                     break;
+                }
+                deadline = &mut address_lookup_deadline => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = deadline {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
+                    self.state.handle_address_lookup_deadline();
                 }
                 msg = inbox.recv() => {
                     match msg {
@@ -1024,6 +1091,20 @@ impl State {
             Err(err) => Some(Err(err)),
         });
         self.address_lookup_stream = Some(Box::pin(stream));
+        self.address_lookup_budget = Some(AddressLookupBudget::new(self.now()));
+    }
+
+    fn finish_address_lookup(&mut self, result: Result<(), AddressLookupFailed>) {
+        self.paths.address_lookup_finished(result);
+        self.address_lookup_stream = None;
+        self.address_lookup_budget = None;
+    }
+
+    fn handle_address_lookup_deadline(&mut self) {
+        self.metrics.address_lookup_deadlines_exceeded.inc();
+        self.finish_address_lookup(Err(n0_error::e!(AddressLookupFailed::DeadlineExceeded {
+            duration: ADDRESS_LOOKUP_DURATION,
+        })));
     }
 
     /// Handles an address lookup result.
@@ -1036,8 +1117,7 @@ impl State {
     ) {
         match item {
             None => {
-                self.paths.address_lookup_finished(Ok(()));
-                self.address_lookup_stream = None;
+                self.finish_address_lookup(Ok(()));
             }
             Some(Err(err)) => {
                 if let AddressLookupFailed::NoServiceConfigured { .. } = err {
@@ -1045,10 +1125,31 @@ impl State {
                 } else {
                     debug!("Address Lookup failed: {err:#}");
                 }
-                self.paths.address_lookup_finished(Err(err));
-                self.address_lookup_stream = None;
+                self.finish_address_lookup(Err(err));
             }
             Some(Ok(item)) => {
+                let now = self.now();
+                let Some(budget) = self.address_lookup_budget.as_mut() else {
+                    error!("address lookup stream is active without an accounting budget");
+                    self.finish_address_lookup(Err(n0_error::e!(AddressLookupFailed::NoResults {
+                        errors: Vec::new()
+                    })));
+                    return;
+                };
+                let budget_result = budget.admit_item(now);
+                if let Err(err) = budget_result {
+                    match &err {
+                        AddressLookupFailed::ItemCapacityFull { .. } => {
+                            self.metrics.address_lookup_items_rejected.inc();
+                        }
+                        AddressLookupFailed::DeadlineExceeded { .. } => {
+                            self.metrics.address_lookup_deadlines_exceeded.inc();
+                        }
+                        _ => {}
+                    }
+                    self.finish_address_lookup(Err(err));
+                    return;
+                }
                 if item.endpoint_id() != self.endpoint_id {
                     warn!(
                         ?item,
@@ -1058,8 +1159,14 @@ impl State {
                     let source = Source::AddressLookup {
                         name: item.provenance().to_string(),
                     };
-                    let addrs =
-                        to_transports_addr(self.endpoint_id, item.into_endpoint_addr().addrs);
+                    let endpoint_addr = item.into_endpoint_addr();
+                    let Ok(endpoint_addr) =
+                        EndpointAddr::try_from_parts(endpoint_addr.id, endpoint_addr.addrs)
+                    else {
+                        self.metrics.endpoint_addresses_rejected.inc();
+                        return;
+                    };
+                    let addrs = to_transports_addr(self.endpoint_id, endpoint_addr.addrs);
                     self.paths.insert_multiple(addrs, source, self.now());
                 }
             }
@@ -1672,5 +1779,35 @@ async fn maybe_next<S: Stream + Unpin>(maybe_stream: Option<&mut S>) -> Option<O
     match maybe_stream {
         None => None,
         Some(s) => Some(s.next().await),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn address_lookup_budget_counts_every_emitted_item() {
+        let now = Instant::now();
+        let mut budget = AddressLookupBudget::new(now);
+
+        for _ in 0..MAX_ADDRESS_LOOKUP_ITEMS {
+            assert!(budget.admit_item(now).is_ok());
+        }
+        assert!(matches!(
+            budget.admit_item(now),
+            Err(AddressLookupFailed::ItemCapacityFull { maximum, .. })
+                if maximum == MAX_ADDRESS_LOOKUP_ITEMS
+        ));
+        assert_eq!(budget.emitted_items, MAX_ADDRESS_LOOKUP_ITEMS);
+    }
+
+    #[test]
+    fn address_lookup_budget_uses_an_absolute_deadline() {
+        let now = Instant::now();
+        let mut budget = AddressLookupBudget::new(now);
+
+        assert!(budget.admit_item(now + ADDRESS_LOOKUP_DURATION).is_err());
+        assert_eq!(budget.emitted_items, 0);
     }
 }

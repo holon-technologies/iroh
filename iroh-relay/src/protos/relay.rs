@@ -22,6 +22,13 @@ use crate::{KeyCache, http::ProtocolVersion};
 /// including its on-wire framing overhead)
 pub const MAX_PACKET_SIZE: usize = 64 * 1024;
 
+/// Largest restart duration representable by the relay wire protocol, in milliseconds.
+pub const MAX_RESTART_DURATION_MILLIS: u64 = u32::MAX as u64;
+
+fn restart_duration_millis(duration: Duration) -> u32 {
+    u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+}
+
 /// The maximum frame size.
 ///
 /// This is also the minimum burst size that a rate-limiter has to accept.
@@ -347,8 +354,8 @@ impl RelayToClientMsg {
                 reconnect_in,
                 try_for,
             } => {
-                dst.put_u32(reconnect_in.as_millis() as u32);
-                dst.put_u32(try_for.as_millis() as u32);
+                dst.put_u32(restart_duration_millis(*reconnect_in));
+                dst.put_u32(restart_duration_millis(*try_for));
             }
             Self::Status(status) => {
                 dst = status.write_to(dst);
@@ -742,6 +749,34 @@ mod tests {
         ]);
 
         Ok(())
+    }
+
+    #[test]
+    fn restarting_duration_saturates_at_wire_maximum() {
+        let below = MAX_RESTART_DURATION_MILLIS - 1;
+        let maximum = MAX_RESTART_DURATION_MILLIS;
+        let above = MAX_RESTART_DURATION_MILLIS + 1;
+
+        assert_eq!(
+            restart_duration_millis(Duration::from_millis(below)),
+            u32::MAX - 1
+        );
+        assert_eq!(
+            restart_duration_millis(Duration::from_millis(maximum)),
+            u32::MAX
+        );
+        assert_eq!(
+            restart_duration_millis(Duration::from_millis(above)),
+            u32::MAX
+        );
+
+        let encoded = RelayToClientMsg::Restarting {
+            reconnect_in: Duration::from_millis(above),
+            try_for: Duration::from_millis(maximum),
+        }
+        .write_to(Vec::new());
+        assert_eq!(&encoded[1..5], &u32::MAX.to_be_bytes());
+        assert_eq!(&encoded[5..9], &u32::MAX.to_be_bytes());
     }
 
     /// A datagram frame must contain at least an EndpointId (32 bytes) after

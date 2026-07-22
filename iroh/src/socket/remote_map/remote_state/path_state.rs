@@ -19,10 +19,25 @@ use crate::{address_lookup::AddressLookupFailed, metrics::SocketMetrics, socket:
 
 /// Maximum number of non-relay paths we keep around per endpoint.
 pub(super) const MAX_NON_RELAY_PATHS: usize = 30;
+/// Maximum number of relay paths retained per endpoint.
+pub(super) const MAX_RELAY_PATHS: usize = 4;
+/// Maximum number of custom transport paths retained per endpoint.
+pub(super) const MAX_CUSTOM_PATHS: usize = 8;
+/// Maximum number of paths retained per endpoint across all transports.
+pub(super) const MAX_PATHS: usize = MAX_NON_RELAY_PATHS + MAX_RELAY_PATHS;
+/// Maximum candidates consumed from one insertion call or one source.
+const MAX_CANDIDATES_PER_SOURCE: usize = 30;
+/// Maximum distinct source identities retained for one remote endpoint.
+const MAX_DISTINCT_SOURCES: usize = 16;
+/// Maximum source attributions retained for one path.
+const MAX_SOURCES_PER_PATH: usize = 8;
+/// Maximum unresolved callers retained while address lookup is in flight.
+const MAX_PENDING_RESOLVE_REQUESTS: usize = 32;
 
 /// Maximum number of inactive non-relay paths we keep around per endpoint.
 ///
 /// These are paths that at one point been opened and are now closed.
+#[cfg(test)]
 pub(super) const MAX_INACTIVE_NON_RELAY_PATHS: usize = 10;
 
 /// Map of all paths that we are aware of for a remote endpoint.
@@ -39,6 +54,35 @@ pub(super) struct RemotePathState {
     /// Pending resolve requests from [`Self::resolve_remote`].
     pending_resolve_requests: VecDeque<oneshot::Sender<Result<(), AddressLookupFailed>>>,
     metrics: Arc<SocketMetrics>,
+    next_admission_sequence: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PathLimit {
+    CandidatesPerCall,
+    CandidatesPerSource,
+    DistinctSources,
+    SourcesPerPath,
+    Total,
+    Relay,
+    NonRelay,
+    Custom,
+    Protected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PathAdmissionOutcome {
+    Inserted,
+    Updated,
+    Evicted { limit: PathLimit },
+    Rejected { limit: PathLimit },
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PathTransportKind {
+    Ip,
+    Relay,
+    Custom,
 }
 
 /// Describes the usability of this path, i.e. whether it has ever been opened,
@@ -63,6 +107,7 @@ impl RemotePathState {
             paths: Default::default(),
             pending_resolve_requests: Default::default(),
             metrics,
+            next_admission_sequence: 0,
         }
     }
 
@@ -92,17 +137,22 @@ impl RemotePathState {
         addr: transports::Addr,
         source: Source,
         now: Instant,
-    ) {
-        match addr {
-            transports::Addr::Ip(_) => self.metrics.transport_ip_paths_added.inc(),
-            transports::Addr::Relay(_, _) => self.metrics.transport_relay_paths_added.inc(),
-            transports::Addr::Custom(_) => self.metrics.transport_custom_paths_added.inc(),
+    ) -> PathAdmissionOutcome {
+        let transport_kind = match &addr {
+            transports::Addr::Ip(_) => PathTransportKind::Ip,
+            transports::Addr::Relay(_, _) => PathTransportKind::Relay,
+            transports::Addr::Custom(_) => PathTransportKind::Custom,
         };
-        let state = self.paths.entry(addr).or_default();
-        state.status = PathStatus::Open;
-        state.sources.insert(source.clone(), now);
-        self.emit_pending_resolve_requests(None);
-        self.prune_paths();
+        let outcome = self.insert_candidate(addr, source, now, PathStatus::Open);
+        if !matches!(outcome, PathAdmissionOutcome::Rejected { .. }) {
+            match transport_kind {
+                PathTransportKind::Ip => self.metrics.transport_ip_paths_added.inc(),
+                PathTransportKind::Relay => self.metrics.transport_relay_paths_added.inc(),
+                PathTransportKind::Custom => self.metrics.transport_custom_paths_added.inc(),
+            };
+            self.emit_pending_resolve_requests(None);
+        }
+        outcome
     }
 
     /// Mark a path as abandoned.
@@ -145,20 +195,24 @@ impl RemotePathState {
         addrs: impl Iterator<Item = transports::Addr>,
         source: Source,
         now: Instant,
-    ) {
+    ) -> Vec<PathAdmissionOutcome> {
         let was_empty = self.paths.is_empty();
-        for addr in addrs {
-            self.paths
-                .entry(addr)
-                .or_default()
-                .sources
-                .insert(source.clone(), now);
+        let mut outcomes = Vec::with_capacity(MAX_CANDIDATES_PER_SOURCE);
+        for (index, addr) in addrs.enumerate() {
+            if index >= MAX_CANDIDATES_PER_SOURCE {
+                self.metrics.path_candidates_rejected.inc();
+                outcomes.push(PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::CandidatesPerCall,
+                });
+                break;
+            }
+            outcomes.push(self.insert_candidate(addr, source.clone(), now, PathStatus::Unknown));
         }
         trace!("added addressing information");
         if was_empty && !self.paths.is_empty() {
             self.emit_pending_resolve_requests(None);
         }
-        self.prune_paths();
+        outcomes
     }
 
     /// Sends back on `tx` once a possible path to the remote is known.
@@ -169,6 +223,12 @@ impl RemotePathState {
     pub(super) fn resolve_remote(&mut self, tx: oneshot::Sender<Result<(), AddressLookupFailed>>) {
         if !self.paths.is_empty() {
             tx.send(Ok(())).ok();
+        } else if self.pending_resolve_requests.len() >= MAX_PENDING_RESOLVE_REQUESTS {
+            self.metrics.pending_resolve_requests_rejected.inc();
+            tx.send(Err(e!(AddressLookupFailed::ResolveCapacityFull {
+                maximum: MAX_PENDING_RESOLVE_REQUESTS,
+            })))
+            .ok();
         } else {
             self.pending_resolve_requests.push_back(tx);
         }
@@ -214,14 +274,118 @@ impl RemotePathState {
         }
     }
 
-    /// Prune paths.
-    ///
-    /// Should be invoked any time we insert a new path.
-    ///
-    /// We currently only prune non-relay paths. For more information on the
-    /// criteria for when and which paths we prune, look at the [`prune_non_relay_paths`] function.
-    pub(super) fn prune_paths(&mut self) {
-        prune_non_relay_paths(&mut self.paths);
+    fn insert_candidate(
+        &mut self,
+        addr: transports::Addr,
+        source: Source,
+        now: Instant,
+        status: PathStatus,
+    ) -> PathAdmissionOutcome {
+        if let Some(existing) = self.paths.get(&addr) {
+            let adds_attribution = !existing.sources.contains_key(&source);
+            if adds_attribution && existing.sources.len() >= MAX_SOURCES_PER_PATH {
+                self.metrics.path_candidates_rejected.inc();
+                return PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::SourcesPerPath,
+                };
+            }
+            if adds_attribution
+                && self
+                    .paths
+                    .values()
+                    .filter(|state| state.sources.contains_key(&source))
+                    .count()
+                    >= MAX_CANDIDATES_PER_SOURCE
+            {
+                self.metrics.path_candidates_rejected.inc();
+                return PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::CandidatesPerSource,
+                };
+            }
+            if adds_attribution
+                && !self
+                    .paths
+                    .values()
+                    .any(|state| state.sources.contains_key(&source))
+                && self.distinct_source_count() >= MAX_DISTINCT_SOURCES
+            {
+                self.metrics.path_candidates_rejected.inc();
+                return PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::DistinctSources,
+                };
+            }
+            let Some(existing) = self.paths.get_mut(&addr) else {
+                return PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::Protected,
+                };
+            };
+            existing.sources.insert(source, now);
+            if matches!(status, PathStatus::Open) {
+                existing.status = PathStatus::Open;
+            }
+            return PathAdmissionOutcome::Updated;
+        }
+
+        let paths_for_source = self
+            .paths
+            .values()
+            .filter(|state| state.sources.contains_key(&source))
+            .count();
+        if paths_for_source >= MAX_CANDIDATES_PER_SOURCE {
+            self.metrics.path_candidates_rejected.inc();
+            return PathAdmissionOutcome::Rejected {
+                limit: PathLimit::CandidatesPerSource,
+            };
+        }
+        let source_is_known = self
+            .paths
+            .values()
+            .any(|state| state.sources.contains_key(&source));
+        if !source_is_known && self.distinct_source_count() >= MAX_DISTINCT_SOURCES {
+            self.metrics.path_candidates_rejected.inc();
+            return PathAdmissionOutcome::Rejected {
+                limit: PathLimit::DistinctSources,
+            };
+        }
+
+        let admission_sequence = self.next_admission_sequence;
+        self.next_admission_sequence = self.next_admission_sequence.saturating_add(1);
+        let state = PathState {
+            sources: HashMap::from([(source, now)]),
+            status,
+            admission_sequence,
+        };
+
+        let violated = violated_limit(&self.paths, &addr);
+        if let Some(limit) = violated {
+            let candidate = worst_evictable_path(&self.paths, limit);
+            let Some(candidate) = candidate else {
+                self.metrics.path_candidates_rejected.inc();
+                return PathAdmissionOutcome::Rejected {
+                    limit: PathLimit::Protected,
+                };
+            };
+            let candidate_state = &self.paths[&candidate];
+            if retention_cmp(&addr, &state, &candidate, candidate_state).is_le() {
+                self.metrics.path_candidates_rejected.inc();
+                return PathAdmissionOutcome::Rejected { limit };
+            }
+            self.paths.remove(&candidate);
+            self.metrics.path_candidates_evicted.inc();
+            self.paths.insert(addr, state);
+            return PathAdmissionOutcome::Evicted { limit };
+        }
+
+        self.paths.insert(addr, state);
+        PathAdmissionOutcome::Inserted
+    }
+
+    fn distinct_source_count(&self) -> usize {
+        self.paths
+            .values()
+            .flat_map(|state| state.sources.keys())
+            .collect::<HashSet<_>>()
+            .len()
     }
 }
 
@@ -240,6 +404,8 @@ pub(super) struct PathState {
     pub(super) sources: HashMap<Source, Instant>,
     /// The usability status of this path.
     pub(super) status: PathStatus,
+    /// Stable order assigned when this path was first admitted.
+    admission_sequence: u64,
 }
 
 /// Prunes the non-relay paths in the paths HashMap.
@@ -259,17 +425,21 @@ pub(super) struct PathState {
 /// - We do not have unbounded growth of paths.
 /// - If we have many paths for this remote, we prune the paths that cannot hole punch.
 /// - We do not prune holepunched paths that are currently not in use too quickly. For example, if a large number of untested paths are added at once, we will not immediately prune all of the unused, but valid, paths at once.
-fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) {
+#[cfg(test)]
+fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) -> usize {
+    let initial_len = paths.len();
     // if the total number of paths is less than the max, bail early
     if paths.len() < MAX_NON_RELAY_PATHS {
-        return;
+        prune_to_hard_limits(paths);
+        return initial_len.saturating_sub(paths.len());
     }
 
     let primary_paths: Vec<_> = paths.iter().filter(|(addr, _)| !addr.is_relay()).collect();
 
     // if the total number of non-relay paths is less than the max, bail early
     if primary_paths.len() < MAX_NON_RELAY_PATHS {
-        return;
+        prune_to_hard_limits(paths);
+        return initial_len.saturating_sub(paths.len());
     }
 
     // paths that were opened at one point but have previously been closed
@@ -293,6 +463,8 @@ fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) {
         }
     }
 
+    failed.sort();
+
     // All paths are bad, don't prune all of them.
     //
     // This implies that `inactive` is empty.
@@ -302,7 +474,9 @@ fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) {
     }
 
     // sort the potentially prunable from most recently closed to least recently closed
-    inactive.sort_by_key(|b| std::cmp::Reverse(b.1));
+    inactive.sort_by(|(addr_a, time_a), (addr_b, time_b)| {
+        time_b.cmp(time_a).then_with(|| addr_a.cmp(addr_b))
+    });
 
     // Prune the "oldest" closed paths.
     let old_inactive =
@@ -315,6 +489,134 @@ fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) {
         .collect();
 
     paths.retain(|addr, _| !must_prune.contains(addr));
+    prune_to_hard_limits(paths);
+    initial_len.saturating_sub(paths.len())
+}
+
+#[cfg(test)]
+fn prune_to_hard_limits(paths: &mut FxHashMap<transports::Addr, PathState>) {
+    while let Some(limit) = current_violated_limit(paths) {
+        let Some(candidate) = worst_evictable_path(paths, limit) else {
+            break;
+        };
+        paths.remove(&candidate);
+    }
+}
+
+#[cfg(test)]
+fn current_violated_limit(paths: &FxHashMap<transports::Addr, PathState>) -> Option<PathLimit> {
+    let relay = paths.keys().filter(|addr| addr.is_relay()).count();
+    let custom = paths
+        .keys()
+        .filter(|addr| matches!(addr, transports::Addr::Custom(_)))
+        .count();
+    let non_relay = paths.len().saturating_sub(relay);
+    if relay > MAX_RELAY_PATHS {
+        Some(PathLimit::Relay)
+    } else if custom > MAX_CUSTOM_PATHS {
+        Some(PathLimit::Custom)
+    } else if non_relay > MAX_NON_RELAY_PATHS {
+        Some(PathLimit::NonRelay)
+    } else if paths.len() > MAX_PATHS {
+        Some(PathLimit::Total)
+    } else {
+        None
+    }
+}
+
+fn violated_limit(
+    paths: &FxHashMap<transports::Addr, PathState>,
+    new_addr: &transports::Addr,
+) -> Option<PathLimit> {
+    let relay = paths.keys().filter(|addr| addr.is_relay()).count();
+    let custom = paths
+        .keys()
+        .filter(|addr| matches!(addr, transports::Addr::Custom(_)))
+        .count();
+    let new_is_relay = new_addr.is_relay();
+    let new_is_custom = matches!(new_addr, transports::Addr::Custom(_));
+    let non_relay = paths.len().saturating_sub(relay);
+    if new_is_relay && relay >= MAX_RELAY_PATHS {
+        Some(PathLimit::Relay)
+    } else if new_is_custom && custom >= MAX_CUSTOM_PATHS {
+        Some(PathLimit::Custom)
+    } else if !new_is_relay && non_relay >= MAX_NON_RELAY_PATHS {
+        Some(PathLimit::NonRelay)
+    } else if paths.len() >= MAX_PATHS {
+        Some(PathLimit::Total)
+    } else {
+        None
+    }
+}
+
+fn worst_evictable_path(
+    paths: &FxHashMap<transports::Addr, PathState>,
+    limit: PathLimit,
+) -> Option<transports::Addr> {
+    paths
+        .iter()
+        .filter(|(addr, state)| {
+            !matches!(state.status, PathStatus::Open)
+                && match limit {
+                    PathLimit::Relay => addr.is_relay(),
+                    PathLimit::Custom => matches!(addr, transports::Addr::Custom(_)),
+                    PathLimit::NonRelay => !addr.is_relay(),
+                    PathLimit::Total => true,
+                    _ => false,
+                }
+        })
+        .min_by(|(addr_a, state_a), (addr_b, state_b)| {
+            retention_cmp(addr_a, state_a, addr_b, state_b)
+        })
+        .map(|(addr, _)| addr.clone())
+}
+
+fn retention_cmp(
+    addr_a: &transports::Addr,
+    state_a: &PathState,
+    addr_b: &transports::Addr,
+    state_b: &PathState,
+) -> std::cmp::Ordering {
+    status_rank(&state_a.status)
+        .cmp(&status_rank(&state_b.status))
+        .then_with(|| status_freshness(state_a).cmp(&status_freshness(state_b)))
+        .then_with(|| source_rank(state_a).cmp(&source_rank(state_b)))
+        .then_with(|| source_freshness(state_a).cmp(&source_freshness(state_b)))
+        .then_with(|| state_b.admission_sequence.cmp(&state_a.admission_sequence))
+        .then_with(|| addr_b.cmp(addr_a))
+}
+
+fn status_freshness(state: &PathState) -> Option<Instant> {
+    match state.status {
+        PathStatus::Inactive(instant) => Some(instant),
+        PathStatus::Open | PathStatus::Unusable | PathStatus::Unknown => None,
+    }
+}
+
+fn status_rank(status: &PathStatus) -> u8 {
+    match status {
+        PathStatus::Open => 4,
+        PathStatus::Inactive(_) => 3,
+        PathStatus::Unknown => 2,
+        PathStatus::Unusable => 1,
+    }
+}
+
+fn source_rank(state: &PathState) -> u8 {
+    state
+        .sources
+        .keys()
+        .map(|source| match source {
+            Source::Connection => 3,
+            Source::App => 2,
+            Source::AddressLookup { .. } => 1,
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn source_freshness(state: &PathState) -> Option<Instant> {
+    state.sources.values().copied().max()
 }
 
 #[cfg(test)]
@@ -324,7 +626,7 @@ mod tests {
         time::Duration,
     };
 
-    use iroh_base::{RelayUrl, SecretKey};
+    use iroh_base::{CustomAddr, RelayUrl, SecretKey};
     use rand::{RngExt, SeedableRng};
 
     use super::*;
@@ -333,10 +635,55 @@ mod tests {
         transports::Addr::Ip(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port).into())
     }
 
+    fn relay_addr(seed: u8) -> transports::Addr {
+        let relay_url: RelayUrl = url::Url::parse("https://localhost")
+            .expect("test relay URL is valid")
+            .into();
+        let endpoint_id = SecretKey::from_bytes(&[seed; 32]).public();
+        transports::Addr::Relay(relay_url, endpoint_id)
+    }
+
+    fn assert_path_bounds(state: &RemotePathState) {
+        let relay_count = state.paths.keys().filter(|addr| addr.is_relay()).count();
+        let custom_count = state
+            .paths
+            .keys()
+            .filter(|addr| matches!(addr, transports::Addr::Custom(_)))
+            .count();
+        assert!(state.paths.len() <= MAX_PATHS);
+        assert!(relay_count <= MAX_RELAY_PATHS);
+        assert!(state.paths.len().saturating_sub(relay_count) <= MAX_NON_RELAY_PATHS);
+        assert!(custom_count <= MAX_CUSTOM_PATHS);
+
+        let sources = state
+            .paths
+            .values()
+            .flat_map(|path| path.sources.keys())
+            .collect::<HashSet<_>>();
+        assert!(sources.len() <= MAX_DISTINCT_SOURCES);
+        assert!(
+            state
+                .paths
+                .values()
+                .all(|path| path.sources.len() <= MAX_SOURCES_PER_PATH)
+        );
+        for source in sources {
+            assert!(
+                state
+                    .paths
+                    .values()
+                    .filter(|path| path.sources.contains_key(source))
+                    .count()
+                    <= MAX_CANDIDATES_PER_SOURCE
+            );
+        }
+    }
+
     fn path_state_inactive(closed: Instant) -> PathState {
         PathState {
             sources: HashMap::new(),
             status: PathStatus::Inactive(closed),
+            admission_sequence: 0,
         }
     }
 
@@ -344,6 +691,7 @@ mod tests {
         PathState {
             sources: HashMap::new(),
             status: PathStatus::Unusable,
+            admission_sequence: 0,
         }
     }
 
@@ -492,7 +840,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prune_relay_paths_not_counted() {
+    fn test_prune_enforces_total_and_relay_limits() {
         let mut paths = FxHashMap::default();
 
         // Add 25 IP paths (under MAX_NON_RELAY_PATHS)
@@ -514,8 +862,201 @@ mod tests {
         assert_eq!(35, paths.len()); // 25 IP + 10 relay
         prune_non_relay_paths(&mut paths);
 
-        // Should not prune since non-relay paths < MAX_NON_RELAY_PATHS
-        assert_eq!(35, paths.len());
+        assert!(paths.len() <= 34, "total retained paths must be bounded");
+        assert!(
+            paths.keys().filter(|addr| addr.is_relay()).count() <= 4,
+            "relay paths must be independently bounded"
+        );
+    }
+
+    #[test]
+    fn insert_multiple_bounds_unknown_and_custom_paths() {
+        let mut state = RemotePathState::new(Default::default());
+        state.insert_multiple(
+            (0..40).map(ip_addr),
+            Source::AddressLookup {
+                name: "unknown-flood".to_string(),
+            },
+            Instant::now(),
+        );
+        assert!(state.paths.len() <= MAX_NON_RELAY_PATHS);
+
+        let custom = (0..20).map(|id| {
+            transports::Addr::Custom(CustomAddr::try_from_parts(id, &[id as u8]).unwrap())
+        });
+        state.insert_multiple(custom, Source::App, Instant::now());
+        assert!(
+            state
+                .paths
+                .keys()
+                .filter(|addr| matches!(addr, transports::Addr::Custom(_)))
+                .count()
+                <= 8
+        );
+        assert!(state.paths.len() <= 34);
+    }
+
+    #[test]
+    fn protected_open_paths_reject_the_new_candidate() {
+        let mut state = RemotePathState::new(Default::default());
+        for port in 0..MAX_NON_RELAY_PATHS as u16 {
+            assert!(matches!(
+                state.insert_open_path(ip_addr(port), Source::Connection, Instant::now()),
+                PathAdmissionOutcome::Inserted
+            ));
+        }
+
+        let rejected = ip_addr(50_000);
+        let outcomes =
+            state.insert_multiple([rejected.clone()].into_iter(), Source::App, Instant::now());
+        assert_eq!(
+            outcomes,
+            vec![PathAdmissionOutcome::Rejected {
+                limit: PathLimit::Protected
+            }]
+        );
+        assert_eq!(state.paths.len(), MAX_NON_RELAY_PATHS);
+        assert!(!state.paths.contains_key(&rejected));
+    }
+
+    #[test]
+    fn explicit_application_path_evicts_lookup_path_deterministically() {
+        let mut state = RemotePathState::new(Default::default());
+        state.insert_multiple(
+            (0..MAX_NON_RELAY_PATHS as u16).map(ip_addr),
+            Source::AddressLookup {
+                name: "lookup".to_string(),
+            },
+            Instant::now(),
+        );
+        let app_addr = ip_addr(55_000);
+        let outcomes =
+            state.insert_multiple([app_addr.clone()].into_iter(), Source::App, Instant::now());
+        assert_eq!(
+            outcomes,
+            vec![PathAdmissionOutcome::Evicted {
+                limit: PathLimit::NonRelay
+            }]
+        );
+        assert!(state.paths.contains_key(&app_addr));
+        assert_eq!(state.paths.len(), MAX_NON_RELAY_PATHS);
+    }
+
+    #[test]
+    fn duplicate_updates_cannot_bypass_candidates_per_source() {
+        let mut state = RemotePathState::new(Default::default());
+        let now = Instant::now();
+        let mut addrs = (0..MAX_NON_RELAY_PATHS as u16)
+            .map(ip_addr)
+            .collect::<Vec<_>>();
+        addrs.extend((1..=MAX_RELAY_PATHS as u8).map(relay_addr));
+        for addr in &addrs {
+            state.insert_open_path(addr.clone(), Source::Connection, now);
+        }
+
+        let source = Source::AddressLookup {
+            name: "one-source".to_string(),
+        };
+        for addr in addrs.iter().take(MAX_CANDIDATES_PER_SOURCE) {
+            assert_eq!(
+                state.insert_multiple([addr.clone()].into_iter(), source.clone(), now),
+                vec![PathAdmissionOutcome::Updated]
+            );
+        }
+        assert_eq!(
+            state.insert_multiple(
+                [addrs[MAX_CANDIDATES_PER_SOURCE].clone()].into_iter(),
+                source,
+                now,
+            ),
+            vec![PathAdmissionOutcome::Rejected {
+                limit: PathLimit::CandidatesPerSource,
+            }]
+        );
+    }
+
+    #[test]
+    fn duplicate_updates_cannot_bypass_distinct_source_limit() {
+        let mut state = RemotePathState::new(Default::default());
+        let now = Instant::now();
+        let addrs = (0..MAX_NON_RELAY_PATHS as u16)
+            .map(ip_addr)
+            .collect::<Vec<_>>();
+        state.insert_multiple(addrs.iter().cloned(), Source::App, now);
+
+        for (index, addr) in addrs.iter().enumerate().take(MAX_DISTINCT_SOURCES - 1) {
+            let source = Source::AddressLookup {
+                name: format!("source-{index}"),
+            };
+            assert_eq!(
+                state.insert_multiple([addr.clone()].into_iter(), source, now),
+                vec![PathAdmissionOutcome::Updated]
+            );
+        }
+
+        let rejected_source = Source::AddressLookup {
+            name: "source-overflow".to_string(),
+        };
+        assert_eq!(
+            state.insert_multiple(
+                [addrs[MAX_DISTINCT_SOURCES].clone()].into_iter(),
+                rejected_source,
+                now,
+            ),
+            vec![PathAdmissionOutcome::Rejected {
+                limit: PathLimit::DistinctSources,
+            }]
+        );
+    }
+
+    #[test]
+    fn seeded_transitions_preserve_bounds_and_replay_deterministically() {
+        for seed in 0..32_u64 {
+            let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+            let mut first = RemotePathState::new(Default::default());
+            let mut replay = RemotePathState::new(Default::default());
+            let now = Instant::now();
+
+            for step in 0..256_u64 {
+                let addr = match rng.random_range(0..3) {
+                    0 => ip_addr(rng.random_range(1..=u16::MAX)),
+                    1 => transports::Addr::Custom(
+                        CustomAddr::try_from_parts(step, &step.to_le_bytes())
+                            .expect("generated custom address is bounded"),
+                    ),
+                    _ => relay_addr(rng.random_range(1..=u8::MAX)),
+                };
+                let source = match rng.random_range(0..3) {
+                    0 => Source::Connection,
+                    1 => Source::App,
+                    _ => Source::AddressLookup {
+                        name: format!("lookup-{}", rng.random_range(0..32)),
+                    },
+                };
+                match rng.random_range(0..3) {
+                    0 => {
+                        first.insert_open_path(addr.clone(), source.clone(), now);
+                        replay.insert_open_path(addr, source, now);
+                    }
+                    1 => {
+                        first.insert_multiple([addr.clone()].into_iter(), source.clone(), now);
+                        replay.insert_multiple([addr].into_iter(), source, now);
+                    }
+                    _ => {
+                        first.abandoned_path(&addr, now);
+                        replay.abandoned_path(&addr, now);
+                    }
+                }
+
+                assert_path_bounds(&first);
+                assert_path_bounds(&replay);
+                let mut first_addrs = first.paths.keys().cloned().collect::<Vec<_>>();
+                let mut replay_addrs = replay.paths.keys().cloned().collect::<Vec<_>>();
+                first_addrs.sort();
+                replay_addrs.sort();
+                assert_eq!(first_addrs, replay_addrs);
+            }
+        }
     }
 
     #[test]
@@ -697,5 +1238,35 @@ mod tests {
             resolved,
             Err(AddressLookupFailed::NoResults { .. })
         ));
+    }
+
+    #[test]
+    fn pending_resolve_requests_are_bounded_with_typed_backpressure() {
+        let metrics = Arc::new(SocketMetrics::default());
+        let mut state = RemotePathState::new(metrics.clone());
+        let mut pending = Vec::new();
+        for _ in 0..MAX_PENDING_RESOLVE_REQUESTS {
+            let (tx, rx) = oneshot::channel();
+            state.resolve_remote(tx);
+            pending.push(rx);
+        }
+        let (rejected_tx, mut rejected_rx) = oneshot::channel();
+        state.resolve_remote(rejected_tx);
+
+        assert!(matches!(
+            rejected_rx.try_recv(),
+            Ok(Err(AddressLookupFailed::ResolveCapacityFull { maximum, .. }))
+                if maximum == MAX_PENDING_RESOLVE_REQUESTS
+        ));
+        assert_eq!(
+            state.pending_resolve_requests.len(),
+            MAX_PENDING_RESOLVE_REQUESTS
+        );
+        assert_eq!(metrics.pending_resolve_requests_rejected.get(), 1);
+        assert!(
+            pending
+                .iter_mut()
+                .all(|receiver| receiver.try_recv().is_err())
+        );
     }
 }

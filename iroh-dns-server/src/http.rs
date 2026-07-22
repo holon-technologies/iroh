@@ -213,9 +213,13 @@ struct Health {
     git_hash: &'static str,
 }
 
-async fn healthz() -> Json<Health> {
+async fn healthz(State(state): State<AppState>) -> Json<Health> {
     Json(Health {
-        status: "ok",
+        status: if state.store.is_ready() {
+            "ok"
+        } else {
+            "degraded"
+        },
         version: env!("CARGO_PKG_VERSION"),
         git_hash: "unknown",
     })

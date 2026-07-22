@@ -11,7 +11,10 @@ mod key;
 mod relay_url;
 
 #[cfg(feature = "key")]
-pub use self::endpoint_addr::{CustomAddr, EndpointAddr, TransportAddr};
+pub use self::endpoint_addr::{
+    AddressLimitError, AddressLimits, CustomAddr, EndpointAddr, MAX_CUSTOM_ADDR_BYTES,
+    MAX_ENDPOINT_ADDR_BYTES, MAX_ENDPOINT_ADDRS, MAX_RELAY_URL_BYTES, TransportAddr,
+};
 #[cfg(feature = "key")]
 pub use self::key::{
     EndpointId, KeyParsingError, PublicKey, SecretKey, Signature, SignatureError,

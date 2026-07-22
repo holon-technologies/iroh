@@ -2,12 +2,16 @@ use std::{
     future::Future,
     path::Path,
     result,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
     time::{Duration, SystemTime},
 };
 
 use iroh_dns::pkarr::{SignedPacket, Timestamp};
-use n0_error::{Result, StackResultExt, StdResultExt, anyerr};
+use n0_error::{Result, StackResultExt, StdResultExt, anyerr, stack_error};
+use n0_future::FutureExt;
 use redb::{Database, MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -22,10 +26,46 @@ const SIGNED_PACKETS_TABLE: TableDefinition<&SignedPacketsKey, &[u8]> =
 const UPDATE_TIME_TABLE: MultimapTableDefinition<[u8; 8], SignedPacketsKey> =
     MultimapTableDefinition::new("update-time-1");
 
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta)]
+enum StoreCorruptionError {
+    #[error("stored packet is invalid in both current and legacy layouts")]
+    InvalidPacket,
+    #[error("stored packet public key does not match its table key")]
+    PacketKeyMismatch,
+    #[error("update-time index contains an invalid public key")]
+    InvalidIndexKey,
+}
+
+const STORE_HEALTH_READY: u8 = 0;
+const STORE_HEALTH_CORRUPT: u8 = 1;
+const STORE_HEALTH_BACKGROUND_FAILURE: u8 = 2;
+
+#[derive(Debug, Default)]
+struct StoreHealth {
+    state: AtomicU8,
+}
+
+impl StoreHealth {
+    fn latch(&self, state: u8) {
+        let _ = self.state.compare_exchange(
+            STORE_HEALTH_READY,
+            state,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        );
+    }
+
+    fn is_ready(&self) -> bool {
+        self.state.load(Ordering::Acquire) == STORE_HEALTH_READY
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct SignedPacketStore {
     send: mpsc::Sender<Message>,
     cancel: CancellationToken,
+    health: Arc<StoreHealth>,
     _write_thread: IoThread,
     _evict_thread: IoThread,
 }
@@ -69,6 +109,7 @@ struct Actor {
     cancel: CancellationToken,
     options: Options,
     metrics: Arc<Metrics>,
+    health: Arc<StoreHealth>,
 }
 
 /// Configuration for the signed-packet store.
@@ -108,6 +149,8 @@ impl Actor {
             Ok(()) => {}
             Err(e) => {
                 tracing::error!("packet store actor failed: {:?}", e);
+                self.metrics.store_background_failures.inc();
+                self.health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
                 self.cancel.cancel();
             }
         }
@@ -124,7 +167,9 @@ impl Actor {
                 msg
             };
             trace!("batch");
-            self.recv.push_back(msg).unwrap();
+            if self.recv.push_back(msg).is_err() {
+                return Err(anyerr!("packet store receiver push-back slot is occupied"));
+            }
             let transaction = self.db.begin_write().anyerr()?;
             let mut tables = Tables::new(&transaction).anyerr()?;
             let timeout = tokio::time::sleep(self.options.max_batch_time);
@@ -148,7 +193,7 @@ impl Actor {
 
     fn handle_message(&self, msg: Message, tables: &mut Tables) -> Result<()> {
         match msg {
-            Message::Get { key, res } => match get_packet(&tables.signed_packets, &key) {
+            Message::Get { key, res } => match self.get_packet(&tables.signed_packets, &key) {
                 Ok(packet) => {
                     trace!("get {key}: {}", packet.is_some());
                     res.send(packet).ok();
@@ -161,7 +206,7 @@ impl Actor {
             Message::Upsert { packet, res } => {
                 let key = PublicKeyBytes::from_signed_packet(&packet);
                 trace!("upsert {}", key);
-                let replaced = match get_packet(&tables.signed_packets, &key)? {
+                let replaced = match self.get_packet(&tables.signed_packets, &key)? {
                     Some(existing) => {
                         if existing.more_recent_than(&packet) {
                             res.send(false).ok();
@@ -198,7 +243,7 @@ impl Actor {
                 trace!("remove {}", key);
                 let updated = match tables.signed_packets.remove(key.as_bytes()).anyerr()? {
                     Some(row) => {
-                        let packet = deserialize(row.value())?;
+                        let packet = deserialize_for_key(row.value(), &key)?;
                         tables
                             .update_time
                             .remove(&packet.timestamp().to_be_bytes(), key.as_bytes())
@@ -216,7 +261,7 @@ impl Actor {
             }
             Message::CheckExpired { key, time } => {
                 trace!("check expired {} at {}", key, fmt_time(time));
-                match get_packet(&tables.signed_packets, &key)? {
+                match self.get_packet(&tables.signed_packets, &key)? {
                     Some(packet) => {
                         let expiry_us = self.options.eviction.as_micros() as u64;
                         let expired = Timestamp::from_micros(
@@ -251,6 +296,27 @@ impl Actor {
             }
         }
         Ok(())
+    }
+
+    fn get_packet(
+        &self,
+        table: &impl ReadableTable<&'static SignedPacketsKey, &'static [u8]>,
+        key: &PublicKeyBytes,
+    ) -> Result<Option<SignedPacket>> {
+        let Some(row) = table
+            .get(key.as_ref())
+            .std_context("database fetch failed")?
+        else {
+            return Ok(None);
+        };
+        match deserialize_for_key(row.value(), key) {
+            Ok(packet) => Ok(Some(packet)),
+            Err(error) => {
+                self.metrics.store_corrupt_rows.inc();
+                self.health.latch(STORE_HEALTH_CORRUPT);
+                Err(error.into())
+            }
+        }
     }
 }
 
@@ -332,25 +398,45 @@ impl SignedPacketStore {
         let cancel = CancellationToken::new();
         let cancel2 = cancel.clone();
         let cancel3 = cancel.clone();
+        let health = Arc::new(StoreHealth::default());
         let actor = Actor {
             db,
             recv: PeekableReceiver::new(recv),
             cancel: cancel2,
             options,
-            metrics,
+            metrics: metrics.clone(),
+            health: health.clone(),
         };
         // start an io thread and donate it to the tokio runtime so we can do blocking IO
         // inside the thread despite being in a tokio runtime
-        let _write_thread = IoThread::new("packet-store-actor", move || actor.run())?;
+        let actor_health = health.clone();
+        let actor_metrics = metrics.clone();
+        let _write_thread = IoThread::new("packet-store-actor", move || async move {
+            if std::panic::AssertUnwindSafe(actor.run())
+                .catch_unwind()
+                .await
+                .is_err()
+            {
+                actor_metrics.store_background_failures.inc();
+                actor_health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
+            }
+        })?;
+        let evict_health = health.clone();
+        let evict_metrics = metrics;
         let _evict_thread = IoThread::new("packet-store-evict", move || {
-            evict_task(send2, options, cancel3)
+            evict_task(send2, options, cancel3, evict_health, evict_metrics)
         })?;
         Ok(Self {
             send,
             cancel,
+            health,
             _write_thread,
             _evict_thread,
         })
+    }
+
+    pub(crate) fn is_ready(&self) -> bool {
+        self.health.is_ready()
     }
 
     pub(crate) async fn upsert(&self, packet: SignedPacket) -> Result<bool> {
@@ -394,38 +480,43 @@ fn serialize(packet: &SignedPacket) -> Vec<u8> {
 ///
 /// Handles backwards compatibility with older storage formats that didn't include
 /// the `last_seen` prefix.
-fn deserialize(data: &[u8]) -> Result<SignedPacket> {
+fn deserialize(data: &[u8]) -> std::result::Result<SignedPacket, StoreCorruptionError> {
     // Try parsing as <8 bytes last_seen><packet> (pkarr v3 format)
     if data.len() >= 8
-        && let Ok(packet) = SignedPacket::from_bytes_unchecked(&data[8..])
+        && let Ok(packet) = SignedPacket::from_bytes(&data[8..])
     {
         return Ok(packet);
     }
     // Fall back to raw packet bytes (pre-v0.35 format without last_seen prefix)
-    SignedPacket::from_bytes_unchecked(data)
-        .map_err(|err| anyerr!("Failed to decode stored packet: {err:#}"))
+    SignedPacket::from_bytes(data).map_err(|_| n0_error::e!(StoreCorruptionError::InvalidPacket))
 }
 
-fn get_packet(
-    table: &impl ReadableTable<&'static SignedPacketsKey, &'static [u8]>,
+fn deserialize_for_key(
+    data: &[u8],
     key: &PublicKeyBytes,
-) -> Result<Option<SignedPacket>> {
-    let Some(row) = table
-        .get(key.as_ref())
-        .std_context("database fetch failed")?
-    else {
-        return Ok(None);
-    };
-    Ok(Some(deserialize(row.value())?))
+) -> std::result::Result<SignedPacket, StoreCorruptionError> {
+    let packet = deserialize(data)?;
+    if packet.public_key().as_bytes() != key.as_bytes() {
+        return Err(n0_error::e!(StoreCorruptionError::PacketKeyMismatch));
+    }
+    Ok(packet)
 }
 
-async fn evict_task(send: mpsc::Sender<Message>, options: Options, cancel: CancellationToken) {
+async fn evict_task(
+    send: mpsc::Sender<Message>,
+    options: Options,
+    cancel: CancellationToken,
+    health: Arc<StoreHealth>,
+    metrics: Arc<Metrics>,
+) {
     let cancel2 = cancel.clone();
     let _ = cancel2
         .run_until_cancelled(async move {
             info!("starting evict task");
             if let Err(cause) = evict_task_inner(send, options).await {
                 error!("evict task failed: {:?}", cause);
+                metrics.store_background_failures.inc();
+                health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
             }
             // when we are done for whatever reason we want to shut down the actor
             cancel.cancel();
@@ -473,9 +564,8 @@ async fn evict_task_inner(send: mpsc::Sender<Message>, options: Options) -> Resu
                         continue;
                     }
                 };
-                // Safety: bytes were originally written from a validated PublicKey.
-                // If the database is corrupt, to_z32() may panic downstream.
-                let key = PublicKeyBytes::new_unchecked(key.value());
+                let key = PublicKeyBytes::try_from(key.value())
+                    .map_err(|_| n0_error::e!(StoreCorruptionError::InvalidIndexKey))?;
 
                 debug!("evicting expired packet {} {}", fmt_time(time), key);
                 send.send(Message::CheckExpired { time, key })
@@ -590,6 +680,43 @@ mod tests {
         let old_format = packet.as_bytes().to_vec();
         let deserialized = deserialize(&old_format).expect("old format should be readable");
         assert_eq!(packet.as_bytes(), deserialized.as_bytes());
+    }
+
+    #[test]
+    fn deserialize_rejects_truncated_and_signature_invalid_rows() {
+        assert!(matches!(
+            deserialize(&[0_u8; 16]),
+            Err(StoreCorruptionError::InvalidPacket { .. })
+        ));
+
+        let packet = test_signed_packet();
+        let mut serialized = serialize(&packet);
+        serialized[8 + 40] ^= 1;
+        assert!(matches!(
+            deserialize(&serialized),
+            Err(StoreCorruptionError::InvalidPacket { .. })
+        ));
+    }
+
+    #[test]
+    fn deserialize_rejects_packet_table_key_mismatch() {
+        let packet = test_signed_packet();
+        let other_packet = test_signed_packet();
+        let other_key = PublicKeyBytes::from_signed_packet(&other_packet);
+
+        assert!(matches!(
+            deserialize_for_key(&serialize(&packet), &other_key),
+            Err(StoreCorruptionError::PacketKeyMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn public_key_bytes_reject_invalid_database_keys() {
+        let invalid = (0_u8..=u8::MAX)
+            .map(|byte| [byte; 32])
+            .find(|bytes| iroh_base::PublicKey::from_bytes(bytes).is_err())
+            .expect("the Ed25519 compressed-point domain contains invalid encodings");
+        assert!(PublicKeyBytes::try_from(invalid).is_err());
     }
 
     #[tokio::test]

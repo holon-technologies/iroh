@@ -6,7 +6,13 @@
 //!
 //! For a complete relay server implementation, see the parent [`server`](super) module.
 
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    convert::Infallible,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use bytes::Bytes;
 use derive_more::Debug;
@@ -32,7 +38,9 @@ use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 use tracing::{Instrument, debug, error, info, info_span, trace, warn};
 
 use super::{
-    AllowAll, ClientRequest, DynAccessControl, SpawnError, clients::Clients,
+    AdmissionPolicy, AllowAll, ClientRequest, DynAccessControl, SpawnError,
+    admission::{AdmissionControl, EstablishmentAdmission, EstablishmentLease},
+    clients::{Clients, RegisterError},
     streams::InvalidBucketConfig,
 };
 use crate::{
@@ -318,6 +326,10 @@ pub enum AcceptError {
         #[error(std_err)]
         source: iroh_runtime::SpawnError,
     },
+    #[error("global relay session capacity is full")]
+    GlobalSessionFull {},
+    #[error("relay session capacity for the endpoint is full")]
+    EndpointSessionFull {},
 }
 
 /// Failure while establishing a production relay session on an in-memory transport.
@@ -376,6 +388,7 @@ pub(super) struct ServerBuilder {
     access: Arc<dyn DynAccessControl>,
     metrics: Option<Arc<Metrics>>,
     establish_timeout: Duration,
+    admission_policy: Option<AdmissionPolicy>,
 }
 
 impl ServerBuilder {
@@ -391,7 +404,14 @@ impl ServerBuilder {
             access: Arc::new(AllowAll),
             metrics: None,
             establish_timeout: ESTABLISH_TIMEOUT,
+            admission_policy: None,
         }
+    }
+
+    /// Sets the validated connection and session admission policy.
+    pub(super) fn admission_policy(mut self, policy: AdmissionPolicy) -> Self {
+        self.admission_policy = Some(policy);
+        self
     }
 
     /// Sets the metrics collector.
@@ -463,14 +483,18 @@ impl ServerBuilder {
     /// Builds and spawns an HTTP(S) Relay Server.
     pub(super) async fn spawn(self) -> Result<Server, SpawnError> {
         let cancel_token = CancellationToken::new();
+        let admission = Arc::new(AdmissionControl::new(
+            self.admission_policy.unwrap_or_default(),
+        ));
 
-        let service = RelayService::new(
+        let service = RelayService::new_with_admission(
             self.handlers,
             self.headers,
             self.client_rx_ratelimit,
             KeyCache::new(self.key_cache_capacity),
             self.access,
             self.metrics.unwrap_or_default(),
+            admission.clone(),
         );
 
         let addr = self.addr;
@@ -510,15 +534,33 @@ impl ServerBuilder {
                         }
                         res = listener.accept() => match res {
                             Ok((stream, peer_addr)) => {
-                                debug!("connection opened from {peer_addr}");
-                                let tls_config = tls_config.clone();
-                                let service = service.clone();
-                                // spawn a task to handle the connection
-                                set.spawn(async move {
-                                    service
-                                        .handle_connection(stream, tls_config, self.establish_timeout)
-                                        .await
-                                }.instrument(info_span!("conn", peer = %peer_addr)));
+                                match admission.try_establishment() {
+                                    EstablishmentAdmission::Accepted(lease) => {
+                                        debug!("connection opened from {peer_addr}");
+                                        let tls_config = tls_config.clone();
+                                        let service = service.clone();
+                                        // The task owns the establishment lease until the relay
+                                        // session registers or the connection terminates.
+                                        set.spawn(async move {
+                                            service
+                                                .handle_connection_with_lease(
+                                                    stream,
+                                                    tls_config,
+                                                    self.establish_timeout,
+                                                    lease,
+                                                )
+                                                .await
+                                        }.instrument(info_span!("conn", peer = %peer_addr)));
+                                    }
+                                    EstablishmentAdmission::RateLimited => {
+                                        service.0.metrics.admission_rate_limited.inc();
+                                        debug!(%peer_addr, "rejecting rate-limited connection");
+                                    }
+                                    EstablishmentAdmission::PendingCapacityFull => {
+                                        service.0.metrics.admission_pending_full.inc();
+                                        debug!(%peer_addr, "rejecting connection: pending capacity full");
+                                    }
+                                }
                             }
                             Err(err) => {
                                 error!("failed to accept connection: {err}");
@@ -667,6 +709,7 @@ impl RelayServiceWithNotify {
                             // We have passed the connection to the relay protocol handler,
                             // thus we trigger the on_establish notification so that timeouts
                             // on the upper layer will be cleared.
+                            release_establishment_lease(&this.establishment_lease);
                             this.on_establish.notify_waiters();
                             debug!("upgraded connection completed");
                         };
@@ -746,6 +789,7 @@ impl RelayServiceWithNotify {
 pub struct RelayServiceWithNotify {
     service: RelayService,
     on_establish: Arc<Notify>,
+    establishment_lease: Arc<Mutex<Option<EstablishmentLease>>>,
 }
 
 impl RelayServiceWithNotify {
@@ -757,6 +801,19 @@ impl RelayServiceWithNotify {
         Self {
             service,
             on_establish,
+            establishment_lease: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn new_with_establishment_lease(
+        service: RelayService,
+        on_establish: Arc<Notify>,
+        establishment_lease: Arc<Mutex<Option<EstablishmentLease>>>,
+    ) -> Self {
+        Self {
+            service,
+            on_establish,
+            establishment_lease,
         }
     }
 }
@@ -926,9 +983,21 @@ impl Inner {
 
         // build and register client, starting up read & write loops for the client
         // connection
-        self.clients
+        match self
+            .clients
             .register(client_conn_builder, self.metrics.clone())
-            .map_err(|error| e!(AcceptError::Runtime, error))?;
+        {
+            Ok(()) => {}
+            Err(RegisterError::GlobalSessionFull { .. }) => {
+                return Err(e!(AcceptError::GlobalSessionFull));
+            }
+            Err(RegisterError::EndpointSessionFull { .. }) => {
+                return Err(e!(AcceptError::EndpointSessionFull));
+            }
+            Err(RegisterError::Runtime { source, .. }) => {
+                return Err(e!(AcceptError::Runtime, source));
+            }
+        }
         Ok(())
     }
 }
@@ -955,6 +1024,21 @@ impl RelayService {
         access: Arc<dyn DynAccessControl>,
         metrics: Arc<Metrics>,
     ) -> Self {
+        let admission = Arc::new(AdmissionControl::new(AdmissionPolicy::default()));
+        Self::new_with_admission(
+            handlers, headers, rate_limit, key_cache, access, metrics, admission,
+        )
+    }
+
+    fn new_with_admission(
+        handlers: Handlers,
+        headers: HeaderMap,
+        rate_limit: Option<ClientRateLimit>,
+        key_cache: KeyCache,
+        access: Arc<dyn DynAccessControl>,
+        metrics: Arc<Metrics>,
+        admission: Arc<AdmissionControl>,
+    ) -> Self {
         Self::from_clients(
             handlers,
             headers,
@@ -962,7 +1046,7 @@ impl RelayService {
             key_cache,
             access,
             metrics,
-            Clients::default(),
+            Clients::with_admission(admission),
         )
     }
 
@@ -1134,12 +1218,39 @@ impl RelayService {
         tls_config: Option<TlsConfig>,
         establish_timeout: Duration,
     ) {
+        self.handle_connection_inner(stream, tls_config, establish_timeout, None)
+            .await;
+    }
+
+    async fn handle_connection_with_lease(
+        self,
+        stream: TcpStream,
+        tls_config: Option<TlsConfig>,
+        establish_timeout: Duration,
+        lease: EstablishmentLease,
+    ) {
+        self.handle_connection_inner(stream, tls_config, establish_timeout, Some(lease))
+            .await;
+    }
+
+    async fn handle_connection_inner(
+        self,
+        stream: TcpStream,
+        tls_config: Option<TlsConfig>,
+        establish_timeout: Duration,
+        establishment_lease: Option<EstablishmentLease>,
+    ) {
         let metrics = self.0.metrics.clone();
         metrics.http_connections.inc();
         // We create a notification token to be triggered once the connection is fully established
         // and passed to the relay server.
         let on_establish = Arc::new(Notify::new());
-        let service = RelayServiceWithNotify::new(self, on_establish.clone());
+        let establishment_lease = Arc::new(Mutex::new(establishment_lease));
+        let service = RelayServiceWithNotify::new_with_establishment_lease(
+            self,
+            on_establish.clone(),
+            establishment_lease.clone(),
+        );
 
         // This is the main connection future, driving the connection to completion.
         let serve_fut = async move {
@@ -1160,10 +1271,15 @@ impl RelayService {
         // The timeout is cleared once the connection has completed the TLS and WebSocket
         // handshakes and has been passed over to the relay protocol handler.
         // If the timeout expires before that happens, the connection is aborted.
-        let res = clearable_timeout(establish_timeout, on_establish, serve_fut)
-            .await
-            .map_err(|_elapsed| e!(ServeConnectionError::EstablishTimeout))
-            .flatten();
+        let res = clearable_timeout(
+            establish_timeout,
+            on_establish,
+            establishment_lease,
+            serve_fut,
+        )
+        .await
+        .map_err(|_elapsed| e!(ServeConnectionError::EstablishTimeout))
+        .flatten();
 
         metrics.http_connections_closed.inc();
 
@@ -1303,6 +1419,7 @@ impl std::ops::DerefMut for Handlers {
 async fn clearable_timeout<F: Future>(
     timeout: Duration,
     clear_timeout: Arc<Notify>,
+    establishment_lease: Arc<Mutex<Option<EstablishmentLease>>>,
     fut: F,
 ) -> Result<F::Output, Elapsed> {
     tokio::pin!(fut);
@@ -1315,6 +1432,7 @@ async fn clearable_timeout<F: Future>(
                 return Ok(res);
             }
             _ = clear_timeout.notified() => {
+                release_establishment_lease(&establishment_lease);
                 timeout.as_mut().set_none();
             },
             _ = &mut timeout => {
@@ -1322,6 +1440,14 @@ async fn clearable_timeout<F: Future>(
             }
         }
     }
+}
+
+fn release_establishment_lease(lease: &Mutex<Option<EstablishmentLease>>) {
+    let mut lease = match lease.lock() {
+        Ok(lease) => lease,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    drop(lease.take());
 }
 
 #[stack_error(derive)]
@@ -1944,6 +2070,67 @@ mod tests {
         info!("established connection survived past the timeout");
 
         client.close().await?;
+        server.shutdown();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pending_establishment_limit_rejects_without_spawning() -> Result {
+        let limits = crate::server::Limits {
+            accept_conn_limit: Some(10_000.0),
+            accept_conn_burst: Some(100),
+            max_pending_establishments: 2,
+            ..crate::server::Limits::default()
+        };
+        let policy = AdmissionPolicy::try_from(&limits)?;
+        let server = ServerBuilder::new("127.0.0.1:0".parse().expect("valid test address"))
+            .admission_policy(policy)
+            .spawn()
+            .await?;
+        let metrics = server.service().0.metrics.clone();
+
+        let mut first = TcpStream::connect(server.addr()).await?;
+        first
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await?;
+        let mut second = TcpStream::connect(server.addr()).await?;
+        second
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await?;
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while metrics.http_connections.get() != 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .std_context("two pending connections were not admitted")?;
+
+        let mut rejected = TcpStream::connect(server.addr()).await?;
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while metrics.admission_pending_full.get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .std_context("full pending capacity was not observed")?;
+
+        let mut byte = [0_u8; 1];
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), rejected.read(&mut byte))
+                .await
+                .std_context("rejected socket remained open")??,
+            0,
+            "rejected socket must close immediately"
+        );
+        assert_eq!(
+            metrics.http_connections.get(),
+            2,
+            "rejected socket must not spawn a connection task"
+        );
+
+        drop(first);
+        drop(second);
         server.shutdown();
         Ok(())
     }

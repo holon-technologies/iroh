@@ -1412,6 +1412,7 @@ impl Endpoint {
     ///
     /// [`RelayUrl`]: crate::RelayUrl
     #[cfg(not(wasm_browser))]
+    #[allow(deprecated)] // Locally observed addresses are trusted and this watcher is infallible.
     pub fn watch_addr(&self) -> impl n0_watcher::Watcher<Value = EndpointAddr> + use<> {
         let watch_addrs = self.inner.ip_addrs();
         let watch_relay = self.inner.home_relay();
@@ -1439,6 +1440,7 @@ impl Endpoint {
     /// via [`Watcher::stream`] only terminates once the endpoint stops. If you want to stop a
     /// task once the endpoint stops combine with [`Self::closed`].
     #[cfg(wasm_browser)]
+    #[allow(deprecated)] // Locally configured relays are trusted and this watcher is infallible.
     pub fn watch_addr(&self) -> impl n0_watcher::Watcher<Value = EndpointAddr> + use<> {
         // In browsers, there will never be any direct addresses, so we wait
         // for the home relay instead. This makes the `EndpointAddr` have *some* way

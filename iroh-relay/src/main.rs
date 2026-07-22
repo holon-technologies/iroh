@@ -504,10 +504,16 @@ where
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct Limits {
-    /// Rate limit for accepting new connection. Unlimited if not set.
+    /// Rate limit for accepting new connections. Uses the production default if not set.
     accept_conn_limit: Option<f64>,
-    /// Burst limit for accepting new connection. Unlimited if not set.
+    /// Burst limit for accepting new connections. Uses the production default if not set.
     accept_conn_burst: Option<usize>,
+    /// Maximum sockets concurrently establishing relay sessions.
+    max_pending_establishments: Option<usize>,
+    /// Maximum registered relay sessions.
+    max_registered_sessions: Option<usize>,
+    /// Maximum registered sessions for one endpoint identity.
+    max_sessions_per_endpoint: Option<usize>,
     /// Rate limiting configuration per client.
     client: Option<PerClientRateLimitConfig>,
 }
@@ -753,6 +759,15 @@ async fn build_relay_config(cfg: Config) -> Result<relay::ServerConfig> {
             let mut out = relay::Limits::default();
             out.accept_conn_limit = limits.accept_conn_limit;
             out.accept_conn_burst = limits.accept_conn_burst;
+            if let Some(value) = limits.max_pending_establishments {
+                out.max_pending_establishments = value;
+            }
+            if let Some(value) = limits.max_registered_sessions {
+                out.max_registered_sessions = value;
+            }
+            if let Some(value) = limits.max_sessions_per_endpoint {
+                out.max_sessions_per_endpoint = value;
+            }
             out.client_rx = client_rx;
             out
         }
@@ -822,6 +837,28 @@ mod tests {
         let relay = relay_config.relay.expect("no relay config");
         assert!(relay.limits.client_rx.is_none());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_admission_limit_config() -> Result {
+        let config = "
+            [limits]
+            accept_conn_limit = 125.5
+            accept_conn_burst = 250
+            max_pending_establishments = 64
+            max_registered_sessions = 1024
+            max_sessions_per_endpoint = 2
+        ";
+        let config = Config::from_str(config)?;
+        let relay_config = build_relay_config(config).await?;
+        let limits = relay_config.relay.expect("relay config").limits;
+
+        assert_eq!(limits.accept_conn_limit, Some(125.5));
+        assert_eq!(limits.accept_conn_burst, Some(250));
+        assert_eq!(limits.max_pending_establishments, 64);
+        assert_eq!(limits.max_registered_sessions, 1024);
+        assert_eq!(limits.max_sessions_per_endpoint, 2);
         Ok(())
     }
 

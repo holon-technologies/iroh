@@ -308,6 +308,12 @@ impl RemoteMap {
         tx: oneshot::Sender<Result<(), AddressLookupFailed>>,
     ) {
         let EndpointAddr { id, addrs } = addr;
+        let Ok(EndpointAddr { id, addrs }) = EndpointAddr::try_from_parts(id, addrs) else {
+            self.tasks.metrics.endpoint_addresses_rejected.inc();
+            tx.send(Err(n0_error::e!(AddressLookupFailed::AddressLimitExceeded)))
+                .ok();
+            return;
+        };
         self.send_to_actor(id, RemoteStateMessage::ResolveRemote(addrs, tx))
             .await
     }
@@ -482,10 +488,11 @@ mod tests {
         // immediately and does not park in `paths.pending_resolve_requests`;
         // the actor would never idle out otherwise.
         let addr_with_ip = |port: u16| {
-            EndpointAddr::from_parts(
+            EndpointAddr::try_from_parts(
                 eid,
                 [TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], port)))],
             )
+            .expect("test endpoint address is bounded")
         };
 
         // 1. Spawn A1 and let it process a real `ResolveRemote`.

@@ -594,8 +594,10 @@ mod tests {
     fn txt_attr_roundtrip_with_custom_addr() {
         use iroh_base::CustomAddr;
 
-        let bt_addr = CustomAddr::from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]);
-        let tor_addr = CustomAddr::from_parts(42, &[0xab; 32]);
+        let bt_addr = CustomAddr::try_from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6])
+            .expect("test address is bounded");
+        let tor_addr =
+            CustomAddr::try_from_parts(42, &[0xab; 32]).expect("test address is bounded");
 
         let endpoint_data = EndpointData::from_iter([
             TransportAddr::Relay("https://example.com".parse().unwrap()),
@@ -619,8 +621,10 @@ mod tests {
         let secret_key =
             SecretKey::from_str("vpnk377obfvzlipnsfbqba7ywkkenc4xlpmovt5tsfujoa75zqia").unwrap();
 
-        let bt_addr = CustomAddr::from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]);
-        let tor_addr = CustomAddr::from_parts(42, &[0xab; 32]);
+        let bt_addr = CustomAddr::try_from_parts(1, &[0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6])
+            .expect("test address is bounded");
+        let tor_addr =
+            CustomAddr::try_from_parts(42, &[0xab; 32]).expect("test address is bounded");
 
         let endpoint_data = EndpointData::from_iter([
             TransportAddr::Relay("https://example.com".parse().unwrap()),

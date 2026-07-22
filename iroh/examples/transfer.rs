@@ -461,7 +461,7 @@ async fn run_command(command: Commands, endpoint: &Endpoint, output: Output) -> 
                 .into_iter()
                 .map(TransportAddr::Relay)
                 .chain(remote_direct_address.into_iter().map(TransportAddr::Ip));
-            let remote_addr = EndpointAddr::from_parts(remote_id, addrs);
+            let remote_addr = EndpointAddr::try_from_parts(remote_id, addrs)?;
             fetch(endpoint, remote_addr, length, mode, output).await?
         }
     }

@@ -11,6 +11,7 @@ use std::{
 use dashmap::DashMap;
 use iroh_base::EndpointId;
 use iroh_runtime::{DecisionError, DecisionStream, RuntimeContext, TaskGroup};
+use n0_error::{e, stack_error};
 use n0_future::IterExt;
 use rand::Rng;
 use tokio::sync::mpsc::error::TrySendError;
@@ -18,6 +19,7 @@ use tracing::{debug, trace};
 
 use super::{
     ConnectionId, OnDisconnectGuard,
+    admission::AdmissionControl,
     client::{Client, Config, ForwardPacketError},
 };
 use crate::{
@@ -45,6 +47,7 @@ struct Inner {
     tasks: Arc<dyn TaskGroup>,
     decisions: Mutex<Box<dyn DecisionStream>>,
     challenge_entropy: ChallengeEntropy,
+    admission: Arc<AdmissionControl>,
     #[cfg(feature = "test-utils")]
     drop_every_nth_packet: AtomicU64,
     #[cfg(feature = "test-utils")]
@@ -71,6 +74,30 @@ impl fmt::Debug for ChallengeEntropy {
 
 impl Default for Clients {
     fn default() -> Self {
+        Self::with_admission(Arc::new(AdmissionControl::new(
+            super::AdmissionPolicy::default(),
+        )))
+    }
+}
+
+/// Failure to register a relay session.
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta)]
+#[non_exhaustive]
+pub enum RegisterError {
+    #[error("global relay session capacity is full")]
+    GlobalSessionFull {},
+    #[error("relay session capacity for the endpoint is full")]
+    EndpointSessionFull {},
+    #[error("relay client runtime rejected the actor")]
+    Runtime {
+        #[error(std_err)]
+        source: iroh_runtime::SpawnError,
+    },
+}
+
+impl Clients {
+    pub(super) fn with_admission(admission: Arc<AdmissionControl>) -> Self {
         let runtime = Arc::new(RuntimeContext::production(Arc::new(
             iroh_runtime::NoopTraceSink,
         )));
@@ -78,6 +105,7 @@ impl Default for Clients {
             runtime,
             "relay-server/production",
             ChallengeEntropy::Production,
+            admission,
         ) {
             Ok(clients) => clients,
             Err(_) => unreachable!("the built-in relay decision path is valid"),
@@ -117,13 +145,19 @@ impl Clients {
             key: *hasher.finalize().as_bytes(),
             next: AtomicU64::new(0),
         };
-        Self::build(runtime, decision_path, challenge_entropy)
+        Self::build(
+            runtime,
+            decision_path,
+            challenge_entropy,
+            Arc::new(AdmissionControl::new(super::AdmissionPolicy::default())),
+        )
     }
 
     fn build(
         runtime: Arc<RuntimeContext>,
         decision_path: &str,
         challenge_entropy: ChallengeEntropy,
+        admission: Arc<AdmissionControl>,
     ) -> Result<Self, DecisionError> {
         let decisions = runtime.decisions().stream(decision_path)?;
         let tasks = runtime.executor().new_group(None);
@@ -134,6 +168,7 @@ impl Clients {
             tasks,
             decisions: Mutex::new(decisions),
             challenge_entropy,
+            admission,
             #[cfg(feature = "test-utils")]
             drop_every_nth_packet: AtomicU64::new(0),
             #[cfg(feature = "test-utils")]
@@ -228,18 +263,29 @@ impl Clients {
         &self,
         client_config: Config<S>,
         metrics: Arc<Metrics>,
-    ) -> Result<(), iroh_runtime::SpawnError>
+    ) -> Result<(), RegisterError>
     where
         S: BytesStreamSink + Send + 'static,
     {
         let endpoint_id = client_config.guard.endpoint_id;
         trace!(remote_endpoint = %endpoint_id.fmt_short(), "registering client");
 
-        let client = Client::new(client_config, self, metrics.clone())?;
+        let session_lease = self.0.admission.try_session().ok_or_else(|| {
+            metrics.admission_global_session_full.inc();
+            e!(RegisterError::GlobalSessionFull)
+        })?;
         match self.0.clients.entry(endpoint_id) {
             dashmap::Entry::Occupied(mut entry) => {
                 let state = entry.get_mut();
+                let session_count = 1usize.saturating_add(state.inactive.len());
+                if session_count >= self.0.admission.max_sessions_per_endpoint() {
+                    metrics.admission_endpoint_session_full.inc();
+                    return Err(e!(RegisterError::EndpointSessionFull));
+                }
+                let client = Client::new(client_config, self, metrics.clone(), session_lease)
+                    .map_err(|error| e!(RegisterError::Runtime, error))?;
                 let old_client = std::mem::replace(&mut state.active, client);
+                state.active.start();
                 debug!(
                     remote_endpoint = %endpoint_id.fmt_short(),
                     "multiple connections found, deactivating old connection",
@@ -251,10 +297,13 @@ impl Clients {
                 metrics.clients_inactive_added.inc();
             }
             dashmap::Entry::Vacant(entry) => {
-                entry.insert(ClientState {
+                let client = Client::new(client_config, self, metrics.clone(), session_lease)
+                    .map_err(|error| e!(RegisterError::Runtime, error))?;
+                let state = entry.insert(ClientState {
                     active: client,
                     inactive: Vec::new(),
                 });
+                state.active.start();
             }
         }
         Ok(())
@@ -381,7 +430,14 @@ impl Clients {
         match client.active.try_send_packet(src, data) {
             Ok(_) => {
                 // Record sent_to relationship
-                self.0.sent_to.entry(src).or_default().insert(dst);
+                let mut peers = self.0.sent_to.entry(src).or_default();
+                if peers.contains(&dst)
+                    || peers.len() < self.0.admission.max_sent_to_peers_per_endpoint()
+                {
+                    peers.insert(dst);
+                } else {
+                    metrics.sent_to_relationships_dropped.inc();
+                }
                 Ok(())
             }
             Err(TrySendError::Full(_)) => {
@@ -435,6 +491,17 @@ mod tests {
             RootSeed::new(seed),
             Arc::new(NoopTraceSink),
         ))
+    }
+
+    fn limited_clients(global_sessions: usize, sessions_per_endpoint: usize) -> Clients {
+        let limits = crate::server::Limits {
+            max_registered_sessions: global_sessions,
+            max_sessions_per_endpoint: sessions_per_endpoint,
+            ..crate::server::Limits::default()
+        };
+        let policy = super::super::AdmissionPolicy::try_from(&limits)
+            .expect("test admission policy is valid");
+        Clients::with_admission(Arc::new(AdmissionControl::new(policy)))
     }
 
     #[test]
@@ -646,6 +713,100 @@ mod tests {
 
         clients.shutdown().await;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn endpoint_session_limit_rejects_new_duplicate_without_growth() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(17);
+        let endpoint_id = SecretKey::from_bytes(&rng.random()).public();
+        let clients = limited_clients(3, 2);
+        let metrics = Arc::new(Metrics::default());
+
+        let (first, _first_io) = test_client_builder(endpoint_id);
+        let (second, _second_io) = test_client_builder(endpoint_id);
+        let (rejected, _rejected_io) = test_client_builder(endpoint_id);
+        clients.register(first, metrics.clone())?;
+        clients.register(second, metrics.clone())?;
+
+        let error = clients
+            .register(rejected, metrics)
+            .expect_err("third session for one endpoint must be rejected");
+        assert!(matches!(error, RegisterError::EndpointSessionFull { .. }));
+        assert_eq!(clients.connection_count(), 2);
+
+        clients.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn global_session_lease_is_released_after_disconnect() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(18);
+        let first_id = SecretKey::from_bytes(&rng.random()).public();
+        let second_id = SecretKey::from_bytes(&rng.random()).public();
+        let clients = limited_clients(1, 1);
+        let metrics = Arc::new(Metrics::default());
+
+        let (first, _first_io) = test_client_builder(first_id);
+        clients.register(first, metrics.clone())?;
+        let (blocked, _blocked_io) = test_client_builder(second_id);
+        let error = clients
+            .register(blocked, metrics.clone())
+            .expect_err("global capacity must reject a second session");
+        assert!(matches!(error, RegisterError::GlobalSessionFull { .. }));
+
+        clients
+            .0
+            .clients
+            .get(&first_id)
+            .expect("first session remains registered")
+            .active
+            .start_shutdown();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while clients.connection_count() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .std_context("session lease release timeout")?;
+
+        let (second, _second_io) = test_client_builder(second_id);
+        clients.register(second, metrics)?;
+        assert_eq!(clients.connection_count(), 1);
+        clients.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn session_lease_is_released_when_actor_group_is_cancelled() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(19);
+        let endpoint_id = SecretKey::from_bytes(&rng.random()).public();
+        let clients = limited_clients(1, 1);
+        let metrics = Arc::new(Metrics::default());
+        let (client, _client_io) = test_client_builder(endpoint_id);
+        clients.register(client, metrics.clone())?;
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while metrics.accepts.get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .std_context("client actor did not start")?;
+        clients.tasks().cancel();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while clients.connection_count() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .std_context("cancelled actor retained its registry entry")?;
+
+        assert!(
+            clients.0.admission.try_session().is_some(),
+            "cancelled actor must release its owned session permit"
+        );
+        assert_eq!(metrics.accepts.get(), metrics.disconnects.get());
         Ok(())
     }
 

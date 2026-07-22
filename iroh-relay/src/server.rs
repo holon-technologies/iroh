@@ -19,7 +19,7 @@ use std::{
     borrow::Cow,
     future::Future,
     net::SocketAddr,
-    num::NonZeroU32,
+    num::{NonZeroU32, NonZeroUsize},
     path::PathBuf,
     pin::Pin,
     sync::{
@@ -61,6 +61,7 @@ use crate::{
     tls::CaTlsConfig,
 };
 
+mod admission;
 pub mod client;
 pub mod clients;
 pub mod http_server;
@@ -482,21 +483,158 @@ impl TlsConfig {
     }
 }
 
-/// Rate limits.
-// TODO: accept_conn_limit and accept_conn_burst are not currently implemented.
-#[derive(Debug, Default)]
+const DEFAULT_ACCEPT_CONN_LIMIT: f64 = 200.0;
+const DEFAULT_ACCEPT_CONN_BURST: usize = 400;
+const DEFAULT_MAX_PENDING_ESTABLISHMENTS: usize = 256;
+const DEFAULT_MAX_REGISTERED_SESSIONS: usize = 4_096;
+const DEFAULT_MAX_SESSIONS_PER_ENDPOINT: usize = 4;
+const DEFAULT_ACCEPT_CONN_BURST_NONZERO: NonZeroUsize =
+    NonZeroUsize::new(DEFAULT_ACCEPT_CONN_BURST).expect("default accept burst is nonzero");
+const DEFAULT_MAX_PENDING_ESTABLISHMENTS_NONZERO: NonZeroUsize =
+    NonZeroUsize::new(DEFAULT_MAX_PENDING_ESTABLISHMENTS)
+        .expect("default pending-establishment capacity is nonzero");
+const DEFAULT_MAX_REGISTERED_SESSIONS_NONZERO: NonZeroUsize =
+    NonZeroUsize::new(DEFAULT_MAX_REGISTERED_SESSIONS)
+        .expect("default registered-session capacity is nonzero");
+const DEFAULT_MAX_SESSIONS_PER_ENDPOINT_NONZERO: NonZeroUsize =
+    NonZeroUsize::new(DEFAULT_MAX_SESSIONS_PER_ENDPOINT)
+        .expect("default endpoint-session capacity is nonzero");
+
+/// Relay admission and per-client traffic limits.
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct Limits {
     /// Rate limits for incoming traffic from a client connection.
     pub client_rx: Option<ClientRateLimit>,
-    /// Rate limit for accepting new connections. Unlimited if not set.
+    /// Rate limit for accepting new connections, in connections per second.
     ///
-    /// Not currently implemented, setting this has no effect.
+    /// The rate and burst must either both be set or both be omitted. Omitting both uses the
+    /// production default of 200 connections per second.
     pub accept_conn_limit: Option<f64>,
-    /// Burst limit for accepting new connections. Unlimited if not set.
+    /// Burst limit for accepting new connections.
     ///
-    /// Not currently implemented, setting this has no effect.
+    /// The rate and burst must either both be set or both be omitted. Omitting both uses the
+    /// production default of 400 connections.
     pub accept_conn_burst: Option<usize>,
+    /// Maximum number of accepted sockets that may still be establishing a relay session.
+    pub max_pending_establishments: usize,
+    /// Maximum number of registered relay sessions.
+    pub max_registered_sessions: usize,
+    /// Maximum number of registered relay sessions for one endpoint identity.
+    pub max_sessions_per_endpoint: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            client_rx: None,
+            accept_conn_limit: None,
+            accept_conn_burst: None,
+            max_pending_establishments: DEFAULT_MAX_PENDING_ESTABLISHMENTS,
+            max_registered_sessions: DEFAULT_MAX_REGISTERED_SESSIONS,
+            max_sessions_per_endpoint: DEFAULT_MAX_SESSIONS_PER_ENDPOINT,
+        }
+    }
+}
+
+/// A validated relay admission configuration.
+#[derive(Debug, Clone)]
+pub(super) struct AdmissionPolicy {
+    pub(super) accept_conn_limit: f64,
+    pub(super) accept_conn_burst: NonZeroUsize,
+    pub(super) max_pending_establishments: NonZeroUsize,
+    pub(super) max_registered_sessions: NonZeroUsize,
+    pub(super) max_sessions_per_endpoint: NonZeroUsize,
+}
+
+impl Default for AdmissionPolicy {
+    fn default() -> Self {
+        Self {
+            accept_conn_limit: DEFAULT_ACCEPT_CONN_LIMIT,
+            accept_conn_burst: DEFAULT_ACCEPT_CONN_BURST_NONZERO,
+            max_pending_establishments: DEFAULT_MAX_PENDING_ESTABLISHMENTS_NONZERO,
+            max_registered_sessions: DEFAULT_MAX_REGISTERED_SESSIONS_NONZERO,
+            max_sessions_per_endpoint: DEFAULT_MAX_SESSIONS_PER_ENDPOINT_NONZERO,
+        }
+    }
+}
+
+/// Invalid relay admission configuration.
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta)]
+#[non_exhaustive]
+pub enum AdmissionPolicyError {
+    #[error("accept_conn_limit and accept_conn_burst must be configured together")]
+    IncompleteAcceptRateLimit {},
+    #[error("accept_conn_limit must be finite and greater than zero, got {value}")]
+    InvalidAcceptRate { value: f64 },
+    #[error("accept_conn_burst must be greater than zero")]
+    ZeroAcceptBurst {},
+    #[error("max_pending_establishments must be greater than zero")]
+    ZeroPendingEstablishments {},
+    #[error("max_registered_sessions must be greater than zero")]
+    ZeroRegisteredSessions {},
+    #[error("max_sessions_per_endpoint must be greater than zero")]
+    ZeroSessionsPerEndpoint {},
+    #[error("{field} value {value} exceeds supported maximum {maximum}")]
+    CapacityTooLarge {
+        field: &'static str,
+        value: usize,
+        maximum: usize,
+    },
+}
+
+impl TryFrom<&Limits> for AdmissionPolicy {
+    type Error = AdmissionPolicyError;
+
+    fn try_from(limits: &Limits) -> Result<Self, Self::Error> {
+        let (accept_conn_limit, accept_conn_burst) =
+            match (limits.accept_conn_limit, limits.accept_conn_burst) {
+                (None, None) => (DEFAULT_ACCEPT_CONN_LIMIT, DEFAULT_ACCEPT_CONN_BURST_NONZERO),
+                (Some(rate), Some(burst)) => {
+                    if !rate.is_finite() || rate <= 0.0 {
+                        return Err(e!(AdmissionPolicyError::InvalidAcceptRate { value: rate }));
+                    }
+                    let burst = NonZeroUsize::new(burst)
+                        .ok_or_else(|| e!(AdmissionPolicyError::ZeroAcceptBurst))?;
+                    (rate, burst)
+                }
+                (Some(_), None) | (None, Some(_)) => {
+                    return Err(e!(AdmissionPolicyError::IncompleteAcceptRateLimit));
+                }
+            };
+
+        let max_pending_establishments = NonZeroUsize::new(limits.max_pending_establishments)
+            .ok_or_else(|| e!(AdmissionPolicyError::ZeroPendingEstablishments))?;
+        let max_registered_sessions = NonZeroUsize::new(limits.max_registered_sessions)
+            .ok_or_else(|| e!(AdmissionPolicyError::ZeroRegisteredSessions))?;
+        let max_sessions_per_endpoint = NonZeroUsize::new(limits.max_sessions_per_endpoint)
+            .ok_or_else(|| e!(AdmissionPolicyError::ZeroSessionsPerEndpoint))?;
+
+        for (field, value) in [
+            (
+                "max_pending_establishments",
+                max_pending_establishments.get(),
+            ),
+            ("max_registered_sessions", max_registered_sessions.get()),
+        ] {
+            if value > tokio::sync::Semaphore::MAX_PERMITS {
+                return Err(e!(AdmissionPolicyError::CapacityTooLarge {
+                    field,
+                    value,
+                    maximum: tokio::sync::Semaphore::MAX_PERMITS,
+                }));
+            }
+        }
+
+        Ok(Self {
+            accept_conn_limit,
+            accept_conn_burst,
+            max_pending_establishments,
+            max_registered_sessions,
+            max_sessions_per_endpoint,
+        })
+    }
 }
 
 /// Per-client rate limit configuration.
@@ -641,6 +779,8 @@ pub struct Server {
 #[stack_error(derive, add_meta, std_sources)]
 #[non_exhaustive]
 pub enum SpawnError {
+    #[error("Invalid relay admission policy")]
+    AdmissionPolicy { source: AdmissionPolicyError },
     #[error("Unable to get local address")]
     LocalAddr { source: std::io::Error },
     #[error("Failed to bind QAD listener")]
@@ -691,6 +831,15 @@ impl Server {
     pub async fn spawn(config: ServerConfig) -> Result<Self, SpawnError> {
         let mut tasks = JoinSet::new();
 
+        let relay_config = config
+            .relay
+            .map(|relay| {
+                AdmissionPolicy::try_from(&relay.limits)
+                    .map(|policy| (relay, policy))
+                    .map_err(|err| e!(SpawnError::AdmissionPolicy, err))
+            })
+            .transpose()?;
+
         let metrics = RelayMetrics::default();
 
         #[cfg(not(feature = "metrics"))]
@@ -709,8 +858,8 @@ impl Server {
             None
         };
 
-        let (relay_server, http_addr, tls_config) = match config.relay {
-            Some(relay_config) => {
+        let (relay_server, http_addr, tls_config) = match relay_config {
+            Some((relay_config, admission_policy)) => {
                 debug!("Starting Relay server");
                 let mut headers = HeaderMap::new();
                 for (name, value) in TLS_HEADERS.iter() {
@@ -729,6 +878,7 @@ impl Server {
                     .key_cache_capacity
                     .unwrap_or(DEFAULT_KEY_CACHE_CAPACITY);
                 let mut builder = http_server::ServerBuilder::new(relay_bind_addr)
+                    .admission_policy(admission_policy)
                     .metrics(metrics.server.clone())
                     .headers(headers)
                     .key_cache_capacity(key_cache_capacity)
@@ -1299,22 +1449,91 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn incomplete_admission_rate_limit_is_rejected_before_bind() {
-        let mut relay = RelayConfig::new((Ipv4Addr::LOCALHOST, 0));
-        relay.limits.accept_conn_limit = Some(200.0);
-        relay.limits.accept_conn_burst = None;
+    async fn invalid_admission_rate_limits_are_rejected_before_bind() {
+        let invalid_limits = [
+            (Some(200.0), None, "missing burst"),
+            (None, Some(400), "missing rate"),
+            (Some(f64::NAN), Some(400), "NaN rate"),
+            (Some(f64::INFINITY), Some(400), "infinite rate"),
+            (Some(f64::NEG_INFINITY), Some(400), "negative infinite rate"),
+            (Some(0.0), Some(400), "zero rate"),
+            (Some(-1.0), Some(400), "negative rate"),
+            (Some(200.0), Some(0), "zero burst"),
+        ];
 
-        let result = Server::spawn(ServerConfig {
-            relay: Some(relay),
-            quic: None,
-            metrics_addr: None,
-        })
-        .await;
+        for (accept_conn_limit, accept_conn_burst, case) in invalid_limits {
+            let mut relay = RelayConfig::new((Ipv4Addr::LOCALHOST, 0));
+            relay.limits.accept_conn_limit = accept_conn_limit;
+            relay.limits.accept_conn_burst = accept_conn_burst;
 
-        assert!(
-            result.is_err(),
-            "partial admission limits must fail startup"
-        );
+            let result = Server::spawn(ServerConfig {
+                relay: Some(relay),
+                quic: None,
+                metrics_addr: None,
+            })
+            .await;
+
+            assert!(
+                matches!(result, Err(SpawnError::AdmissionPolicy { .. })),
+                "{case} must fail startup with a typed admission error"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn zero_admission_capacities_are_rejected_before_bind() {
+        for case in [
+            "max_pending_establishments",
+            "max_registered_sessions",
+            "max_sessions_per_endpoint",
+        ] {
+            let mut relay = RelayConfig::new((Ipv4Addr::LOCALHOST, 0));
+            match case {
+                "max_pending_establishments" => relay.limits.max_pending_establishments = 0,
+                "max_registered_sessions" => relay.limits.max_registered_sessions = 0,
+                "max_sessions_per_endpoint" => relay.limits.max_sessions_per_endpoint = 0,
+                _ => unreachable!("test table contains only known capacity fields"),
+            }
+
+            let result = Server::spawn(ServerConfig {
+                relay: Some(relay),
+                quic: None,
+                metrics_addr: None,
+            })
+            .await;
+
+            assert!(
+                matches!(result, Err(SpawnError::AdmissionPolicy { .. })),
+                "{case}=0 must fail startup with a typed admission error"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn unsupported_semaphore_capacities_are_rejected_before_bind() {
+        for case in ["max_pending_establishments", "max_registered_sessions"] {
+            let mut relay = RelayConfig::new((Ipv4Addr::LOCALHOST, 0));
+            match case {
+                "max_pending_establishments" => {
+                    relay.limits.max_pending_establishments = usize::MAX;
+                }
+                "max_registered_sessions" => {
+                    relay.limits.max_registered_sessions = usize::MAX;
+                }
+                _ => unreachable!("test table contains only semaphore capacity fields"),
+            }
+
+            let result = Server::spawn(ServerConfig {
+                relay: Some(relay),
+                quic: None,
+                metrics_addr: None,
+            })
+            .await;
+            assert!(
+                matches!(result, Err(SpawnError::AdmissionPolicy { .. })),
+                "{case} above Tokio's supported maximum must return a typed error"
+            );
+        }
     }
 
     #[tokio::test]
