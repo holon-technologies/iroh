@@ -1299,6 +1299,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn incomplete_admission_rate_limit_is_rejected_before_bind() {
+        let mut relay = RelayConfig::new((Ipv4Addr::LOCALHOST, 0));
+        relay.limits.accept_conn_limit = Some(200.0);
+        relay.limits.accept_conn_burst = None;
+
+        let result = Server::spawn(ServerConfig {
+            relay: Some(relay),
+            quic: None,
+            metrics_addr: None,
+        })
+        .await;
+
+        assert!(
+            result.is_err(),
+            "partial admission limits must fail startup"
+        );
+    }
+
+    #[tokio::test]
     #[traced_test]
     async fn test_root_handler() {
         let server = spawn_local_relay().await.unwrap();
