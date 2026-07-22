@@ -1,0 +1,824 @@
+clock-timer	iroh-dns-server/benches/write.rs:47	let start = std::time::Instant::now();
+clock-timer	iroh-dns-server/src/http.rs:290	let start = Instant::now();
+clock-timer	iroh-dns-server/src/lib.rs:136	let timestamp = std::time::SystemTime::now()
+clock-timer	iroh-dns-server/src/lib.rs:264	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	iroh-dns-server/src/lib.rs:270	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	iroh-dns-server/src/store/signed_packets.rs:130	let timeout = tokio::time::sleep(self.options.max_batch_time);
+clock-timer	iroh-dns-server/src/store/signed_packets.rs:223	Timestamp::now().as_micros().saturating_sub(expiry_us),
+clock-timer	iroh-dns-server/src/store/signed_packets.rs:388	out.extend_from_slice(&Timestamp::now().to_be_bytes());
+clock-timer	iroh-dns-server/src/store/signed_packets.rs:446	Timestamp::from_micros(Timestamp::now().as_micros().saturating_sub(expiry_us));
+clock-timer	iroh-dns-server/src/store/signed_packets.rs:487	tokio::time::sleep(options.eviction_interval).await;
+clock-timer	iroh-dns/src/pkarr.rs:325	/// [`Timestamp::now`] is guaranteed to be strictly monotonic: it will never
+clock-timer	iroh-dns/src/pkarr.rs:333	/// Tracks the last timestamp returned by [`Timestamp::now`] to ensure monotonicity.
+clock-timer	iroh-dns/src/pkarr.rs:342	use n0_future::time::SystemTime;
+clock-timer	iroh-dns/src/pkarr.rs:343	let micros = SystemTime::now()
+clock-timer	iroh-dns/src/pkarr.rs:78	let timestamp = Timestamp::now();
+clock-timer	iroh-relay/src/defaults.rs:28	use n0_future::time::Duration;
+clock-timer	iroh-relay/src/ping_tracker.rs:2	use n0_future::time::Instant;
+clock-timer	iroh-relay/src/ping_tracker.rs:3	use n0_future::time::{self, Duration};
+clock-timer	iroh-relay/src/ping_tracker.rs:62	self.new_ping_with_data_at(timeout, ping_data, Instant::now())
+clock-timer	iroh-relay/src/ping_tracker.rs:86	self.pong_received_at(data, Instant::now());
+clock-timer	iroh-relay/src/protos/relay.rs:15	use n0_future::time::Duration;
+clock-timer	iroh-relay/src/quic.rs:446	tokio::time::sleep(Duration::from_millis(1000)).await;
+clock-timer	iroh-relay/src/quic.rs:450	let before = Instant::now();
+clock-timer	iroh-relay/src/quic.rs:453	let time = Instant::now().duration_since(before);
+clock-timer	iroh-relay/src/quic.rs:497	let start = Instant::now();
+clock-timer	iroh-relay/src/quic.rs:6	use n0_future::time::Duration;
+clock-timer	iroh-relay/src/server.rs:1252	let Ok(res) = tokio::time::timeout(Duration::from_millis(500), client_b.next()).await
+clock-timer	iroh-relay/src/server.rs:1280	let res = tokio::time::timeout(Duration::from_secs(5), server.join())
+clock-timer	iroh-relay/src/server.rs:1633	tokio::time::timeout(Duration::from_secs(10), client.connect())
+clock-timer	iroh-relay/src/server/client.rs:886	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	iroh-relay/src/server/client.rs:897	let res = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
+clock-timer	iroh-relay/src/server/client.rs:903	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	iroh-relay/src/server/client.rs:906	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	iroh-relay/src/server/clients.rs:518	tokio::time::timeout(Duration::from_secs(1), async move {
+clock-timer	iroh-relay/src/server/clients.rs:523	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh-relay/src/server/clients.rs:595	tokio::time::timeout(Duration::from_secs(1), {
+clock-timer	iroh-relay/src/server/clients.rs:600	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh-relay/src/server/clients.rs:635	tokio::time::timeout(Duration::from_secs(1), {
+clock-timer	iroh-relay/src/server/clients.rs:640	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh-relay/src/server/clients.rs:689	tokio::time::timeout(Duration::from_secs(1), {
+clock-timer	iroh-relay/src/server/clients.rs:693	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh-relay/src/server/http_server.rs:1309	let timeout = MaybeFuture::Some(tokio::time::sleep(timeout));
+clock-timer	iroh-relay/src/server/http_server.rs:1711	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	iroh-relay/src/server/http_server.rs:1923	let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+clock-timer	iroh-relay/src/server/http_server.rs:1924	let read = tokio::time::timeout_at(deadline, lingering.read(&mut buf)).await;
+clock-timer	iroh-relay/src/server/http_server.rs:1938	tokio::time::sleep(Duration::from_millis(1000)).await;
+clock-timer	iroh-relay/src/server/streams.rs:411	last_fill: time::Instant::now(),
+clock-timer	iroh-relay/src/server/streams.rs:433	let now = time::Instant::now();
+clock-timer	iroh-relay/src/server/streams.rs:637	use n0_future::time;
+clock-timer	iroh-relay/src/server/streams.rs:661	let before = time::Instant::now();
+clock-timer	iroh-relay/src/server/streams.rs:679	let duration = time::Instant::now().duration_since(before);
+clock-timer	iroh-relay/src/server/streams.rs:722	let before = time::Instant::now();
+clock-timer	iroh-relay/src/server/streams.rs:729	unlimited_duration = time::Instant::now().duration_since(before);
+clock-timer	iroh-relay/src/server/streams.rs:735	let before = time::Instant::now();
+clock-timer	iroh-relay/src/server/streams.rs:742	limited_duration = time::Instant::now().duration_since(before);
+clock-timer	iroh-relay/tests/relay_axum.rs:221	tokio::time::timeout(
+clock-timer	iroh-relay/tests/relay_hyper.rs:110	tokio::time::timeout(
+clock-timer	iroh-relay/tests/runtime_auth.rs:313	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh-relay/tests/runtime_auth.rs:335	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh-relay/tests/runtime_auth.rs:359	tokio::time::timeout(timeout, async {
+clock-timer	iroh-relay/tests/runtime_auth.rs:361	tokio::time::sleep(Duration::from_millis(20)).await;
+clock-timer	iroh-runtime/src/time.rs:263	SystemTime::now()
+clock-timer	iroh-runtime/src/time.rs:372	origin: tokio::time::Instant::now().into_std(),
+clock-timer	iroh-runtime/src/time.rs:387	tokio::time::Instant::now().into_std()
+clock-timer	iroh-runtime/src/time.rs:399	sleep: Box::pin(tokio::time::sleep_until(deadline.into())),
+clock-timer	iroh-runtime/src/time.rs:436	tokio::time::Instant::now().into_std()
+clock-timer	iroh-runtime/src/time.rs:451	sleep: Pin<Box<tokio::time::Sleep>>,
+clock-timer	iroh-runtime/src/time.rs:524	tokio::time::advance(Duration::from_secs(5)).await;
+clock-timer	iroh-runtime/src/time.rs:536	tokio::time::advance(Duration::from_secs(8)).await;
+clock-timer	iroh-runtime/src/time.rs:557	tokio::time::advance(Duration::from_secs(5)).await;
+clock-timer	iroh-runtime/tests/time.rs:33	tokio::time::advance(Duration::from_secs(4)).await;
+clock-timer	iroh-runtime/tests/time.rs:35	tokio::time::advance(Duration::from_secs(1)).await;
+clock-timer	iroh-runtime/tests/time.rs:50	tokio::time::advance(Duration::from_secs(3)).await;
+clock-timer	iroh-runtime/tests/time.rs:70	let before = SystemTime::now();
+clock-timer	iroh-runtime/tests/time.rs:72	let after = SystemTime::now();
+clock-timer	iroh-sim/src/cli.rs:796	let now_unix_secs = SystemTime::now()
+clock-timer	iroh-sim/src/kernel.rs:178	origin: iroh_runtime::Instant::now(),
+clock-timer	iroh-sim/tests/deterministic_runtime.rs:44	tokio::time::advance(Duration::from_secs(5)).await;
+clock-timer	iroh-sim/tests/relay.rs:193	let started = tokio::time::Instant::now();
+clock-timer	iroh-sim/tests/relay.rs:328	let started = tokio::time::Instant::now();
+clock-timer	iroh/bench/src/iroh.rs:164	let download_start = Instant::now();
+clock-timer	iroh/bench/src/iroh.rs:242	let start = Instant::now();
+clock-timer	iroh/bench/src/iroh.rs:253	let start = Instant::now();
+clock-timer	iroh/bench/src/iroh.rs:77	let client_start = std::time::Instant::now();
+clock-timer	iroh/bench/src/lib.rs:225	let start = Instant::now();
+clock-timer	iroh/bench/src/noq.rs:131	let download_start = Instant::now();
+clock-timer	iroh/bench/src/noq.rs:209	let start = Instant::now();
+clock-timer	iroh/bench/src/noq.rs:220	let start = Instant::now();
+clock-timer	iroh/bench/src/noq.rs:55	let client_start = std::time::Instant::now();
+clock-timer	iroh/bench/src/stats.rs:2	use n0_future::time::Duration;
+clock-timer	iroh/examples/0rtt.rs:79	let t0 = Instant::now();
+clock-timer	iroh/examples/0rtt.rs:81	let t0 = Instant::now();
+clock-timer	iroh/examples/custom-transport.rs:192	tokio::time::sleep(Duration::from_secs(args.delay)).await;
+clock-timer	iroh/examples/listen.rs:100	let res = tokio::time::timeout(Duration::from_secs(3), async move {
+clock-timer	iroh/examples/monitor-connections.rs:77	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	iroh/examples/remote-info.rs:127	SystemTime::now()
+clock-timer	iroh/examples/remote-info.rs:214	self.last_update = SystemTime::now();
+clock-timer	iroh/examples/remote-info.rs:421	info.aggregate.last_update = SystemTime::now();
+clock-timer	iroh/examples/remote-info.rs:432	let mut interval = tokio::time::interval(retention_time);
+clock-timer	iroh/examples/remote-info.rs:435	let now = SystemTime::now();
+clock-timer	iroh/examples/remote-info.rs:51	tokio::time::sleep(Duration::from_millis(500)).await;
+clock-timer	iroh/examples/remote-info.rs:70	tokio::time::sleep(Duration::from_millis(500)).await;
+clock-timer	iroh/examples/transfer.rs:1015	start: Instant::now(),
+clock-timer	iroh/examples/transfer.rs:655	let start = Instant::now();
+clock-timer	iroh/examples/transfer.rs:724	let start = Instant::now();
+clock-timer	iroh/examples/transfer.rs:754	tokio::time::sleep(duration).await;
+clock-timer	iroh/examples/transfer.rs:788	let shutdown_start = Instant::now();
+clock-timer	iroh/examples/transfer.rs:833	let start = Instant::now();
+clock-timer	iroh/examples/transfer.rs:877	let start = Instant::now();
+clock-timer	iroh/examples/transfer.rs:917	let timeout = tokio::time::sleep(timeout);
+clock-timer	iroh/src/address_lookup.rs:1231	SystemTime::now()
+clock-timer	iroh/src/address_lookup.rs:1248	use n0_future::time::Duration;
+clock-timer	iroh/src/address_lookup/memory.rs:172	let last_updated = SystemTime::now();
+clock-timer	iroh/src/address_lookup/memory.rs:185	let last_updated = SystemTime::now();
+clock-timer	iroh/src/address_lookup/pkarr.rs:390	republish.as_mut().reset(Instant::now() + retry_after);
+clock-timer	iroh/src/address_lookup/pkarr.rs:404	.reset(Instant::now() + self.republish_interval);
+clock-timer	iroh/src/defaults.rs:124	use n0_future::time::Duration;
+clock-timer	iroh/src/endpoint.rs:2451	let (server, client) = tokio::time::timeout(
+clock-timer	iroh/src/endpoint.rs:2465	let test_start = Instant::now();
+clock-timer	iroh/src/endpoint.rs:2494	let res = tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh/src/endpoint.rs:2495	let round_start = Instant::now();
+clock-timer	iroh/src/endpoint.rs:2537	let round_start = Instant::now();
+clock-timer	iroh/src/endpoint.rs:2548	let res = tokio::time::timeout(
+clock-timer	iroh/src/endpoint.rs:3101	let mut addr = tokio::time::timeout(Duration::from_secs(10), async move {
+clock-timer	iroh/src/endpoint.rs:3299	let _conn = tokio::time::timeout(
+clock-timer	iroh/src/endpoint.rs:3349	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh/src/endpoint.rs:3360	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh/src/endpoint.rs:3639	let t0 = Instant::now();
+clock-timer	iroh/src/endpoint.rs:3645	let t1 = Instant::now();
+clock-timer	iroh/src/endpoint.rs:4095	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh/src/endpoint.rs:4097	tokio::time::sleep(Duration::from_millis(10)).await
+clock-timer	iroh/src/endpoint.rs:4161	let now = Instant::now();
+clock-timer	iroh/src/endpoint.rs:4244	tokio::time::timeout(Duration::from_secs(1), async {
+clock-timer	iroh/src/endpoint.rs:4267	tokio::time::timeout(Duration::from_secs(1), endpoint.close())
+clock-timer	iroh/src/endpoint.rs:4284	let now = Instant::now();
+clock-timer	iroh/src/endpoint.rs:4285	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	iroh/src/endpoint.rs:4312	tokio::time::sleep(Duration::from_millis(10)).await;
+clock-timer	iroh/src/endpoint.rs:4315	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	iroh/src/endpoint.rs:4336	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	iroh/src/endpoint.rs:4343	let res = tokio::time::timeout(Duration::from_millis(1000), ep.online()).await;
+clock-timer	iroh/src/endpoint.rs:4349	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	iroh/src/endpoint.rs:4362	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	iroh/src/endpoint.rs:4368	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	iroh/src/endpoint.rs:4412	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh/src/endpoint.rs:4436	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
+clock-timer	iroh/src/endpoint/connection.rs:1606	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_server))
+clock-timer	iroh/src/endpoint/connection.rs:1612	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_client))
+clock-timer	iroh/src/endpoint/connection.rs:1619	tokio::time::pause();
+clock-timer	iroh/src/endpoint/connection.rs:1626	tokio::time::timeout(Duration::from_nanos(1), async {
+clock-timer	iroh/src/endpoint/connection.rs:1631	tokio::time::timeout(Duration::from_nanos(1), async {
+clock-timer	iroh/src/endpoint/quic.rs:709	/// Defaults to [`noq::StdSystemTime`], which simply calls [`SystemTime::now()`](std::time::SystemTime::now).
+clock-timer	iroh/src/net_report.rs:1240	tokio::time::advance(Duration::from_secs(s.after)).await;
+clock-timer	iroh/src/net_report.rs:251	last_full: Instant::now(),
+clock-timer	iroh/src/net_report.rs:301	let now = Instant::now();
+clock-timer	iroh/src/net_report.rs:762	let now = Instant::now();
+clock-timer	iroh/src/net_report/defaults.rs:5	use n0_future::time::Duration;
+clock-timer	iroh/src/net_report/probes.rs:10	use n0_future::time::Duration;
+clock-timer	iroh/src/net_report/reportgen.rs:858	let start = Instant::now();
+clock-timer	iroh/src/protocol.rs:1024	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh/src/protocol.rs:907	tokio::time::timeout(Duration::from_millis(500), e2.connect(addr, ECHO_ALPN)).await;
+clock-timer	iroh/src/protocol.rs:929	tokio::time::timeout(Duration::from_millis(500), e2.connect(addr, ECHO_ALPN)).await;
+clock-timer	iroh/src/runtime.rs:156	fn new_timer(&self, deadline: n0_future::time::Instant) -> Pin<Box<dyn noq::AsyncTimer>> {
+clock-timer	iroh/src/runtime.rs:157	Box::pin(web::Timer(n0_future::time::sleep_until(deadline)))
+clock-timer	iroh/src/runtime.rs:251	use n0_future::time;
+clock-timer	iroh/src/runtime.rs:371	tokio::time::advance(Duration::from_secs(4)).await;
+clock-timer	iroh/src/runtime.rs:373	tokio::time::advance(Duration::from_secs(1)).await;
+clock-timer	iroh/src/socket.rs:1828	MaybeFuture::Some(n0_future::time::sleep_until(pending.next_check))
+clock-timer	iroh/src/socket.rs:1996	Instant::now()
+clock-timer	iroh/src/socket.rs:2376	time::interval_at(time::Instant::now() + d, d)
+clock-timer	iroh/src/socket.rs:2689	tokio::time::timeout(Duration::from_secs(20), async move {
+clock-timer	iroh/src/socket.rs:2810	tokio::time::sleep(Duration::from_secs(1)).await; // wait for socket rebinding
+clock-timer	iroh/src/socket.rs:3089	let res = tokio::time::timeout(
+clock-timer	iroh/src/socket.rs:3115	tokio::time::sleep(Duration::from_secs(10)).await;
+clock-timer	iroh/src/socket.rs:3140	let res = tokio::time::timeout(
+clock-timer	iroh/src/socket.rs:3213	// tokio::time::timeout() on the connection attempt instead. Here however we want
+clock-timer	iroh/src/socket.rs:3250	tokio::time::timeout(Duration::from_secs(10), async move {
+clock-timer	iroh/src/socket.rs:37	use n0_future::time::{self, Instant};
+clock-timer	iroh/src/socket/remote_map.rs:500	tokio::time::sleep(Duration::from_secs(65)).await;
+clock-timer	iroh/src/socket/remote_map.rs:511	tokio::time::resume();
+clock-timer	iroh/src/socket/remote_map/remote_state.rs:21	use n0_future::time::{self, Instant};
+clock-timer	iroh/src/socket/remote_map/remote_state.rs:374	.reset(Instant::now() + ACTOR_MAX_IDLE_TIMEOUT);
+clock-timer	iroh/src/socket/remote_map/remote_state.rs:460	idle_timeout.as_mut().reset(Instant::now() + ACTOR_MAX_IDLE_TIMEOUT);
+clock-timer	iroh/src/socket/remote_map/remote_state.rs:931	Instant::now()
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:12	use n0_future::time::Instant;
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:410	let now = Instant::now();
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:453	let now = Instant::now();
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:572	state.insert_open_path(addr.clone(), source.clone(), Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:589	state.insert_open_path(addr_open.clone(), Source::Connection, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:593	state.abandoned_path(&addr_open, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:602	state.abandoned_path(&addr_open, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:615	Instant::now(),
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:624	state.abandoned_path(&addr_unknown, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:633	state.abandoned_path(&addr_unknown, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:642	state.insert_open_path(addr_unknown.clone(), Source::Connection, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:668	state.insert_multiple(std::iter::empty(), Source::App, Instant::now());
+clock-timer	iroh/src/socket/remote_map/remote_state/path_state.rs:676	state.insert_multiple([ip_addr(4242)].into_iter(), Source::App, Instant::now());
+clock-timer	iroh/src/socket/transports/relay.rs:388	if tokio::time::timeout(Duration::from_secs(10), tasks.join_all())
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2140	tokio::time::timeout(Duration::from_secs(10), async move {
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2142	let res = tokio::time::timeout(UNDELIVERABLE_DATAGRAM_TIMEOUT, async {
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2250	tokio::time::sleep(Duration::from_millis(10)).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2291	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2295	if tokio::time::timeout(Duration::from_millis(200), rx)
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2310	tokio::time::pause();
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2311	tokio::time::advance(RELAY_INACTIVE_CLEANUP_TIME / 2).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2312	tokio::time::resume();
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2315	tokio::time::timeout(Duration::from_millis(100), &mut task)
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2323	tokio::time::pause();
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2324	tokio::time::advance(RELAY_INACTIVE_CLEANUP_TIME).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2325	tokio::time::resume();
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2331	tokio::time::timeout(Duration::from_secs(1), task)
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2343	tokio::time::pause();
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2348	let res = tokio::time::timeout(Duration::from_secs(1), tracker.timeout()).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2352	let res = tokio::time::timeout(Duration::from_secs(10), tracker.timeout()).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2357	let res = tokio::time::timeout(Duration::from_secs(10), tracker.timeout()).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2362	tokio::time::sleep(Duration::from_secs(10)).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2363	let res = tokio::time::timeout(Duration::from_millis(1), tracker.timeout()).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:2366	let res = tokio::time::timeout(Duration::from_secs(10), tracker.timeout()).await;
+clock-timer	iroh/src/socket/transports/relay/actor.rs:496	.reset(Instant::now() + RELAY_INACTIVE_CLEANUP_TIME);
+clock-timer	iroh/src/socket/transports/relay/actor.rs:58	use n0_future::time::{self, Instant, MissedTickBehavior};
+clock-timer	iroh/src/test_utils.rs:401	let timeout = tokio::time::sleep(timeout);
+clock-timer	iroh/src/test_utils/qlog.rs:56	start: Instant::now(),
+clock-timer	iroh/src/test_utils/qlog.rs:9	use n0_future::time::Instant;
+clock-timer	iroh/src/test_utils/test_transport.rs:570	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh/src/test_utils/test_transport.rs:609	tokio::time::sleep(Duration::from_millis(200)).await;
+clock-timer	iroh/src/test_utils/test_transport.rs:690	tokio::time::sleep(Duration::from_millis(200)).await;
+clock-timer	iroh/src/test_utils/test_transport.rs:712	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	iroh/src/test_utils/test_transport.rs:719	tokio::time::sleep(Duration::from_millis(200)).await;
+clock-timer	iroh/tests/patchbay.rs:202	tokio::time::sleep(downtime).await;
+clock-timer	iroh/tests/patchbay.rs:276	tokio::time::sleep(Duration::from_secs(3)).await;
+clock-timer	iroh/tests/patchbay/degrade.rs:117	let result = tokio::time::timeout(
+clock-timer	iroh/tests/patchbay/util.rs:365	tokio::time::timeout(timeout, async {
+clock-timer	iroh/tests/patchbay/util.rs:393	tokio::time::timeout(timeout, async {
+clock-timer	iroh/tests/patchbay/util.rs:413	tokio::time::timeout(timeout, async {
+entropy-random	iroh-base/src/key.rs:314	/// let mut rng = rand::rng();
+entropy-random	iroh-base/src/key.rs:319	Self::from_bytes(&rand::random())
+entropy-random	iroh-base/src/key.rs:558	let key = SecretKey::generate();
+entropy-random	iroh-dns-server/examples/publish.rs:69	let s = SecretKey::generate();
+entropy-random	iroh-dns-server/src/lib.rs:81	let secret_key = SecretKey::generate();
+entropy-random	iroh-dns-server/src/store/signed_packets.rs:573	let secret_key = SecretKey::generate();
+entropy-random	iroh-dns/src/dns.rs:1022	let jitter = rand::random::<u64>() % max_jitter;
+entropy-random	iroh-relay/src/ping_tracker.rs:61	let ping_data = rand::random();
+entropy-random	iroh-relay/src/protos/handshake.rs:425	let challenge = ServerChallenge::new(&mut rand::rng());
+entropy-random	iroh-relay/src/server.rs:1628	let client = ClientBuilder::new(url, SecretKey::generate(), resolver)
+entropy-random	iroh-relay/src/server/clients.rs:147	ChallengeEntropy::Production => rand::rng().fill_bytes(&mut challenge),
+entropy-random	iroh-relay/tests/runtime_auth.rs:227	let shared = SecretKey::from_bytes(&rand::rng().random());
+entropy-random	iroh-relay/tests/runtime_auth.rs:290	let secret = SecretKey::from_bytes(&rand::rng().random());
+entropy-random	iroh-runtime/src/decision.rs:33	rand::rng().fill_bytes(&mut bytes);
+entropy-random	iroh/examples/0rtt.rs:35	let secret_key = SecretKey::generate();
+entropy-random	iroh/examples/connect-unreliable.rs:37	let secret_key = SecretKey::from_bytes(&rand::random());
+entropy-random	iroh/examples/connect.rs:38	let secret_key = SecretKey::generate();
+entropy-random	iroh/examples/listen-unreliable.rs:17	let secret_key = SecretKey::generate();
+entropy-random	iroh/examples/listen.rs:22	let secret_key = SecretKey::generate();
+entropy-random	iroh/examples/transfer.rs:403	let s = SecretKey::generate();
+entropy-random	iroh/src/address_lookup.rs:727	let port: u16 = rand::rng().random_range(10_000..20_000);
+entropy-random	iroh/src/address_lookup/memory.rs:59	/// let id = SecretKey::generate().public();
+entropy-random	iroh/src/endpoint.rs:254	let secret_key = self.secret_key.unwrap_or_else(SecretKey::generate);
+entropy-random	iroh/src/endpoint.rs:274	RustlsTokenKey::new(&mut rand::rng(), &crypto_provider)
+entropy-random	iroh/src/endpoint.rs:278	let token_key = RustlsTokenKey::new(&mut rand::rng(), &crypto_provider)
+entropy-random	iroh/src/net_report/reportgen.rs:589	let i = (0..urls.len()).choose(&mut rand::rng()).unwrap_or_default();
+entropy-random	iroh/src/socket.rs:1218	None => Blake3HmacKey::new(&mut rand::rng()),
+entropy-random	iroh/src/socket.rs:1221	let reset_key = Blake3HmacKey::new(&mut rand::rng());
+entropy-random	iroh/src/socket.rs:1227	endpoint_config.rng_seed(Some(seed));
+entropy-random	iroh/src/socket.rs:2372	let mut rng = rand::rng();
+entropy-random	iroh/src/socket.rs:2969	token_key: Arc::new(RustlsTokenKey::new(&mut rand::rng(), &crypto_provider).unwrap()),
+entropy-random	iroh/src/socket/transports/relay/actor.rs:453	let builder = builder.with_jitter();
+entropy-random	iroh/src/socket/transports/relay/actor.rs:883	let data = rand::random();
+entropy-random	iroh/src/test_utils/test_transport.rs:474	let s1 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:475	let s2 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:513	let s1 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:514	let s2 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:549	let s1 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:550	let s2 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:588	let s1 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:589	let s2 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:632	let s1 = SecretKey::generate();
+entropy-random	iroh/src/test_utils/test_transport.rs:633	let s2 = SecretKey::generate();
+entropy-random	iroh/tests/patchbay/util.rs:394	let data: [u8; 8] = rand::random();
+external-state	iroh-dns-server/examples/publish.rs:65	let secret_key = match std::env::var("IROH_SECRET") {
+external-state	iroh-dns-server/src/config.rs:194	let s = tokio::fs::read_to_string(path.as_ref())
+external-state	iroh-dns-server/src/config.rs:211	} else if let Some(val) = env::var_os("IROH_DNS_DATA_DIR") {
+external-state	iroh-dns-server/src/http.rs:126	tokio::fs::create_dir_all(&cert_cache_dir)
+external-state	iroh-dns-server/src/http/rate_limiting.rs:79	std::thread::spawn(move || {
+external-state	iroh-dns-server/src/http/tls.rs:159	let certfile = tokio::fs::read(filename)
+external-state	iroh-dns-server/src/http/tls.rs:169	let keyfile = tokio::fs::read(filename)
+external-state	iroh-dns-server/src/store/signed_packets.rs:303	std::fs::create_dir_all(parent).with_std_context(|_| {
+external-state	iroh-relay/src/main.rs:226	if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
+external-state	iroh-relay/src/main.rs:234	if let Ok(env_token) = std::env::var(ENV_RELAY_ACCESS_TOKEN) {
+external-state	iroh-relay/src/main.rs:559	let config_ser = tokio::fs::read_to_string(&path)
+external-state	iroh-relay/src/main.rs:627	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+external-state	iroh-relay/src/main.rs:648	let acme_config = if let Ok(url) = std::env::var(ENV_ACME_URL) {
+external-state	iroh-relay/src/main.rs:660	if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
+external-state	iroh-sim/src/bin/cargo-sim.rs:2	let args: Vec<_> = std::env::args_os().collect();
+external-state	iroh-sim/src/cli.rs:1696	let output = ProcessCommand::new("git")
+external-state	iroh-sim/src/cli.rs:1713	let mut command = ProcessCommand::new("git");
+external-state	iroh-sim/src/cli.rs:1737	let mut current = std::env::current_dir().map_err(CliError::Io)?;
+external-state	iroh-sim/src/cli.rs:1787	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
+external-state	iroh-sim/tests/cli.rs:112	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:147	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:169	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:185	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:203	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:221	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:23	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:256	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:279	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:303	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:334	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:359	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:375	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:408	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:433	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:450	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:46	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:468	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:492	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:519	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:545	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:566	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:647	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:713	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:73	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:747	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:800	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:843	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:856	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:872	let path = std::env::temp_dir().join(format!(
+external-state	iroh-sim/tests/cli.rs:89	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/corpus_campaign.rs:213	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/failure_replay.rs:157	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/trace.rs:157	let path = std::env::temp_dir().join(format!(
+external-state	iroh/bench/src/bin/bulk.rs:124	let server_thread = std::thread::spawn(move || {
+external-state	iroh/bench/src/bin/bulk.rs:134	handles.push(std::thread::spawn(move || {
+external-state	iroh/bench/src/bin/bulk.rs:60	let server_thread = std::thread::spawn(move || {
+external-state	iroh/bench/src/bin/bulk.rs:71	handles.push(std::thread::spawn(move || {
+external-state	iroh/examples/0rtt.rs:30	if let Ok(secret) = env::var("IROH_SECRET") {
+external-state	iroh/examples/transfer.rs:137	std::fs::create_dir_all(&dir)
+external-state	iroh/examples/transfer.rs:399	let secret_key = match std::env::var("IROH_SECRET") {
+external-state	iroh/examples/transfer.rs:581	match (std::env::var("QLOGDIR").ok(), log) {
+external-state	iroh/src/endpoint.rs:1999	if let Some(url) = std::env::var("HTTP_PROXY")
+external-state	iroh/src/endpoint.rs:2009	if let Some(url) = std::env::var("http_proxy")
+external-state	iroh/src/endpoint.rs:2015	if let Some(url) = std::env::var("HTTPS_PROXY")
+external-state	iroh/src/endpoint.rs:2021	if let Some(url) = std::env::var("https_proxy")
+external-state	iroh/src/endpoint.rs:2116	matches!(std::env::var(ENV_FORCE_STAGING_RELAYS), Ok(value) if !value.is_empty())
+external-state	iroh/src/endpoint.rs:2136	std::env::var_os("REQUEST_METHOD").is_some()
+external-state	iroh/src/test_utils/qlog.rs:77	if std::env::var("IROH_TEST_QLOG").is_ok() {
+external-state	iroh/tests/patchbay/nat.rs:141	let Some(output) = std::env::var_os(OUTPUT_ENV) else {
+network-environment	iroh-dns-server/examples/resolve.rs:50	let addr = tokio::net::lookup_host(host)
+network-environment	iroh-dns-server/examples/resolve.rs:76	.lookup_endpoint_by_id(&endpoint_id, origin_domain)
+network-environment	iroh-dns-server/examples/resolve.rs:79	Command::Domain { domain } => resolver.lookup_endpoint_by_domain_name(&domain).await?,
+network-environment	iroh-dns-server/src/dns.rs:107	let socket = UdpSocket::bind(bind_addr).await.anyerr()?;
+network-environment	iroh-dns-server/src/dns.rs:114	TcpListener::bind(bind_addr).await.anyerr()?,
+network-environment	iroh-dns-server/src/dns.rs:223	0 => self.metrics.dns_lookup_notfound.inc(),
+network-environment	iroh-dns-server/src/dns.rs:224	_ => self.metrics.dns_lookup_success.inc(),
+network-environment	iroh-dns-server/src/dns.rs:226	ResponseCode::NXDomain => self.metrics.dns_lookup_notfound.inc(),
+network-environment	iroh-dns-server/src/dns.rs:227	_ => self.metrics.dns_lookup_error.inc(),
+network-environment	iroh-dns-server/src/dns.rs:29	net::{TcpListener, UdpSocket},
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:113	lookup_options: LookupOptions,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:119	.lookup(name, record_type, request_info, lookup_options)
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:125	.resolve_pkarr(name, pubkey, origin, record_type, lookup_options)
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:132	.lookup(name, record_type, request_info, lookup_options)
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:142	lookup_options: LookupOptions,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:149	let lookup_name = request_info.query.name();
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:158	lookup_options,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:167	lookup_name,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:170	lookup_options,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:181	_lookup_options: LookupOptions,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:70	lookup_options: LookupOptions,
+network-environment	iroh-dns-server/src/dns/node_zone_handler.rs:85	let records = LookupRecords::new(lookup_options, Arc::new(record_set));
+network-environment	iroh-dns-server/src/http.rs:104	let listener = TcpListener::bind(bind_addr)
+network-environment	iroh-dns-server/src/http.rs:144	let listener = TcpListener::bind(bind_addr)
+network-environment	iroh-dns-server/src/lib.rs:167	let res = resolver.lookup_txt(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:173	let res = resolver.lookup_txt(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:179	let res = resolver.lookup_txt(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:185	let res = resolver.lookup_txt(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:191	let res = resolver.lookup_ipv4(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:197	let res = resolver.lookup_ipv6(name, DNS_TIMEOUT).await?;
+network-environment	iroh-dns-server/src/lib.rs:234	let res = resolver.lookup_endpoint_by_id(&endpoint_id, origin).await?;
+network-environment	iroh-dns-server/src/lib.rs:323	let res = resolver.lookup_endpoint_by_id(&endpoint_id, origin).await?;
+network-environment	iroh-dns-server/src/metrics.rs:21	pub dns_lookup_success: Counter,
+network-environment	iroh-dns-server/src/metrics.rs:23	pub dns_lookup_notfound: Counter,
+network-environment	iroh-dns-server/src/metrics.rs:25	pub dns_lookup_error: Counter,
+network-environment	iroh-dns/src/dns.rs:1087	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-dns/src/dns.rs:1099	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-dns/src/dns.rs:1103	fn lookup_txt(
+network-environment	iroh-dns/src/dns.rs:1121	.lookup_ipv4("foo.example", Duration::from_secs(1))
+network-environment	iroh-dns/src/dns.rs:1128	.lookup_ipv4("bar.example", Duration::from_secs(1))
+network-environment	iroh-dns/src/dns.rs:430	pub async fn lookup_txt<T: ToString>(
+network-environment	iroh-dns/src/dns.rs:438	.op(timeout, move |resolver| resolver.lookup_txt(host.clone()))
+network-environment	iroh-dns/src/dns.rs:444	pub async fn lookup_ipv4<T: ToString>(
+network-environment	iroh-dns/src/dns.rs:452	.op(timeout, move |resolver| resolver.lookup_ipv4(host.clone()))
+network-environment	iroh-dns/src/dns.rs:458	pub async fn lookup_ipv6<T: ToString>(
+network-environment	iroh-dns/src/dns.rs:466	.op(timeout, move |resolver| resolver.lookup_ipv6(host.clone()))
+network-environment	iroh-dns/src/dns.rs:476	pub async fn lookup_ipv4_ipv6<T: ToString>(
+network-environment	iroh-dns/src/dns.rs:483	self.lookup_ipv4(host.clone(), timeout),
+network-environment	iroh-dns/src/dns.rs:484	self.lookup_ipv6(host, timeout)
+network-environment	iroh-dns/src/dns.rs:499	pub async fn resolve_host(
+network-environment	iroh-dns/src/dns.rs:510	self.lookup_ipv4(domain, timeout),
+network-environment	iroh-dns/src/dns.rs:511	self.lookup_ipv6(domain, timeout)
+network-environment	iroh-dns/src/dns.rs:546	pub fn resolve_host_all<'a>(
+network-environment	iroh-dns/src/dns.rs:55	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>>;
+network-environment	iroh-dns/src/dns.rs:58	fn lookup_ipv6(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>>;
+network-environment	iroh-dns/src/dns.rs:580	self.inner.op(timeout, move |r| r.lookup_ipv4(host.clone()))
+network-environment	iroh-dns/src/dns.rs:584	self.inner.op(timeout, move |r| r.lookup_ipv6(host.clone()))
+network-environment	iroh-dns/src/dns.rs:61	fn lookup_txt(&self, host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>>;
+network-environment	iroh-dns/src/dns.rs:645	pub async fn lookup_ipv4_staggered(
+network-environment	iroh-dns/src/dns.rs:652	let f = || self.lookup_ipv4(host.clone(), timeout);
+network-environment	iroh-dns/src/dns.rs:662	pub async fn lookup_ipv6_staggered(
+network-environment	iroh-dns/src/dns.rs:669	let f = || self.lookup_ipv6(host.clone(), timeout);
+network-environment	iroh-dns/src/dns.rs:678	/// [`Self::lookup_ipv4_ipv6`]. The result of the first successful call is returned, or a
+network-environment	iroh-dns/src/dns.rs:680	pub async fn lookup_ipv4_ipv6_staggered(
+network-environment	iroh-dns/src/dns.rs:687	let f = || self.lookup_ipv4_ipv6(host.clone(), timeout);
+network-environment	iroh-dns/src/dns.rs:695	pub async fn lookup_endpoint_by_id(
+network-environment	iroh-dns/src/dns.rs:701	let lookup = self.lookup_txt(name.clone(), DNS_TIMEOUT).await?;
+network-environment	iroh-dns/src/dns.rs:707	pub async fn lookup_endpoint_by_domain_name(
+network-environment	iroh-dns/src/dns.rs:716	let lookup = self.lookup_txt(name.clone(), DNS_TIMEOUT).await?;
+network-environment	iroh-dns/src/dns.rs:727	pub async fn lookup_endpoint_by_domain_name_staggered(
+network-environment	iroh-dns/src/dns.rs:732	let f = || self.lookup_endpoint_by_domain_name(name);
+network-environment	iroh-dns/src/dns.rs:742	pub async fn lookup_endpoint_by_id_staggered(
+network-environment	iroh-dns/src/dns.rs:748	let f = || self.lookup_endpoint_by_id(endpoint_id, origin);
+network-environment	iroh-dns/src/dns.rs:796	// see [`DnsResolver::lookup_ipv4_ipv6`] for info on why we avoid `LookupIpStrategy::Ipv4AndIpv6`
+network-environment	iroh-dns/src/dns.rs:837	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-dns/src/dns.rs:852	fn lookup_ipv6(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-dns/src/dns.rs:867	fn lookup_txt(&self, host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-dns/src/dns.rs:956	/// Helper enum to give a unified type to the iterators of [`DnsResolver::lookup_ipv4_ipv6`].
+network-environment	iroh-relay/src/client/tls.rs:254	let resolve_stream = dns_resolver.resolve_host_all(url, DNS_TIMEOUT);
+network-environment	iroh-relay/src/client/tls.rs:405	let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+network-environment	iroh-relay/src/client/tls.rs:419	let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+network-environment	iroh-relay/src/quic.rs:426	tokio::net::UdpSocket::bind(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0))
+network-environment	iroh-relay/src/quic.rs:471	let socket = tokio::net::UdpSocket::bind(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0))
+network-environment	iroh-relay/src/server.rs:804	let http_listener = TcpListener::bind(&relay_config.http_bind_addr)
+network-environment	iroh-relay/src/server/http_server.rs:481	let listener = TcpListener::bind(&addr)
+network-environment	iroh-relay/src/server/http_server.rs:733	/// let listener = TcpListener::bind("127.0.0.1:0").await?;
+network-environment	iroh-relay/src/test_utils.rs:18	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-relay/src/test_utils.rs:23	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-relay/src/test_utils.rs:28	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-relay/tests/relay_axum.rs:77	let listener = TcpListener::bind("127.0.0.1:0").await?;
+network-environment	iroh-relay/tests/relay_hyper.rs:66	let listener = TcpListener::bind("127.0.0.1:0").await?;
+network-environment	iroh-sim/benches/stage4_environment.rs:69	group.bench_function("production_builder_portmapper_disabled", |b| {
+network-environment	iroh-sim/benches/stage4_environment.rs:72	iroh::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
+network-environment	iroh-sim/src/backend.rs:327	) -> netwatch::netmon::State {
+network-environment	iroh-sim/src/backend.rs:328	let mut state = netwatch::netmon::State::fake();
+network-environment	iroh-sim/src/monitor.rs:7	use netwatch::netmon::State;
+network-environment	iroh-sim/src/network.rs:1777	lookup_socket(&mut state, &destination_host, datagram.destination)
+network-environment	iroh-sim/src/network.rs:2215	fn lookup_socket(
+network-environment	iroh-sim/src/runner.rs:1166	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh-sim/src/scenario.rs:432	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh-sim/tests/dns.rs:103	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:114	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:118	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:139	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:143	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:147	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:38	.drive(resolver.lookup_ipv4_staggered("peer.invalid", Duration::from_millis(50), &[10, 20]))
+network-environment	iroh-sim/tests/dns.rs:65	.drive(resolver.lookup_ipv4("peer.invalid", Duration::from_millis(5)))
+network-environment	iroh-sim/tests/endpoint.rs:388	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh/examples/0rtt.rs:73	let mut address_lookup_stream = endpoint.address_lookup()?.resolve(remote_id);
+network-environment	iroh/examples/0rtt.rs:74	let _item = address_lookup_stream
+network-environment	iroh/examples/transfer.rs:528	let addr = tokio::net::lookup_host(host)
+network-environment	iroh/src/address_lookup.rs:1088	async fn address_lookup_combined_wrong_only() -> Result {
+network-environment	iroh/src/address_lookup.rs:1091	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:1093	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1098	let address_lookup1 = address_lookup_shared.create_lying_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:1122	async fn address_lookup_with_wrong_existing_addr() -> Result {
+network-environment	iroh/src/address_lookup.rs:1125	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:1127	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1131	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1144	fn concurrent_address_lookup_addr_filter() {
+network-environment	iroh/src/address_lookup.rs:1281	.lookup_endpoint_by_id(&endpoint_info.endpoint_id, &origin)
+network-environment	iroh/src/address_lookup.rs:1322	.lookup_endpoint_by_id(&endpoint_id, &origin)
+network-environment	iroh/src/address_lookup.rs:815	async fn address_lookup_simple_shared() -> Result {
+network-environment	iroh/src/address_lookup.rs:833	async fn address_lookup_simple_shared_with_arc() -> Result {
+network-environment	iroh/src/address_lookup.rs:835	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:837	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
+network-environment	iroh/src/address_lookup.rs:842	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
+network-environment	iroh/src/address_lookup.rs:853	async fn address_lookup_combined_with_empty_and_right() -> Result {
+network-environment	iroh/src/address_lookup.rs:855	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:857	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:862	let addr_lookup2 = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:890	async fn address_lookup_combined_with_empty_and_wrong() -> Result {
+network-environment	iroh/src/address_lookup.rs:892	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:894	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:900	let address_lookup2 = address_lookup_shared.create_lying_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:901	let address_lookup3 = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:921	async fn address_lookup_succeeds_after_other_resolver_errors() -> Result {
+network-environment	iroh/src/address_lookup.rs:923	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:927	.add(address_lookup_shared.create_address_lookup(ep.id()));
+network-environment	iroh/src/address_lookup.rs:939	let working = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup/dns.rs:121	debug_span!("DnsAddressLookup", lookup_id=%endpoint_id.fmt_short(), %origin_domain);
+network-environment	iroh/src/address_lookup/dns.rs:125	.lookup_endpoint_by_id_staggered(&endpoint_id, &origin_domain, DNS_STAGGERING_MS)
+network-environment	iroh/src/defaults.rs:146	async fn test_dns_lookup_ipv4_ipv6() {
+network-environment	iroh/src/defaults.rs:149	.lookup_ipv4_ipv6_staggered(NA_EAST_RELAY_HOSTNAME, TIMEOUT, STAGGERING_DELAYS)
+network-environment	iroh/src/endpoint.rs:120	pub use crate::{net_report::NetReportConfig, portmapper::PortmapperConfig};
+network-environment	iroh/src/endpoint.rs:135	address_lookup_user_data: Option<UserData>,
+network-environment	iroh/src/endpoint.rs:147	portmapper_config: PortmapperConfig,
+network-environment	iroh/src/endpoint.rs:219	address_lookup_user_data: Default::default(),
+network-environment	iroh/src/endpoint.rs:2232	struct StableMonitor(n0_watcher::Watchable<netwatch::netmon::State>);
+network-environment	iroh/src/endpoint.rs:2235	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
+network-environment	iroh/src/endpoint.rs:2245	n0_watcher::Watchable::new(netwatch::netmon::State::fake()),
+network-environment	iroh/src/endpoint.rs:229	portmapper_config: Default::default(),
+network-environment	iroh/src/endpoint.rs:320	address_lookup_user_data: self.address_lookup_user_data,
+network-environment	iroh/src/endpoint.rs:3255	let sock = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+network-environment	iroh/src/endpoint.rs:3259	let sock = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+network-environment	iroh/src/endpoint.rs:345	portmapper_config: self.portmapper_config,
+network-environment	iroh/src/endpoint.rs:3787	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	iroh/src/endpoint.rs:3813	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	iroh/src/endpoint.rs:3843	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	iroh/src/endpoint.rs:3867	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	iroh/src/endpoint.rs:782	self.address_lookup_user_data = Some(user_data);
+network-environment	iroh/src/endpoint.rs:923	/// Configures the portmapper service (UPnP, PCP, NAT-PMP).
+network-environment	iroh/src/endpoint.rs:928	pub fn portmapper_config(mut self, config: PortmapperConfig) -> Self {
+network-environment	iroh/src/endpoint.rs:929	self.portmapper_config = config;
+network-environment	iroh/src/lib.rs:271	pub(crate) mod portmapper;
+network-environment	iroh/src/net_report/reportgen.rs:605	.lookup_ipv4_ipv6_staggered(domain, DNS_TIMEOUT, DNS_STAGGERING_MS)
+network-environment	iroh/src/net_report/reportgen.rs:689	relay_lookup_ipv4_staggered(dns_resolver, relay, port).await
+network-environment	iroh/src/net_report/reportgen.rs:698	relay_lookup_ipv6_staggered(dns_resolver, relay, port).await
+network-environment	iroh/src/net_report/reportgen.rs:705	async fn relay_lookup_ipv4_staggered(
+network-environment	iroh/src/net_report/reportgen.rs:714	.lookup_ipv4_staggered(hostname, DNS_TIMEOUT, DNS_STAGGERING_MS)
+network-environment	iroh/src/net_report/reportgen.rs:746	async fn relay_lookup_ipv6_staggered(
+network-environment	iroh/src/net_report/reportgen.rs:755	.lookup_ipv6_staggered(hostname, DNS_TIMEOUT, DNS_STAGGERING_MS)
+network-environment	iroh/src/net_report/reportgen.rs:842	// The relay Client uses `.lookup_ipv4_ipv6` to connect, so use the same function
+network-environment	iroh/src/net_report/reportgen.rs:846	.lookup_ipv4_ipv6_staggered(domain, DNS_TIMEOUT, DNS_STAGGERING_MS)
+network-environment	iroh/src/net_report/reportgen.rs:9	//! - Creates portmapper future.
+network-environment	iroh/src/net_report/reportgen.rs:91	impl From<netwatch::netmon::State> for IfStateDetails {
+network-environment	iroh/src/net_report/reportgen.rs:92	fn from(value: netwatch::netmon::State) -> Self {
+network-environment	iroh/src/portmapper.rs:106	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/portmapper.rs:116	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/portmapper.rs:13	/// Configuration for the portmapper service (UPnP, PCP, NAT-PMP).
+network-environment	iroh/src/portmapper.rs:20	/// Used with [`crate::endpoint::Builder::portmapper_config`].
+network-environment	iroh/src/portmapper.rs:3	//! Wraps the real [`portmapper`] crate when the `portmapper` feature is enabled,
+network-environment	iroh/src/portmapper.rs:53	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/portmapper.rs:54	PortmapperConfig::Enabled {} => Client::Enabled(::portmapper::Client::default()),
+network-environment	iroh/src/portmapper.rs:64	/// The disabled variant is used when the `portmapper` feature is off, on wasm,
+network-environment	iroh/src/portmapper.rs:71	/// The real portmapper client (requires the `portmapper` feature).
+network-environment	iroh/src/portmapper.rs:72	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/portmapper.rs:73	Enabled(::portmapper::Client),
+network-environment	iroh/src/portmapper.rs:86	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/portmapper.rs:96	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
+network-environment	iroh/src/runtime.rs:189	t: std::net::UdpSocket,
+network-environment	iroh/src/runtime.rs:190	) -> std::io::Result<Box<dyn noq::AsyncUdpSocket>> {
+network-environment	iroh/src/simulation.rs:232	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State>;
+network-environment	iroh/src/simulation.rs:241	inner: netwatch::netmon::Monitor,
+network-environment	iroh/src/simulation.rs:246	pub async fn new() -> Result<Self, netwatch::netmon::Error> {
+network-environment	iroh/src/simulation.rs:248	inner: netwatch::netmon::Monitor::new().await?,
+network-environment	iroh/src/simulation.rs:254	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
+network-environment	iroh/src/simulation.rs:356	inner: Arc::new(netwatch::UdpSocket::bind_full(addr)?),
+network-environment	iroh/src/simulation.rs:363	inner: Arc<netwatch::UdpSocket>,
+network-environment	iroh/src/socket.rs:1050	address_lookup_user_data,
+network-environment	iroh/src/socket.rs:1073	portmapper_config,
+network-environment	iroh/src/socket.rs:1086	let port_mapper = portmapper::create_client(&portmapper_config, simulation_port_mapper);
+network-environment	iroh/src/socket.rs:1088	let port_mapper = portmapper::create_client(&portmapper_config);
+network-environment	iroh/src/socket.rs:1155	// NOTE: we can end up with a zero port if `netwatch::UdpSocket::socket_addr` fails
+network-environment	iroh/src/socket.rs:1199	address_lookup_user_data: RwLock::new(address_lookup_user_data),
+network-environment	iroh/src/socket.rs:1262	let network_monitor = netmon::Monitor::new()
+network-environment	iroh/src/socket.rs:1395	/// ([`noq::AsyncUdpSocket::poll_recv`]) will return [`Poll::Pending`] indefinitely
+network-environment	iroh/src/socket.rs:1604	/// Returns `Ok(Err(address_lookup_error))` if there are no known paths to the remote and Address Lookup
+network-environment	iroh/src/socket.rs:1768	network_monitor: netmon::Monitor,
+network-environment	iroh/src/socket.rs:1770	local_interfaces_watcher: n0_watcher::Direct<netmon::State>,
+network-environment	iroh/src/socket.rs:2156	/// - The portmapper.
+network-environment	iroh/src/socket.rs:2330	fn find_flags(state: &netmon::State, ip: IpAddr) -> Option<Ipv6AddrFlags> {
+network-environment	iroh/src/socket.rs:248	pub(crate) address_lookup_user_data: Option<UserData>,
+network-environment	iroh/src/socket.rs:2569	address_lookup_user_data: None,
+network-environment	iroh/src/socket.rs:2573	portmapper_config: Default::default(),
+network-environment	iroh/src/socket.rs:285	pub(crate) portmapper_config: portmapper::PortmapperConfig,
+network-environment	iroh/src/socket.rs:2984	address_lookup_user_data: None,
+network-environment	iroh/src/socket.rs:3001	portmapper_config: Default::default(),
+network-environment	iroh/src/socket.rs:43	interfaces::{IpNet, Ipv6AddrFlags},
+network-environment	iroh/src/socket.rs:485	address_lookup_user_data: RwLock<Option<UserData>>,
+network-environment	iroh/src/socket.rs:677	.address_lookup_user_data
+network-environment	iroh/src/socket.rs:79	portmapper,
+network-environment	iroh/src/socket.rs:793	.address_lookup_user_data
+network-environment	iroh/src/socket.rs:822	port_mapper: portmapper::Client,
+network-environment	iroh/src/socket.rs:853	port_mapper: portmapper::Client,
+network-environment	iroh/src/socket.rs:912	// deactivate portmapper
+network-environment	iroh/src/socket/mapped_addrs.rs:133	/// APIs like [`noq::AsyncUdpSocket`] it comes in as the inner [`Ipv6Addr`], in those
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1014	if self.selected_path.is_some() || self.address_lookup_stream.is_some() {
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1026	self.address_lookup_stream = Some(Box::pin(stream));
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1033	fn handle_address_lookup_item(
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1039	self.paths.address_lookup_finished(Ok(()));
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1040	self.address_lookup_stream = None;
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1048	self.paths.address_lookup_finished(Err(err));
+network-environment	iroh/src/socket/remote_map/remote_state.rs:1049	self.address_lookup_stream = None;
+network-environment	iroh/src/socket/remote_map/remote_state.rs:184	address_lookup_stream: Option<BoxStream<Result<AddressLookupItem, AddressLookupFailed>>>,
+network-environment	iroh/src/socket/remote_map/remote_state.rs:222	address_lookup_stream: None,
+network-environment	iroh/src/socket/remote_map/remote_state.rs:437	Some(item) = maybe_next(self.state.address_lookup_stream.as_mut()), if self.state.address_lookup_stream.is_some() => {
+network-environment	iroh/src/socket/remote_map/remote_state.rs:438	self.state.handle_address_lookup_item(item);
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:185	pub(super) fn address_lookup_finished(&mut self, result: Result<(), AddressLookupFailed>) {
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:202	/// otherwise with the provided `address_lookup_error` or with [`AddressLookupFailed::NoResults`].
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:203	fn emit_pending_resolve_requests(&mut self, address_lookup_error: Option<AddressLookupFailed>) {
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:207	let result = match (self.paths.is_empty(), address_lookup_error) {
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:681	/// `address_lookup_finished(Ok(()))` drains pending requests with `NoResults` when no paths are known.
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:686	fn address_lookup_finished_empty_emits_no_results() {
+network-environment	iroh/src/socket/remote_map/remote_state/path_state.rs:693	state.address_lookup_finished(Ok(()));
+network-environment	iroh/src/socket/transports.rs:1275	impl noq::AsyncUdpSocket for Transport {
+network-environment	iroh/src/socket/transports/custom.rs:27	/// Analogously to [std::net::UdpSocket::bind], this is where the actual
+network-environment	iroh/src/socket/transports/ip.rs:188	// TODO: update when UdpSocket under the hood rebinds automatically
+network-environment	iroh/src/socket/transports/ip.rs:220	// The AsyncUdpSocket is an AF_INET6 socket and needs to show this
+network-environment	iroh/src/socket/transports/ip.rs:608	let has_ipv6 = tokio::net::UdpSocket::bind("[::1]:0").await.is_ok();
+network-environment	iroh/src/socket/transports/relay.rs:31	/// Queue to receive datagrams from relays for [`noq::AsyncUdpSocket::poll_recv`].
+network-environment	iroh/src/socket/transports/relay/actor.rs:15	//! - When `AsyncUdpSocket` needs to send datagrams:
+network-environment	iroh/src/socket/transports/relay/actor.rs:1765	let ifs = interfaces::State::new().await;
+network-environment	iroh/src/test_utils.rs:195	use tokio::{net::UdpSocket, sync::oneshot};
+network-environment	iroh/src/test_utils.rs:230	let socket = UdpSocket::bind(bind_addr).await?;
+network-environment	iroh/src/test_utils.rs:251	socket: UdpSocket,
+network-environment	iroh/src/test_utils.rs:312	let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+network-environment	iroh/src/util.rs:42	let res = this.lookup_ipv4_ipv6(name, DNS_TIMEOUT).await;
+spawn-task	iroh-dns-server/src/http.rs:20	use tokio::{net::TcpListener, task::JoinSet};
+spawn-task	iroh-dns-server/src/http.rs:75	tasks: JoinSet<std::io::Result<()>>,
+spawn-task	iroh-dns-server/src/http.rs:95	let mut tasks = JoinSet::new();
+spawn-task	iroh-dns-server/src/http/rate_limiting.rs:79	std::thread::spawn(move || {
+spawn-task	iroh-dns-server/src/http/tls.rs:140	tokio::spawn(
+spawn-task	iroh-relay/src/client/tls.rs:200	task::spawn(async move {
+spawn-task	iroh-relay/src/main.rs:627	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+spawn-task	iroh-relay/src/quic.rs:124	let task = tokio::task::spawn(
+spawn-task	iroh-relay/src/quic.rs:126	let mut set = JoinSet::new();
+spawn-task	iroh-relay/src/quic.rs:23	use tokio::task::JoinSet;
+spawn-task	iroh-relay/src/quic.rs:437	let task = AbortOnDropHandle::new(tokio::spawn({
+spawn-task	iroh-relay/src/quic.rs:498	let server_task = tokio::spawn(
+spawn-task	iroh-relay/src/server.rs:1117	let mut tasks = JoinSet::new();
+spawn-task	iroh-relay/src/server.rs:48	task::{JoinError, JoinSet},
+spawn-task	iroh-relay/src/server.rs:692	let mut tasks = JoinSet::new();
+spawn-task	iroh-relay/src/server.rs:860	let task = tokio::spawn(relay_supervisor(tasks, relay_server, quic_server));
+spawn-task	iroh-relay/src/server.rs:880	// the JoinSet when the server terminates.
+spawn-task	iroh-relay/src/server.rs:960	mut tasks: JoinSet<Result<(), SupervisorError>>,
+spawn-task	iroh-relay/src/server/client.rs:664	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	iroh-relay/src/server/http_server.rs:1640	let handler_task = tokio::spawn(async move {
+spawn-task	iroh-relay/src/server/http_server.rs:1656	let handler_task = tokio::spawn(async move {
+spawn-task	iroh-relay/src/server/http_server.rs:1752	let handler_task = tokio::spawn(async move {
+spawn-task	iroh-relay/src/server/http_server.rs:1768	let handler_task = tokio::spawn(async move {
+spawn-task	iroh-relay/src/server/http_server.rs:1824	let handler_task = tokio::spawn(async move {
+spawn-task	iroh-relay/src/server/http_server.rs:493	let task = tokio::task::spawn(
+spawn-task	iroh-relay/src/server/http_server.rs:497	let mut set = tokio::task::JoinSet::new();
+spawn-task	iroh-relay/src/server/http_server.rs:653	tokio::task::spawn({
+spawn-task	iroh-relay/src/server/resolver.rs:79	let _handle = task::spawn(async move {
+spawn-task	iroh-relay/tests/relay_axum.rs:79	let task = tokio::spawn(async move {
+spawn-task	iroh-relay/tests/relay_hyper.rs:68	let task = tokio::spawn(async move {
+spawn-task	iroh-relay/tests/relay_hyper.rs:77	tokio::spawn(async move {
+spawn-task	iroh/bench/src/bin/bulk.rs:124	let server_thread = std::thread::spawn(move || {
+spawn-task	iroh/bench/src/bin/bulk.rs:134	handles.push(std::thread::spawn(move || {
+spawn-task	iroh/bench/src/bin/bulk.rs:60	let server_thread = std::thread::spawn(move || {
+spawn-task	iroh/bench/src/bin/bulk.rs:71	handles.push(std::thread::spawn(move || {
+spawn-task	iroh/bench/src/iroh.rs:278	server_tasks.push(tokio::spawn(async move {
+spawn-task	iroh/bench/src/iroh.rs:290	tokio::spawn(async move {
+spawn-task	iroh/bench/src/lib.rs:238	tokio::spawn(async move {
+spawn-task	iroh/bench/src/noq.rs:245	server_tasks.push(tokio::spawn(async move {
+spawn-task	iroh/bench/src/noq.rs:257	tokio::spawn(async move {
+spawn-task	iroh/examples/0rtt.rs:146	tokio::spawn(async move {
+spawn-task	iroh/examples/0rtt.rs:97	let zrtt_task = tokio::spawn(ping(send, i));
+spawn-task	iroh/examples/auth-hook.rs:131	task::JoinSet,
+spawn-task	iroh/examples/auth-hook.rs:149	tasks: JoinSet::new(),
+spawn-task	iroh/examples/auth-hook.rs:202	tasks: JoinSet<(EndpointId, Result<()>)>,
+spawn-task	iroh/examples/auth-hook.rs:207	AbortOnDropHandle::new(tokio::spawn(self.run(endpoint)))
+spawn-task	iroh/examples/echo-no-router.rs:79	tokio::spawn({
+spawn-task	iroh/examples/echo-no-router.rs:84	// In a more serious environment, we recommend avoiding `tokio::spawn` and use either a `TaskTracker` or
+spawn-task	iroh/examples/echo-no-router.rs:85	// `JoinSet` instead to make sure you're not accidentally leaking tasks.
+spawn-task	iroh/examples/echo-no-router.rs:88	tokio::spawn(async move {
+spawn-task	iroh/examples/listen-unreliable.rs:82	tokio::spawn(async move {
+spawn-task	iroh/examples/listen.rs:84	tokio::spawn(async move {
+spawn-task	iroh/examples/monitor-connections.rs:122	let task = tokio::spawn(Self::run(rx).instrument(info_span!("watcher")));
+spawn-task	iroh/examples/monitor-connections.rs:13	task::JoinSet,
+spawn-task	iroh/examples/monitor-connections.rs:130	let mut tasks = JoinSet::new();
+spawn-task	iroh/examples/monitor-connections.rs:38	let client_task = tokio::spawn(
+spawn-task	iroh/examples/monitor-connections.rs:57	let server_task = tokio::spawn(
+spawn-task	iroh/examples/pq-only-key-exchange.rs:46	let server_task = tokio::spawn({
+spawn-task	iroh/examples/prefer-pq-key-exchange.rs:60	let server_task = tokio::spawn({
+spawn-task	iroh/examples/remote-info.rs:175	use tokio::{sync::mpsc, task::JoinSet};
+spawn-task	iroh/examples/remote-info.rs:322	let task = tokio::spawn(
+spawn-task	iroh/examples/remote-info.rs:346	let mut tasks = JoinSet::new();
+spawn-task	iroh/examples/remote-info.rs:378	tasks: &mut JoinSet<()>,
+spawn-task	iroh/examples/remote-info.rs:43	let client_task = tokio::spawn(run_clients(server_addr, count));
+spawn-task	iroh/examples/remote-info.rs:47	let _inspect_task = tokio::task::spawn({
+spawn-task	iroh/examples/transfer.rs:627	tokio::spawn(
+spawn-task	iroh/examples/transfer.rs:666	tokio::spawn(
+spawn-task	iroh/examples/transfer.rs:953	tokio::spawn(async move {
+spawn-task	iroh/src/address_lookup.rs:1021	let connect_task = tokio::spawn(async move { ep.connect(offline_id, TEST_ALPN).await });
+spawn-task	iroh/src/address_lookup.rs:1054	let first = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1063	let second = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1211	let handle = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1384	let handle = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:983	let _offline_connect = AbortOnDropHandle::new(tokio::spawn({
+spawn-task	iroh/src/address_lookup/pkarr.rs:324	let join_handle = task::spawn(service.run().instrument(info_span!("pkarr_publish")));
+spawn-task	iroh/src/endpoint.rs:1399	/// tokio::spawn(endpoint_closed.run_until(async move {
+spawn-task	iroh/src/endpoint.rs:1870	/// tokio::spawn(endpoint.closed().run_until(async move {
+spawn-task	iroh/src/endpoint.rs:2381	let server = tokio::spawn(
+spawn-task	iroh/src/endpoint.rs:2411	let client = tokio::spawn(
+spawn-task	iroh/src/endpoint.rs:2488	let server = tokio::spawn(
+spawn-task	iroh/src/endpoint.rs:2535	let client = tokio::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:2606	let task = tokio::spawn({
+spawn-task	iroh/src/endpoint.rs:2689	let ep1_accept = tokio::spawn(accept(ep1.clone(), ep2.id()));
+spawn-task	iroh/src/endpoint.rs:2690	let ep2_connect = tokio::spawn(connect(ep2.clone(), ep1_nodeaddr));
+spawn-task	iroh/src/endpoint.rs:2796	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx, qlog.clone()));
+spawn-task	iroh/src/endpoint.rs:2797	let client_task = tokio::spawn(connect(relay_map, node_addr_rx, qlog));
+spawn-task	iroh/src/endpoint.rs:2897	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
+spawn-task	iroh/src/endpoint.rs:2898	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
+spawn-task	iroh/src/endpoint.rs:3013	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
+spawn-task	iroh/src/endpoint.rs:3014	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
+spawn-task	iroh/src/endpoint.rs:3042	let task = tokio::spawn({
+spawn-task	iroh/src/endpoint.rs:3198	let p1_accept = tokio::spawn(accept_world(ep1.clone(), ep2_endpointid).instrument(
+spawn-task	iroh/src/endpoint.rs:3205	let p2_accept = tokio::spawn(accept_world(ep2.clone(), ep1_endpointid).instrument(
+spawn-task	iroh/src/endpoint.rs:3212	let p1_connect = tokio::spawn(connect_hello(ep1.clone(), ep2_endpointid).instrument(
+spawn-task	iroh/src/endpoint.rs:3219	let p2_connect = tokio::spawn(connect_hello(ep2.clone(), ep1_endpointid).instrument(
+spawn-task	iroh/src/endpoint.rs:3290	let accept = tokio::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:3385	let server_task = tokio::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:3433	let server_task = tokio::task::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:3490	let server_task = tokio::spawn({
+spawn-task	iroh/src/endpoint.rs:3962	let server_task = tokio::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:3965	let stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	iroh/src/endpoint.rs:3976	let client_stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	iroh/src/endpoint.rs:4304	let accept_task = tokio::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:4348	let task = tokio::task::spawn(async move {
+spawn-task	iroh/src/endpoint.rs:4367	let task = tokio::task::spawn(async move {
+spawn-task	iroh/src/endpoint/connection.rs:1382	tokio::spawn({
+spawn-task	iroh/src/net_report.rs:38	use tokio::task::JoinSet;
+spawn-task	iroh/src/net_report.rs:498	let mut v4_buf = JoinSet::new();
+spawn-task	iroh/src/net_report.rs:500	let mut v6_buf = JoinSet::new();
+spawn-task	iroh/src/net_report.rs:862	let handle = task::spawn(shutdown_token.run_until_cancelled_owned({
+spawn-task	iroh/src/net_report.rs:931	let handle = task::spawn(shutdown_token.run_until_cancelled_owned({
+spawn-task	iroh/src/net_report/reportgen.rs:141	let task = task::spawn(
+spawn-task	iroh/src/net_report/reportgen.rs:233	let mut probes = JoinSet::default();
+spawn-task	iroh/src/net_report/reportgen.rs:277	fn prepare_captive_portal_task(&self, tasks: &mut JoinSet<ProbeFinished>) -> CancellationToken {
+spawn-task	iroh/src/net_report/reportgen.rs:351	/// - All probes in a set are grouped in [`JoinSet`].
+spawn-task	iroh/src/net_report/reportgen.rs:352	/// - All those probe sets are grouped in one overall [`JoinSet`].
+spawn-task	iroh/src/net_report/reportgen.rs:367	probes: &mut JoinSet<ProbeFinished>,
+spawn-task	iroh/src/net_report/reportgen.rs:40	task::{self, AbortOnDropHandle, JoinSet},
+spawn-task	iroh/src/protocol.rs:513	let mut join_set = JoinSet::new();
+spawn-task	iroh/src/protocol.rs:53	task::{self, AbortOnDropHandle, JoinSet},
+spawn-task	iroh/src/protocol.rs:614	let task = task::spawn(run_loop_fut.instrument(tracing::Span::current()));
+spawn-task	iroh/src/protocol.rs:774	let connect_task = tokio::spawn({
+spawn-task	iroh/src/socket.rs:1373	let actor_task = AbortOnDropHandle::new(task::spawn(actor_future));
+spawn-task	iroh/src/socket.rs:2694	let receiver_task = AbortOnDropHandle::new(tokio::spawn(echo_receiver(receiver, loss)));
+spawn-task	iroh/src/socket.rs:2752	let task = tokio::spawn(async move {
+spawn-task	iroh/src/socket.rs:2812	let _handle = AbortOnDropHandle::new(tokio::spawn({
+spawn-task	iroh/src/socket.rs:2852	let task = tokio::spawn(async move {
+spawn-task	iroh/src/socket.rs:2884	let task = tokio::spawn(async move {
+spawn-task	iroh/src/socket.rs:3105	let accept_task = tokio::spawn({
+spawn-task	iroh/src/socket.rs:3174	let accept_task = tokio::spawn({
+spawn-task	iroh/src/socket.rs:995	task::spawn(future);
+spawn-task	iroh/src/socket/remote_map.rs:14	use n0_future::task::JoinSet;
+spawn-task	iroh/src/socket/remote_map.rs:147	/// All the `RemoteStateActor` tasks, stored inside a `JoinSet`.
+spawn-task	iroh/src/socket/remote_map.rs:152	tasks: JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+spawn-task	iroh/src/socket/remote_map.rs:265	// There's nothing to clean up. Wake once a task is added, since an empty JoinSet
+spawn-task	iroh/src/socket/remote_map/remote_state.rs:19	use n0_future::task::JoinSet;
+spawn-task	iroh/src/socket/remote_map/remote_state.rs:231	#[cfg(wasm_browser)] tasks: &mut JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+spawn-task	iroh/src/socket/transports/relay.rs:341	use tokio::task::JoinSet;
+spawn-task	iroh/src/socket/transports/relay.rs:353	let mut tasks = JoinSet::new();
+spawn-task	iroh/src/socket/transports/relay.rs:90	let actor_handle = AbortOnDropHandle::new(task::spawn(actor_future));
+spawn-task	iroh/src/socket/transports/relay/actor.rs:1204	active_relay_tasks: JoinSet<()>,
+spawn-task	iroh/src/socket/transports/relay/actor.rs:1373	active_relay_tasks: JoinSet::new(),
+spawn-task	iroh/src/socket/transports/relay/actor.rs:2065	let task = tokio::spawn(ActiveRelayActor::new(opts).unwrap().run().instrument(span));
+spawn-task	iroh/src/socket/transports/relay/actor.rs:2091	let echo_task = tokio::spawn({
+spawn-task	iroh/src/socket/transports/relay/actor.rs:2115	let supervisor_task = tokio::spawn(async move {
+spawn-task	iroh/src/socket/transports/relay/actor.rs:56	use n0_future::task::JoinSet;
+spawn-task	iroh/src/test_utils.rs:234	tokio::task::spawn(async move {
+spawn-task	iroh/src/test_utils.rs:319	tokio::spawn(async move {
+spawn-task	iroh/src/test_utils/test_transport.rs:527	let connect = tokio::spawn({
+spawn-task	iroh/tests/integration.rs:59	task::spawn({
+spawn-task	iroh/tests/patchbay/util.rs:434	tokio::spawn(
+unordered-collection	iroh-dns/src/endpoint_info.rs:45	collections::{BTreeSet, HashSet},
+unordered-collection	iroh-dns/src/endpoint_info.rs:78	fn dedup<T: Eq + Hash + Clone>(items: &mut Vec<T>) -> HashSet<T> {
+unordered-collection	iroh-dns/src/endpoint_info.rs:80	let mut seen = HashSet::new();
+unordered-collection	iroh-relay/src/server/client.rs:3	use std::{collections::HashSet, sync::Arc, time::Duration};
+unordered-collection	iroh-relay/src/server/client.rs:547	clients: HashSet<EndpointId>,
+unordered-collection	iroh-relay/src/server/client.rs:556	clients: HashSet::new(),
+unordered-collection	iroh-relay/src/server/clients.rs:11	use dashmap::DashMap;
+unordered-collection	iroh-relay/src/server/clients.rs:131	clients: DashMap::new(),
+unordered-collection	iroh-relay/src/server/clients.rs:132	sent_to: DashMap::new(),
+unordered-collection	iroh-relay/src/server/clients.rs:307	// Done outside the remove_if_mut closure to avoid DashMap deadlocks.
+unordered-collection	iroh-relay/src/server/clients.rs:41	clients: DashMap<EndpointId, ClientState>,
+unordered-collection	iroh-relay/src/server/clients.rs:43	sent_to: DashMap<EndpointId, HashSet<EndpointId>>,
+unordered-collection	iroh-relay/src/server/clients.rs:5	collections::HashSet,
+unordered-collection	iroh-relay/src/server/http_server.rs:1271	pub struct Handlers(HashMap<(Method, &'static str), HyperHandler>);
+unordered-collection	iroh-relay/src/server/http_server.rs:1279	write!(f, "HashMap<{s}>")
+unordered-collection	iroh-relay/src/server/http_server.rs:1284	type Target = HashMap<(Method, &'static str), HyperHandler>;
+unordered-collection	iroh-relay/src/server/http_server.rs:9	use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
+unordered-collection	iroh-relay/tests/runtime_auth.rs:15	collections::HashMap,
+unordered-collection	iroh-relay/tests/runtime_auth.rs:44	tokens: HashMap<String, u64>,
+unordered-collection	iroh-relay/tests/runtime_auth.rs:48	connections: HashMap<(EndpointId, ConnectionId), u64>,
+unordered-collection	iroh/examples/auth-hook.rs:116	collections::{HashMap, HashSet, hash_map},
+unordered-collection	iroh/examples/auth-hook.rs:200	allowed_remotes: HashSet<EndpointId>,
+unordered-collection	iroh/examples/auth-hook.rs:201	pending_remotes: HashMap<EndpointId, Vec<oneshot::Sender<AuthResult>>>,
+unordered-collection	iroh/examples/auth-hook.rs:286	let allowed_remotes: Arc<Mutex<HashSet<EndpointId>>> = Default::default();
+unordered-collection	iroh/examples/auth-hook.rs:302	allowed_remotes: Arc<Mutex<HashSet<EndpointId>>>,
+unordered-collection	iroh/examples/auth-hook.rs:331	allowed_remotes: Arc<Mutex<HashSet<EndpointId>>>,
+unordered-collection	iroh/examples/remote-info.rs:163	collections::HashMap,
+unordered-collection	iroh/examples/remote-info.rs:182	connections: HashMap<u64, WeakConnectionHandle>,
+unordered-collection	iroh/examples/remote-info.rs:269	type RemoteMapInner = Arc<RwLock<HashMap<EndpointId, RemoteInfo>>>;
+unordered-collection	iroh/examples/remote-info.rs:337	pub fn read(&self) -> RwLockReadGuard<'_, HashMap<EndpointId, RemoteInfo>> {
+unordered-collection	iroh/examples/remote-info.rs:430	map: Arc<RwLock<HashMap<iroh::PublicKey, RemoteInfo>>>,
+unordered-collection	iroh/src/address_lookup.rs:654	collections::HashMap,
+unordered-collection	iroh/src/address_lookup.rs:673	type InfoStore = HashMap<EndpointId, (EndpointData, u64)>;
+unordered-collection	iroh/src/socket.rs:2049	local_addrs: FxHashSet<IpAddr>,
+unordered-collection	iroh/src/socket.rs:52	use rustc_hash::FxHashSet;
+unordered-collection	iroh/src/socket/biased_rtt_path_selector.rs:9	use rustc_hash::FxHashMap;
+unordered-collection	iroh/src/socket/biased_rtt_path_selector.rs:91	biases: Arc<FxHashMap<AddrKind, TransportBias>>,
+unordered-collection	iroh/src/socket/biased_rtt_path_selector.rs:96	let mut map = FxHashMap::default();
+unordered-collection	iroh/src/socket/concurrent_read_map.rs:19	pub(crate) struct ConcurrentReadMap<K: Hash + Eq, V>(Arc<papaya::HashMap<K, V, FxBuildHasher>>);
+unordered-collection	iroh/src/socket/concurrent_read_map.rs:53	pub(crate) struct ReadOnlyMap<K: Hash + Eq, V>(Arc<papaya::HashMap<K, V, FxBuildHasher>>);
+unordered-collection	iroh/src/socket/mapped_addrs.rs:16	use rustc_hash::FxHashMap;
+unordered-collection	iroh/src/socket/mapped_addrs.rs:371	addrs: FxHashMap<K, V>,
+unordered-collection	iroh/src/socket/mapped_addrs.rs:372	lookup: FxHashMap<V, K>,
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:113	connections: FxHashMap<ConnId, ConnectionState>,
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:1376	paths: FxHashMap<PathId, transports::FourTuple>,
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:1437	Live(&'a FxHashMap<ConnId, ConnectionState>),
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:1446	connections: &'a FxHashMap<ConnId, ConnectionState>,
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:203	connections: FxHashMap::default(),
+unordered-collection	iroh/src/socket/remote_map/remote_state.rs:29	use rustc_hash::FxHashMap;
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:13	use rustc_hash::FxHashMap;
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:240	pub(super) sources: HashMap<Source, Instant>,
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:245	/// Prunes the non-relay paths in the paths HashMap.
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:262	fn prune_non_relay_paths(paths: &mut FxHashMap<transports::Addr, PathState>) {
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:312	let must_prune: HashSet<_> = failed
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:338	sources: HashMap::new(),
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:345	sources: HashMap::new(),
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:352	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:367	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:38	paths: FxHashMap<transports::Addr, PathState>,
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:383	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:4	collections::{HashMap, HashSet, VecDeque},
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:409	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:452	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:496	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:523	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/socket/remote_map/remote_state/path_state.rs:545	let mut paths = FxHashMap::default();
+unordered-collection	iroh/src/test_utils.rs:364	collections::{HashMap, hash_map},
+unordered-collection	iroh/src/test_utils.rs:378	packets: Arc<Mutex<HashMap<EndpointId, SignedPacket>>>,

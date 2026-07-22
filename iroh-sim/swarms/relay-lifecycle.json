@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "relay-lifecycle",
+  "base_path": "iroh-sim/corpus/stage5-relay-restart/scenario.json",
+  "base_blake3": "ef6334757098b7133b0e9087aee2f55c65925e67196547f64e3b6c4539a3aa98",
+  "safety_liveness": {
+    "safety_action": "05-relay-offline",
+    "recovery_action": "06-relay-online",
+    "liveness_probe_action": "08-connect-recovered"
+  },
+  "choices": [
+    {
+      "id": "relay-impairment",
+      "options": [
+        {
+          "id": "clear",
+          "weight": 3,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 0,
+            "drop_every_nth_packet": null
+          }
+        },
+        {
+          "id": "delayed",
+          "weight": 1,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 5000000,
+            "drop_every_nth_packet": null
+          }
+        },
+        {
+          "id": "drop-seventh",
+          "weight": 1,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 0,
+            "drop_every_nth_packet": 7
+          }
+        }
+      ]
+    }
+  ]
+}

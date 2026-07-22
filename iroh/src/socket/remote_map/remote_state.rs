@@ -6,13 +6,22 @@ use std::{
     task::Poll,
 };
 
+#[cfg(not(wasm_browser))]
+use std::panic::AssertUnwindSafe;
+
+#[cfg(not(wasm_browser))]
+use futures_util::FutureExt;
 use iroh_base::{CustomAddr, EndpointId, RelayUrl, TransportAddr};
+#[cfg(not(wasm_browser))]
+use iroh_runtime::Instant;
 use n0_error::StackResultExt;
+#[cfg(wasm_browser)]
+use n0_future::task::JoinSet;
+#[cfg(wasm_browser)]
+use n0_future::time::{self, Instant};
 use n0_future::{
-    FuturesUnordered, MaybeFuture, MergeUnbounded, Stream, StreamExt,
-    boxed::BoxStream,
-    task::JoinSet,
-    time::{self, Duration, Instant},
+    FuturesUnordered, MaybeFuture, MergeUnbounded, Stream, StreamExt, boxed::BoxStream,
+    time::Duration,
 };
 use n0_watcher::Watcher;
 use noq::{Closed, PathStats, PathStatus, WeakConnectionHandle};
@@ -28,7 +37,11 @@ pub use self::{
     path_watcher::{Path, PathEvent, PathEventStream, PathList, PathListIter, PathListStream},
     remote_info::{RemoteInfo, TransportAddrInfo, TransportAddrUsage},
 };
+#[cfg(not(wasm_browser))]
+use super::RemoteStateCompletion;
 use super::Source;
+#[cfg(not(wasm_browser))]
+use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep};
 use crate::{
     address_lookup::{AddressLookupFailed, AddressLookupServices, Item as AddressLookupItem},
     endpoint::DirectAddr,
@@ -109,6 +122,10 @@ struct State {
     /// The endpoint ID of the remote endpoint.
     endpoint_id: EndpointId,
 
+    /// Endpoint-owned execution and clock capabilities.
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
+
     // Hooks into the rest of the Socket.
     //
     /// Metrics.
@@ -174,6 +191,7 @@ impl RemoteStateActor {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         endpoint_id: EndpointId,
+        #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
         local_direct_addrs: n0_watcher::Direct<BTreeSet<DirectAddr>>,
         relay_mapped_addrs: AddrMap<(RelayUrl, EndpointId), RelayMappedAddr>,
         custom_mapped_addrs: AddrMap<CustomAddr, CustomMappedAddr>,
@@ -185,6 +203,8 @@ impl RemoteStateActor {
             connections: FxHashMap::default(),
             state: State {
                 endpoint_id,
+                #[cfg(not(wasm_browser))]
+                runtime,
                 metrics: metrics.clone(),
                 local_direct_addrs,
                 relay_mapped_addrs,
@@ -208,7 +228,9 @@ impl RemoteStateActor {
     pub(super) fn start(
         self,
         initial_msgs: Vec<RemoteStateMessage>,
-        tasks: &mut JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+        #[cfg(wasm_browser)] tasks: &mut JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+        #[cfg(not(wasm_browser))] runtime: Arc<crate::runtime::Runtime>,
+        #[cfg(not(wasm_browser))] completions: mpsc::UnboundedSender<RemoteStateCompletion>,
         shutdown_token: CancellationToken,
         parent_span: Span,
     ) -> mpsc::Sender<RemoteStateMessage> {
@@ -220,14 +242,44 @@ impl RemoteStateActor {
         // we don't explicitly set a span we get the spans from whatever call happens to
         // first create the actor, which is often very confusing as it then keeps those
         // spans for all logging of the actor.
-        tasks.spawn(
-            self.run(initial_msgs, rx, shutdown_token)
-                .instrument(info_span!(
-                    parent: parent_span,
-                    "RemoteStateActor",
-                    remote = %endpoint_id.fmt_short(),
-                )),
-        );
+        let actor = self
+            .run(initial_msgs, rx, shutdown_token)
+            .instrument(info_span!(
+                parent: parent_span,
+                "RemoteStateActor",
+                remote = %endpoint_id.fmt_short(),
+            ));
+        #[cfg(wasm_browser)]
+        tasks.spawn(actor);
+        #[cfg(not(wasm_browser))]
+        {
+            let completion_on_reject = completions.clone();
+            let future = async move {
+                match AssertUnwindSafe(actor).catch_unwind().await {
+                    Ok((remote_id, leftover_messages)) => {
+                        let _ = completions.send(RemoteStateCompletion::Finished(
+                            remote_id,
+                            leftover_messages,
+                        ));
+                    }
+                    Err(panic) => {
+                        let _ = completions.send(RemoteStateCompletion::Panicked);
+                        std::panic::resume_unwind(panic);
+                    }
+                }
+            };
+            if runtime
+                .spawn(
+                    iroh_runtime::TaskKind::Other("remote-state-actor".to_owned()),
+                    "remote-state-actor",
+                    Box::pin(future),
+                )
+                .is_err()
+            {
+                let _ = completion_on_reject
+                    .send(RemoteStateCompletion::Finished(endpoint_id, Vec::new()));
+            }
+        }
         tx
     }
 
@@ -246,27 +298,85 @@ impl RemoteStateActor {
         for msg in initial_msgs {
             self.handle_message(msg).await;
         }
+        #[cfg(wasm_browser)]
         let idle_timeout = time::sleep(ACTOR_MAX_IDLE_TIMEOUT);
+        #[cfg(wasm_browser)]
         n0_future::pin!(idle_timeout);
+        #[cfg(not(wasm_browser))]
+        let mut idle_timeout =
+            match RuntimeSleep::after(self.state.runtime.context().clock(), ACTOR_MAX_IDLE_TIMEOUT)
+            {
+                Ok(timeout) => timeout,
+                Err(error) => {
+                    self.state.runtime.latch_failure(error.to_string());
+                    return (self.state.endpoint_id, Vec::new());
+                }
+            };
 
+        #[cfg(wasm_browser)]
         let check_connections = time::interval(UPGRADE_INTERVAL);
+        #[cfg(wasm_browser)]
         n0_future::pin!(check_connections);
+        #[cfg(not(wasm_browser))]
+        let mut check_connections = match RuntimeInterval::new(
+            self.state.runtime.context().clock(),
+            Duration::ZERO,
+            UPGRADE_INTERVAL,
+        ) {
+            Ok(interval) => interval,
+            Err(error) => {
+                self.state.runtime.latch_failure(error.to_string());
+                return (self.state.endpoint_id, Vec::new());
+            }
+        };
 
         loop {
+            #[cfg(wasm_browser)]
             let scheduled_path_open = match self.state.scheduled_open_path {
                 Some(when) => MaybeFuture::Some(time::sleep_until(when)),
                 None => MaybeFuture::None,
             };
+            #[cfg(not(wasm_browser))]
+            let mut scheduled_path_open = match self.state.scheduled_open_path {
+                Some(when) => match RuntimeSleep::new(self.state.runtime.context().clock(), when) {
+                    Ok(sleep) => MaybeFuture::Some(sleep),
+                    Err(error) => {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
+                },
+                None => MaybeFuture::None,
+            };
+            #[cfg(wasm_browser)]
             n0_future::pin!(scheduled_path_open);
+            #[cfg(wasm_browser)]
             let scheduled_hp = match self.state.scheduled_holepunch {
                 Some(when) => MaybeFuture::Some(time::sleep_until(when)),
                 None => MaybeFuture::None,
             };
+            #[cfg(not(wasm_browser))]
+            let mut scheduled_hp = match self.state.scheduled_holepunch {
+                Some(when) => match RuntimeSleep::new(self.state.runtime.context().clock(), when) {
+                    Ok(sleep) => MaybeFuture::Some(sleep),
+                    Err(error) => {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
+                },
+                None => MaybeFuture::None,
+            };
+            #[cfg(wasm_browser)]
             n0_future::pin!(scheduled_hp);
             if !self.is_idle(&inbox) {
+                #[cfg(wasm_browser)]
                 idle_timeout
                     .as_mut()
                     .reset(Instant::now() + ACTOR_MAX_IDLE_TIMEOUT);
+                #[cfg(not(wasm_browser))]
+                if let Err(error) = idle_timeout.reset(self.state.now() + ACTOR_MAX_IDLE_TIMEOUT) {
+                    self.state.runtime.latch_failure(error.to_string());
+                    break;
+                }
             }
 
             tokio::select! {
@@ -301,7 +411,12 @@ impl RemoteStateActor {
                     trace!("local addrs updated, triggering holepunching");
                     self.trigger_holepunching();
                 }
-                _ = &mut scheduled_path_open => {
+                scheduled = &mut scheduled_path_open => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = scheduled {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
                     trace!("triggering scheduled path_open");
                     self.state.scheduled_open_path = None;
                     let mut addrs = std::mem::take(&mut self.state.pending_open_paths);
@@ -309,7 +424,12 @@ impl RemoteStateActor {
                         self.open_path_on_all_conns(&addr);
                     }
                 }
-                _ = &mut scheduled_hp => {
+                scheduled = &mut scheduled_hp => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = scheduled {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
                     trace!("triggering scheduled holepunching");
                     self.state.scheduled_holepunch = None;
                     self.trigger_holepunching();
@@ -317,16 +437,32 @@ impl RemoteStateActor {
                 Some(item) = maybe_next(self.state.address_lookup_stream.as_mut()), if self.state.address_lookup_stream.is_some() => {
                     self.state.handle_address_lookup_item(item);
                 }
-                _ = check_connections.tick() => {
+                tick = check_connections.tick() => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = tick {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
                     self.check_connections();
                 }
-                _ = &mut idle_timeout => {
+                timeout = &mut idle_timeout => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = timeout {
+                        self.state.runtime.latch_failure(error.to_string());
+                        break;
+                    }
                     if self.is_idle(&inbox) {
                         trace!("idle timeout expired and still idle: terminate actor");
                         break;
                     } else {
                         // Seems like we weren't really idle, so we reset
+                        #[cfg(wasm_browser)]
                         idle_timeout.as_mut().reset(Instant::now() + ACTOR_MAX_IDLE_TIMEOUT);
+                        #[cfg(not(wasm_browser))]
+                        if let Err(error) = idle_timeout.reset(self.state.now() + ACTOR_MAX_IDLE_TIMEOUT) {
+                            self.state.runtime.latch_failure(error.to_string());
+                            break;
+                        }
                     }
                 }
             }
@@ -556,7 +692,7 @@ impl RemoteStateActor {
             .unwrap_or(true);
         if !new_candidates && let Some(ref last_hp) = self.state.last_holepunch {
             let next_hp = last_hp.when + HOLEPUNCH_ATTEMPTS_INTERVAL;
-            let now = Instant::now();
+            let now = self.state.now();
             if next_hp > now {
                 trace!(scheduled_in = ?(next_hp - now), "not holepunching: no new addresses");
                 self.state.scheduled_holepunch = Some(next_hp);
@@ -610,7 +746,8 @@ impl RemoteStateActor {
                     .values()
                     .any(|tuple| tuple.remote() == network_path.remote())
                 {
-                    self.state.paths.abandoned_path(&network_path.remote());
+                    let now = self.state.now();
+                    self.state.paths.abandoned_path(&network_path.remote(), now);
                 }
 
                 event!(
@@ -784,6 +921,16 @@ impl RemoteStateActor {
 }
 
 impl State {
+    #[cfg(not(wasm_browser))]
+    fn now(&self) -> Instant {
+        self.runtime.context().clock().now()
+    }
+
+    #[cfg(wasm_browser)]
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
     /// Handles [`RemoteStateMessage::SendDatagram`].
     async fn handle_msg_send_datagram(
         &mut self,
@@ -853,7 +1000,7 @@ impl State {
         tx: oneshot::Sender<Result<(), AddressLookupFailed>>,
     ) {
         let addrs = to_transports_addr(self.endpoint_id, addrs);
-        self.paths.insert_multiple(addrs, Source::App);
+        self.paths.insert_multiple(addrs, Source::App, self.now());
         self.paths.resolve_remote(tx);
         // Start Address Lookup if we have no selected path.
         self.trigger_address_lookup();
@@ -913,7 +1060,7 @@ impl State {
                     };
                     let addrs =
                         to_transports_addr(self.endpoint_id, item.into_endpoint_addr().addrs);
-                    self.paths.insert_multiple(addrs, source);
+                    self.paths.insert_multiple(addrs, source, self.now());
                 }
             }
         }
@@ -938,7 +1085,7 @@ impl State {
                     ?remote_candidates,
                 );
                 self.last_holepunch = Some(HolepunchAttempt {
-                    when: Instant::now(),
+                    when: self.now(),
                     local_candidates,
                     remote_candidates,
                 });
@@ -955,7 +1102,7 @@ impl State {
                     }
                     Error::Multipath(_) | Error::NotEnoughAddresses => {
                         // Retry in a bit
-                        let now = Instant::now();
+                        let now = self.now();
                         let next_hp = now + Duration::from_millis(100);
                         trace!(scheduled_in = ?(next_hp - now), "holepunching retry");
                         self.scheduled_holepunch = Some(next_hp);
@@ -997,7 +1144,7 @@ impl State {
 
         self.set_path_status(conn_id, path, &network_path);
         self.paths
-            .insert_open_path(network_path.remote(), Source::Connection);
+            .insert_open_path(network_path.remote(), Source::Connection, self.now());
         Some(network_path)
     }
 
@@ -1057,8 +1204,7 @@ impl State {
                 match ret {
                     Some(Err(PathError::RemoteCidsExhausted))
                     | Some(Err(PathError::MaxPathIdReached)) => {
-                        self.scheduled_open_path =
-                            Some(Instant::now() + Duration::from_millis(333));
+                        self.scheduled_open_path = Some(self.now() + Duration::from_millis(333));
                         self.pending_open_paths.push_back(open_addr.clone());
                         trace!(?open_addr, ?ret, "scheduling open_path");
                     }

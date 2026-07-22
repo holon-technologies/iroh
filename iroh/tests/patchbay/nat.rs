@@ -11,11 +11,12 @@
 //! Every test expects a direct path to be established. Tests where holepunching
 //! is not yet working are marked `#[ignore]`.
 
-use std::time::Duration;
+use std::{fs::OpenOptions, io::Write, time::Duration};
 
-use n0_error::{Result, StackResultExt};
+use n0_error::{Result, StackResultExt, StdResultExt, anyerr};
 use n0_tracing_test::traced_test;
 use patchbay::{Nat, NatConfig, NatFiltering, NatMapping};
+use serde::Serialize;
 use testdir::testdir;
 use tracing::info;
 
@@ -130,7 +131,51 @@ async fn run_nat_holepunch(nat_server: NatKind, nat_client: NatKind) -> Result {
 #[tokio::test]
 #[traced_test]
 async fn nat_none_x_none() -> Result {
-    run_nat_holepunch(NatKind::None, NatKind::None).await
+    run_nat_holepunch(NatKind::None, NatKind::None).await?;
+    write_public_parity_receipt()?;
+    Ok(())
+}
+
+fn write_public_parity_receipt() -> Result {
+    const OUTPUT_ENV: &str = "IROH_PATCHBAY_PARITY_RECEIPT";
+    let Some(output) = std::env::var_os(OUTPUT_ENV) else {
+        return Ok(());
+    };
+    if output.is_empty() {
+        return Err(anyerr!("{OUTPUT_ENV} must name a nonempty output path"));
+    }
+    #[derive(Serialize)]
+    struct Receipt<'a> {
+        schema_version: u16,
+        case_id: &'a str,
+        test_id: &'a str,
+        authenticated_connections: u64,
+        successful_exchanges: u64,
+        corrupt_exchanges: u64,
+        selected_paths: [&'a str; 2],
+    }
+    let receipt = Receipt {
+        schema_version: 1,
+        case_id: "parity/patchbay-public",
+        test_id: "patchbay/nat/nat_none_x_none",
+        authenticated_connections: 1,
+        successful_exchanges: 1,
+        corrupt_exchanges: 0,
+        selected_paths: ["relay", "direct_ipv4"],
+    };
+    let mut bytes = serde_json::to_vec_pretty(&receipt)
+        .anyerr()
+        .context("encode Patchbay parity receipt")?;
+    bytes.push(b'\n');
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&output)
+        .context("create immutable Patchbay parity receipt")?;
+    file.write_all(&bytes)
+        .context("write Patchbay parity receipt")?;
+    file.sync_all().context("sync Patchbay parity receipt")?;
+    Ok(())
 }
 
 #[tokio::test]

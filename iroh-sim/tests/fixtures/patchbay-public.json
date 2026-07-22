@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "case_id": "parity/patchbay-public",
+  "backend": "patchbay",
+  "source_revision": "iroh/tests/patchbay/nat.rs:nat_none_x_none",
+  "evidence": {
+    "run_id": "e13f57acd5b5cca1b7f63e5ea753c826c25f75a3ed741354008fb26e1356ca76",
+    "scenario_hash": "78e2694b7679390ef21220eb16b72f00e333b88a8e2f140c5e836329dcd3373b",
+    "observed_at_unix_secs": 1784592000,
+    "valid_for_secs": 2678400
+  },
+  "capabilities": [
+    "terminal",
+    "authentication",
+    "delivery"
+  ],
+  "observed_dimensions": [
+    "terminal",
+    "authentication",
+    "delivery"
+  ],
+  "result": {
+    "status": "completed",
+    "outcome": {
+      "terminal": "success",
+      "authenticated_connections": 1,
+      "intact_deliveries": 1,
+      "corrupt_deliveries": 0,
+      "nat_transitions": {},
+      "firewall_decisions": {},
+      "mobility_transitions": {},
+      "relay_transitions": {},
+      "selected_paths": [
+        "relay",
+        "direct_ipv4"
+      ]
+    }
+  }
+}

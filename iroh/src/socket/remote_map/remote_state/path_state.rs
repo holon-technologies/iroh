@@ -5,7 +5,10 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(not(wasm_browser))]
+use iroh_runtime::Instant;
 use n0_error::e;
+#[cfg(wasm_browser)]
 use n0_future::time::Instant;
 use rustc_hash::FxHashMap;
 use tokio::sync::oneshot;
@@ -84,7 +87,12 @@ impl RemotePathState {
     /// Insert a new address of an open path into our list of paths.
     ///
     /// This will emit pending resolve requests and trigger pruning paths.
-    pub(super) fn insert_open_path(&mut self, addr: transports::Addr, source: Source) {
+    pub(super) fn insert_open_path(
+        &mut self,
+        addr: transports::Addr,
+        source: Source,
+        now: Instant,
+    ) {
         match addr {
             transports::Addr::Ip(_) => self.metrics.transport_ip_paths_added.inc(),
             transports::Addr::Relay(_, _) => self.metrics.transport_relay_paths_added.inc(),
@@ -92,7 +100,7 @@ impl RemotePathState {
         };
         let state = self.paths.entry(addr).or_default();
         state.status = PathStatus::Open;
-        state.sources.insert(source.clone(), Instant::now());
+        state.sources.insert(source.clone(), now);
         self.emit_pending_resolve_requests(None);
         self.prune_paths();
     }
@@ -101,7 +109,7 @@ impl RemotePathState {
     ///
     /// If this path does not exist, it does nothing to the
     /// `RemotePathState`
-    pub(super) fn abandoned_path(&mut self, addr: &transports::Addr) {
+    pub(super) fn abandoned_path(&mut self, addr: &transports::Addr, now: Instant) {
         if let Some(state) = self.paths.get_mut(addr) {
             if matches!(state.status, PathStatus::Open) {
                 match addr {
@@ -116,7 +124,7 @@ impl RemotePathState {
             }
             match state.status {
                 PathStatus::Open | PathStatus::Inactive(_) => {
-                    state.status = PathStatus::Inactive(Instant::now());
+                    state.status = PathStatus::Inactive(now);
                 }
                 PathStatus::Unusable | PathStatus::Unknown => {
                     state.status = PathStatus::Unusable;
@@ -136,8 +144,8 @@ impl RemotePathState {
         &mut self,
         addrs: impl Iterator<Item = transports::Addr>,
         source: Source,
+        now: Instant,
     ) {
-        let now = Instant::now();
         let was_empty = self.paths.is_empty();
         for addr in addrs {
             self.paths
@@ -561,7 +569,7 @@ mod tests {
 
         assert!(state.is_empty());
 
-        state.insert_open_path(addr.clone(), source.clone());
+        state.insert_open_path(addr.clone(), source.clone(), Instant::now());
 
         assert!(!state.is_empty());
         assert!(state.paths.contains_key(&addr));
@@ -578,11 +586,11 @@ mod tests {
 
         // Test: Open goes to Inactive
         let addr_open = ip_addr(1000);
-        state.insert_open_path(addr_open.clone(), Source::Connection);
+        state.insert_open_path(addr_open.clone(), Source::Connection, Instant::now());
         assert!(matches!(state.paths[&addr_open].status, PathStatus::Open));
         assert_eq!(metrics.transport_ip_paths_added.get(), 1);
 
-        state.abandoned_path(&addr_open);
+        state.abandoned_path(&addr_open, Instant::now());
         assert!(matches!(
             state.paths[&addr_open].status,
             PathStatus::Inactive(_)
@@ -591,7 +599,7 @@ mod tests {
         assert_eq!(metrics.transport_ip_paths_removed.get(), 1);
 
         // Test: Inactive stays Inactive
-        state.abandoned_path(&addr_open);
+        state.abandoned_path(&addr_open, Instant::now());
         assert!(matches!(
             state.paths[&addr_open].status,
             PathStatus::Inactive(_)
@@ -601,7 +609,11 @@ mod tests {
 
         // Test: Unknown goes to Unusable
         let addr_unknown = ip_addr(2000);
-        state.insert_multiple([addr_unknown.clone()].into_iter(), Source::Connection);
+        state.insert_multiple(
+            [addr_unknown.clone()].into_iter(),
+            Source::Connection,
+            Instant::now(),
+        );
         assert!(matches!(
             state.paths[&addr_unknown].status,
             PathStatus::Unknown
@@ -609,7 +621,7 @@ mod tests {
         assert_eq!(metrics.transport_ip_paths_added.get(), 1);
         assert_eq!(metrics.transport_ip_paths_removed.get(), 1);
 
-        state.abandoned_path(&addr_unknown);
+        state.abandoned_path(&addr_unknown, Instant::now());
         assert!(matches!(
             state.paths[&addr_unknown].status,
             PathStatus::Unusable
@@ -618,7 +630,7 @@ mod tests {
         assert_eq!(metrics.transport_ip_paths_removed.get(), 1);
 
         // Test: Unusable stays Unusable
-        state.abandoned_path(&addr_unknown);
+        state.abandoned_path(&addr_unknown, Instant::now());
         assert!(matches!(
             state.paths[&addr_unknown].status,
             PathStatus::Unusable
@@ -627,7 +639,7 @@ mod tests {
         assert_eq!(metrics.transport_ip_paths_removed.get(), 1);
 
         // Test: Unusable can go to open
-        state.insert_open_path(addr_unknown.clone(), Source::Connection);
+        state.insert_open_path(addr_unknown.clone(), Source::Connection, Instant::now());
         assert!(matches!(
             state.paths[&addr_unknown].status,
             PathStatus::Open
@@ -653,7 +665,7 @@ mod tests {
 
         // Second concurrent resolve arrives with empty addrs (no app-provided
         // addresses) while address lookup is still running.
-        state.insert_multiple(std::iter::empty(), Source::App);
+        state.insert_multiple(std::iter::empty(), Source::App, Instant::now());
 
         assert!(
             rx.try_recv().is_err(),
@@ -661,7 +673,7 @@ mod tests {
         );
 
         // When real addresses arrive, the tx resolves Ok.
-        state.insert_multiple([ip_addr(4242)].into_iter(), Source::App);
+        state.insert_multiple([ip_addr(4242)].into_iter(), Source::App, Instant::now());
         let resolved = rx.try_recv().expect("tx should have been woken");
         assert!(resolved.is_ok(), "expected Ok once a path was added");
     }

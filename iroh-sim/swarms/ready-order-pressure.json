@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "ready-order-pressure",
+  "base_path": "iroh-sim/corpus/stage6-rare-ready-order/scenario.json",
+  "base_blake3": "af0b8edbbb860e38810683c1af311cb657f1af82bf9ec6fc488f2c8385e87e18",
+  "choices": [
+    {
+      "id": "initial-ready-set",
+      "options": [
+        {
+          "id": "immediate",
+          "weight": 3,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "01-start-client",
+              "02-start-server",
+              "03-connect",
+              "04-stream",
+              "05-close",
+              "06-stop-client",
+              "07-stop-server"
+            ],
+            "nanos": 0
+          }
+        },
+        {
+          "id": "one-microsecond",
+          "weight": 1,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "01-start-client",
+              "02-start-server",
+              "03-connect",
+              "04-stream",
+              "05-close",
+              "06-stop-client",
+              "07-stop-server"
+            ],
+            "nanos": 1000
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,18 @@
 //! The "Server" side of the client. Uses the `ClientConnManager`.
 // Based on tailscale/derp/derp_server.go
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    fmt,
+    sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, Mutex},
+};
 
 use dashmap::DashMap;
 use iroh_base::EndpointId;
+use iroh_runtime::{DecisionError, DecisionStream, RuntimeContext, TaskGroup};
 use n0_future::IterExt;
+use rand::Rng;
 use tokio::sync::mpsc::error::TrySendError;
 use tracing::{debug, trace};
 
@@ -25,15 +32,57 @@ use crate::{
 ///
 /// This type manages the collection of active client connections and
 /// handles routing messages between them.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Clients(Arc<Inner>);
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Inner {
     /// The list of all currently connected clients.
     clients: DashMap<EndpointId, ClientState>,
     /// Map of which client has sent where
     sent_to: DashMap<EndpointId, HashSet<EndpointId>>,
+    runtime: Arc<RuntimeContext>,
+    tasks: Arc<dyn TaskGroup>,
+    decisions: Mutex<Box<dyn DecisionStream>>,
+    challenge_entropy: ChallengeEntropy,
+    #[cfg(feature = "test-utils")]
+    drop_every_nth_packet: AtomicU64,
+    #[cfg(feature = "test-utils")]
+    packet_ordinal: AtomicU64,
+}
+
+enum ChallengeEntropy {
+    Production,
+    Deterministic { key: [u8; 32], next: AtomicU64 },
+}
+
+impl fmt::Debug for ChallengeEntropy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Production => formatter.write_str("Production"),
+            Self::Deterministic { next, .. } => formatter
+                .debug_struct("Deterministic")
+                .field("key", &"[redacted]")
+                .field("next", &next.load(Ordering::Relaxed))
+                .finish(),
+        }
+    }
+}
+
+impl Default for Clients {
+    fn default() -> Self {
+        let runtime = Arc::new(RuntimeContext::production(Arc::new(
+            iroh_runtime::NoopTraceSink,
+        )));
+        match Self::build(
+            runtime,
+            "relay-server/production",
+            ChallengeEntropy::Production,
+        ) {
+            Ok(clients) => clients,
+            Err(_) => unreachable!("the built-in relay decision path is valid"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -54,6 +103,111 @@ impl ClientState {
 }
 
 impl Clients {
+    pub(super) fn with_runtime(
+        runtime: Arc<RuntimeContext>,
+        decision_path: &str,
+    ) -> Result<Self, DecisionError> {
+        let mut hasher = blake3::Hasher::new_derive_key(
+            "iroh relay deterministic simulation authentication challenges v1",
+        );
+        hasher.update(runtime.root_seed().as_bytes());
+        hasher.update(&(decision_path.len() as u32).to_le_bytes());
+        hasher.update(decision_path.as_bytes());
+        let challenge_entropy = ChallengeEntropy::Deterministic {
+            key: *hasher.finalize().as_bytes(),
+            next: AtomicU64::new(0),
+        };
+        Self::build(runtime, decision_path, challenge_entropy)
+    }
+
+    fn build(
+        runtime: Arc<RuntimeContext>,
+        decision_path: &str,
+        challenge_entropy: ChallengeEntropy,
+    ) -> Result<Self, DecisionError> {
+        let decisions = runtime.decisions().stream(decision_path)?;
+        let tasks = runtime.executor().new_group(None);
+        Ok(Self(Arc::new(Inner {
+            clients: DashMap::new(),
+            sent_to: DashMap::new(),
+            runtime,
+            tasks,
+            decisions: Mutex::new(decisions),
+            challenge_entropy,
+            #[cfg(feature = "test-utils")]
+            drop_every_nth_packet: AtomicU64::new(0),
+            #[cfg(feature = "test-utils")]
+            packet_ordinal: AtomicU64::new(0),
+        })))
+    }
+
+    pub(super) fn next_auth_challenge(&self) -> [u8; 16] {
+        let mut challenge = [0; 16];
+        match &self.0.challenge_entropy {
+            ChallengeEntropy::Production => rand::rng().fill_bytes(&mut challenge),
+            ChallengeEntropy::Deterministic { key, next } => {
+                let counter = next
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
+                        value.checked_add(1)
+                    })
+                    .expect("relay authentication challenge counter exhausted");
+                let digest = blake3::keyed_hash(key, &counter.to_le_bytes());
+                challenge.copy_from_slice(&digest.as_bytes()[..16]);
+            }
+        }
+        challenge
+    }
+
+    pub(super) fn runtime(&self) -> &Arc<RuntimeContext> {
+        &self.0.runtime
+    }
+
+    pub(super) fn tasks(&self) -> &Arc<dyn TaskGroup> {
+        &self.0.tasks
+    }
+
+    pub(super) fn next_ping_delay(&self) -> Result<std::time::Duration, DecisionError> {
+        let seconds = self
+            .0
+            .decisions
+            .lock()
+            .expect("relay decision stream lock poisoned")
+            .range_u64(1..6)?;
+        Ok(crate::protos::relay::PING_INTERVAL + std::time::Duration::from_secs(seconds))
+    }
+
+    pub(super) fn next_ping_data(&self) -> Result<[u8; 8], DecisionError> {
+        let mut data = [0; 8];
+        self.0
+            .decisions
+            .lock()
+            .expect("relay decision stream lock poisoned")
+            .fill_bytes(&mut data)?;
+        Ok(data)
+    }
+
+    /// Installs deterministic routed-packet loss for repository simulation tests.
+    #[doc(hidden)]
+    #[cfg(feature = "test-utils")]
+    pub fn set_test_drop_every_nth_packet(&self, every: Option<u64>) {
+        self.0
+            .drop_every_nth_packet
+            .store(every.unwrap_or(0), Ordering::Relaxed);
+        self.0.packet_ordinal.store(0, Ordering::Relaxed);
+    }
+
+    /// Returns the number of currently registered client sessions.
+    ///
+    /// Duplicate endpoint identities count once for each active or inactive connection.
+    #[doc(hidden)]
+    pub fn connection_count(&self) -> usize {
+        self.0
+            .clients
+            .iter()
+            .map(|entry| 1usize.saturating_add(entry.inactive.len()))
+            .sum()
+    }
+
     /// Shuts down all connected clients.
     ///
     /// This method gracefully disconnects all active client connections managed by
@@ -70,14 +224,18 @@ impl Clients {
     ///
     /// Once the client disconnects, the [`OnDisconnectGuard`] set in `config` will be dropped,
     /// allowing callers to be notified of the disconnect.
-    pub fn register<S>(&self, client_config: Config<S>, metrics: Arc<Metrics>)
+    pub fn register<S>(
+        &self,
+        client_config: Config<S>,
+        metrics: Arc<Metrics>,
+    ) -> Result<(), iroh_runtime::SpawnError>
     where
         S: BytesStreamSink + Send + 'static,
     {
         let endpoint_id = client_config.guard.endpoint_id;
         trace!(remote_endpoint = %endpoint_id.fmt_short(), "registering client");
 
-        let client = Client::new(client_config, self, metrics.clone());
+        let client = Client::new(client_config, self, metrics.clone())?;
         match self.0.clients.entry(endpoint_id) {
             dashmap::Entry::Occupied(mut entry) => {
                 let state = entry.get_mut();
@@ -99,6 +257,7 @@ impl Clients {
                 });
             }
         }
+        Ok(())
     }
 
     /// Removes the client from the map of clients, & sends a notification
@@ -204,6 +363,16 @@ impl Clients {
         src: EndpointId,
         metrics: &Metrics,
     ) -> Result<(), ForwardPacketError> {
+        #[cfg(feature = "test-utils")]
+        {
+            let every = self.0.drop_every_nth_packet.load(Ordering::Relaxed);
+            let ordinal = self.0.packet_ordinal.fetch_add(1, Ordering::Relaxed) + 1;
+            if every != 0 && ordinal.is_multiple_of(every) {
+                debug!(%ordinal, "deterministic test impairment dropped packet");
+                metrics.send_packets_dropped.inc();
+                return Ok(());
+            }
+        }
         let Some(client) = self.0.clients.get(&dst) else {
             debug!(dst = %dst.fmt_short(), "no connected client, dropped packet");
             metrics.send_packets_dropped.inc();
@@ -247,6 +416,7 @@ mod tests {
     use std::time::Duration;
 
     use iroh_base::SecretKey;
+    use iroh_runtime::{NoopTraceSink, RootSeed};
     use n0_error::{Result, StdResultExt};
     use n0_future::{Stream, StreamExt};
     use n0_tracing_test::traced_test;
@@ -259,6 +429,23 @@ mod tests {
         protos::{common::FrameType, relay::RelayToClientMsg, streams::WsBytesFramed},
         server::streams::{MaybeTlsStream, RateLimited, ServerRelayedStream},
     };
+
+    fn runtime(seed: [u8; 32]) -> Arc<RuntimeContext> {
+        Arc::new(RuntimeContext::tokio(
+            RootSeed::new(seed),
+            Arc::new(NoopTraceSink),
+        ))
+    }
+
+    #[test]
+    fn simulation_challenges_are_repeatable_and_scope_separated() {
+        let first = Clients::with_runtime(runtime([9; 32]), "relay-server/a/behavior").unwrap();
+        let replay = Clients::with_runtime(runtime([9; 32]), "relay-server/a/behavior").unwrap();
+        let other = Clients::with_runtime(runtime([9; 32]), "relay-server/b/behavior").unwrap();
+
+        assert_eq!(first.next_auth_challenge(), replay.next_auth_challenge());
+        assert_ne!(first.next_auth_challenge(), other.next_auth_challenge());
+    }
 
     async fn recv_frame<
         E: std::error::Error + Sync + Send + 'static,
@@ -306,7 +493,7 @@ mod tests {
 
         let clients = Clients::default();
         let metrics = Arc::new(Metrics::default());
-        clients.register(builder_a, metrics.clone());
+        clients.register(builder_a, metrics.clone()).anyerr()?;
 
         // send packet
         let data = b"hello world!";
@@ -356,7 +543,7 @@ mod tests {
         let metrics = Arc::new(Metrics::default());
 
         // register client a
-        clients.register(a1_builder, metrics.clone());
+        clients.register(a1_builder, metrics.clone()).anyerr()?;
         let a1_conn_id = clients.active_connection_id(a_key).unwrap();
 
         // send packet and verify it is send to a1
@@ -373,7 +560,7 @@ mod tests {
 
         // register new client with same endpoint id
         let (a2_builder, mut a2_rw) = test_client_builder(a_key);
-        clients.register(a2_builder, metrics.clone());
+        clients.register(a2_builder, metrics.clone()).anyerr()?;
         let a2_conn_id = clients.active_connection_id(a_key).unwrap();
         assert!(a2_conn_id != a1_conn_id);
 
@@ -475,8 +662,8 @@ mod tests {
         // Register both clients
         let (builder_a, _a_rw) = test_client_builder(a_key);
         let (builder_b, mut b_rw) = test_client_builder(b_key);
-        clients.register(builder_a, metrics.clone());
-        clients.register(builder_b, metrics.clone());
+        clients.register(builder_a, metrics.clone()).anyerr()?;
+        clients.register(builder_b, metrics.clone()).anyerr()?;
 
         // A sends a packet to B (records sent_to[A] = {B})
         let data = b"hello b!";

@@ -89,6 +89,7 @@ async fn main() -> Result<()> {
 
 fn pq_only_provider() -> Arc<rustls::crypto::CryptoProvider> {
     let mut p = aws_lc_rs::default_provider();
-    p.kx_groups = vec![aws_lc_rs::kx_group::X25519MLKEM768];
+    p.kx_groups
+        .retain(|group| group.name() == aws_lc_rs::kx_group::X25519MLKEM768.name());
     Arc::new(p)
 }

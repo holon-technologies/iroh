@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "stage4-nat-rebind-expiry",
+  "scenario_file": "scenario.json",
+  "seed": "4949494949494949494949494949494949494949494949494949494949494949",
+  "expectation": {
+    "terminal": "success"
+  },
+  "provenance": "Stage 4 reviewed regression for production QUIC across deterministic NAT rebinding and mapping expiry.",
+  "issue": "stage4-nat-exit-fixture",
+  "minimum_scenario_schema": 2,
+  "maximum_scenario_schema": 2,
+  "minimum_simulator_version": "1.0.3",
+  "maximum_simulator_version": null,
+  "review_state": "reviewed",
+  "inventory": {
+    "hosts": 2,
+    "endpoints": 2,
+    "links": 1,
+    "nats": 1,
+    "nat_change_actions": 1,
+    "port_mapping_actions": 0,
+    "firewalls": 0,
+    "firewall_rules": 0,
+    "discovery_providers": 0,
+    "discovery_records": 0,
+    "interfaces": 2,
+    "interface_change_actions": 0,
+    "routes": 0,
+    "relays": 0,
+    "relay_lifecycle_actions": 0
+  }
+}

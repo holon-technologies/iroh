@@ -3,10 +3,14 @@ use std::{
     future::poll_fn,
     hash::Hash,
     sync::Arc,
-    task::{Context, Poll, Waker, ready},
+    task::{Context, Poll},
 };
 
+#[cfg(wasm_browser)]
+use std::task::{Waker, ready};
+
 use iroh_base::{CustomAddr, EndpointAddr, EndpointId, RelayUrl};
+#[cfg(wasm_browser)]
 use n0_future::task::JoinSet;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
@@ -35,6 +39,8 @@ use super::{
     },
     transports,
 };
+#[cfg(not(wasm_browser))]
+use crate::runtime::Runtime;
 use crate::{
     address_lookup::{self, AddressLookupFailed},
     socket::concurrent_read_map::{ConcurrentReadMap, ReadOnlyMap},
@@ -142,8 +148,19 @@ struct Tasks {
     ///
     /// These tasks return their endpoint ID and the list of messages they didn't get to handle
     /// when they shut down.
+    #[cfg(wasm_browser)]
     tasks: JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+    /// Runtime which owns native remote-state actor tasks.
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
+    /// Completion queue used to preserve the actor restart/reap protocol while the runtime owns
+    /// native task execution.
+    #[cfg(not(wasm_browser))]
+    completions_tx: mpsc::UnboundedSender<RemoteStateCompletion>,
+    #[cfg(not(wasm_browser))]
+    completions_rx: mpsc::UnboundedReceiver<RemoteStateCompletion>,
     /// The waker that notifies `poll_cleanup` when the join set is populated with another task.
+    #[cfg(wasm_browser)]
     poll_cleanup_waker: Option<Waker>,
     /// The path selector used by all [`RemoteStateActor`]s spawned by this map.
     path_selector: Arc<dyn PathSelector>,
@@ -160,7 +177,10 @@ impl RemoteMap {
         shutdown_token: CancellationToken,
         path_selector: Arc<dyn PathSelector>,
         span: Span,
+        #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
     ) -> Self {
+        #[cfg(not(wasm_browser))]
+        let (completions_tx, completions_rx) = mpsc::unbounded_channel();
         Self {
             mapped_addrs: Default::default(),
             senders: Default::default(),
@@ -169,7 +189,15 @@ impl RemoteMap {
                 local_direct_addrs,
                 address_lookup,
                 shutdown_token,
+                #[cfg(wasm_browser)]
                 tasks: Default::default(),
+                #[cfg(not(wasm_browser))]
+                runtime,
+                #[cfg(not(wasm_browser))]
+                completions_tx,
+                #[cfg(not(wasm_browser))]
+                completions_rx,
+                #[cfg(wasm_browser)]
                 poll_cleanup_waker: None,
                 path_selector,
                 span,
@@ -206,25 +234,39 @@ impl RemoteMap {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<(EndpointId, Vec<RemoteStateMessage>)> {
-        while let Some(result) = ready!(self.tasks.tasks.poll_join_next(cx)) {
-            match result {
-                Ok((remote_id, leftover_msgs)) => {
-                    return Poll::Ready((remote_id, leftover_msgs));
+        #[cfg(not(wasm_browser))]
+        {
+            match self.tasks.completions_rx.poll_recv(cx) {
+                Poll::Ready(Some(RemoteStateCompletion::Finished(remote_id, leftover_msgs))) => {
+                    Poll::Ready((remote_id, leftover_msgs))
                 }
-                Err(err) => {
-                    if let Ok(panic) = err.try_into_panic() {
-                        error!("RemoteStateActor panicked.");
-                        std::panic::resume_unwind(panic);
+                Poll::Ready(Some(RemoteStateCompletion::Panicked)) => {
+                    panic!("RemoteStateActor panicked")
+                }
+                Poll::Ready(None) | Poll::Pending => Poll::Pending,
+            }
+        }
+
+        #[cfg(wasm_browser)]
+        {
+            while let Some(result) = ready!(self.tasks.tasks.poll_join_next(cx)) {
+                match result {
+                    Ok((remote_id, leftover_msgs)) => {
+                        return Poll::Ready((remote_id, leftover_msgs));
+                    }
+                    Err(err) => {
+                        if let Ok(panic) = err.try_into_panic() {
+                            error!("RemoteStateActor panicked.");
+                            std::panic::resume_unwind(panic);
+                        }
                     }
                 }
             }
+            // There's nothing to clean up. Wake once a task is added, since an empty JoinSet
+            // cannot register a completion waker.
+            self.tasks.poll_cleanup_waker.replace(cx.waker().clone());
+            Poll::Pending
         }
-        // There's nothing to clean up.
-        // Let's get woken when there's another task.
-        // If we're called after that, then we'll fall into `poll_join_next` and
-        // properly wait for a task to finish.
-        self.tasks.poll_cleanup_waker.replace(cx.waker().clone());
-        Poll::Pending
     }
 
     /// Removes an actor sender if `leftover_msgs` is empty, or restarts the actor otherwise.
@@ -329,6 +371,8 @@ impl Tasks {
         mapped_addrs.endpoint_addrs.get(&eid);
         let sender = RemoteStateActor::new(
             eid,
+            #[cfg(not(wasm_browser))]
+            self.runtime.clone(),
             self.local_direct_addrs.clone(),
             mapped_addrs.relay_addrs.clone(),
             mapped_addrs.custom_addrs.clone(),
@@ -338,16 +382,28 @@ impl Tasks {
         )
         .start(
             initial_msgs,
+            #[cfg(wasm_browser)]
             &mut self.tasks,
+            #[cfg(not(wasm_browser))]
+            self.runtime.clone(),
+            #[cfg(not(wasm_browser))]
+            self.completions_tx.clone(),
             self.shutdown_token.clone(),
             self.span.clone(),
         );
+        #[cfg(wasm_browser)]
         if let Some(waker) = self.poll_cleanup_waker.take() {
             // Notify something waiting for changes to tasks when there's a new task.
             waker.wake();
         }
         sender
     }
+}
+
+#[cfg(not(wasm_browser))]
+pub(super) enum RemoteStateCompletion {
+    Finished(EndpointId, Vec<RemoteStateMessage>),
+    Panicked,
 }
 
 /// The origin or *source* through which an address associated with a remote endpoint
@@ -402,6 +458,13 @@ mod tests {
             shutdown_token.clone(),
             Arc::new(BiasedRttPathSelector::default()),
             Span::none(),
+            #[cfg(not(wasm_browser))]
+            Arc::new(crate::runtime::Runtime::new(
+                SecretKey::from_bytes(&[42; 32]).public(),
+                Arc::new(iroh_runtime::RuntimeContext::production(Arc::new(
+                    iroh_runtime::NoopTraceSink,
+                ))),
+            )),
         );
         let guards = (watchable, shutdown_token.clone().drop_guard());
         (remote_map, shutdown_token, guards)

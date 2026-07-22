@@ -47,8 +47,31 @@ jobs:
           set -o pipefail
           cargo make patchbay 2>&1 | tee "$RUNNER_TEMP/logs.txt"
         env:
+          IROH_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-public-receipt.json
           PATCHBAY_LOG: ${{ runner.debug && 'trace' || 'debug' }}
           RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
+
+      - name: Validate Patchbay semantic fixture contract
+        run: cargo test -p iroh-sim --test parity patchbay_fixture_import_is_strict_canonical_and_reports_capability_skips -- --exact
+
+      - name: Import and compare fresh Patchbay semantic evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/parity"
+          observed_at="$(date +%s)"
+          cargo run -p iroh-sim --bin cargo-sim -- parity import-patchbay \
+            "$RUNNER_TEMP/patchbay-public-receipt.json" \
+            --source-revision "${{ github.sha }}" \
+            --observed-at-unix-secs "$observed_at" \
+            --output "$RUNNER_TEMP/parity/patchbay-public.json"
+          cargo run -p iroh-sim --bin cargo-sim -- parity export public \
+            --seed 7777777777777777777777777777777777777777777777777777777777777777 \
+            --source-revision "${{ github.sha }}" \
+            --observed-at-unix-secs "$observed_at" \
+            --output "$RUNNER_TEMP/parity/deterministic-public.json"
+          cargo run -p iroh-sim --bin cargo-sim -- parity compare \
+            "$RUNNER_TEMP/parity/deterministic-public.json" \
+            "$RUNNER_TEMP/parity/patchbay-public.json" \
+            --output "$RUNNER_TEMP/parity/public-comparison.json"
 
       - name: Upload test results
         if: always()
@@ -58,5 +81,8 @@ jobs:
           path: |
             target/testdir-current/
             ${{ runner.temp }}/logs.txt
+            ${{ runner.temp }}/patchbay-public-receipt.json
+            ${{ runner.temp }}/parity/
+            iroh-sim/tests/fixtures/patchbay-public.json
           retention-days: 7
           if-no-files-found: ignore

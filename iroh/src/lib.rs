@@ -278,6 +278,9 @@ pub mod endpoint;
 pub mod metrics;
 mod net_report;
 pub mod protocol;
+#[cfg(not(wasm_browser))]
+#[doc(hidden)]
+pub mod simulation;
 
 pub use endpoint::{Endpoint, RelayMode};
 pub use iroh_base::{

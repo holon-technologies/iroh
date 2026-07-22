@@ -252,6 +252,59 @@ impl ClientBuilder {
         self
     }
 
+    #[cfg(all(not(wasm_browser), feature = "test-utils"))]
+    pub(crate) fn auth_token_ref(&self) -> Option<&str> {
+        self.auth_token.as_deref()
+    }
+
+    #[cfg(all(not(wasm_browser), feature = "test-utils"))]
+    pub(crate) fn in_memory_request_parts(&self) -> Result<http::request::Parts, ConnectError> {
+        use http::header::{AUTHORIZATION, HeaderValue};
+
+        let mut request = http::Request::builder()
+            .method(http::Method::GET)
+            .uri(RELAY_PATH)
+            .body(())
+            .expect("static in-memory relay request is valid");
+        if let Some(token) = self.auth_token_ref() {
+            let value = HeaderValue::from_str(&format!("Bearer {token}"))
+                .map_err(|_| e!(ConnectError::InvalidAuthToken))?;
+            request.headers_mut().insert(AUTHORIZATION, value);
+        }
+        Ok(request.into_parts().0)
+    }
+
+    /// Establishes a production relay protocol session over a simulator-owned byte pipe.
+    ///
+    /// This skips only DNS, TCP, TLS, and the HTTP upgrade. WebSocket framing and the normal relay
+    /// challenge authentication are still executed. It is intentionally available only to
+    /// repository test infrastructure.
+    #[doc(hidden)]
+    #[cfg(all(not(wasm_browser), feature = "test-utils"))]
+    pub async fn connect_in_memory(
+        &self,
+        io: tokio::io::DuplexStream,
+        protocol_version: ProtocolVersion,
+    ) -> Result<Client, ConnectError> {
+        use crate::{client::streams::MaybeTlsStream, protos::relay::MAX_FRAME_SIZE};
+
+        let websocket = tokio_websockets::ClientBuilder::new()
+            .limits(tokio_websockets::Limits::default().max_payload_len(Some(MAX_FRAME_SIZE)))
+            .config(tokio_websockets::Config::default().flush_threshold(usize::MAX))
+            .take_over(MaybeTlsStream::Test(io));
+        let conn = Conn::new(
+            websocket,
+            self.key_cache.clone(),
+            &self.secret_key,
+            protocol_version,
+        )
+        .await?;
+        Ok(Client {
+            conn,
+            local_addr: None,
+        })
+    }
+
     /// Establishes a new connection to the relay server.
     #[cfg(not(wasm_browser))]
     pub async fn connect(&self) -> Result<Client, ConnectError> {

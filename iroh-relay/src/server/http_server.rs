@@ -42,7 +42,11 @@ use crate::{
         CLIENT_AUTH_HEADER, ProtocolVersion, RELAY_PATH, SUPPORTED_WEBSOCKET_VERSION,
         WEBSOCKET_UPGRADE_PROTOCOL,
     },
-    protos::{handshake, relay::MAX_FRAME_SIZE, streams::WsBytesFramed},
+    protos::{
+        handshake,
+        relay::MAX_FRAME_SIZE,
+        streams::{BytesStreamSink, WsBytesFramed},
+    },
     server::{
         ClientRateLimit,
         client::Config,
@@ -309,6 +313,24 @@ pub enum AcceptError {
     Handshake { source: handshake::Error },
     #[error("rate limiting misconfigured")]
     RateLimitingMisconfigured { source: InvalidBucketConfig },
+    #[error("relay client runtime rejected the actor")]
+    Runtime {
+        #[error(std_err)]
+        source: iroh_runtime::SpawnError,
+    },
+}
+
+/// Failure while establishing a production relay session on an in-memory transport.
+#[doc(hidden)]
+#[cfg(feature = "test-utils")]
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta, from_sources)]
+#[non_exhaustive]
+pub enum InMemoryConnectError {
+    #[error("relay client session setup failed")]
+    Client { source: crate::client::ConnectError },
+    #[error("relay server session setup failed")]
+    Server { source: AcceptError },
 }
 
 /// Server connection errors, includes errors that can happen on `accept`.
@@ -862,10 +884,26 @@ impl Inner {
             // Serve will create a WebSocketStream on an already upgraded connection
             .serve(io);
 
-        let mut io = WsBytesFramed { io: websocket };
+        let io = WsBytesFramed { io: websocket };
 
+        self.accept_framed(io, request_parts, protocol_version)
+            .await
+    }
+
+    /// Authenticates, authorizes, and registers one transport-independent relay session.
+    async fn accept_framed<S>(
+        &self,
+        mut io: S,
+        request_parts: http::request::Parts,
+        protocol_version: ProtocolVersion,
+    ) -> Result<(), AcceptError>
+    where
+        S: BytesStreamSink + crate::ExportKeyingMaterial + Send + 'static,
+    {
         let client_auth_header = request_parts.headers.get(CLIENT_AUTH_HEADER).cloned();
-        let authentication = handshake::serverside(&mut io, client_auth_header).await?;
+        let challenge = self.clients.next_auth_challenge();
+        let authentication =
+            handshake::serverside_with_challenge(&mut io, client_auth_header, challenge).await?;
 
         trace!(?authentication.mechanism, "accept: verified authentication");
 
@@ -879,10 +917,7 @@ impl Inner {
 
         trace!("accept: verified authorization");
 
-        let io = RelayedStream {
-            inner: io,
-            key_cache: self.key_cache.clone(),
-        };
+        let io = RelayedStream::new(io, self.key_cache.clone());
 
         trace!("accept: build client conn");
         let mut client_conn_builder = Config::new(guard, io, protocol_version);
@@ -892,7 +927,8 @@ impl Inner {
         // build and register client, starting up read & write loops for the client
         // connection
         self.clients
-            .register(client_conn_builder, self.metrics.clone());
+            .register(client_conn_builder, self.metrics.clone())
+            .map_err(|error| e!(AcceptError::Runtime, error))?;
         Ok(())
     }
 }
@@ -919,10 +955,48 @@ impl RelayService {
         access: Arc<dyn DynAccessControl>,
         metrics: Arc<Metrics>,
     ) -> Self {
+        Self::from_clients(
+            handlers,
+            headers,
+            rate_limit,
+            key_cache,
+            access,
+            metrics,
+            Clients::default(),
+        )
+    }
+
+    /// Creates a relay service whose per-client actors use an explicitly owned runtime.
+    #[doc(hidden)]
+    #[cfg(feature = "test-utils")]
+    pub fn new_with_runtime(
+        handlers: Handlers,
+        headers: HeaderMap,
+        rate_limit: Option<ClientRateLimit>,
+        key_cache: KeyCache,
+        access: Arc<dyn DynAccessControl>,
+        metrics: Arc<Metrics>,
+        runtime: RelayServiceRuntime,
+    ) -> Result<Self, iroh_runtime::DecisionError> {
+        let clients = Clients::with_runtime(runtime.context, &runtime.decision_path)?;
+        Ok(Self::from_clients(
+            handlers, headers, rate_limit, key_cache, access, metrics, clients,
+        ))
+    }
+
+    fn from_clients(
+        handlers: Handlers,
+        headers: HeaderMap,
+        rate_limit: Option<ClientRateLimit>,
+        key_cache: KeyCache,
+        access: Arc<dyn DynAccessControl>,
+        metrics: Arc<Metrics>,
+        clients: Clients,
+    ) -> Self {
         Self(Arc::new(Inner {
             handlers,
             headers,
-            clients: Clients::default(),
+            clients,
             write_timeout: SERVER_WRITE_TIMEOUT,
             rate_limit: watch::Sender::new(rate_limit),
             key_cache,
@@ -942,6 +1016,50 @@ impl RelayService {
     /// Shuts down the relay service, disconnecting all clients.
     pub async fn shutdown(&self) {
         self.0.clients.shutdown().await;
+    }
+
+    /// Opens one production relay client/server session over an in-memory byte pipe.
+    ///
+    /// DNS, TCP, TLS, and HTTP upgrade mechanics are bypassed. The normal WebSocket framing,
+    /// challenge authentication, authorization, server client actor, registry, and routing code
+    /// remain in the call path. This API is reserved for repository simulation infrastructure.
+    #[doc(hidden)]
+    #[cfg(feature = "test-utils")]
+    pub async fn connect_in_memory(
+        &self,
+        builder: &crate::client::ClientBuilder,
+        protocol_version: ProtocolVersion,
+        byte_capacity: usize,
+    ) -> Result<crate::client::Client, InMemoryConnectError> {
+        let request_parts = builder
+            .in_memory_request_parts()
+            .map_err(|error| e!(InMemoryConnectError::Client, error))?;
+        let (client_io, server_io) = tokio::io::duplex(byte_capacity.max(1));
+        let server_io = RateLimited::from_watcher(
+            MaybeTlsStream::Test(server_io),
+            self.0.rate_limit.subscribe(),
+            self.0.metrics.clone(),
+        )
+        .map_err(|error| e!(AcceptError::RateLimitingMisconfigured, error))
+        .map_err(|error| e!(InMemoryConnectError::Server, error))?;
+        let websocket = tokio_websockets::ServerBuilder::new()
+            .limits(tokio_websockets::Limits::default().max_payload_len(Some(MAX_FRAME_SIZE)))
+            .serve(server_io);
+        let framed = WsBytesFramed { io: websocket };
+        let server = async {
+            self.0
+                .accept_framed(framed, request_parts, protocol_version)
+                .await
+                .map_err(|error| e!(InMemoryConnectError::Server, error))
+        };
+        let client = async {
+            builder
+                .connect_in_memory(client_io, protocol_version)
+                .await
+                .map_err(|error| e!(InMemoryConnectError::Client, error))
+        };
+        let ((), client) = tokio::try_join!(server, client)?;
+        Ok(client)
     }
 
     /// Returns a reference to the registry of currently connected clients.
@@ -1070,6 +1188,29 @@ impl RelayService {
                     error!(?error, "failed to handle connection");
                 }
             }
+        }
+    }
+}
+
+/// Run-owned runtime inputs for an in-memory relay service.
+#[doc(hidden)]
+#[cfg(feature = "test-utils")]
+#[derive(Clone, Debug)]
+pub struct RelayServiceRuntime {
+    context: Arc<iroh_runtime::RuntimeContext>,
+    decision_path: String,
+}
+
+#[cfg(feature = "test-utils")]
+impl RelayServiceRuntime {
+    /// Creates runtime inputs with a domain-separated relay decision path.
+    pub fn new(
+        context: Arc<iroh_runtime::RuntimeContext>,
+        decision_path: impl Into<String>,
+    ) -> Self {
+        Self {
+            context,
+            decision_path: decision_path.into(),
         }
     }
 }

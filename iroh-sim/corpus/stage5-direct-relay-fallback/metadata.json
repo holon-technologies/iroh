@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "stage5-direct-relay-fallback",
+  "scenario_file": "scenario.json",
+  "seed": "6262626262626262626262626262626262626262626262626262626262626262",
+  "expectation": {"terminal": "success"},
+  "provenance": "Stage 5 reviewed regression for a production direct path degrading and production relay fallback preserving authenticated delivery.",
+  "issue": "stage5-direct-relay-fallback-exit-fixture",
+  "minimum_scenario_schema": 2,
+  "maximum_scenario_schema": 2,
+  "minimum_simulator_version": "1.0.3",
+  "maximum_simulator_version": null,
+  "review_state": "reviewed",
+  "inventory": {
+    "hosts": 2,
+    "endpoints": 2,
+    "links": 1,
+    "nats": 0,
+    "nat_change_actions": 0,
+    "port_mapping_actions": 0,
+    "firewalls": 0,
+    "firewall_rules": 0,
+    "discovery_providers": 0,
+    "discovery_records": 0,
+    "interfaces": 2,
+    "interface_change_actions": 0,
+    "routes": 0,
+    "relays": 1,
+    "relay_lifecycle_actions": 0
+  }
+}

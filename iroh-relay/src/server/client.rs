@@ -5,14 +5,15 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use iroh_base::EndpointId;
 use n0_error::{e, stack_error};
 use n0_future::{SinkExt, StreamExt};
-use rand::RngExt;
 use time::{Date, OffsetDateTime};
-use tokio::{
-    sync::mpsc::{self, error::TrySendError},
-    time::MissedTickBehavior,
-};
-use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
+use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, trace, warn};
+
+use iroh_runtime::{
+    Clock, ClockError, ClockSleep, ClockTimeout, DecisionError, OwnedTaskHandle, SpawnError,
+    TaskKind, TaskOutcome, TimeoutError, WallClock,
+};
 
 use crate::{
     PingTracker,
@@ -20,8 +21,7 @@ use crate::{
     http::ProtocolVersion,
     protos::{
         relay::{
-            ClientToRelayMsg, Datagrams, PER_CLIENT_SEND_QUEUE_DEPTH, PING_INTERVAL,
-            RelayToClientMsg, Status,
+            ClientToRelayMsg, Datagrams, PER_CLIENT_SEND_QUEUE_DEPTH, RelayToClientMsg, Status,
         },
         streams::BytesStreamSink,
     },
@@ -94,7 +94,7 @@ pub(super) struct Client {
     /// Used to close the connection loop.
     done: CancellationToken,
     /// Actor handle.
-    handle: AbortOnDropHandle<()>,
+    handle: OwnedTaskHandle,
     /// Channel to send packets intended for the client.
     packet_queue: mpsc::Sender<Packet>,
     /// Channel to send non-packet messages to the client.
@@ -111,7 +111,11 @@ impl Client {
     /// control once the connection ends.
     ///
     /// Call [`Client::shutdown`] to close the read and write loops before dropping the [`Client`]
-    pub(super) fn new<S>(config: Config<S>, clients: &Clients, metrics: Arc<Metrics>) -> Client
+    pub(super) fn new<S>(
+        config: Config<S>,
+        clients: &Clients,
+        metrics: Arc<Metrics>,
+    ) -> Result<Client, SpawnError>
     where
         S: BytesStreamSink + Send + 'static,
     {
@@ -129,6 +133,7 @@ impl Client {
         let (message_send_queue_s, message_send_queue_r) = mpsc::channel(channel_capacity);
         let done = CancellationToken::new();
 
+        let runtime = clients.runtime().clone();
         let actor = Actor {
             stream,
             timeout: write_timeout,
@@ -136,28 +141,33 @@ impl Client {
             message_send_queue: message_send_queue_r,
             guard,
             clients: clients.clone(),
-            client_counter: ClientCounter::default(),
+            client_counter: ClientCounter::new(runtime.wall_clock()),
             ping_tracker: PingTracker::default(),
             metrics,
+            clock: runtime.clock(),
         };
 
         // start io loop
         let io_done = done.clone();
-        let handle = tokio::task::spawn(actor.run(io_done).instrument(tracing::info_span!(
-            "client-connection-actor",
-            remote_endpoint = %endpoint_id.fmt_short(),
-            connection_id = %connection_id
-        )));
+        let handle = clients.tasks().spawn_owned(
+            TaskKind::Relay,
+            "relay-server-client",
+            Box::pin(actor.run(io_done).instrument(tracing::info_span!(
+                "client-connection-actor",
+                remote_endpoint = %endpoint_id.fmt_short(),
+                connection_id = %connection_id
+            ))),
+        )?;
 
-        Client {
+        Ok(Client {
             endpoint_id,
             connection_id,
-            handle: AbortOnDropHandle::new(handle),
+            handle,
             done,
             packet_queue: packet_send_queue_s,
             message_queue: message_send_queue_s,
             protocol_version,
-        }
+        })
     }
 
     pub(super) fn connection_id(&self) -> ConnectionId {
@@ -169,12 +179,18 @@ impl Client {
     /// Any shutdown errors will be logged as warnings.
     pub(super) async fn shutdown(self) {
         self.start_shutdown();
-        if let Err(e) = self.handle.await {
-            warn!(
-                remote_endpoint = %self.endpoint_id.fmt_short(),
-                "error closing actor loop: {e:#?}",
-            );
-        };
+        let endpoint_id = self.endpoint_id;
+        match self.handle.join().await {
+            Ok(TaskOutcome::Completed | TaskOutcome::Cancelled) => {}
+            Ok(TaskOutcome::Panicked) => warn!(
+                remote_endpoint = %endpoint_id.fmt_short(),
+                "relay client actor panicked while closing",
+            ),
+            Err(error) => warn!(
+                remote_endpoint = %endpoint_id.fmt_short(),
+                "error closing relay client actor: {error}",
+            ),
+        }
     }
 
     /// Starts the process of shutdown.
@@ -237,7 +253,7 @@ pub enum WriteFrameError {
     #[error(transparent)]
     Timeout {
         #[error(std_err)]
-        source: tokio::time::error::Elapsed,
+        source: TimeoutError,
     },
 }
 
@@ -266,6 +282,16 @@ pub enum RunError {
     WriteFrame { source: WriteFrameError },
     #[error("Tick flush")]
     TickFlush {},
+    #[error("Relay server timer failed")]
+    Timer {
+        #[error(std_err, from)]
+        source: ClockError,
+    },
+    #[error("Relay server decision failed")]
+    Decision {
+        #[error(std_err, from)]
+        source: DecisionError,
+    },
 }
 
 /// Manages all the reads and writes to this client. It periodically sends a `KEEP_ALIVE`
@@ -305,6 +331,7 @@ struct Actor<S> {
     client_counter: ClientCounter,
     ping_tracker: PingTracker,
     metrics: Arc<Metrics>,
+    clock: Arc<dyn Clock>,
 }
 
 impl<S> Actor<S>
@@ -333,18 +360,14 @@ where
     }
 
     async fn run_inner(&mut self, done: CancellationToken) -> Result<(), RunError> {
-        // Add some jitter to ping pong interactions, to avoid all pings being sent at the same time
-        let next_interval = || {
-            let random_secs = rand::rng().random_range(1..=5);
-            Duration::from_secs(random_secs) + PING_INTERVAL
-        };
-
-        let mut ping_interval = tokio::time::interval(next_interval());
-        // ticks immediately
-        ping_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ping_interval.tick().await;
+        // Preserve the server's jittered keepalive policy, but source it from the run-owned
+        // decision stream and clock.
+        let base_ping_delay = self.clients.next_ping_delay()?;
+        let mut ping_sleep = ClockSleep::after(self.clock.clone(), base_ping_delay)?;
 
         loop {
+            let ping_timeout = wait_for_deadline(self.clock.clone(), self.ping_tracker.deadline());
+            tokio::pin!(ping_timeout);
             tokio::select! {
                 biased;
 
@@ -359,7 +382,7 @@ where
                         .handle_frame(maybe_frame)
                         .await?;
                     // reset the ping interval, we just received a message
-                    ping_interval.reset();
+                    ping_sleep.reset(deadline_after(&*self.clock, base_ping_delay)?)?;
                 }
                 // Second priority, sending regular packets
                 packet = self.packet_send_queue.recv() => {
@@ -376,15 +399,21 @@ where
                         .await
                         .map_err(|err| e!(RunError::WriteFrame, err))?;
                 }
-                _ = self.ping_tracker.timeout() => {
+                result = &mut ping_timeout => {
+                    result?;
                     trace!("pong timed out");
+                    self.ping_tracker.timeout_elapsed();
                     break;
                 }
-                _ = ping_interval.tick() => {
+                result = &mut ping_sleep => {
+                    result?;
                     trace!("keep alive ping");
                     // new interval
-                    ping_interval.reset_after(next_interval());
-                    let data = self.ping_tracker.new_ping();
+                    let next = self.clients.next_ping_delay()?;
+                    ping_sleep.reset(deadline_after(&*self.clock, next)?)?;
+                    let data = self.clients.next_ping_data()?;
+                    let timeout = self.ping_tracker.ping_timeout();
+                    self.ping_tracker.new_ping_with_data_at(timeout, data, self.clock.now());
                     self.write_frame(RelayToClientMsg::Ping(data))
                         .await
                         .map_err(|err| e!(RunError::WriteFrame, err))?;
@@ -403,7 +432,13 @@ where
     ///
     /// Errors if the send does not happen within the `timeout` duration
     async fn write_frame(&mut self, frame: RelayToClientMsg) -> Result<(), WriteFrameError> {
-        tokio::time::timeout(self.timeout, self.stream.send(frame)).await??;
+        let timeout =
+            ClockTimeout::after(self.clock.clone(), self.timeout, self.stream.send(frame))
+                .map_err(TimeoutError::Clock)
+                .map_err(|error| e!(WriteFrameError::Timeout, error))?;
+        timeout
+            .await
+            .map_err(|error| e!(WriteFrameError::Timeout, error))??;
         Ok(())
     }
 
@@ -470,7 +505,7 @@ where
                 self.metrics.sent_pong.inc();
             }
             ClientToRelayMsg::Pong(data) => {
-                self.ping_tracker.pong_received(data);
+                self.ping_tracker.pong_received_at(data, self.clock.now());
             }
         }
         Ok(())
@@ -511,20 +546,21 @@ pub struct ForwardPacketError {
 struct ClientCounter {
     clients: HashSet<EndpointId>,
     last_clear_date: Date,
-}
-
-impl Default for ClientCounter {
-    fn default() -> Self {
-        Self {
-            clients: HashSet::new(),
-            last_clear_date: OffsetDateTime::now_utc().date(),
-        }
-    }
+    wall_clock: Arc<dyn WallClock>,
 }
 
 impl ClientCounter {
+    fn new(wall_clock: Arc<dyn WallClock>) -> Self {
+        let last_clear_date = OffsetDateTime::from(wall_clock.now_system()).date();
+        Self {
+            clients: HashSet::new(),
+            last_clear_date,
+            wall_clock,
+        }
+    }
+
     fn check_and_clear(&mut self) {
-        let today = OffsetDateTime::now_utc().date();
+        let today = OffsetDateTime::from(self.wall_clock.now_system()).date();
         if today != self.last_clear_date {
             self.clients.clear();
             self.last_clear_date = today;
@@ -538,13 +574,30 @@ impl ClientCounter {
     }
 }
 
+fn deadline_after(clock: &dyn Clock, duration: Duration) -> Result<std::time::Instant, ClockError> {
+    clock
+        .now()
+        .checked_add(duration)
+        .ok_or(ClockError::TimelineOverflow)
+}
+
+async fn wait_for_deadline(
+    clock: Arc<dyn Clock>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), ClockError> {
+    match deadline {
+        Some(deadline) => ClockSleep::new(clock, deadline)?.await,
+        None => std::future::pending().await,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use iroh_base::SecretKey;
     use n0_error::{Result, StdResultExt, bail_any};
     use n0_future::Stream;
     use n0_tracing_test::traced_test;
-    use rand::SeedableRng;
+    use rand::{RngExt, SeedableRng};
     use tracing::info;
 
     use super::*;
@@ -600,9 +653,10 @@ mod tests {
             message_send_queue: message_r,
             guard: OnDisconnectGuard::empty(endpoint_id),
             clients: clients.clone(),
-            client_counter: ClientCounter::default(),
+            client_counter: ClientCounter::new(clients.runtime().wall_clock()),
             ping_tracker: PingTracker::default(),
             metrics,
+            clock: clients.runtime().clock(),
         };
 
         let done = CancellationToken::new();
@@ -698,7 +752,7 @@ mod tests {
 
         let clients = Clients::default();
         let metrics = Arc::new(Metrics::default());
-        clients.register(builder_a, metrics.clone());
+        clients.register(builder_a, metrics.clone()).anyerr()?;
 
         // Verify basic packet delivery works with V1.
         let data = b"hello world v1!";
@@ -727,7 +781,7 @@ mod tests {
 
         let clients = Clients::default();
         let metrics = Arc::new(Metrics::default());
-        clients.register(builder_a, metrics.clone());
+        clients.register(builder_a, metrics.clone()).anyerr()?;
 
         // Verify basic packet delivery works with V2.
         let data = b"hello world v2!";
@@ -756,12 +810,12 @@ mod tests {
 
         let clients = Clients::default();
         let metrics = Arc::new(Metrics::default());
-        clients.register(builder_first, metrics.clone());
+        clients.register(builder_first, metrics.clone()).anyerr()?;
 
         // Register a second client with the same endpoint ID.
         // The first client should receive a V1Health message.
         let (builder_second, _second_rw) = test_client_builder(key, ProtocolVersion::V1);
-        clients.register(builder_second, metrics.clone());
+        clients.register(builder_second, metrics.clone()).anyerr()?;
 
         let frame = recv_frame(FrameType::Health, &mut first_rw).await?;
         assert!(
@@ -784,12 +838,12 @@ mod tests {
 
         let clients = Clients::default();
         let metrics = Arc::new(Metrics::default());
-        clients.register(builder_first, metrics.clone());
+        clients.register(builder_first, metrics.clone()).anyerr()?;
 
         // Register a second client with the same endpoint ID.
         // The first client should receive a Health message (V2 frame).
         let (builder_second, _second_rw) = test_client_builder(key, ProtocolVersion::V2);
-        clients.register(builder_second, metrics.clone());
+        clients.register(builder_second, metrics.clone()).anyerr()?;
 
         let frame = recv_frame(FrameType::Status, &mut first_rw).await?;
         assert_eq!(

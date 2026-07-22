@@ -1,0 +1,52 @@
+[package]
+name = "iroh-sim"
+version = "1.0.3"
+edition = "2024"
+description = "Deterministic simulation and replay infrastructure for Iroh"
+license = "MIT OR Apache-2.0"
+authors = ["n0 team"]
+repository = "https://github.com/n0-computer/iroh"
+publish = false
+rust-version = "1.91"
+
+[lints]
+workspace = true
+
+[dependencies]
+blake3 = "1.8.3"
+clap = { version = "4", features = ["derive"] }
+iroh = { version = "1.0.3", path = "../iroh", default-features = false, features = ["tls-ring"] }
+iroh-relay = { version = "1.0.3", path = "../iroh-relay", default-features = false, features = ["server", "test-utils", "tls-ring"] }
+iroh-runtime = { version = "1.0.3", path = "../iroh-runtime" }
+n0-future = "0.3"
+n0-watcher = "1.0.0"
+netwatch = "0.19.1"
+noq-udp = { version = "1.1.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
+
+[dev-dependencies]
+criterion = "0.8.0"
+n0-error = "1.0.0"
+proptest = "1.11.0"
+
+[[bench]]
+name = "stage4_environment"
+harness = false
+
+[[bench]]
+name = "stage5_relay"
+harness = false
+
+[[bench]]
+name = "stage6_scheduler"
+harness = false
+
+[[bench]]
+name = "deterministic_closure"
+harness = false
+
+[[bin]]
+name = "cargo-sim"
+path = "src/bin/cargo-sim.rs"

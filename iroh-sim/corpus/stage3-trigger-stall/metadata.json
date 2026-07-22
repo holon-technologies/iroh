@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "stage3-trigger-stall",
+  "scenario_file": "scenario.json",
+  "seed": "2424242424242424242424242424242424242424242424242424242424242424",
+  "expectation": {
+    "terminal": "expected_failure",
+    "signature": {
+      "schema_version": 1,
+      "invariant": null,
+      "entities": [
+        "cause"
+      ],
+      "terminal_class": "trigger_stall",
+      "causal_event_count": 0,
+      "causal_suffix_digest": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+    }
+  },
+  "provenance": "Stage 3 seeded multi-cause fixture minimized by the signature-preserving reducer.",
+  "issue": "stage3-exit-fixture",
+  "minimum_scenario_schema": 2,
+  "maximum_scenario_schema": 2,
+  "minimum_simulator_version": "1.0.3",
+  "maximum_simulator_version": null,
+  "review_state": "reviewed",
+  "inventory": {
+    "hosts": 0,
+    "endpoints": 0,
+    "links": 0,
+    "nats": 0,
+    "nat_change_actions": 0,
+    "port_mapping_actions": 0,
+    "firewalls": 0,
+    "firewall_rules": 0,
+    "discovery_providers": 0,
+    "discovery_records": 0,
+    "interfaces": 0,
+    "interface_change_actions": 0,
+    "routes": 0,
+    "relays": 0,
+    "relay_lifecycle_actions": 0
+  }
+}

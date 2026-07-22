@@ -21,19 +21,21 @@ use std::{
     net::{IpAddr, SocketAddr},
     sync::{
         Arc, Mutex, RwLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
 use iroh_base::{EndpointAddr, EndpointId, RelayUrl, SecretKey, TransportAddr};
 use iroh_relay::{RelayConfig, RelayMap};
+#[cfg(not(wasm_browser))]
+use iroh_runtime::Instant;
 use mapped_addrs::MultipathMappedAddr;
 use n0_error::{AnyError, anyerr, bail, e, stack_error};
-use n0_future::{
-    MaybeFuture,
-    task::{self, AbortOnDropHandle},
-    time::{self, Duration, Instant},
-};
+#[cfg(wasm_browser)]
+use n0_future::task::{self, AbortOnDropHandle};
+#[cfg(wasm_browser)]
+use n0_future::time::{self, Instant};
+use n0_future::{MaybeFuture, time::Duration};
 use n0_watcher::{self, Watchable, Watcher};
 use netwatch::netmon;
 #[cfg(not(wasm_browser))]
@@ -45,6 +47,7 @@ use noq::{
     NetworkChangeHint, TokenStore,
     crypto::rustls::{QuicClientConfig, QuicServerConfig},
 };
+#[cfg(wasm_browser)]
 use rand::RngExt;
 use rustc_hash::FxHashSet;
 use tokio::sync::{
@@ -144,6 +147,81 @@ pub(crate) const MAX_MULTIPATH_PATHS: u32 = 8;
 /// value.
 pub(crate) const MAX_QNT_ADDRESSES: u8 = 32;
 
+#[cfg(not(wasm_browser))]
+fn noq_behavioral_seed(
+    context: &iroh_runtime::RuntimeContext,
+    endpoint_id: EndpointId,
+) -> Result<[u8; 32], iroh_runtime::DecisionError> {
+    let path = format!("endpoint/{endpoint_id}/noq");
+    let mut stream = context.decisions().stream(&path)?;
+    let mut seed = [0; 32];
+    stream.fill_bytes(&mut seed)?;
+    Ok(seed)
+}
+
+/// Connection IDs normally come from Noq's process entropy source, independently of its seeded
+/// endpoint RNG. Repository simulations replace that factory explicitly so raw packet traces can
+/// be replayed byte-for-byte. The key is simulation-only cryptographic material, not a behavioral
+/// decision stream.
+#[cfg(not(wasm_browser))]
+struct DeterministicSimulationConnectionIdGenerator {
+    key: [u8; 32],
+    counter: u64,
+}
+
+#[cfg(not(wasm_browser))]
+pub(crate) fn deterministic_simulation_initial_dst_cid_provider(
+    reset_key: [u8; 32],
+) -> Arc<dyn Fn() -> noq::ConnectionId + Send + Sync> {
+    const INITIAL_DST_CID_LEN: usize = 20;
+    let key = blake3::derive_key(
+        "iroh simulation QUIC initial destination connection IDs v1",
+        &reset_key,
+    );
+    let counter = AtomicU64::new(0);
+    Arc::new(move || {
+        let counter = counter
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
+                value.checked_add(1)
+            })
+            .expect("simulation initial destination connection ID counter exhausted");
+        let digest = blake3::keyed_hash(&key, &counter.to_le_bytes());
+        noq::ConnectionId::new(&digest.as_bytes()[..INITIAL_DST_CID_LEN])
+    })
+}
+
+#[cfg(not(wasm_browser))]
+impl DeterministicSimulationConnectionIdGenerator {
+    const CID_LEN: usize = 16;
+
+    fn new(reset_key: [u8; 32]) -> Self {
+        let key = blake3::derive_key("iroh simulation QUIC connection IDs v1", &reset_key);
+        Self { key, counter: 0 }
+    }
+}
+
+#[cfg(not(wasm_browser))]
+impl noq::ConnectionIdGenerator for DeterministicSimulationConnectionIdGenerator {
+    fn generate_cid(&mut self) -> noq::ConnectionId {
+        let mut input = [0u8; 8];
+        input.copy_from_slice(&self.counter.to_le_bytes());
+        self.counter = self
+            .counter
+            .checked_add(1)
+            .expect("simulation connection ID counter exhausted");
+        let digest = blake3::keyed_hash(&self.key, &input);
+        noq::ConnectionId::new(&digest.as_bytes()[..Self::CID_LEN])
+    }
+
+    fn cid_len(&self) -> usize {
+        Self::CID_LEN
+    }
+
+    fn cid_lifetime(&self) -> Option<Duration> {
+        None
+    }
+}
+
 /// Error returned when the endpoint state actor stopped while waiting for a reply.
 #[stack_error(add_meta, derive)]
 #[error("endpoint state actor stopped")]
@@ -176,6 +254,22 @@ pub(crate) struct Options {
     #[cfg(not(wasm_browser))]
     pub(crate) dns_resolver: DnsResolver,
 
+    /// Coherent runtime capabilities explicitly selected by the endpoint builder.
+    #[cfg(not(wasm_browser))]
+    pub(crate) runtime_context: Arc<iroh_runtime::RuntimeContext>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) ip_socket_factory: Arc<dyn crate::simulation::IpSocketFactory>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) network_monitor: Option<Arc<dyn crate::simulation::NetworkMonitor>>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) simulation_port_mapper: Option<Arc<dyn crate::simulation::PortMapper>>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) simulation_relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) simulation_preferred_relay: Option<RelayUrl>,
+    #[cfg(not(wasm_browser))]
+    pub(crate) simulation_reset_key: Option<[u8; 32]>,
+
     /// Proxy configuration.
     pub(crate) proxy_url: Option<Url>,
 
@@ -206,7 +300,11 @@ pub(crate) struct EndpointInner {
     #[deref(forward)]
     sock: Arc<Socket>,
     // empty when shutdown
+    #[cfg(wasm_browser)]
     actor_task: Mutex<Option<AbortOnDropHandle<()>>>,
+    // empty when shutdown
+    #[cfg(not(wasm_browser))]
+    actor_task: Mutex<Option<iroh_runtime::OwnedTaskHandle>>,
     /// Channel to send to the internal actor.
     actor_sender: mpsc::Sender<ActorMessage>,
     // noq endpoint
@@ -242,6 +340,12 @@ pub(crate) struct StaticConfig {
     #[debug("Arc<dyn TokenStore>")]
     pub(crate) token_store: Arc<dyn TokenStore>,
     pub(crate) transport_config: QuicTransportConfig,
+    #[cfg(not(wasm_browser))]
+    pub(crate) runtime_context: Arc<iroh_runtime::RuntimeContext>,
+    #[cfg(not(wasm_browser))]
+    #[debug("Option<simulation initial DCID provider>")]
+    pub(crate) simulation_initial_dst_cid_provider:
+        Option<Arc<dyn Fn() -> noq::ConnectionId + Send + Sync>>,
 }
 
 impl StaticConfig {
@@ -255,6 +359,10 @@ impl StaticConfig {
         let mut inner =
             noq::ServerConfig::new(Arc::new(quic_server_config), self.token_key.clone());
         inner.transport_config(self.transport_config.to_inner_arc());
+        #[cfg(not(wasm_browser))]
+        inner.time_source(Arc::new(crate::runtime::NoqWallClock::new(
+            self.runtime_context.wall_clock(),
+        )));
         inner
     }
 
@@ -269,6 +377,10 @@ impl StaticConfig {
         let mut inner = noq::ClientConfig::new(Arc::new(quic_client_config));
         inner.transport_config(transport_config);
         inner.token_store(self.token_store.clone());
+        #[cfg(not(wasm_browser))]
+        if let Some(provider) = &self.simulation_initial_dst_cid_provider {
+            inner.initial_dst_cid_provider(provider.clone());
+        }
         inner
     }
 }
@@ -713,6 +825,8 @@ struct DirectAddrUpdateState {
     relay_map: RelayMap,
     run_done: mpsc::Sender<()>,
     shutdown_token: CancellationToken,
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
@@ -741,6 +855,7 @@ impl DirectAddrUpdateState {
         relay_map: RelayMap,
         run_done: mpsc::Sender<()>,
         shutdown_token: CancellationToken,
+        #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
     ) -> Self {
         DirectAddrUpdateState {
             want_update: Default::default(),
@@ -750,6 +865,8 @@ impl DirectAddrUpdateState {
             relay_map,
             run_done,
             shutdown_token,
+            #[cfg(not(wasm_browser))]
+            runtime,
         }
     }
 
@@ -813,31 +930,69 @@ impl DirectAddrUpdateState {
         // Ensure that reports are cancelled when we shutdown
         let token = self.shutdown_token.child_token();
         let inner_token = token.child_token();
-        task::spawn(
-            async move {
-                let fut = token.run_until_cancelled(time::timeout(
-                    NET_REPORT_TIMEOUT,
-                    net_reporter.get_report(if_state, why.is_major(), inner_token),
-                ));
+        #[cfg(wasm_browser)]
+        let future = async move {
+            let fut = token.run_until_cancelled(time::timeout(
+                NET_REPORT_TIMEOUT,
+                net_reporter.get_report(if_state, why.is_major(), inner_token),
+            ));
 
-                match fut.await {
+            match fut.await {
+                Some(Ok(report)) => {
+                    sock.net_report.set((Some(report), why)).ok();
+                }
+                Some(Err(time::Elapsed { .. })) => {
+                    warn!("net_report report timed out");
+                }
+                None => {
+                    trace!("net_report cancelled");
+                }
+            }
+
+            // mark run as finished
+            debug!("direct addr update done ({:?})", why);
+            run_done.send(()).await.ok();
+        }
+        .instrument(tracing::Span::current());
+        #[cfg(not(wasm_browser))]
+        let runtime = self.runtime.clone();
+        #[cfg(not(wasm_browser))]
+        let future = async move {
+            let timeout = crate::runtime::RuntimeTimeout::after(
+                runtime.context().clock(),
+                NET_REPORT_TIMEOUT,
+                net_reporter.get_report(if_state, why.is_major(), inner_token),
+            );
+            match timeout {
+                Ok(timeout) => match token.run_until_cancelled(timeout).await {
                     Some(Ok(report)) => {
                         sock.net_report.set((Some(report), why)).ok();
                     }
-                    Some(Err(time::Elapsed { .. })) => {
+                    Some(Err(iroh_runtime::TimeoutError::Elapsed)) => {
                         warn!("net_report report timed out");
                     }
-                    None => {
-                        trace!("net_report cancelled");
+                    Some(Err(iroh_runtime::TimeoutError::Clock(error))) => {
+                        runtime.latch_failure(error.to_string());
                     }
-                }
-
-                // mark run as finished
-                debug!("direct addr update done ({:?})", why);
-                run_done.send(()).await.ok();
+                    None => trace!("net_report cancelled"),
+                },
+                Err(error) => runtime.latch_failure(error.to_string()),
             }
-            .instrument(tracing::Span::current()),
-        );
+
+            debug!("direct addr update done ({:?})", why);
+            run_done.send(()).await.ok();
+        }
+        .instrument(tracing::Span::current());
+        #[cfg(not(wasm_browser))]
+        if let Err(error) = self.runtime.spawn(
+            iroh_runtime::TaskKind::NetReport,
+            "direct-address-update",
+            Box::pin(future),
+        ) {
+            warn!(%error, "runtime rejected direct address update task");
+        }
+        #[cfg(wasm_browser)]
+        task::spawn(future);
     }
 }
 
@@ -867,9 +1022,21 @@ pub enum BindError {
         #[error(from)]
         source: tls::TlsConfigError,
     },
+    #[error("Invalid deterministic runtime context")]
+    RuntimeContext { source: AnyError },
 }
 
 impl EndpointInner {
+    #[cfg(all(test, not(wasm_browser)))]
+    pub(crate) fn runtime_context(&self) -> &Arc<iroh_runtime::RuntimeContext> {
+        self.runtime.context()
+    }
+
+    #[cfg(all(test, not(wasm_browser)))]
+    pub(crate) fn runtime_task_snapshot(&self) -> iroh_runtime::TaskGroupSnapshot {
+        self.runtime.task_snapshot()
+    }
+
     /// Creates a [`EndpointInner`].
     pub(crate) async fn bind(opts: Options) -> Result<Self, BindError> {
         // Use the current span as the main span for all tasks spawned in this endpoint.
@@ -883,6 +1050,20 @@ impl EndpointInner {
             address_lookup_user_data,
             #[cfg(not(wasm_browser))]
             dns_resolver,
+            #[cfg(not(wasm_browser))]
+            runtime_context,
+            #[cfg(not(wasm_browser))]
+            ip_socket_factory,
+            #[cfg(not(wasm_browser))]
+            network_monitor,
+            #[cfg(not(wasm_browser))]
+            simulation_port_mapper,
+            #[cfg(not(wasm_browser))]
+            simulation_relay_connector,
+            #[cfg(not(wasm_browser))]
+            simulation_preferred_relay,
+            #[cfg(not(wasm_browser))]
+            simulation_reset_key,
             proxy_url,
             server_config,
             tls_config,
@@ -895,7 +1076,15 @@ impl EndpointInner {
             configured_addrs,
         } = opts;
 
+        #[cfg(not(wasm_browser))]
+        let runtime = Arc::new(Runtime::new(secret_key.public(), runtime_context.clone()));
+        #[cfg(wasm_browser)]
+        let runtime = Arc::new(Runtime::new(secret_key.public()));
+
         let address_lookup = address_lookup::AddressLookupServices::default();
+        #[cfg(not(wasm_browser))]
+        let port_mapper = portmapper::create_client(&portmapper_config, simulation_port_mapper);
+        #[cfg(wasm_browser)]
         let port_mapper = portmapper::create_client(&portmapper_config);
 
         let relay_transport_configs: Vec<_> = transport_configs
@@ -922,6 +1111,9 @@ impl EndpointInner {
 
         let ipv6_reported = Arc::new(AtomicBool::new(false));
 
+        #[cfg(not(wasm_browser))]
+        let has_simulation_relay_connector = simulation_relay_connector.is_some();
+
         let relay_actor_config = RelayActorConfig {
             my_relay: HomeRelayWatch::default(),
             secret_key: secret_key.clone(),
@@ -932,6 +1124,10 @@ impl EndpointInner {
             tls_config: tls_config.clone(),
             metrics: metrics.socket.clone(),
             relay_map: relay_map.clone(),
+            #[cfg(not(wasm_browser))]
+            relay_connector: simulation_relay_connector,
+            #[cfg(not(wasm_browser))]
+            initial_relay: simulation_preferred_relay,
         };
 
         let shutdown_state = ShutdownState::default();
@@ -942,6 +1138,10 @@ impl EndpointInner {
             relay_actor_config,
             &metrics,
             shutdown_token.child_token(),
+            #[cfg(not(wasm_browser))]
+            runtime.clone(),
+            #[cfg(not(wasm_browser))]
+            ip_socket_factory,
         )
         .map_err(|err| e!(BindError::Sockets, err))?;
 
@@ -982,6 +1182,8 @@ impl EndpointInner {
                 shutdown_token.child_token(),
                 path_selector,
                 span.clone(),
+                #[cfg(not(wasm_browser))]
+                runtime.clone(),
             )
         };
 
@@ -1010,8 +1212,25 @@ impl EndpointInner {
             span: span.clone(),
         });
 
-        let mut endpoint_config =
-            noq::EndpointConfig::new(Arc::new(Blake3HmacKey::new(&mut rand::rng())));
+        #[cfg(not(wasm_browser))]
+        let reset_key = match simulation_reset_key {
+            Some(key) => Blake3HmacKey::from_key(key),
+            None => Blake3HmacKey::new(&mut rand::rng()),
+        };
+        #[cfg(wasm_browser)]
+        let reset_key = Blake3HmacKey::new(&mut rand::rng());
+        let mut endpoint_config = noq::EndpointConfig::new(Arc::new(reset_key));
+        #[cfg(not(wasm_browser))]
+        {
+            let seed = noq_behavioral_seed(&runtime_context, secret_key.public())
+                .map_err(|err| e!(BindError::RuntimeContext, anyerr!(err)))?;
+            endpoint_config.rng_seed(Some(seed));
+            if let Some(reset_key) = simulation_reset_key {
+                endpoint_config.cid_generator(Arc::new(move || {
+                    Box::new(DeterministicSimulationConnectionIdGenerator::new(reset_key))
+                }));
+            }
+        }
         // Setting this to false means that noq will ignore packets that have the QUIC fixed bit
         // set to 0. The fixed bit is the 3rd bit of the first byte of a packet.
         // For performance reasons and to not rewrite buffers we pass non-QUIC UDP packets straight
@@ -1022,8 +1241,6 @@ impl EndpointInner {
         let local_addrs_watch = transports.local_addrs_watch();
         let transports_network_change = transports.create_network_change_sender();
 
-        let runtime = Arc::new(Runtime::new(secret_key.public()));
-
         let endpoint = noq::Endpoint::new_with_abstract_socket(
             endpoint_config,
             Some(server_config),
@@ -1032,6 +1249,16 @@ impl EndpointInner {
         )
         .map_err(|err| e!(BindError::CreateQuicEndpoint, err))?;
 
+        #[cfg(not(wasm_browser))]
+        let network_monitor: Arc<dyn crate::simulation::NetworkMonitor> = match network_monitor {
+            Some(monitor) => monitor,
+            None => Arc::new(
+                crate::simulation::OsNetworkMonitor::new()
+                    .await
+                    .map_err(|err| e!(BindError::CreateNetmonMonitor, anyerr!(err)))?,
+            ),
+        };
+        #[cfg(wasm_browser)]
         let network_monitor = netmon::Monitor::new()
             .await
             .map_err(|err| e!(BindError::CreateNetmonMonitor, anyerr!(err)))?;
@@ -1044,12 +1271,13 @@ impl EndpointInner {
             // If we would, the `noq::Endpoint` passed along will not have IP connectivity,
             // and the QAD probes that connect to the relay's QUIC endpoints would time out
             // because all outgoing packets to IP destinations would be dropped.
-            let qad_config = has_ip_transports.then(|| QuicConfig {
-                ep: endpoint.clone(),
-                client_config: tls_config.clone(),
-                ipv4: true,
-                ipv6: has_ipv6_transport,
-            });
+            let qad_config =
+                (has_ip_transports && !has_simulation_relay_connector).then(|| QuicConfig {
+                    ep: endpoint.clone(),
+                    client_config: tls_config.clone(),
+                    ipv4: true,
+                    ipv6: has_ipv6_transport,
+                });
             net_report::Options::new(tls_config.clone())
                 .quic_config(qad_config)
                 .net_report_config(net_report_config)
@@ -1058,10 +1286,22 @@ impl EndpointInner {
         #[cfg(wasm_browser)]
         let net_report_config = net_report::Options::default().net_report_config(net_report_config);
 
+        #[cfg(not(wasm_browser))]
+        let net_report_relay_map = if has_simulation_relay_connector {
+            // The injected connector owns relay reachability. Probing its synthetic URLs through
+            // OS UDP/HTTPS would escape the selected environment and cannot influence home-relay
+            // selection, which is supplied explicitly by the simulation environment.
+            RelayMap::empty()
+        } else {
+            relay_map.clone()
+        };
+        #[cfg(wasm_browser)]
+        let net_report_relay_map = relay_map.clone();
+
         let net_reporter = net_report::Client::new(
             #[cfg(not(wasm_browser))]
             dns_resolver,
-            relay_map.clone(),
+            net_report_relay_map,
             net_report_config,
             metrics.net_report.clone(),
         );
@@ -1074,16 +1314,35 @@ impl EndpointInner {
             relay_map,
             direct_addr_done_tx,
             sock.shutdown.at_close_start.child_token(),
+            #[cfg(not(wasm_browser))]
+            runtime.clone(),
         );
 
         let local_interfaces_watcher = network_monitor.interface_state();
+
+        #[cfg(not(wasm_browser))]
+        let mut re_stun_decisions = runtime
+            .context()
+            .decisions()
+            .stream(&format!("endpoint/{}/socket/re-stun-period", runtime.id()))
+            .map_err(|err| e!(BindError::RuntimeContext, anyerr!(err)))?;
+        #[cfg(not(wasm_browser))]
+        let periodic_re_stun_timer =
+            new_re_stun_timer(runtime.context().clock(), false, re_stun_decisions.as_mut())
+                .map_err(|err| e!(BindError::RuntimeContext, anyerr!(err)))?;
+        #[cfg(wasm_browser)]
+        let periodic_re_stun_timer = new_re_stun_timer(false);
 
         #[cfg_attr(not(wasm_browser), allow(unused_mut))]
         let mut actor = Actor {
             endpoint: endpoint.clone(),
             sock: sock.clone(),
             remote_map,
-            periodic_re_stun_timer: new_re_stun_timer(false),
+            periodic_re_stun_timer,
+            #[cfg(not(wasm_browser))]
+            re_stun_decisions,
+            #[cfg(not(wasm_browser))]
+            runtime_clock: runtime.context().clock(),
             network_monitor,
             local_interfaces_watcher,
             direct_addr_update_state,
@@ -1095,17 +1354,25 @@ impl EndpointInner {
         #[cfg(not(wasm_browser))]
         actor.update_direct_addresses(None);
 
-        let actor_task = task::spawn(
-            actor
-                .run(
-                    actor_receiver,
-                    shutdown_token.child_token(),
-                    local_addrs_watch,
-                )
-                .instrument(info_span!(parent: span, "actor")),
-        );
+        let actor_future = actor
+            .run(
+                actor_receiver,
+                shutdown_token.child_token(),
+                local_addrs_watch,
+            )
+            .instrument(info_span!(parent: span, "actor"));
+        #[cfg(not(wasm_browser))]
+        let actor_task = runtime
+            .spawn_owned(
+                iroh_runtime::TaskKind::SocketActor,
+                "socket-actor",
+                Box::pin(actor_future),
+            )
+            .map_err(|err| e!(BindError::RuntimeContext, anyerr!(err)))?;
+        #[cfg(wasm_browser)]
+        let actor_task = AbortOnDropHandle::new(task::spawn(actor_future));
 
-        let actor_task = Mutex::new(Some(AbortOnDropHandle::new(actor_task)));
+        let actor_task = Mutex::new(Some(actor_task));
 
         Ok(EndpointInner {
             sock,
@@ -1171,18 +1438,41 @@ impl EndpointInner {
         let task = self.actor_task.lock().expect("poisoned").take();
         if let Some(task) = task {
             // give the tasks a moment to shutdown cleanly
+            #[cfg(wasm_browser)]
             let shutdown_done = time::timeout(Duration::from_millis(100), async move {
                 if let Err(err) = task.await {
                     warn!("unexpected error in task shutdown: {:?}", err);
                 }
             })
             .await;
+            #[cfg(wasm_browser)]
             match shutdown_done {
                 Ok(_) => trace!("tasks finished in time, shutdown complete"),
                 Err(time::Elapsed { .. }) => {
                     // Dropping the task will abort it
                     warn!("tasks didn't finish in time, aborting");
                 }
+            }
+            #[cfg(not(wasm_browser))]
+            match crate::runtime::RuntimeTimeout::after(
+                self.runtime.context().clock(),
+                Duration::from_millis(100),
+                async move {
+                    if let Err(err) = task.join().await {
+                        warn!("unexpected error in task shutdown: {:?}", err);
+                    }
+                },
+            ) {
+                Ok(timeout) => match timeout.await {
+                    Ok(()) => trace!("tasks finished in time, shutdown complete"),
+                    Err(iroh_runtime::TimeoutError::Elapsed) => {
+                        warn!("tasks didn't finish in time, aborting");
+                    }
+                    Err(iroh_runtime::TimeoutError::Clock(error)) => {
+                        self.runtime.latch_failure(error.to_string());
+                    }
+                },
+                Err(error) => self.runtime.latch_failure(error.to_string()),
             }
         }
 
@@ -1418,24 +1708,24 @@ impl PendingNetworkChangeNotify {
     const MAX_INTERVAL: Duration = Duration::from_secs(1);
     const MAX_WAIT: Duration = Duration::from_secs(5);
 
-    fn new(is_major: bool) -> Self {
+    fn new(is_major: bool, now: Instant) -> Self {
         Self {
-            next_check: Instant::now() + Self::INITIAL_INTERVAL,
+            next_check: now + Self::INITIAL_INTERVAL,
             interval: Self::INITIAL_INTERVAL,
             is_major,
-            started: Instant::now(),
+            started: now,
         }
     }
 
     /// Advance to the next check interval (exponential backoff, capped).
-    fn advance(&mut self) {
+    fn advance(&mut self, now: Instant) {
         self.interval = (self.interval * 2).min(Self::MAX_INTERVAL);
-        self.next_check = Instant::now() + self.interval;
+        self.next_check = now + self.interval;
     }
 
     /// Whether we've exceeded the maximum wait time.
-    fn expired(&self) -> bool {
-        self.started.elapsed() >= Self::MAX_WAIT
+    fn expired(&self, now: Instant) -> bool {
+        now.saturating_duration_since(self.started) >= Self::MAX_WAIT
     }
 }
 
@@ -1461,10 +1751,20 @@ struct Actor {
     /// Tracks the networkmap endpoint entity for each endpoint discovery key.
     remote_map: RemoteMap,
     /// When set, is an AfterFunc timer that will call Socket::do_periodic_stun.
+    #[cfg(not(wasm_browser))]
+    periodic_re_stun_timer: crate::runtime::RuntimeInterval,
+    #[cfg(wasm_browser)]
     periodic_re_stun_timer: time::Interval,
+    #[cfg(not(wasm_browser))]
+    re_stun_decisions: Box<dyn iroh_runtime::DecisionStream>,
+    #[cfg(not(wasm_browser))]
+    runtime_clock: Arc<dyn iroh_runtime::Clock>,
     /// An actor watching the local network interfaces.
     ///
     /// The monitored changes are emitted via [`Self::local_interfaces_watcher`].
+    #[cfg(not(wasm_browser))]
+    network_monitor: Arc<dyn crate::simulation::NetworkMonitor>,
+    #[cfg(wasm_browser)]
     network_monitor: netmon::Monitor,
     /// Watcher for changes to the local network interfaces, IP addresses and routes.
     local_interfaces_watcher: n0_watcher::Direct<netmon::State>,
@@ -1508,6 +1808,21 @@ impl Actor {
             self.sock.metrics.socket.actor_tick_main.inc();
             let portmap_watcher_changed = portmap_watcher.changed();
 
+            #[cfg(not(wasm_browser))]
+            let notify_quic_network_change = match &self.call_notify_quic_network_change {
+                Some(pending) => match crate::runtime::RuntimeSleep::new(
+                    self.runtime_clock.clone(),
+                    pending.next_check,
+                ) {
+                    Ok(timer) => MaybeFuture::Some(timer),
+                    Err(error) => {
+                        warn!(%error, "runtime network-change timer failed");
+                        return;
+                    }
+                },
+                None => MaybeFuture::None,
+            };
+            #[cfg(wasm_browser)]
             let notify_quic_network_change = match &self.call_notify_quic_network_change {
                 Some(pending) => {
                     MaybeFuture::Some(n0_future::time::sleep_until(pending.next_check))
@@ -1517,6 +1832,8 @@ impl Actor {
             n0_future::pin!(notify_quic_network_change);
 
             tokio::select! {
+                biased;
+
                 _ = shutdown_token.cancelled() => {
                     debug!("tick: shutting down");
                     return;
@@ -1535,6 +1852,11 @@ impl Actor {
                 }
                 tick = self.periodic_re_stun_timer.tick() => {
                     trace!("tick: re_stun {:?}", tick);
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = tick {
+                        warn!(%error, "runtime periodic re-STUN timer failed");
+                        return;
+                    }
                     self.sock.metrics.socket.actor_tick_re_stun.inc();
                     self.re_stun(UpdateReason::Periodic);
                 }
@@ -1557,7 +1879,16 @@ impl Actor {
                             self.handle_net_report_report(report);
                             #[cfg(not(wasm_browser))]
                             {
-                                self.periodic_re_stun_timer = new_re_stun_timer(true);
+                                match new_re_stun_timer(
+                                    self.runtime_clock.clone(),
+                                    true,
+                                    self.re_stun_decisions.as_mut(),
+                                ) {
+                                    Ok(timer) => self.periodic_re_stun_timer = timer,
+                                    Err(error) => {
+                                        warn!(%error, "failed to reset runtime periodic re-STUN timer");
+                                    }
+                                }
                             }
                         }
                         Err(_) => {
@@ -1614,11 +1945,12 @@ impl Actor {
                 }
                 _remote_id = self.remote_map.cleanup() => {},
                 _ = &mut notify_quic_network_change => {
+                    let now = self.runtime_now();
                     let has_network = self.has_usable_network();
                     let Some(pending) = self.call_notify_quic_network_change.as_mut() else {
                         continue;
                     };
-                    if has_network || pending.expired() {
+                    if has_network || pending.expired(now) {
                         // Gateway appeared or we've waited long enough, notify now.
                         let is_major = pending.is_major;
                         self.call_notify_quic_network_change = None;
@@ -1627,10 +1959,10 @@ impl Actor {
                         // No gateway yet, back off and try again.
                         trace!(
                             interval = ?pending.interval,
-                            elapsed = ?pending.started.elapsed(),
+                            elapsed = ?now.saturating_duration_since(pending.started),
                             "no default route yet, retrying"
                         );
-                        pending.advance();
+                        pending.advance(now);
                     }
                 }
                 else => {
@@ -1651,6 +1983,17 @@ impl Actor {
             let interfaces = self.local_interfaces_watcher.get();
             interfaces.default_route_interface.is_some()
                 && (interfaces.have_v4 || interfaces.have_v6)
+        }
+    }
+
+    fn runtime_now(&self) -> Instant {
+        #[cfg(not(wasm_browser))]
+        {
+            self.runtime_clock.now()
+        }
+        #[cfg(wasm_browser)]
+        {
+            Instant::now()
         }
     }
 
@@ -1688,8 +2031,9 @@ impl Actor {
                     pending.is_major |= is_major;
                 }
                 None => {
+                    let now = self.runtime_now();
                     self.call_notify_quic_network_change =
-                        Some(PendingNetworkChangeNotify::new(is_major));
+                        Some(PendingNetworkChangeNotify::new(is_major, now));
                 }
             }
         }
@@ -1776,6 +2120,9 @@ impl Actor {
     async fn handle_actor_message(&mut self, msg: ActorMessage) {
         match msg {
             ActorMessage::NetworkChange => {
+                #[cfg(not(wasm_browser))]
+                self.network_monitor.network_change().await;
+                #[cfg(wasm_browser)]
                 self.network_monitor.network_change().await.ok();
             }
             ActorMessage::RelayMapChange => {
@@ -2001,6 +2348,24 @@ fn find_flags(state: &netmon::State, ip: IpAddr) -> Option<Ipv6AddrFlags> {
     }
 }
 
+#[cfg(not(wasm_browser))]
+fn new_re_stun_timer(
+    clock: Arc<dyn iroh_runtime::Clock>,
+    initial_delay: bool,
+    decisions: &mut dyn iroh_runtime::DecisionStream,
+) -> Result<crate::runtime::RuntimeInterval, io::Error> {
+    let seconds = decisions.range_u64(20..27).map_err(io::Error::other)?;
+    let period = Duration::from_secs(seconds);
+    let initial_delay = if initial_delay {
+        period
+    } else {
+        Duration::ZERO
+    };
+    debug!(seconds, "scheduling periodic re-STUN on the runtime clock");
+    crate::runtime::RuntimeInterval::new(clock, initial_delay, period).map_err(io::Error::other)
+}
+
+#[cfg(wasm_browser)]
 fn new_re_stun_timer(initial_delay: bool) -> time::Interval {
     // Pick a random duration between 20 and 26 seconds (just under 30s,
     // a common UDP NAT timeout on Linux,etc)
@@ -2027,17 +2392,11 @@ fn new_re_stun_timer(initial_delay: bool) -> time::Interval {
 struct DiscoveredDirectAddrs {
     /// The last set of discovered direct addresses.
     addrs: Watchable<BTreeSet<DirectAddr>>,
-
-    /// The last time the direct addresses were updated, even if there was no change.
-    ///
-    /// This is only ever None at startup.
-    updated_at: Arc<RwLock<Option<Instant>>>,
 }
 
 impl DiscoveredDirectAddrs {
     /// Updates the direct addresses, returns `true` if they changed, `false` if not.
     fn update(&self, addrs: BTreeSet<DirectAddr>) -> bool {
-        *self.updated_at.write().expect("poisoned") = Some(Instant::now());
         let updated = self.addrs.set(addrs).is_ok();
         if updated {
             event!(
@@ -2130,7 +2489,7 @@ mod tests {
     use tokio_util::task::AbortOnDropHandle;
     use tracing::{Instrument, error, info, info_span, instrument};
 
-    use super::Options;
+    use super::{Options, noq_behavioral_seed};
     use crate::{
         Endpoint, SecretKey,
         address_lookup::memory::MemoryLookup,
@@ -2146,9 +2505,31 @@ mod tests {
 
     const ALPN: &[u8] = b"n0/test/1";
 
+    #[test]
+    fn noq_seed_is_replayable_and_endpoint_scoped() {
+        let context = iroh_runtime::RuntimeContext::tokio(
+            iroh_runtime::RootSeed::new([31; 32]),
+            Arc::new(iroh_runtime::NoopTraceSink),
+        );
+        let first = SecretKey::from_bytes(&[1; 32]).public();
+        let second = SecretKey::from_bytes(&[2; 32]).public();
+
+        assert_eq!(
+            noq_behavioral_seed(&context, first).unwrap(),
+            noq_behavioral_seed(&context, first).unwrap()
+        );
+        assert_ne!(
+            noq_behavioral_seed(&context, first).unwrap(),
+            noq_behavioral_seed(&context, second).unwrap()
+        );
+    }
+
     fn default_options(rng: &mut impl CryptoRng) -> Options {
         let crypto_provider = default_provider();
         let secret_key = SecretKey::from_bytes(&rng.random());
+        let runtime_context = Arc::new(iroh_runtime::RuntimeContext::production(Arc::new(
+            iroh_runtime::NoopTraceSink,
+        )));
         let tls_config = tls::TlsConfig::new(
             secret_key.clone(),
             DEFAULT_MAX_TLS_TICKETS,
@@ -2161,6 +2542,8 @@ mod tests {
             token_key: Arc::new(RustlsTokenKey::new(rng, &crypto_provider).unwrap()),
             token_store: Arc::new(noq::TokenMemoryCache::default()),
             transport_config: QuicTransportConfig::default(),
+            runtime_context: runtime_context.clone(),
+            simulation_initial_dst_cid_provider: None,
         };
         let server_config = static_config.create_server_config(vec![]);
         Options {
@@ -2171,6 +2554,13 @@ mod tests {
             secret_key,
             proxy_url: None,
             dns_resolver: DnsResolver::new(),
+            runtime_context,
+            ip_socket_factory: Arc::new(crate::simulation::OsIpSocketFactory),
+            network_monitor: None,
+            simulation_port_mapper: None,
+            simulation_relay_connector: None,
+            simulation_preferred_relay: None,
+            simulation_reset_key: None,
             server_config,
             tls_config: CaTlsConfig::default()
                 .client_config(crypto_provider.clone())
@@ -2563,6 +2953,9 @@ mod tests {
     #[instrument(name = "ep", skip_all, fields(me = %secret_key.public().fmt_short()))]
     async fn socket_ep(secret_key: SecretKey) -> Result<EndpointInner> {
         let crypto_provider = default_provider();
+        let runtime_context = Arc::new(iroh_runtime::RuntimeContext::production(Arc::new(
+            iroh_runtime::NoopTraceSink,
+        )));
         let tls_config = tls::TlsConfig::new(
             secret_key.clone(),
             DEFAULT_MAX_TLS_TICKETS,
@@ -2576,6 +2969,8 @@ mod tests {
             token_key: Arc::new(RustlsTokenKey::new(&mut rand::rng(), &crypto_provider).unwrap()),
             token_store: Arc::new(noq::TokenMemoryCache::default()),
             transport_config: QuicTransportConfig::default(),
+            runtime_context: runtime_context.clone(),
+            simulation_initial_dst_cid_provider: None,
         };
         let server_config = static_config.create_server_config(vec![ALPN.to_vec()]);
 
@@ -2588,6 +2983,13 @@ mod tests {
             secret_key: secret_key.clone(),
             address_lookup_user_data: None,
             dns_resolver,
+            runtime_context,
+            ip_socket_factory: Arc::new(crate::simulation::OsIpSocketFactory),
+            network_monitor: None,
+            simulation_port_mapper: None,
+            simulation_relay_connector: None,
+            simulation_preferred_relay: None,
+            simulation_reset_key: None,
             proxy_url: None,
             server_config,
             tls_config: CaTlsConfig::default()

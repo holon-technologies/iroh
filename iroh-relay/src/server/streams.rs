@@ -197,7 +197,7 @@ pub enum MaybeTlsStream {
     /// A Tls wrapped [`tokio::net::TcpStream`]
     Tls(tokio_rustls::server::TlsStream<tokio::net::TcpStream>),
     /// An in-memory bidirectional pipe.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     Test(tokio::io::DuplexStream),
 }
 
@@ -210,7 +210,7 @@ impl MaybeTlsStream {
     /// If this fails, this will print a warning the first time it fails.
     pub(super) fn disable_nagle(&self) {
         let stream = match self {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             Self::Test(_) => return,
             Self::Plain(stream) => stream,
             Self::Tls(tls_stream) => tls_stream.get_ref().0,
@@ -256,7 +256,7 @@ impl AsyncRead for MaybeTlsStream {
         match &mut *self {
             MaybeTlsStream::Plain(s) => Pin::new(s).poll_read(cx, buf),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_read(cx, buf),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => Pin::new(s).poll_read(cx, buf),
         }
     }
@@ -270,7 +270,7 @@ impl AsyncWrite for MaybeTlsStream {
         match &mut *self {
             MaybeTlsStream::Plain(s) => Pin::new(s).poll_flush(cx),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_flush(cx),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => Pin::new(s).poll_flush(cx),
         }
     }
@@ -282,7 +282,7 @@ impl AsyncWrite for MaybeTlsStream {
         match &mut *self {
             MaybeTlsStream::Plain(s) => Pin::new(s).poll_shutdown(cx),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_shutdown(cx),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => Pin::new(s).poll_shutdown(cx),
         }
     }
@@ -295,7 +295,7 @@ impl AsyncWrite for MaybeTlsStream {
         match &mut *self {
             MaybeTlsStream::Plain(s) => Pin::new(s).poll_write(cx, buf),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
@@ -308,7 +308,7 @@ impl AsyncWrite for MaybeTlsStream {
         match &mut *self {
             MaybeTlsStream::Plain(s) => Pin::new(s).poll_write_vectored(cx, bufs),
             MaybeTlsStream::Tls(s) => Pin::new(s).poll_write_vectored(cx, bufs),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => Pin::new(s).poll_write_vectored(cx, bufs),
         }
     }
@@ -317,7 +317,7 @@ impl AsyncWrite for MaybeTlsStream {
         match self {
             MaybeTlsStream::Plain(s) => s.is_write_vectored(),
             MaybeTlsStream::Tls(s) => s.is_write_vectored(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             MaybeTlsStream::Test(s) => s.is_write_vectored(),
         }
     }

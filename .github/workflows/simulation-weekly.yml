@@ -1,0 +1,112 @@
+name: Deterministic Simulation Weekly Service
+
+on:
+  schedule:
+    - cron: "43 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  service_contract:
+    name: Operations, corpus, and parity contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Validate checked service policy
+        run: cargo test -p iroh-sim --test operations
+      - name: Execute permanent corpus
+        run: cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+      - name: Exercise both replay lanes
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- run \
+            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+            --seed 8888888888888888888888888888888888888888888888888888888888888888 \
+            --artifacts "$RUNNER_TEMP/raw-lane"
+          cargo run -p iroh-sim --bin cargo-sim -- replay "$RUNNER_TEMP/raw-lane/manifest.json"
+          cargo run -p iroh-sim --bin cargo-sim -- run \
+            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+            --seed 9999999999999999999999999999999999999999999999999999999999999999 \
+            --crypto production-provider --artifacts "$RUNNER_TEMP/semantic-lane"
+          cargo run -p iroh-sim --bin cargo-sim -- replay "$RUNNER_TEMP/semantic-lane/manifest.json"
+      - name: Export and compare canonical public parity evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/parity"
+          cargo run -p iroh-sim --bin cargo-sim -- parity export public \
+            --seed 7777777777777777777777777777777777777777777777777777777777777777 \
+            --source-revision "${{ github.sha }}" \
+            --observed-at-unix-secs "$(date +%s)" \
+            --output "$RUNNER_TEMP/parity/deterministic-public.json"
+          cargo run -p iroh-sim --bin cargo-sim -- parity compare \
+            "$RUNNER_TEMP/parity/deterministic-public.json" \
+            iroh-sim/tests/fixtures/patchbay-public.json \
+            --output "$RUNNER_TEMP/parity/public-comparison.json"
+      - name: Upload service evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-weekly-service-${{ github.run_id }}
+          path: ${{ runner.temp }}/parity
+          if-no-files-found: error
+          retention-days: 30
+
+  schedule_soak:
+    name: ${{ matrix.domain }} ${{ matrix.crypto }} soak ${{ matrix.seeds }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        domain: [direct, relay]
+        crypto: [deterministic-test, production-provider]
+        seeds: ["0..256", "256..512", "512..768", "768..1024"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Execute bounded weekly campaign shard
+        run: |
+          case "${{ matrix.domain }}" in
+            direct) swarm="iroh-sim/swarms/ready-order-pressure.json" ;;
+            relay) swarm="iroh-sim/swarms/relay-lifecycle.json" ;;
+          esac
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm "$swarm" --crypto "${{ matrix.crypto }}" \
+            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
+            --max-runs 256 --artifacts "$RUNNER_TEMP/campaign"
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-weekly-${{ matrix.domain }}-${{ matrix.crypto }}-${{ strategy.job-index }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/campaign
+          if-no-files-found: error
+          retention-days: 30
+
+  performance_correlation:
+    name: Simulator component performance correlation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Measure environment, relay, and scheduler components
+        run: |
+          cargo bench -p iroh-sim --bench stage4_environment
+          cargo bench -p iroh-sim --bench stage5_relay
+          cargo bench -p iroh-sim --bench stage6_scheduler
+          cargo bench -p iroh-sim --bench deterministic_closure
+      - name: Upload Criterion evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-weekly-performance-${{ github.run_id }}
+          path: target/criterion
+          if-no-files-found: error
+          retention-days: 30

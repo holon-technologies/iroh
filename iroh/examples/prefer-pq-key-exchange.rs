@@ -29,12 +29,21 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let mut provider = aws_lc_rs::default_provider();
-    provider.kx_groups = vec![
-        kx_group::X25519MLKEM768,
-        kx_group::X25519,
-        kx_group::SECP256R1,
-        kx_group::SECP384R1,
+    let preferred_order = [
+        kx_group::X25519MLKEM768.name(),
+        kx_group::X25519.name(),
+        kx_group::SECP256R1.name(),
+        kx_group::SECP384R1.name(),
     ];
+    provider
+        .kx_groups
+        .retain(|group| preferred_order.contains(&group.name()));
+    provider.kx_groups.sort_by_key(|group| {
+        preferred_order
+            .iter()
+            .position(|name| *name == group.name())
+            .expect("retained groups are present in the preferred order")
+    });
     let kx_names: Vec<_> = provider.kx_groups.iter().map(|g| g.name()).collect();
     println!("kx_groups (in offer order): {kx_names:?}");
     let pq = Arc::new(provider);

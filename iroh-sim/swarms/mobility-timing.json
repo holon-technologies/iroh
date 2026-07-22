@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "mobility-timing",
+  "base_path": "iroh-sim/tests/fixtures/stage4-mobility.json",
+  "base_blake3": "46493ed7295981c9583de55b9ba9c71be16112ac08dbea44a9bdc9c11dbc628e",
+  "choices": [
+    {
+      "id": "uplink-failure-time",
+      "options": [
+        {
+          "id": "early",
+          "weight": 1,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "05-old-uplink-down",
+              "06-new-route",
+              "07-stream-after-switch",
+              "08-close",
+              "09-stop-client",
+              "10-stop-server"
+            ],
+            "nanos": 1000000
+          }
+        },
+        {
+          "id": "late",
+          "weight": 1,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "05-old-uplink-down",
+              "06-new-route",
+              "07-stream-after-switch",
+              "08-close",
+              "09-stop-client",
+              "10-stop-server"
+            ],
+            "nanos": 5000000000
+          }
+        }
+      ]
+    }
+  ]
+}

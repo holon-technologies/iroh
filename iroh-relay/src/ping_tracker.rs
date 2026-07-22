@@ -1,4 +1,8 @@
-use n0_future::time::{self, Duration, Instant};
+#[cfg(wasm_browser)]
+use n0_future::time::Instant;
+use n0_future::time::{self, Duration};
+#[cfg(not(wasm_browser))]
+use std::time::Instant;
 use tracing::debug;
 
 /// Maximum time for a ping response in the relay protocol.
@@ -55,7 +59,16 @@ impl PingTracker {
     /// Starts a new ping with a custom timeout.
     pub fn new_ping_with_timeout(&mut self, timeout: Duration) -> [u8; 8] {
         let ping_data = rand::random();
-        let now = Instant::now();
+        self.new_ping_with_data_at(timeout, ping_data, Instant::now())
+    }
+
+    /// Starts a ping from caller-owned entropy and monotonic time.
+    pub fn new_ping_with_data_at(
+        &mut self,
+        timeout: Duration,
+        ping_data: [u8; 8],
+        now: Instant,
+    ) -> [u8; 8] {
         debug!(data = ?ping_data, "Sending ping to relay server.");
         self.inner = Some(PingInner {
             data: ping_data,
@@ -70,10 +83,15 @@ impl PingTracker {
     /// Only the pong of the most recent ping will do anything.  There is no harm feeding
     /// any pong however.
     pub fn pong_received(&mut self, data: [u8; 8]) {
+        self.pong_received_at(data, Instant::now());
+    }
+
+    /// Updates the tracker using caller-owned monotonic time.
+    pub fn pong_received_at(&mut self, data: [u8; 8], now: Instant) {
         if let Some(inner) = &self.inner
             && inner.data == data
         {
-            let rtt = inner.sent_at.elapsed();
+            let rtt = now.saturating_duration_since(inner.sent_at);
             debug!(?data, ?rtt, "Pong received from relay server");
             self.last_rtt = Some(rtt);
             self.inner = None;
@@ -90,12 +108,26 @@ impl PingTracker {
             .unwrap_or(self.max_timeout)
     }
 
+    /// Returns the current ping deadline, if a ping is outstanding.
+    pub fn deadline(&self) -> Option<Instant> {
+        self.inner.as_ref().map(|inner| inner.deadline)
+    }
+
+    /// Marks the current ping as timed out.
+    pub fn timeout_elapsed(&mut self) {
+        if let Some(PingInner { data, .. }) = self.inner.take() {
+            debug!(?data, "Ping timeout.");
+        }
+    }
+
     /// Cancel-safe waiting for a ping timeout.
     ///
     /// Unless the most recent sent ping times out, this will never return.
     pub async fn timeout(&mut self) {
         match self.inner {
             Some(PingInner { deadline, data, .. }) => {
+                #[cfg(not(wasm_browser))]
+                let deadline = deadline.into();
                 time::sleep_until(deadline).await;
                 debug!(?data, "Ping timeout.");
                 self.inner = None;

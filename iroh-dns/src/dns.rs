@@ -73,6 +73,32 @@ pub trait Resolver: fmt::Debug + Send + Sync + 'static {
     fn reset(&self) -> Box<dyn Resolver>;
 }
 
+/// Timer and retry-jitter capabilities used by DNS timeout and stagger behavior.
+///
+/// Normal constructors install the Tokio/OS-random implementation. Deterministic environments
+/// may inject a virtual timer and seeded jitter source without replacing DNS parsing or lookup
+/// aggregation logic.
+pub trait DnsRuntime: fmt::Debug + Send + Sync + 'static {
+    /// Sleeps for one behavioral deadline.
+    fn sleep(&self, duration: Duration) -> BoxFuture<()>;
+
+    /// Returns the delay for one configured retry stagger in milliseconds.
+    fn stagger_delay(&self, delay_ms: u64) -> Duration;
+}
+
+#[derive(Debug, Default)]
+struct ProductionDnsRuntime;
+
+impl DnsRuntime for ProductionDnsRuntime {
+    fn sleep(&self, duration: Duration) -> BoxFuture<()> {
+        Box::pin(time::sleep(duration))
+    }
+
+    fn stagger_delay(&self, delay_ms: u64) -> Duration {
+        add_jitter(&delay_ms)
+    }
+}
+
 /// Boxed iterator alias.
 ///
 /// Used in return types of [`Resolver`] methods.
@@ -259,13 +285,19 @@ struct Inner {
     /// Wakes in-flight [`Self::op`] calls when the resolver is swapped.
     notify_reset: Notify,
     resolver: ArcSwap<Box<dyn Resolver>>,
+    runtime: Arc<dyn DnsRuntime>,
 }
 
 impl Inner {
     fn new(inner: Box<dyn Resolver>) -> Self {
+        Self::with_runtime(inner, Arc::new(ProductionDnsRuntime))
+    }
+
+    fn with_runtime(inner: Box<dyn Resolver>, runtime: Arc<dyn DnsRuntime>) -> Self {
         Self {
             notify_reset: Notify::new(),
             resolver: ArcSwap::from_pointee(inner),
+            runtime,
         }
     }
 
@@ -320,7 +352,7 @@ impl Inner {
             tokio::pin!(notified);
             notified.as_mut().enable();
 
-            let timeout = n0_future::time::sleep(timeout);
+            let timeout = self.runtime.sleep(timeout);
             tokio::pin!(timeout);
 
             let resolver = self.resolver.load_full();
@@ -367,6 +399,16 @@ impl DnsResolver {
     pub fn custom(resolver: impl Resolver) -> Self {
         Self {
             inner: Arc::new(Inner::new(Box::new(resolver))),
+        }
+    }
+
+    /// Creates a resolver with explicit timeout and retry-jitter capabilities.
+    ///
+    /// This is primarily intended for deterministic environments. Production callers should use
+    /// [`Self::custom`] so Tokio time and secure operating-system randomness remain the defaults.
+    pub fn custom_with_runtime(resolver: impl Resolver, runtime: impl DnsRuntime) -> Self {
+        Self {
+            inner: Arc::new(Inner::with_runtime(Box::new(resolver), Arc::new(runtime))),
         }
     }
 
@@ -608,7 +650,7 @@ impl DnsResolver {
     ) -> Result<impl Iterator<Item = IpAddr>, StaggeredError<DnsError>> {
         let host = host.to_string();
         let f = || self.lookup_ipv4(host.clone(), timeout);
-        stagger_call(f, delays_ms).await
+        stagger_call(self.inner.runtime.clone(), f, delays_ms).await
     }
 
     /// Performs an IPv6 lookup with a timeout in a staggered fashion.
@@ -625,7 +667,7 @@ impl DnsResolver {
     ) -> Result<impl Iterator<Item = IpAddr>, StaggeredError<DnsError>> {
         let host = host.to_string();
         let f = || self.lookup_ipv6(host.clone(), timeout);
-        stagger_call(f, delays_ms).await
+        stagger_call(self.inner.runtime.clone(), f, delays_ms).await
     }
 
     /// Races an IPv4 and IPv6 lookup with a timeout in a staggered fashion.
@@ -643,7 +685,7 @@ impl DnsResolver {
     ) -> Result<impl Iterator<Item = IpAddr>, StaggeredError<DnsError>> {
         let host = host.to_string();
         let f = || self.lookup_ipv4_ipv6(host.clone(), timeout);
-        stagger_call(f, delays_ms).await
+        stagger_call(self.inner.runtime.clone(), f, delays_ms).await
     }
 
     /// Looks up endpoint info by [`EndpointId`] and origin domain name.
@@ -688,7 +730,7 @@ impl DnsResolver {
         delays_ms: &[u64],
     ) -> Result<EndpointInfo, StaggeredError<LookupError>> {
         let f = || self.lookup_endpoint_by_domain_name(name);
-        stagger_call(f, delays_ms).await
+        stagger_call(self.inner.runtime.clone(), f, delays_ms).await
     }
 
     /// Looks up endpoint info by [`EndpointId`] and origin domain name.
@@ -704,7 +746,7 @@ impl DnsResolver {
         delays_ms: &[u64],
     ) -> Result<EndpointInfo, StaggeredError<LookupError>> {
         let f = || self.lookup_endpoint_by_id(endpoint_id, origin);
-        stagger_call(f, delays_ms).await
+        stagger_call(self.inner.runtime.clone(), f, delays_ms).await
     }
 }
 
@@ -940,6 +982,7 @@ async fn stagger_call<
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, E>>,
 >(
+    runtime: Arc<dyn DnsRuntime>,
     f: F,
     delays_ms: &[u64],
 ) -> Result<T, StaggeredError<E>> {
@@ -947,10 +990,11 @@ async fn stagger_call<
     // NOTE: we add the 0 delay here to have a uniform set of futures. This is more performant than
     // using alternatives that allow futures of different types.
     for delay in std::iter::once(&0u64).chain(delays_ms) {
-        let delay = add_jitter(delay);
+        let delay = runtime.stagger_delay(*delay);
+        let runtime = runtime.clone();
         let fut = f();
         let staggered_fut = async move {
-            time::sleep(delay).await;
+            runtime.sleep(delay).await;
             fut.await
         };
         calls.push(staggered_fut)
@@ -1002,7 +1046,9 @@ pub(crate) mod tests {
         };
 
         let delays = [1000, 15];
-        let result = stagger_call(f, &delays).await.unwrap();
+        let result = stagger_call(Arc::new(ProductionDnsRuntime), f, &delays)
+            .await
+            .unwrap();
         assert_eq!(result, 5)
     }
 

@@ -1,0 +1,164 @@
+{
+  "schema_version": 2,
+  "metadata": {
+    "id": "stage4-nat-rebind-expiry",
+    "description": "Production QUIC survives deterministic NAT rebind and mapping expiry.",
+    "tags": [
+      "nat",
+      "regression",
+      "stage4"
+    ]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": true,
+    "relay": false,
+    "discovery": false,
+    "mobility": false
+  },
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 60000000000,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_trace_events": 200000,
+    "max_obligations": 1024,
+    "max_actions": 64,
+    "max_payload_bytes": 1048576
+  },
+  "topology": {
+    "hosts": [
+      {
+        "id": "client",
+        "interfaces": [
+          {
+            "id": "eth0",
+            "link": "lan",
+            "addresses": [
+              "10.0.0.2/0"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "server",
+        "interfaces": [
+          {
+            "id": "eth0",
+            "link": "lan",
+            "addresses": [
+              "192.0.2.2/0"
+            ]
+          }
+        ]
+      }
+    ],
+    "links": [
+      {
+        "id": "lan",
+        "latency_nanos": 1000000,
+        "bits_per_second": 1000000000,
+        "mtu": 1500,
+        "queue_packets": 1024
+      }
+    ],
+    "nats": [
+      {
+        "id": "edge",
+        "inside_host": "client",
+        "upstream_nat": null,
+        "public_ip": "203.0.113.7",
+        "port_start": 40000,
+        "port_end": 40127,
+        "mapping_behavior": "endpoint_independent",
+        "filtering_behavior": "address_and_port_dependent",
+        "mapping_ttl_nanos": 5000000,
+        "hairpin": false,
+        "max_mappings": 128,
+        "firewall": null
+      }
+    ],
+    "discovery": []
+  },
+  "endpoints": [
+    {
+      "id": "client",
+      "host": "client",
+      "bind": "10.0.0.2:31001",
+      "identity_ordinal": 1
+    },
+    {
+      "id": "server",
+      "host": "server",
+      "bind": "192.0.2.2:31002",
+      "identity_ordinal": 2
+    }
+  ],
+  "actions": [
+    {
+      "id": "01-start-client",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "start_endpoint", "endpoint": "client" }
+    },
+    {
+      "id": "02-start-server",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "start_endpoint", "endpoint": "server" }
+    },
+    {
+      "id": "03-connect",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "connect", "client": "client", "server": "server", "connection": "c1" }
+    },
+    {
+      "id": "04-rebind",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "nat_change", "nat": "edge", "public_ip": "203.0.113.8", "preserve_ports": true }
+    },
+    {
+      "id": "05-expire",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "advance_time", "by_nanos": 10000000 }
+    },
+    {
+      "id": "06-stream-after-remap",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stream_round_trip", "connection": "c1", "payload": { "bytes": 37, "fill": 90 } }
+    },
+    {
+      "id": "07-close",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "close_connection", "connection": "c1" }
+    },
+    {
+      "id": "08-stop-client",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stop_endpoint", "endpoint": "client" }
+    },
+    {
+      "id": "09-stop-server",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stop_endpoint", "endpoint": "server" }
+    }
+  ],
+  "fault_rules": [],
+  "fairness": [
+    "fifo_progress",
+    "reachable_network"
+  ],
+  "completion": {
+    "kind": "all_actions",
+    "shutdown_deadline_nanos": 60000000000
+  },
+  "allowed_terminals": [
+    "success"
+  ],
+  "invariants": [
+    { "name": "authentication_identity", "deadline_nanos": null, "max_events": null },
+    { "name": "delivery_integrity", "deadline_nanos": null, "max_events": null },
+    { "name": "monotonic_lifecycle", "deadline_nanos": null, "max_events": null },
+    { "name": "resource_cleanup", "deadline_nanos": 60000000000, "max_events": 100000 }
+  ]
+}

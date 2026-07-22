@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "stage6-rare-ready-order",
+  "scenario_file": "scenario.json",
+  "seed": "9b36bee1fa03258374d80340d7ad18d849164bf15abf2ddb859a42e9f131f434",
+  "expectation": {"terminal": "success"},
+  "provenance": "Stage 6 campaign ordinal 5 from the reviewed 0..32 direct production-QUIC scheduler sweep; it produced the largest scheduler-decision count in that sweep and began with four simultaneously eligible endpoint roots.",
+  "issue": "stage6-rare-ready-order-exit-fixture",
+  "minimum_scenario_schema": 2,
+  "maximum_scenario_schema": 2,
+  "minimum_simulator_version": "1.0.3",
+  "maximum_simulator_version": null,
+  "review_state": "reviewed",
+  "inventory": {
+    "hosts": 2,
+    "endpoints": 2,
+    "links": 1,
+    "nats": 0,
+    "nat_change_actions": 0,
+    "port_mapping_actions": 0,
+    "firewalls": 0,
+    "firewall_rules": 0,
+    "discovery_providers": 0,
+    "discovery_records": 0,
+    "interfaces": 2,
+    "interface_change_actions": 0,
+    "routes": 0,
+    "relays": 0,
+    "relay_lifecycle_actions": 0,
+    "relay_impairments": 0
+  }
+}

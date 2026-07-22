@@ -199,7 +199,7 @@ async fn handle_relay_websocket(
 
     let stream = RelayedStream::new(adapter, state.key_cache.clone());
     let config = Config::new(guard, stream, ProtocolVersion::V2);
-    state.clients.register(config, state.metrics.clone());
+    state.clients.register(config, state.metrics.clone())?;
     Ok(())
 }
 

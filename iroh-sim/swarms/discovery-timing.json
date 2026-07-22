@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "discovery-timing",
+  "base_path": "iroh-sim/corpus/stage4-discovery-conflict/scenario.json",
+  "base_blake3": "0e53090cc086351c65e854def6312cd6e1d6a420e8c6deb53e5b0d3da84a0194",
+  "choices": [
+    {
+      "id": "good-record-timing",
+      "options": [
+        {
+          "id": "fast-short",
+          "weight": 3,
+          "mutation": {
+            "kind": "discovery_timing",
+            "action": "04-good-record",
+            "delay_nanos": 100000,
+            "ttl_nanos": 1000000000,
+            "state": "published"
+          }
+        },
+        {
+          "id": "slow-long",
+          "weight": 1,
+          "mutation": {
+            "kind": "discovery_timing",
+            "action": "04-good-record",
+            "delay_nanos": 10000000,
+            "ttl_nanos": 30000000000,
+            "state": "published"
+          }
+        }
+      ]
+    }
+  ]
+}

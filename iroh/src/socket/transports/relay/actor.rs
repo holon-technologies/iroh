@@ -30,28 +30,37 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
     net::IpAddr,
-    pin::{Pin, pin},
+    pin::pin,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
 
+#[cfg(not(wasm_browser))]
+use std::panic::AssertUnwindSafe;
+
 use backon::{Backoff, BackoffBuilder, ExponentialBuilder};
+#[cfg(not(wasm_browser))]
+use futures_util::FutureExt;
 use iroh_base::{EndpointId, RelayUrl, SecretKey};
 use iroh_relay::{
     self as relay, PingTracker, RelayMap,
     client::{Client, ConnectError, RecvError, SendError},
     protos::relay::{ClientToRelayMsg, Datagrams, RelayToClientMsg, Status},
 };
+#[cfg(not(wasm_browser))]
+use iroh_runtime::DecisionStream;
 use n0_error::{AnyError, e, stack_error};
-use n0_future::{
-    FuturesUnorderedBounded, MaybeFuture, SinkExt, StreamExt,
-    task::JoinSet,
-    time::{self, Duration, Instant, MissedTickBehavior},
-};
+#[cfg(wasm_browser)]
+use n0_future::task::JoinSet;
+#[cfg(wasm_browser)]
+use n0_future::time::{self, Instant, MissedTickBehavior};
+use n0_future::{FuturesUnorderedBounded, MaybeFuture, SinkExt, StreamExt, time::Duration};
 use n0_watcher::Watchable;
 use netwatch::interfaces;
+#[cfg(wasm_browser)]
+use std::pin::Pin;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Level, debug, error, event, info, info_span, instrument, trace, warn};
@@ -59,6 +68,8 @@ use url::Url;
 
 #[cfg(not(wasm_browser))]
 use crate::dns::DnsResolver;
+#[cfg(not(wasm_browser))]
+use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep, RuntimeTimeout};
 use crate::{endpoint::RelayStatus, net_report::Report, socket::Metrics as SocketMetrics};
 
 /// How long a non-home relay connection needs to be idle (last written to) before we close it.
@@ -137,6 +148,10 @@ struct ActiveRelayActor {
     url: RelayUrl,
     /// Builder which can repeatedly build a relay client.
     relay_client_builder: relay::client::ClientBuilder,
+    #[cfg(not(wasm_browser))]
+    relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
+    #[cfg(not(wasm_browser))]
+    relay_connect_request: crate::simulation::RelayConnectRequest,
     /// Whether or not this is the home relay server.
     ///
     /// The home relay server needs to maintain it's connection to the relay server, even if
@@ -147,7 +162,16 @@ struct ActiveRelayActor {
     /// Unless it is managing the home relay connection.  Inactivity is only tracked on the
     /// last datagram sent to the relay, received datagrams will trigger QUIC ACKs which is
     /// sufficient to keep active connections open.
+    #[cfg(wasm_browser)]
     inactive_timeout: Pin<Box<time::Sleep>>,
+    #[cfg(not(wasm_browser))]
+    inactive_timeout: RuntimeSleep,
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
+    #[cfg(not(wasm_browser))]
+    ping_decisions: Box<dyn DecisionStream>,
+    #[cfg(not(wasm_browser))]
+    backoff_decisions: Box<dyn DecisionStream>,
     /// Token indicating the [`ActiveRelayActor`] should stop.
     stop_token: CancellationToken,
     metrics: Arc<SocketMetrics>,
@@ -193,6 +217,10 @@ struct ActiveRelayActorOptions {
     relay_datagrams_send: mpsc::Receiver<RelaySendItem>,
     relay_datagrams_recv: mpsc::Sender<RelayRecvDatagram>,
     connection_opts: RelayConnectionOptions,
+    #[cfg(not(wasm_browser))]
+    relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
     stop_token: CancellationToken,
     metrics: Arc<SocketMetrics>,
     my_relay: HomeRelayWatch,
@@ -254,10 +282,16 @@ enum DialError {
     Timeout { timeout: Duration },
     #[error("unable to connect")]
     Connect { source: ConnectError },
+    #[cfg(not(wasm_browser))]
+    #[error("injected relay connector failed")]
+    Injected {
+        #[error(std_err)]
+        source: crate::simulation::RelayConnectError,
+    },
 }
 
 impl ActiveRelayActor {
-    fn new(opts: ActiveRelayActorOptions) -> Self {
+    fn new(opts: ActiveRelayActorOptions) -> Result<Self, String> {
         let ActiveRelayActorOptions {
             url,
             prio_inbox_: prio_inbox,
@@ -265,24 +299,65 @@ impl ActiveRelayActor {
             relay_datagrams_send,
             relay_datagrams_recv,
             connection_opts,
+            #[cfg(not(wasm_browser))]
+            relay_connector,
+            #[cfg(not(wasm_browser))]
+            runtime,
             stop_token,
             metrics,
             my_relay,
         } = opts;
+        #[cfg(not(wasm_browser))]
+        let relay_connect_request = crate::simulation::RelayConnectRequest::new(
+            url.clone(),
+            connection_opts.secret_key.clone(),
+            connection_opts.auth_token.clone(),
+        );
         let relay_client_builder = Self::create_relay_builder(url.clone(), connection_opts);
-        ActiveRelayActor {
+        #[cfg(not(wasm_browser))]
+        let inactive_timeout =
+            RuntimeSleep::after(runtime.context().clock(), RELAY_INACTIVE_CLEANUP_TIME)
+                .map_err(|error| error.to_string())?;
+        #[cfg(not(wasm_browser))]
+        let relay_key = blake3::hash(url.as_str().as_bytes()).to_hex();
+        #[cfg(not(wasm_browser))]
+        let ping_decisions = runtime
+            .context()
+            .decisions()
+            .stream(&format!("relay/ping/{}", &relay_key[..16]))
+            .map_err(|error| error.to_string())?;
+        #[cfg(not(wasm_browser))]
+        let backoff_decisions = runtime
+            .context()
+            .decisions()
+            .stream(&format!("relay/backoff/{}", &relay_key[..16]))
+            .map_err(|error| error.to_string())?;
+        Ok(ActiveRelayActor {
             prio_inbox,
             inbox,
             relay_datagrams_recv,
             relay_datagrams_send,
             url,
             relay_client_builder,
+            #[cfg(not(wasm_browser))]
+            relay_connector,
+            #[cfg(not(wasm_browser))]
+            relay_connect_request,
             is_home_relay: false,
+            #[cfg(wasm_browser)]
             inactive_timeout: Box::pin(time::sleep(RELAY_INACTIVE_CLEANUP_TIME)),
+            #[cfg(not(wasm_browser))]
+            inactive_timeout,
+            #[cfg(not(wasm_browser))]
+            runtime,
+            #[cfg(not(wasm_browser))]
+            ping_decisions,
+            #[cfg(not(wasm_browser))]
+            backoff_decisions,
             stop_token,
             metrics,
             my_relay,
-        }
+        })
     }
 
     fn create_relay_builder(
@@ -336,8 +411,30 @@ impl ActiveRelayActor {
                     warn!("retries exceeded");
                     break;
                 };
+                #[cfg(not(wasm_browser))]
+                let delay = match self.jitter_backoff(delay) {
+                    Ok(delay) => delay,
+                    Err(error) => {
+                        self.runtime.latch_failure(error);
+                        break;
+                    }
+                };
                 debug!("retry in {delay:?}");
+                #[cfg(wasm_browser)]
                 time::sleep(delay).await;
+                #[cfg(not(wasm_browser))]
+                match RuntimeSleep::after(self.runtime.context().clock(), delay) {
+                    Ok(sleep) => {
+                        if let Err(error) = sleep.await {
+                            self.runtime.latch_failure(error.to_string());
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        self.runtime.latch_failure(error.to_string());
+                        break;
+                    }
+                }
             } else {
                 // If the relay connection remained established long enough so that we received a pong
                 // from the relay server, we reset the backoff and attempt to reconnect immediately.
@@ -348,12 +445,29 @@ impl ActiveRelayActor {
     }
 
     fn build_backoff() -> impl Backoff {
-        ExponentialBuilder::new()
+        let builder = ExponentialBuilder::new()
             .with_min_delay(Duration::from_millis(10))
             .with_max_delay(Duration::from_secs(16))
-            .with_jitter()
-            .without_max_times()
-            .build()
+            .without_max_times();
+        #[cfg(wasm_browser)]
+        let builder = builder.with_jitter();
+        builder.build()
+    }
+
+    #[cfg(not(wasm_browser))]
+    fn jitter_backoff(&mut self, base: Duration) -> Result<Duration, String> {
+        let factor = self
+            .backoff_decisions
+            .range_u64(500_000..1_500_001)
+            .map_err(|error| error.to_string())?;
+        let nanos = base
+            .as_nanos()
+            .checked_mul(u128::from(factor))
+            .and_then(|value| value.checked_div(1_000_000))
+            .ok_or_else(|| "relay backoff jitter overflow".to_owned())?;
+        let nanos = u64::try_from(nanos)
+            .map_err(|_| "relay backoff jitter exceeds runtime duration".to_owned())?;
+        Ok(Duration::from_nanos(nanos))
     }
 
     /// Attempt to connect to the relay, and run the connected actor loop.
@@ -376,9 +490,18 @@ impl ActiveRelayActor {
     }
 
     fn reset_inactive_timeout(&mut self) {
+        #[cfg(wasm_browser)]
         self.inactive_timeout
             .as_mut()
             .reset(Instant::now() + RELAY_INACTIVE_CLEANUP_TIME);
+        #[cfg(not(wasm_browser))]
+        if let Err(error) = self
+            .inactive_timeout
+            .reset(self.runtime.context().clock().now() + RELAY_INACTIVE_CLEANUP_TIME)
+        {
+            self.runtime.latch_failure(error.to_string());
+            self.stop_token.cancel();
+        }
     }
 
     fn set_home_relay(&mut self, is_home: bool) {
@@ -391,6 +514,19 @@ impl ActiveRelayActor {
                 home_relay = self.is_home_relay,
             );
         }
+    }
+
+    #[cfg(not(wasm_browser))]
+    fn new_ping(&mut self, tracker: &mut PingTracker) -> Result<[u8; 8], String> {
+        let mut data = [0; 8];
+        self.ping_decisions
+            .fill_bytes(&mut data)
+            .map_err(|error| error.to_string())?;
+        Ok(tracker.new_ping_with_data_at(
+            tracker.ping_timeout(),
+            data,
+            self.runtime.context().clock().now(),
+        ))
     }
 
     /// Actor loop when connecting to the relay server.
@@ -406,9 +542,24 @@ impl ActiveRelayActor {
         // is not an ideal mechanism, an alternative approach would be to use
         // e.g. ConcurrentQueue with force_push, though now you might still send very stale
         // packets when eventually connected.  So perhaps this is a reasonable compromise.
+        #[cfg(wasm_browser)]
         let mut send_datagram_flush = time::interval(UNDELIVERABLE_DATAGRAM_TIMEOUT);
+        #[cfg(wasm_browser)]
         send_datagram_flush.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        #[cfg(wasm_browser)]
         send_datagram_flush.reset(); // Skip the immediate interval
+        #[cfg(not(wasm_browser))]
+        let mut send_datagram_flush = match RuntimeInterval::new(
+            self.runtime.context().clock(),
+            UNDELIVERABLE_DATAGRAM_TIMEOUT,
+            UNDELIVERABLE_DATAGRAM_TIMEOUT,
+        ) {
+            Ok(interval) => interval,
+            Err(error) => {
+                self.runtime.latch_failure(error.to_string());
+                return None;
+            }
+        };
 
         let dialing_fut = self.dial_relay();
         tokio::pin!(dialing_fut);
@@ -460,7 +611,12 @@ impl ActiveRelayActor {
                         }
                     }
                 }
-                _ = send_datagram_flush.tick() => {
+                tick = send_datagram_flush.tick() => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = tick {
+                        self.runtime.latch_failure(error.to_string());
+                        break None;
+                    }
                     self.reset_inactive_timeout();
                     let mut logged = false;
                     while self.relay_datagrams_send.try_recv().is_ok() {
@@ -470,7 +626,11 @@ impl ActiveRelayActor {
                         }
                     }
                 }
-                _ = &mut self.inactive_timeout, if !self.is_home_relay => {
+                timeout = &mut self.inactive_timeout, if !self.is_home_relay => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = timeout {
+                        self.runtime.latch_failure(error.to_string());
+                    }
                     debug!(?RELAY_INACTIVE_CLEANUP_TIME, "Inactive, exiting.");
                     break None;
                 }
@@ -486,13 +646,66 @@ impl ActiveRelayActor {
     // This is using `impl Future` to return a future without a reference to self.
     fn dial_relay(&self) -> impl Future<Output = Result<Client, DialError>> + use<> {
         let client_builder = self.relay_client_builder.clone();
+        #[cfg(not(wasm_browser))]
+        let relay_connector = self.relay_connector.clone();
+        #[cfg(not(wasm_browser))]
+        let relay_connect_request = self.relay_connect_request.clone();
+        #[cfg(not(wasm_browser))]
+        let runtime = self.runtime.clone();
         async move {
-            match time::timeout(CONNECT_TIMEOUT, client_builder.connect()).await {
+            #[cfg(not(wasm_browser))]
+            let connect = async move {
+                if let Some(connector) = relay_connector {
+                    connector
+                        .connect(relay_connect_request)
+                        .await
+                        .map_err(|err| e!(DialError::Injected, err))
+                } else {
+                    client_builder
+                        .connect()
+                        .await
+                        .map_err(|err| e!(DialError::Connect, err))
+                }
+            };
+            #[cfg(wasm_browser)]
+            let connect = async move {
+                client_builder
+                    .connect()
+                    .await
+                    .map_err(|err| e!(DialError::Connect, err))
+            };
+            #[cfg(wasm_browser)]
+            let result = time::timeout(CONNECT_TIMEOUT, connect).await;
+            #[cfg(not(wasm_browser))]
+            let result =
+                match RuntimeTimeout::after(runtime.context().clock(), CONNECT_TIMEOUT, connect) {
+                    Ok(timeout) => timeout.await.map_err(|error| match error {
+                        iroh_runtime::TimeoutError::Elapsed => None,
+                        iroh_runtime::TimeoutError::Clock(error) => Some(error),
+                    }),
+                    Err(error) => Err(Some(error)),
+                };
+            #[cfg(wasm_browser)]
+            match result {
                 Ok(Ok(client)) => Ok(client),
-                Ok(Err(err)) => Err(e!(DialError::Connect, err)),
+                Ok(Err(err)) => Err(err),
                 Err(_) => Err(e!(DialError::Timeout {
                     timeout: CONNECT_TIMEOUT
                 })),
+            }
+            #[cfg(not(wasm_browser))]
+            match result {
+                Ok(Ok(client)) => Ok(client),
+                Ok(Err(err)) => Err(err),
+                Err(None) => Err(e!(DialError::Timeout {
+                    timeout: CONNECT_TIMEOUT
+                })),
+                Err(Some(error)) => {
+                    runtime.latch_failure(error.to_string());
+                    Err(e!(DialError::Timeout {
+                        timeout: CONNECT_TIMEOUT
+                    }))
+                }
             }
         }
     }
@@ -531,8 +744,22 @@ impl ActiveRelayActor {
 
         // Regularly send pings so we know the connection is healthy.
         // The first ping will be sent immediately.
+        #[cfg(wasm_browser)]
         let mut ping_interval = time::interval(PING_INTERVAL);
+        #[cfg(wasm_browser)]
         ping_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        #[cfg(not(wasm_browser))]
+        let mut ping_interval = match RuntimeInterval::new(
+            self.runtime.context().clock(),
+            Duration::ZERO,
+            PING_INTERVAL,
+        ) {
+            Ok(interval) => interval,
+            Err(error) => {
+                self.runtime.latch_failure(error.to_string());
+                return Err(state.map_err(e!(RunError::PingTimeout)));
+            }
+        };
 
         let res = loop {
             if let Some(data) = state.pong_pending.take() {
@@ -540,6 +767,30 @@ impl ActiveRelayActor {
                 self.run_sending(fut, &mut state, &mut client_stream)
                     .await?;
             }
+            let ping_deadline = state.ping_tracker.deadline();
+            #[cfg(not(wasm_browser))]
+            let ping_sleep = match ping_deadline {
+                Some(deadline) => match RuntimeSleep::new(self.runtime.context().clock(), deadline)
+                {
+                    Ok(sleep) => MaybeFuture::Some(sleep),
+                    Err(error) => {
+                        self.runtime.latch_failure(error.to_string());
+                        break Err(e!(RunError::PingTimeout));
+                    }
+                },
+                None => MaybeFuture::None,
+            };
+            #[cfg(not(wasm_browser))]
+            let ping_timeout = async move { ping_sleep.await.map_err(|error| error.to_string()) };
+            #[cfg(wasm_browser)]
+            let ping_timeout = async move {
+                match ping_deadline {
+                    Some(deadline) => time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+                Ok::<(), String>(())
+            };
+            tokio::pin!(ping_timeout);
             tokio::select! {
                 biased;
                 _ = self.stop_token.cancelled() => {
@@ -558,11 +809,30 @@ impl ActiveRelayActor {
                         }
                     }
                 }
-                _ = state.ping_tracker.timeout() => {
+                timeout = &mut ping_timeout => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = timeout {
+                        self.runtime.latch_failure(error);
+                    }
+                    state.ping_tracker.timeout_elapsed();
                     break Err(e!(RunError::PingTimeout));
                 }
-                _ = ping_interval.tick() => {
+                tick = ping_interval.tick() => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = tick {
+                        self.runtime.latch_failure(error.to_string());
+                        break Err(e!(RunError::PingTimeout));
+                    }
+                    #[cfg(wasm_browser)]
                     let data = state.ping_tracker.new_ping();
+                    #[cfg(not(wasm_browser))]
+                    let data = match self.new_ping(&mut state.ping_tracker) {
+                        Ok(data) => data,
+                        Err(error) => {
+                            self.runtime.latch_failure(error);
+                            break Err(e!(RunError::PingTimeout));
+                        }
+                    };
                     let fut = client_sink.send(ClientToRelayMsg::Ping(data));
                     self.run_sending(fut, &mut state, &mut client_stream).await?;
                 }
@@ -586,7 +856,16 @@ impl ActiveRelayActor {
                         ActiveRelayMessage::CheckConnection { local_ips } => {
                             match client_stream.local_addr() {
                                 Some(addr) if local_ips.contains(&addr.ip()) => {
+                                    #[cfg(wasm_browser)]
                                     let data = state.ping_tracker.new_ping();
+                                    #[cfg(not(wasm_browser))]
+                                    let data = match self.new_ping(&mut state.ping_tracker) {
+                                        Ok(data) => data,
+                                        Err(error) => {
+                                            self.runtime.latch_failure(error);
+                                            break Err(e!(RunError::PingTimeout));
+                                        }
+                                    };
                                     let fut = client_sink.send(ClientToRelayMsg::Ping(data));
                                     self.run_sending(fut, &mut state, &mut client_stream).await?;
                                 }
@@ -638,12 +917,22 @@ impl ActiveRelayActor {
                         Ok(msg) => {
                             self.handle_relay_msg(msg, &mut state);
                             // reset the ping timer, we have just received a message
+                            #[cfg(wasm_browser)]
                             ping_interval.reset();
+                            #[cfg(not(wasm_browser))]
+                            if let Err(error) = ping_interval.reset() {
+                                self.runtime.latch_failure(error.to_string());
+                                break Err(e!(RunError::PingTimeout));
+                            }
                         },
                         Err(err) => break Err(e!(RunError::ClientStreamRead, err)),
                     }
                 }
-                _ = &mut self.inactive_timeout, if !self.is_home_relay => {
+                timeout = &mut self.inactive_timeout, if !self.is_home_relay => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = timeout {
+                        self.runtime.latch_failure(error.to_string());
+                    }
                     debug!("Inactive for {RELAY_INACTIVE_CLEANUP_TIME:?}, exiting (running).");
                     break Ok(());
                 }
@@ -701,7 +990,12 @@ impl ActiveRelayActor {
                         }
                     }
                 }
+                #[cfg(wasm_browser)]
                 state.ping_tracker.pong_received(data);
+                #[cfg(not(wasm_browser))]
+                state
+                    .ping_tracker
+                    .pong_received_at(data, self.runtime.context().clock().now());
                 state.established = true;
             }
             RelayToClientMsg::Status(status) => match status {
@@ -741,15 +1035,52 @@ impl ActiveRelayActor {
         // we use the same time as for our ping interval
         let send_timeout = PING_INTERVAL;
 
+        #[cfg(wasm_browser)]
         let mut timeout = pin!(time::sleep(send_timeout));
+        #[cfg(not(wasm_browser))]
+        let mut timeout = match RuntimeSleep::after(self.runtime.context().clock(), send_timeout) {
+            Ok(timeout) => timeout,
+            Err(error) => {
+                self.runtime.latch_failure(error.to_string());
+                return Err(state.map_err(e!(RunError::SendTimeout)));
+            }
+        };
         let mut sending_fut = pin!(sending_fut);
         let res = loop {
+            let ping_deadline = state.ping_tracker.deadline();
+            #[cfg(not(wasm_browser))]
+            let ping_sleep = match ping_deadline {
+                Some(deadline) => match RuntimeSleep::new(self.runtime.context().clock(), deadline)
+                {
+                    Ok(sleep) => MaybeFuture::Some(sleep),
+                    Err(error) => {
+                        self.runtime.latch_failure(error.to_string());
+                        break Err(e!(RunError::PingTimeout));
+                    }
+                },
+                None => MaybeFuture::None,
+            };
+            #[cfg(not(wasm_browser))]
+            let ping_timeout = async move { ping_sleep.await.map_err(|error| error.to_string()) };
+            #[cfg(wasm_browser)]
+            let ping_timeout = async move {
+                match ping_deadline {
+                    Some(deadline) => time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+                Ok::<(), String>(())
+            };
+            tokio::pin!(ping_timeout);
             tokio::select! {
                 biased;
                 _ = self.stop_token.cancelled() => {
                     break Ok(());
                 }
-                _ = &mut timeout => {
+                elapsed = &mut timeout => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = elapsed {
+                        self.runtime.latch_failure(error.to_string());
+                    }
                     break Err(e!(RunError::SendTimeout));
                 }
                 msg = self.prio_inbox.recv() => {
@@ -770,7 +1101,12 @@ impl ActiveRelayActor {
                         Err(err) => break Err(err),
                     }
                 }
-                _ = state.ping_tracker.timeout() => {
+                elapsed = &mut ping_timeout => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = elapsed {
+                        self.runtime.latch_failure(error);
+                    }
+                    state.ping_tracker.timeout_elapsed();
                     break Err(e!(RunError::PingTimeout));
                 }
                 // No need to read the inbox or datagrams to send.
@@ -783,7 +1119,11 @@ impl ActiveRelayActor {
                         Err(err) => break Err(e!(RunError::ClientStreamRead, err)),
                     }
                 }
-                _ = &mut self.inactive_timeout, if !self.is_home_relay => {
+                elapsed = &mut self.inactive_timeout, if !self.is_home_relay => {
+                    #[cfg(not(wasm_browser))]
+                    if let Err(error) = elapsed {
+                        self.runtime.latch_failure(error.to_string());
+                    }
                     debug!("Inactive for {RELAY_INACTIVE_CLEANUP_TIME:?}, exiting (sending).");
                     break Ok(());
                 }
@@ -860,8 +1200,25 @@ pub(super) struct RelayActor {
     /// trying to maintain a connection to the relay server as needed.
     active_relays: BTreeMap<RelayUrl, ActiveRelayHandle>,
     /// The tasks for the [`ActiveRelayActor`]s in `active_relays` above.
+    #[cfg(wasm_browser)]
     active_relay_tasks: JoinSet<()>,
+    /// Native task execution is owned by the endpoint runtime; this channel retains the relay
+    /// actor's completion/reap protocol.
+    #[cfg(not(wasm_browser))]
+    active_relay_completions_tx: mpsc::UnboundedSender<ActiveRelayCompletion>,
+    #[cfg(not(wasm_browser))]
+    active_relay_completions_rx: mpsc::UnboundedReceiver<ActiveRelayCompletion>,
+    #[cfg(not(wasm_browser))]
+    active_relay_task_count: usize,
+    #[cfg(not(wasm_browser))]
+    runtime: Arc<Runtime>,
     cancel_token: CancellationToken,
+}
+
+#[cfg(not(wasm_browser))]
+enum ActiveRelayCompletion {
+    Finished,
+    Panicked,
 }
 
 #[derive(Debug, Clone)]
@@ -879,6 +1236,10 @@ pub(crate) struct Config {
     /// Per-relay configuration. Consulted when starting a connection to
     /// look up the auth token and any future per-relay options.
     pub relay_map: RelayMap,
+    #[cfg(not(wasm_browser))]
+    pub relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
+    #[cfg(not(wasm_browser))]
+    pub initial_relay: Option<RelayUrl>,
 }
 
 /// Connection state of the home relay.
@@ -1000,12 +1361,24 @@ impl RelayActor {
         config: Config,
         relay_datagram_recv_queue: mpsc::Sender<RelayRecvDatagram>,
         cancel_token: CancellationToken,
+        #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
     ) -> Self {
+        #[cfg(not(wasm_browser))]
+        let (active_relay_completions_tx, active_relay_completions_rx) = mpsc::unbounded_channel();
         Self {
             config,
             relay_datagram_recv_queue,
             active_relays: Default::default(),
+            #[cfg(wasm_browser)]
             active_relay_tasks: JoinSet::new(),
+            #[cfg(not(wasm_browser))]
+            active_relay_completions_tx,
+            #[cfg(not(wasm_browser))]
+            active_relay_completions_rx,
+            #[cfg(not(wasm_browser))]
+            active_relay_task_count: 0,
+            #[cfg(not(wasm_browser))]
+            runtime,
             cancel_token,
         }
     }
@@ -1015,27 +1388,54 @@ impl RelayActor {
         mut receiver: mpsc::Receiver<RelayActorMessage>,
         mut datagram_send_channel: mpsc::Receiver<RelaySendItem>,
     ) {
+        #[cfg(not(wasm_browser))]
+        if let Some(url) = self.config.initial_relay.clone() {
+            self.config
+                .my_relay
+                .set(url.clone(), RelayConnectionState::Connecting);
+            self.set_home_relay(url).await;
+        }
+
         // When this future is present, it is sending pending datagrams to an
         // ActiveRelayActor.  We can not process further datagrams during this time.
         let mut datagram_send_fut = std::pin::pin!(MaybeFuture::None);
 
         loop {
+            #[cfg(wasm_browser)]
+            let has_active_relay_tasks = !self.active_relay_tasks.is_empty();
+            #[cfg(wasm_browser)]
+            let active_relay_completion = self.active_relay_tasks.join_next();
+            #[cfg(not(wasm_browser))]
+            let active_relay_completion = self.active_relay_completions_rx.recv();
+            #[cfg(not(wasm_browser))]
+            let has_active_relay_tasks = self.active_relay_task_count > 0;
+
             tokio::select! {
                 biased;
                 _ = self.cancel_token.cancelled() => {
                     debug!("shutting down");
                     break;
                 }
-                Some(res) = self.active_relay_tasks.join_next() => {
-                    match res {
-                        Ok(()) => (),
-                        Err(err) if err.is_panic() => {
-                            error!("ActiveRelayActor task panicked: {err:#?}");
+                completion = active_relay_completion, if has_active_relay_tasks => {
+                    #[cfg(wasm_browser)]
+                    if let Some(res) = completion {
+                        match res {
+                            Ok(()) => (),
+                            Err(err) if err.is_panic() => {
+                                error!("ActiveRelayActor task panicked: {err:#?}");
+                            }
+                            Err(err) if err.is_cancelled() => {
+                                error!("ActiveRelayActor cancelled: {err:#?}");
+                            }
+                            Err(err) => error!("ActiveRelayActor failed: {err:#?}"),
                         }
-                        Err(err) if err.is_cancelled() => {
-                            error!("ActiveRelayActor cancelled: {err:#?}");
+                    }
+                    #[cfg(not(wasm_browser))]
+                    if let Some(completion) = completion {
+                        self.active_relay_task_count -= 1;
+                        if matches!(completion, ActiveRelayCompletion::Panicked) {
+                            error!("ActiveRelayActor task panicked");
                         }
-                        Err(err) => error!("ActiveRelayActor failed: {err:#?}"),
                     }
                     self.reap_active_relays();
                 }
@@ -1068,11 +1468,33 @@ impl RelayActor {
         }
 
         // try shutdown
+        #[cfg(wasm_browser)]
         if time::timeout(Duration::from_secs(3), self.close_all_active_relays())
             .await
             .is_err()
         {
             warn!("Failed to shut down all ActiveRelayActors");
+        }
+        #[cfg(not(wasm_browser))]
+        {
+            let runtime = self.runtime.clone();
+            let clock = runtime.context().clock();
+            match RuntimeTimeout::after(
+                clock,
+                Duration::from_secs(3),
+                self.close_all_active_relays(),
+            ) {
+                Ok(timeout) => match timeout.await {
+                    Ok(()) => {}
+                    Err(iroh_runtime::TimeoutError::Elapsed) => {
+                        warn!("Failed to shut down all ActiveRelayActors");
+                    }
+                    Err(iroh_runtime::TimeoutError::Clock(error)) => {
+                        runtime.latch_failure(error.to_string());
+                    }
+                },
+                Err(error) => runtime.latch_failure(error.to_string()),
+            }
         }
     }
 
@@ -1260,22 +1682,63 @@ impl RelayActor {
             relay_datagrams_send: send_datagram_rx,
             relay_datagrams_recv: self.relay_datagram_recv_queue.clone(),
             connection_opts,
+            #[cfg(not(wasm_browser))]
+            relay_connector: self.config.relay_connector.clone(),
+            #[cfg(not(wasm_browser))]
+            runtime: self.runtime.clone(),
             stop_token: self.cancel_token.child_token(),
             metrics: self.config.metrics.clone(),
             my_relay: self.config.my_relay.clone(),
         };
-        let actor = ActiveRelayActor::new(opts);
+        let handle = ActiveRelayHandle {
+            prio_inbox_addr: prio_inbox_tx,
+            inbox_addr: inbox_tx,
+            datagrams_send_queue: send_datagram_tx,
+        };
+        #[cfg(wasm_browser)]
+        let actor = ActiveRelayActor::new(opts).expect("browser relay timer setup is infallible");
+        #[cfg(not(wasm_browser))]
+        let actor = match ActiveRelayActor::new(opts) {
+            Ok(actor) => actor,
+            Err(error) => {
+                self.runtime.latch_failure(error);
+                return handle;
+            }
+        };
+        #[cfg(wasm_browser)]
         self.active_relay_tasks.spawn(
             async move {
                 actor.run().await;
             }
             .instrument(span),
         );
-        let handle = ActiveRelayHandle {
-            prio_inbox_addr: prio_inbox_tx,
-            inbox_addr: inbox_tx,
-            datagrams_send_queue: send_datagram_tx,
-        };
+        #[cfg(not(wasm_browser))]
+        {
+            let completions = self.active_relay_completions_tx.clone();
+            let future = async move {
+                let actor = actor.run().instrument(span);
+                match AssertUnwindSafe(actor).catch_unwind().await {
+                    Ok(()) => {
+                        let _ = completions.send(ActiveRelayCompletion::Finished);
+                    }
+                    Err(panic) => {
+                        let _ = completions.send(ActiveRelayCompletion::Panicked);
+                        std::panic::resume_unwind(panic);
+                    }
+                }
+            };
+            if self
+                .runtime
+                .spawn(
+                    iroh_runtime::TaskKind::Relay,
+                    "active-relay-actor",
+                    Box::pin(future),
+                )
+                .is_ok()
+            {
+                self.active_relay_task_count += 1;
+            }
+        }
         self.log_active_relay();
         handle
     }
@@ -1339,8 +1802,18 @@ impl RelayActor {
     /// Stops all [`ActiveRelayActor`]s and awaits for them to finish.
     async fn close_all_active_relays(&mut self) {
         self.cancel_token.cancel();
-        let tasks = std::mem::take(&mut self.active_relay_tasks);
-        tasks.join_all().await;
+        #[cfg(wasm_browser)]
+        {
+            let tasks = std::mem::take(&mut self.active_relay_tasks);
+            tasks.join_all().await;
+        }
+        #[cfg(not(wasm_browser))]
+        while self.active_relay_task_count > 0 {
+            match self.active_relay_completions_rx.recv().await {
+                Some(_) => self.active_relay_task_count -= 1,
+                None => break,
+            }
+        }
 
         self.log_active_relay();
     }
@@ -1387,6 +1860,7 @@ pub(crate) struct RelayRecvDatagram {
 #[cfg(test)]
 mod tests {
     use std::{
+        pin::Pin,
         sync::{Arc, atomic::AtomicBool},
         time::Duration,
     };
@@ -1408,7 +1882,150 @@ mod tests {
         RELAY_INACTIVE_CLEANUP_TIME, RelayConnectionOptions, RelayRecvDatagram, RelaySendItem,
         UNDELIVERABLE_DATAGRAM_TIMEOUT,
     };
-    use crate::{dns::DnsResolver, test_utils};
+    use crate::{
+        dns::DnsResolver,
+        runtime::Runtime,
+        simulation::{RelayConnectError, RelayConnectRequest, RelayConnector},
+        test_utils,
+    };
+
+    fn test_runtime(secret_key: &SecretKey) -> Arc<Runtime> {
+        Arc::new(Runtime::new(
+            secret_key.public(),
+            Arc::new(iroh_runtime::RuntimeContext::production(Arc::new(
+                iroh_runtime::NoopTraceSink,
+            ))),
+        ))
+    }
+
+    #[derive(Debug, Default)]
+    struct FailingRelayConnector {
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    #[derive(Debug, Default)]
+    struct PendingRelayConnector {
+        calls: std::sync::atomic::AtomicUsize,
+        dropped: Arc<AtomicBool>,
+    }
+
+    impl RelayConnector for PendingRelayConnector {
+        fn connect(
+            &self,
+            _request: RelayConnectRequest,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<iroh_relay::client::Client, RelayConnectError>> + Send>,
+        > {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let dropped = self.dropped.clone();
+            Box::pin(async move {
+                struct DropSignal(Arc<AtomicBool>);
+                impl Drop for DropSignal {
+                    fn drop(&mut self) {
+                        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
+                }
+                let _signal = DropSignal(dropped);
+                std::future::pending().await
+            })
+        }
+    }
+
+    impl RelayConnector for FailingRelayConnector {
+        fn connect(
+            &self,
+            request: RelayConnectRequest,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<iroh_relay::client::Client, RelayConnectError>> + Send>,
+        > {
+            assert_eq!(request.url().as_str(), "https://injected-relay.invalid/");
+            assert_eq!(request.secret_key().public(), request.endpoint_id());
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async { Err(RelayConnectError::new("injected dial failure")) })
+        }
+    }
+
+    #[tokio::test]
+    async fn injected_connector_owns_relay_dial() {
+        let connector = Arc::new(FailingRelayConnector::default());
+        let (_prio_tx, prio_rx) = mpsc::channel(1);
+        let (_inbox_tx, inbox_rx) = mpsc::channel(1);
+        let (_send_tx, send_rx) = mpsc::channel(1);
+        let (recv_tx, _recv_rx) = mpsc::channel(1);
+        let url: RelayUrl = "https://injected-relay.invalid".parse().unwrap();
+        let secret_key = SecretKey::from_bytes(&[77; 32]);
+        let actor = ActiveRelayActor::new(ActiveRelayActorOptions {
+            url: url.clone(),
+            prio_inbox_: prio_rx,
+            inbox: inbox_rx,
+            relay_datagrams_send: send_rx,
+            relay_datagrams_recv: recv_tx,
+            connection_opts: RelayConnectionOptions {
+                secret_key: secret_key.clone(),
+                dns_resolver: DnsResolver::new(),
+                proxy_url: None,
+                prefer_ipv6: Arc::new(AtomicBool::new(false)),
+                tls_config: CaTlsConfig::insecure_skip_verify()
+                    .client_config(default_provider())
+                    .expect("infallible"),
+                auth_token: None,
+            },
+            relay_connector: Some(connector.clone()),
+            runtime: test_runtime(&secret_key),
+            stop_token: CancellationToken::new(),
+            metrics: Default::default(),
+            my_relay: Default::default(),
+        })
+        .unwrap();
+
+        assert!(actor.dial_relay().await.is_err());
+        assert_eq!(connector.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn cancelling_an_injected_dial_drops_the_owned_connector_future() {
+        let connector = Arc::new(PendingRelayConnector::default());
+        let (_prio_tx, prio_rx) = mpsc::channel(1);
+        let (_inbox_tx, inbox_rx) = mpsc::channel(1);
+        let (_send_tx, send_rx) = mpsc::channel(1);
+        let (recv_tx, _recv_rx) = mpsc::channel(1);
+        let url: RelayUrl = "https://cancelled-relay.invalid".parse().unwrap();
+        let secret_key = SecretKey::from_bytes(&[78; 32]);
+        let actor = ActiveRelayActor::new(ActiveRelayActorOptions {
+            url,
+            prio_inbox_: prio_rx,
+            inbox: inbox_rx,
+            relay_datagrams_send: send_rx,
+            relay_datagrams_recv: recv_tx,
+            connection_opts: RelayConnectionOptions {
+                secret_key: secret_key.clone(),
+                dns_resolver: DnsResolver::new(),
+                proxy_url: None,
+                prefer_ipv6: Arc::new(AtomicBool::new(false)),
+                tls_config: CaTlsConfig::insecure_skip_verify()
+                    .client_config(default_provider())
+                    .expect("infallible"),
+                auth_token: None,
+            },
+            relay_connector: Some(connector.clone()),
+            runtime: test_runtime(&secret_key),
+            stop_token: CancellationToken::new(),
+            metrics: Default::default(),
+            my_relay: Default::default(),
+        })
+        .unwrap();
+
+        let mut dial = Box::pin(actor.dial_relay());
+        std::future::poll_fn(|cx| {
+            assert!(dial.as_mut().poll(cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        assert_eq!(connector.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(!connector.dropped.load(std::sync::atomic::Ordering::SeqCst));
+        drop(dial);
+        assert!(connector.dropped.load(std::sync::atomic::Ordering::SeqCst));
+    }
 
     /// Starts a new [`ActiveRelayActor`].
     #[allow(clippy::too_many_arguments)]
@@ -1422,6 +2039,7 @@ mod tests {
         relay_datagrams_recv: mpsc::Sender<RelayRecvDatagram>,
         span: tracing::Span,
     ) -> AbortOnDropHandle<()> {
+        let runtime = test_runtime(&secret_key);
         let opts = ActiveRelayActorOptions {
             url,
             prio_inbox_: prio_inbox_rx,
@@ -1438,11 +2056,13 @@ mod tests {
                     .expect("infallible"),
                 auth_token: None,
             },
+            relay_connector: None,
+            runtime,
             stop_token,
             metrics: Default::default(),
             my_relay: Default::default(),
         };
-        let task = tokio::spawn(ActiveRelayActor::new(opts).run().instrument(span));
+        let task = tokio::spawn(ActiveRelayActor::new(opts).unwrap().run().instrument(span));
         AbortOnDropHandle::new(task)
     }
 

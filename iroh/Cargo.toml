@@ -74,7 +74,9 @@ axum = { version = "0.8", optional = true }
 # non-wasm-in-browser dependencies
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 
+curve25519-dalek = { version = "5", default-features = false, features = ["zeroize"] }
 hickory-resolver = { version = "0.26.0", default-features = false }
+iroh-runtime = { version = "1.0.3", path = "../iroh-runtime" }
 portmapper = { version = "0.19.1", optional = true, default-features = false }
 noq = { version = "1.0.1", default-features = false, features = ["runtime-tokio", "rustls"] }
 tokio = { version = "1", features = [
@@ -86,6 +88,7 @@ tokio = { version = "1", features = [
     "fs",
     "io-std",
 ] }
+zeroize = "1.9"
 
 # wasm-in-browser dependencies
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
@@ -174,10 +177,12 @@ allowed_external_types = [
     "iroh_base::*",
     "iroh_dns::*",
     "iroh_relay::*",
+    "iroh_runtime::*",
     # crates owned by us that will move to 1.0 as well
     "iroh_metrics::*",
     "n0_error::*",
     "n0_watcher::*",
+    "netwatch::*",
     "noq::*",
     "noq_proto::*",
     "noq_udp::*",

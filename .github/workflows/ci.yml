@@ -33,6 +33,102 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/tests.yaml"
 
+  simulation_contracts:
+    name: Deterministic simulation contracts
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check boundary checker contract
+        run: scripts/tests/check-determinism-boundaries.sh
+      - name: Check reviewed boundary inventory
+        run: scripts/check-determinism-boundaries.sh --check
+      - name: Test runtime capability contracts
+        run: cargo test -p iroh-runtime
+      - name: Test manifest, trace, and replay contracts
+        run: cargo test -p iroh-sim
+      - name: Validate simulation operations and cross-backend parity policy
+        run: cargo test -p iroh-sim --test operations --test parity
+      - name: Run and replay Stage 2 production-IP smoke scenario
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- run \
+            iroh-sim/tests/fixtures/ipv4-stream.json \
+            --seed 1111111111111111111111111111111111111111111111111111111111111111 \
+            --artifacts "$RUNNER_TEMP/iroh-sim-smoke"
+          cargo run -p iroh-sim --bin cargo-sim -- replay \
+            "$RUNNER_TEMP/iroh-sim-smoke/manifest.json"
+      - name: Run and replay Stage 3 declarative production-IP smoke scenario
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- run \
+            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+            --seed 1212121212121212121212121212121212121212121212121212121212121212 \
+            --artifacts "$RUNNER_TEMP/iroh-sim-declarative"
+          cargo run -p iroh-sim --bin cargo-sim -- replay \
+            "$RUNNER_TEMP/iroh-sim-declarative/manifest.json"
+      - name: Run and replay production-crypto semantic smoke scenario
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- run \
+            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+            --seed 1313131313131313131313131313131313131313131313131313131313131313 \
+            --crypto production-provider \
+            --artifacts "$RUNNER_TEMP/iroh-sim-production-crypto"
+          cargo run -p iroh-sim --bin cargo-sim -- replay \
+            "$RUNNER_TEMP/iroh-sim-production-crypto/manifest.json"
+      - name: Test reviewed corpus and bounded generated campaign
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+            --seeds 0..4 --jobs 2 --generated --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-campaign"
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/direct-smoke.json \
+            --seeds 0..4 --jobs 2 --continue-on-failure --max-runs 4 \
+            --artifacts "$RUNNER_TEMP/iroh-sim-swarm"
+      - name: Run Stage 4 NAT, discovery, and mobility smoke campaigns
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/nat-behavior.json \
+            --seeds 0..2 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-nat"
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/discovery-timing.json \
+            --seeds 0..2 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-discovery"
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/mobility-timing.json \
+            --seeds 0..2 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-mobility"
+      - name: Run Stage 5 relay restart and fallback smoke campaigns
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/relay-lifecycle.json \
+            --seeds 0..3 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-restart"
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            iroh-sim/corpus/stage5-direct-relay-fallback/scenario.json \
+            --seeds 0..3 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-fallback"
+      - name: Run Stage 6 rare ready-order replay smoke campaigns
+        run: |
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            --swarm iroh-sim/swarms/ready-order-pressure.json \
+            --seeds 0..8 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage6-direct-schedules"
+          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+            iroh-sim/corpus/stage5-relay-restart/scenario.json \
+            --seeds 0..8 --jobs 2 --continue-on-failure \
+            --artifacts "$RUNNER_TEMP/iroh-sim-stage6-relay-schedules"
+      - name: Test Iroh runtime adapter
+        run: cargo test -p iroh --lib runtime --all-features
+      - name: Check native minimal feature graph
+        run: cargo check -p iroh --no-default-features
+      - name: Check simulation code quality
+        run: cargo clippy -p iroh-runtime -p iroh-sim -p iroh --all-targets --all-features -- -D warnings
+
   cross_build:
     name: Cross Build Only
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
@@ -329,6 +425,9 @@ jobs:
       - name: wasm32 build (iroh)
         run: cargo build --target wasm32-unknown-unknown -p iroh
 
+      - name: wasm32 build (iroh-runtime portable contracts)
+        run: cargo build --target wasm32-unknown-unknown -p iroh-runtime
+
       # If the Wasm file contains any 'import "env"' declarations, then
       # some non-Wasm-compatible code made it into the final code.
       - name: Ensure no 'import "env"' in iroh-relay Wasm
@@ -417,6 +516,8 @@ jobs:
       - uses: ./.github/workflows/sccache-probe
       - uses: taiki-e/install-action@cargo-make
       - run: cargo make format-check
+      - name: Check determinism boundary inventory
+        run: scripts/check-determinism-boundaries.sh --check
 
   check_docs:
     timeout-minutes: 30

@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "metadata": {
+    "id": "stage3-trigger-stall",
+    "description": "Minimized Stage 3 observation-trigger stall regression.",
+    "tags": [
+      "minimized",
+      "stage3"
+    ]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": false,
+    "relay": false,
+    "discovery": false,
+    "mobility": false
+  },
+  "budgets": {
+    "max_events": 64,
+    "max_virtual_time_nanos": 1,
+    "max_tasks": 1,
+    "max_packets": 1,
+    "max_trace_events": 64,
+    "max_obligations": 1,
+    "max_actions": 1,
+    "max_payload_bytes": 1
+  },
+  "topology": {
+    "hosts": [],
+    "links": []
+  },
+  "endpoints": [],
+  "actions": [
+    {
+      "id": "cause",
+      "schedule": {
+        "kind": "after_observation",
+        "observation": {
+          "kind": "invariant_satisfied",
+          "invariant": "delivery_integrity"
+        }
+      },
+      "action": {
+        "kind": "expect_failure",
+        "class": "trigger_stall"
+      }
+    }
+  ],
+  "fault_rules": [],
+  "fairness": [],
+  "completion": {
+    "kind": "all_actions",
+    "shutdown_deadline_nanos": 1
+  },
+  "allowed_terminals": [
+    "expected_failure"
+  ],
+  "invariants": [
+    {
+      "name": "delivery_integrity",
+      "deadline_nanos": null,
+      "max_events": null
+    }
+  ]
+}

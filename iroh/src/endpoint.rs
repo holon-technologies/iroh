@@ -148,6 +148,20 @@ pub struct Builder {
     net_report_config: NetReportConfig,
     crypto_provider: Option<Arc<rustls::crypto::CryptoProvider>>,
     configured_addrs: BTreeSet<SocketAddr>,
+    #[cfg(not(wasm_browser))]
+    runtime_context: Option<Arc<iroh_runtime::RuntimeContext>>,
+    #[cfg(not(wasm_browser))]
+    ip_socket_factory: Option<Arc<dyn crate::simulation::IpSocketFactory>>,
+    #[cfg(not(wasm_browser))]
+    network_monitor: Option<Arc<dyn crate::simulation::NetworkMonitor>>,
+    #[cfg(not(wasm_browser))]
+    simulation_port_mapper: Option<Arc<dyn crate::simulation::PortMapper>>,
+    #[cfg(not(wasm_browser))]
+    simulation_relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
+    #[cfg(not(wasm_browser))]
+    simulation_preferred_relay: Option<iroh_base::RelayUrl>,
+    #[cfg(not(wasm_browser))]
+    simulation_crypto: Option<crate::simulation::SimulationCryptoMaterial>,
 }
 
 impl From<RelayMode> for Option<TransportConfig> {
@@ -216,6 +230,20 @@ impl Builder {
             net_report_config: Default::default(),
             crypto_provider: None,
             configured_addrs: Default::default(),
+            #[cfg(not(wasm_browser))]
+            runtime_context: None,
+            #[cfg(not(wasm_browser))]
+            ip_socket_factory: None,
+            #[cfg(not(wasm_browser))]
+            network_monitor: None,
+            #[cfg(not(wasm_browser))]
+            simulation_port_mapper: None,
+            #[cfg(not(wasm_browser))]
+            simulation_relay_connector: None,
+            #[cfg(not(wasm_browser))]
+            simulation_preferred_relay: None,
+            #[cfg(not(wasm_browser))]
+            simulation_crypto: None,
         }
     }
 
@@ -225,14 +253,31 @@ impl Builder {
     pub async fn bind(self) -> Result<Endpoint, BindError> {
         let secret_key = self.secret_key.unwrap_or_else(SecretKey::generate);
 
+        #[cfg(not(wasm_browser))]
+        let runtime_context = self.runtime_context.unwrap_or_else(|| {
+            Arc::new(iroh_runtime::RuntimeContext::production(Arc::new(
+                iroh_runtime::NoopTraceSink,
+            )))
+        });
+
         let crypto_provider = self
             .crypto_provider
             .ok_or_else(|| e!(BindError::InvalidCryptoProvider))?;
 
-        let token_key = Arc::new(
+        #[cfg(not(wasm_browser))]
+        let simulation_crypto = self.simulation_crypto;
+        #[cfg(not(wasm_browser))]
+        let token_key = if let Some(material) = simulation_crypto {
+            RustlsTokenKey::from_key(material.token_key(), &crypto_provider)
+                .ok_or_else(|| e!(BindError::InvalidCryptoProvider))?
+        } else {
             RustlsTokenKey::new(&mut rand::rng(), &crypto_provider)
-                .ok_or_else(|| e!(BindError::InvalidCryptoProvider))?,
-        );
+                .ok_or_else(|| e!(BindError::InvalidCryptoProvider))?
+        };
+        #[cfg(wasm_browser)]
+        let token_key = RustlsTokenKey::new(&mut rand::rng(), &crypto_provider)
+            .ok_or_else(|| e!(BindError::InvalidCryptoProvider))?;
+        let token_key = Arc::new(token_key);
 
         let span = info_span!("endpoint", id = %secret_key.public().fmt_short());
         let _guard = span.enter();
@@ -249,6 +294,12 @@ impl Builder {
             transport_config: self.transport_config.clone(),
             token_key,
             token_store: Arc::new(noq::TokenMemoryCache::default()),
+            #[cfg(not(wasm_browser))]
+            runtime_context: runtime_context.clone(),
+            #[cfg(not(wasm_browser))]
+            simulation_initial_dst_cid_provider: simulation_crypto.map(|material| {
+                socket::deterministic_simulation_initial_dst_cid_provider(material.reset_key())
+            }),
         };
         let server_config = static_config.create_server_config(self.alpn_protocols);
 
@@ -270,6 +321,22 @@ impl Builder {
             proxy_url: self.proxy_url,
             #[cfg(not(wasm_browser))]
             dns_resolver,
+            #[cfg(not(wasm_browser))]
+            runtime_context,
+            #[cfg(not(wasm_browser))]
+            ip_socket_factory: self
+                .ip_socket_factory
+                .unwrap_or_else(|| Arc::new(crate::simulation::OsIpSocketFactory)),
+            #[cfg(not(wasm_browser))]
+            network_monitor: self.network_monitor,
+            #[cfg(not(wasm_browser))]
+            simulation_port_mapper: self.simulation_port_mapper,
+            #[cfg(not(wasm_browser))]
+            simulation_relay_connector: self.simulation_relay_connector,
+            #[cfg(not(wasm_browser))]
+            simulation_preferred_relay: self.simulation_preferred_relay,
+            #[cfg(not(wasm_browser))]
+            simulation_reset_key: simulation_crypto.map(|material| material.reset_key()),
             server_config,
             tls_config,
             metrics,
@@ -305,6 +372,81 @@ impl Builder {
         }
 
         Ok(ep)
+    }
+
+    /// Injects a non-production runtime context for deterministic test infrastructure.
+    ///
+    /// Production callers should use the default installed by [`Builder::bind`]. This method is
+    /// intentionally explicit and cannot be selected through environment variables or features.
+    #[doc(hidden)]
+    #[cfg(not(wasm_browser))]
+    pub fn runtime_context_for_test(
+        mut self,
+        runtime_context: Arc<iroh_runtime::RuntimeContext>,
+        _marker: iroh_runtime::UnsafeTestOnly,
+    ) -> Self {
+        self.runtime_context = Some(runtime_context);
+        self
+    }
+
+    /// Injects an environment-owned IP socket factory for deterministic test infrastructure.
+    ///
+    /// Normal endpoint builders always install the OS-backed factory. This method is explicit,
+    /// unstable, and requires the same unsafe-test acknowledgement as runtime injection.
+    #[doc(hidden)]
+    #[cfg(not(wasm_browser))]
+    pub fn ip_socket_factory_for_test(
+        mut self,
+        factory: Arc<dyn crate::simulation::IpSocketFactory>,
+        _marker: iroh_runtime::UnsafeTestOnly,
+    ) -> Self {
+        self.ip_socket_factory = Some(factory);
+        self
+    }
+
+    /// Injects a deterministic interface-state source for repository simulations.
+    #[doc(hidden)]
+    #[cfg(not(wasm_browser))]
+    pub fn network_monitor_for_test(
+        mut self,
+        monitor: Arc<dyn crate::simulation::NetworkMonitor>,
+        _marker: iroh_runtime::UnsafeTestOnly,
+    ) -> Self {
+        self.network_monitor = Some(monitor);
+        self
+    }
+
+    /// Installs explicit deterministic QUIC token/reset material for repository simulations.
+    #[doc(hidden)]
+    #[cfg(not(wasm_browser))]
+    pub fn simulation_crypto_for_test(
+        mut self,
+        material: crate::simulation::SimulationCryptoMaterial,
+        _marker: iroh_runtime::UnsafeTestOnly,
+    ) -> Self {
+        self.simulation_crypto = Some(material);
+        self
+    }
+
+    /// Installs one coherent deterministic environment for repository simulation runs.
+    #[doc(hidden)]
+    #[cfg(not(wasm_browser))]
+    pub fn simulation_environment_for_test(
+        mut self,
+        environment: crate::simulation::SimulationEnvironment,
+        _marker: iroh_runtime::UnsafeTestOnly,
+    ) -> Self {
+        self.runtime_context = Some(environment.runtime);
+        self.ip_socket_factory = Some(environment.ip_sockets);
+        self.network_monitor = Some(environment.network_monitor);
+        self.simulation_port_mapper = environment.port_mapper;
+        self.simulation_relay_connector = environment.relay_connector;
+        self.simulation_preferred_relay = environment.preferred_relay;
+        self.simulation_crypto = Some(environment.crypto);
+        if let Some(provider) = environment.crypto_provider {
+            self.crypto_provider = Some(provider);
+        }
+        self
     }
 
     // # The very common methods everyone basically needs.
@@ -2000,6 +2142,7 @@ mod tests {
         collections::BTreeMap,
         io,
         net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4},
+        pin::Pin,
         str::FromStr,
         sync::Arc,
         time::{Duration, Instant},
@@ -2019,7 +2162,7 @@ mod tests {
     use tokio::sync::oneshot;
     use tracing::{Instrument, debug_span, error_span, info, info_span, instrument};
 
-    use super::Endpoint;
+    use super::{Builder, Endpoint};
     use crate::{
         RelayMap, RelayMode,
         address_lookup::memory::MemoryLookup,
@@ -2034,6 +2177,142 @@ mod tests {
     };
 
     const TEST_ALPN: &[u8] = b"n0/iroh/test";
+
+    #[test]
+    fn builder_uses_production_runtime_default_lazily() {
+        assert!(Builder::empty().runtime_context.is_none());
+    }
+
+    #[test]
+    fn builder_retains_explicit_test_runtime_context() {
+        let context = Arc::new(iroh_runtime::RuntimeContext::tokio(
+            iroh_runtime::RootSeed::new([23; 32]),
+            Arc::new(iroh_runtime::NoopTraceSink),
+        ));
+        let builder = Builder::empty()
+            .runtime_context_for_test(context.clone(), iroh_runtime::UnsafeTestOnly::acknowledge());
+
+        assert!(Arc::ptr_eq(
+            builder.runtime_context.as_ref().unwrap(),
+            &context
+        ));
+    }
+
+    #[cfg(not(wasm_browser))]
+    #[test]
+    fn builder_retains_explicit_test_ip_socket_factory() {
+        #[derive(Debug)]
+        struct NeverBind;
+
+        impl crate::simulation::IpSocketFactory for NeverBind {
+            fn bind(
+                &self,
+                _addr: SocketAddr,
+            ) -> std::io::Result<Arc<dyn crate::simulation::IpSocket>> {
+                panic!("retention test must not bind")
+            }
+        }
+
+        let factory: Arc<dyn crate::simulation::IpSocketFactory> = Arc::new(NeverBind);
+        let builder = Builder::empty().ip_socket_factory_for_test(
+            factory.clone(),
+            iroh_runtime::UnsafeTestOnly::acknowledge(),
+        );
+
+        assert!(Arc::ptr_eq(
+            builder.ip_socket_factory.as_ref().unwrap(),
+            &factory
+        ));
+    }
+
+    #[cfg(not(wasm_browser))]
+    #[test]
+    fn builder_retains_explicit_test_network_monitor() {
+        #[derive(Debug)]
+        struct StableMonitor(n0_watcher::Watchable<netwatch::netmon::State>);
+
+        impl crate::simulation::NetworkMonitor for StableMonitor {
+            fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
+                self.0.watch()
+            }
+
+            fn network_change(&self) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+                Box::pin(std::future::ready(()))
+            }
+        }
+
+        let monitor: Arc<dyn crate::simulation::NetworkMonitor> = Arc::new(StableMonitor(
+            n0_watcher::Watchable::new(netwatch::netmon::State::fake()),
+        ));
+        let builder = Builder::empty()
+            .network_monitor_for_test(monitor.clone(), iroh_runtime::UnsafeTestOnly::acknowledge());
+
+        assert!(Arc::ptr_eq(
+            builder.network_monitor.as_ref().unwrap(),
+            &monitor
+        ));
+    }
+
+    #[cfg(not(wasm_browser))]
+    #[test]
+    fn builder_retains_explicit_simulation_crypto_material() {
+        let material = crate::simulation::SimulationCryptoMaterial::new([11; 32], [12; 32]);
+        let builder = Builder::empty()
+            .simulation_crypto_for_test(material, iroh_runtime::UnsafeTestOnly::acknowledge());
+
+        assert_eq!(builder.simulation_crypto, Some(material));
+    }
+
+    #[tokio::test]
+    async fn explicit_test_runtime_context_reaches_bound_endpoint() {
+        let context = Arc::new(iroh_runtime::RuntimeContext::tokio(
+            iroh_runtime::RootSeed::new([29; 32]),
+            Arc::new(iroh_runtime::NoopTraceSink),
+        ));
+        let endpoint = Endpoint::builder(presets::Minimal)
+            .runtime_context_for_test(context.clone(), iroh_runtime::UnsafeTestOnly::acknowledge())
+            .bind()
+            .await
+            .unwrap();
+
+        assert!(Arc::ptr_eq(endpoint.inner.runtime_context(), &context));
+        endpoint.close().await;
+        assert!(endpoint.inner.runtime_task_snapshot().tasks.is_empty());
+    }
+
+    #[cfg(not(wasm_browser))]
+    #[tokio::test]
+    async fn injected_ip_factory_prevents_os_socket_binding() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug)]
+        struct RejectBind(Arc<AtomicUsize>);
+
+        impl crate::simulation::IpSocketFactory for RejectBind {
+            fn bind(
+                &self,
+                _addr: SocketAddr,
+            ) -> std::io::Result<Arc<dyn crate::simulation::IpSocket>> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "injected socket rejection",
+                ))
+            }
+        }
+
+        let bind_calls = Arc::new(AtomicUsize::new(0));
+        let result = Endpoint::builder(presets::Minimal)
+            .ip_socket_factory_for_test(
+                Arc::new(RejectBind(bind_calls.clone())),
+                iroh_runtime::UnsafeTestOnly::acknowledge(),
+            )
+            .bind()
+            .await;
+
+        assert!(result.is_err());
+        assert_eq!(bind_calls.load(Ordering::SeqCst), 1);
+    }
 
     #[tokio::test]
     #[traced_test]
@@ -3976,6 +4255,19 @@ mod tests {
         .expect("watchers not closed");
 
         info!("Done!");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[traced_test]
+    async fn endpoint_close_is_idempotent() -> Result {
+        let endpoint = Endpoint::builder(presets::N0).bind().await?;
+
+        endpoint.close().await;
+        tokio::time::timeout(Duration::from_secs(1), endpoint.close())
+            .await
+            .expect("a repeated close completes immediately");
+
         Ok(())
     }
 

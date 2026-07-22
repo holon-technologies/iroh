@@ -85,3 +85,194 @@ pub fn server_config() -> ServerConfig {
         metrics_addr: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use iroh_base::{RelayUrl, SecretKey};
+    use iroh_dns::dns::DnsResolver;
+    use n0_error::Result;
+    use n0_future::{SinkExt, StreamExt};
+
+    use super::*;
+    use crate::{
+        KeyCache,
+        client::ClientBuilder,
+        http::ProtocolVersion,
+        protos::relay::{ClientToRelayMsg, Datagrams, RelayToClientMsg, Status},
+        server::{Metrics, http_server::RelayService},
+    };
+
+    fn relay_service() -> RelayService {
+        RelayService::new(
+            Default::default(),
+            Default::default(),
+            None,
+            KeyCache::new(32),
+            Arc::new(AllowAll),
+            Arc::new(Metrics::default()),
+        )
+    }
+
+    fn client_builder(url: &RelayUrl, key: SecretKey) -> ClientBuilder {
+        ClientBuilder::new(url.clone(), key, DnsResolver::new())
+    }
+
+    #[tokio::test]
+    async fn in_memory_session_runs_production_authentication_and_routing() -> Result {
+        let relay = relay_service();
+        let url = RelayUrl::from_str("https://relay-1.invalid")?;
+        let a_key = SecretKey::from_bytes(&[1; 32]);
+        let b_key = SecretKey::from_bytes(&[2; 32]);
+        let a_id = a_key.public();
+        let b_id = b_key.public();
+
+        let mut a = relay
+            .connect_in_memory(&client_builder(&url, a_key), ProtocolVersion::V2, 64 * 1024)
+            .await?;
+        let mut b = relay
+            .connect_in_memory(&client_builder(&url, b_key), ProtocolVersion::V2, 64 * 1024)
+            .await?;
+
+        let payload = Datagrams::from(b"authenticated production relay frame");
+        a.send(ClientToRelayMsg::Datagrams {
+            dst_endpoint_id: b_id,
+            datagrams: payload.clone(),
+        })
+        .await?;
+
+        assert_eq!(
+            b.next().await.transpose()?,
+            Some(RelayToClientMsg::Datagrams {
+                remote_endpoint_id: a_id,
+                datagrams: payload,
+            })
+        );
+
+        relay.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_memory_session_preserves_protocol_version_compatibility() -> Result {
+        let relay = relay_service();
+        let url = RelayUrl::from_str("https://relay-1.invalid")?;
+        let key = SecretKey::from_bytes(&[3; 32]);
+        let mut client = relay
+            .connect_in_memory(&client_builder(&url, key), ProtocolVersion::V1, 8 * 1024)
+            .await?;
+
+        let ping = [9; 8];
+        client.send(ClientToRelayMsg::Ping(ping)).await?;
+        assert_eq!(
+            client.next().await.transpose()?,
+            Some(RelayToClientMsg::Pong(ping))
+        );
+
+        relay.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_memory_session_drops_unknown_destinations_without_poisoning_the_session() -> Result
+    {
+        let relay = relay_service();
+        let url = RelayUrl::from_str("https://relay-1.invalid")?;
+        let mut client = relay
+            .connect_in_memory(
+                &client_builder(&url, SecretKey::from_bytes(&[4; 32])),
+                ProtocolVersion::V2,
+                8 * 1024,
+            )
+            .await?;
+
+        client
+            .send(ClientToRelayMsg::Datagrams {
+                dst_endpoint_id: SecretKey::from_bytes(&[5; 32]).public(),
+                datagrams: Datagrams::from(b"must be isolated"),
+            })
+            .await?;
+        let ping = [6; 8];
+        client.send(ClientToRelayMsg::Ping(ping)).await?;
+        assert_eq!(
+            client.next().await.transpose()?,
+            Some(RelayToClientMsg::Pong(ping))
+        );
+
+        relay.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_memory_duplicate_identity_promotes_the_newest_session() -> Result {
+        let relay = relay_service();
+        let url = RelayUrl::from_str("https://relay-1.invalid")?;
+        let duplicate_key = SecretKey::from_bytes(&[7; 32]);
+        let duplicate_id = duplicate_key.public();
+        let sender_key = SecretKey::from_bytes(&[8; 32]);
+        let sender_id = sender_key.public();
+        let mut first = relay
+            .connect_in_memory(
+                &client_builder(&url, duplicate_key.clone()),
+                ProtocolVersion::V2,
+                16 * 1024,
+            )
+            .await?;
+        let mut second = relay
+            .connect_in_memory(
+                &client_builder(&url, duplicate_key),
+                ProtocolVersion::V2,
+                16 * 1024,
+            )
+            .await?;
+        let mut sender = relay
+            .connect_in_memory(
+                &client_builder(&url, sender_key),
+                ProtocolVersion::V2,
+                16 * 1024,
+            )
+            .await?;
+
+        assert_eq!(
+            first.next().await.transpose()?,
+            Some(RelayToClientMsg::Status(Status::SameEndpointIdConnected))
+        );
+        let payload = Datagrams::from(b"newest session only");
+        sender
+            .send(ClientToRelayMsg::Datagrams {
+                dst_endpoint_id: duplicate_id,
+                datagrams: payload.clone(),
+            })
+            .await?;
+        assert_eq!(
+            second.next().await.transpose()?,
+            Some(RelayToClientMsg::Datagrams {
+                remote_endpoint_id: sender_id,
+                datagrams: payload,
+            })
+        );
+
+        relay.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_memory_shutdown_closes_sessions_and_registry_entries() -> Result {
+        let relay = relay_service();
+        let url = RelayUrl::from_str("https://relay-1.invalid")?;
+        let mut client = relay
+            .connect_in_memory(
+                &client_builder(&url, SecretKey::from_bytes(&[9; 32])),
+                ProtocolVersion::V2,
+                8 * 1024,
+            )
+            .await?;
+        assert_eq!(relay.clients().connection_count(), 1);
+
+        relay.shutdown().await;
+        assert_eq!(relay.clients().connection_count(), 0);
+        assert!(client.next().await.is_none());
+        Ok(())
+    }
+}

@@ -9,17 +9,21 @@ use std::{
 
 use ipnet::{Ipv4Net, Ipv6Net};
 use n0_watcher::Watchable;
-use netwatch::{UdpSender, UdpSocket};
-use pin_project::pin_project;
 use tracing::{debug, info, trace};
 
 use super::{RecvInfo, Transmit};
-use crate::metrics::{EndpointMetrics, SocketMetrics};
+use crate::{
+    metrics::{EndpointMetrics, SocketMetrics},
+    simulation::{IpSocket, IpSocketFactory, IpSocketSender},
+};
+
+#[cfg(test)]
+use crate::simulation::OsIpSocketFactory;
 
 #[derive(Debug)]
 pub(crate) struct IpTransport {
     config: Config,
-    socket: Arc<UdpSocket>,
+    socket: Arc<dyn IpSocket>,
     local_addr: Watchable<SocketAddr>,
     metrics: Arc<SocketMetrics>,
 }
@@ -168,10 +172,14 @@ impl From<Config> for SocketAddr {
 }
 
 impl IpTransport {
-    pub(crate) fn bind(config: Config, metrics: Arc<SocketMetrics>) -> io::Result<Self> {
+    fn bind_with_factory(
+        config: Config,
+        metrics: Arc<SocketMetrics>,
+        factory: &dyn IpSocketFactory,
+    ) -> io::Result<Self> {
         let addr: SocketAddr = config.into();
         debug!(?addr, "binding");
-        let socket = netwatch::UdpSocket::bind_full(addr).inspect_err(|err| {
+        let socket = factory.bind(addr).inspect_err(|err| {
             debug!(%addr, "failed to bind: {err:#}");
         })?;
         let local_addr = socket.local_addr()?;
@@ -182,7 +190,7 @@ impl IpTransport {
 
         Ok(Self {
             config,
-            socket: Arc::new(socket),
+            socket,
             local_addr,
             metrics,
         })
@@ -202,7 +210,7 @@ impl IpTransport {
             recv_infos.len(),
             "non matching bufs & recv_infos"
         );
-        match self.socket.poll_recv_noq(cx, bufs, metas) {
+        match self.socket.poll_recv(cx, bufs, metas) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(Ok(n)) => {
                 for i in 0..n {
@@ -235,11 +243,11 @@ impl IpTransport {
     }
 
     pub(super) fn max_transmit_segments(&self) -> NonZeroUsize {
-        self.socket.max_gso_segments()
+        self.socket.max_transmit_segments()
     }
 
     pub(super) fn max_receive_segments(&self) -> NonZeroUsize {
-        self.socket.gro_segments()
+        self.socket.max_receive_segments()
     }
 
     pub(super) fn may_fragment(&self) -> bool {
@@ -261,6 +269,7 @@ impl IpTransport {
         let sender = self.socket.clone().create_sender();
         IpSender {
             config: self.config,
+            socket: self.socket.clone(),
             sender,
             metrics: self.metrics.clone(),
         }
@@ -269,7 +278,7 @@ impl IpTransport {
 
 #[derive(Debug)]
 pub(super) struct IpNetworkChangeSender {
-    socket: Arc<UdpSocket>,
+    socket: Arc<dyn IpSocket>,
     local_addr: Watchable<SocketAddr>,
 }
 
@@ -289,13 +298,23 @@ impl IpNetworkChangeSender {
     }
 }
 
-#[derive(Debug, Clone)]
-#[pin_project]
+#[derive(Debug)]
 pub(super) struct IpSender {
     config: Config,
-    #[pin]
-    sender: UdpSender,
+    socket: Arc<dyn IpSocket>,
+    sender: Pin<Box<dyn IpSocketSender>>,
     metrics: Arc<SocketMetrics>,
+}
+
+impl Clone for IpSender {
+    fn clone(&self) -> Self {
+        Self {
+            config: self.config,
+            socket: self.socket.clone(),
+            sender: self.socket.clone().create_sender(),
+            metrics: self.metrics.clone(),
+        }
+    }
 }
 
 impl IpSender {
@@ -325,7 +344,7 @@ impl IpSender {
         transmit: &Transmit<'_>,
     ) -> Poll<io::Result<()>> {
         let total_bytes = transmit.contents.len() as u64;
-        let res = Pin::new(&mut self.sender).poll_send(
+        let res = self.sender.as_mut().poll_send(
             &noq_udp::Transmit {
                 destination: Self::canonical_addr(dst),
                 ecn: transmit.ecn,
@@ -413,9 +432,18 @@ impl IpTransports {
         self.v4.iter().chain(self.v6.iter())
     }
 
+    #[cfg(test)]
     pub(super) fn bind(
         configs: impl Iterator<Item = Config>,
         metrics: &EndpointMetrics,
+    ) -> io::Result<Self> {
+        Self::bind_with_factory(configs, metrics, Arc::new(OsIpSocketFactory))
+    }
+
+    pub(super) fn bind_with_factory(
+        configs: impl Iterator<Item = Config>,
+        metrics: &EndpointMetrics,
+        factory: Arc<dyn IpSocketFactory>,
     ) -> io::Result<Self> {
         let mut has_v4_default = false;
         let mut ip_v4 = Vec::new();
@@ -424,7 +452,7 @@ impl IpTransports {
         let mut ip_v6 = Vec::new();
 
         for config in configs {
-            match IpTransport::bind(config, metrics.socket.clone()) {
+            match IpTransport::bind_with_factory(config, metrics.socket.clone(), &*factory) {
                 Ok(transport) => {
                     if config.is_ipv4() {
                         if config.is_default() {
@@ -479,7 +507,101 @@ impl IpTransports {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicU16, Ordering},
+    };
+
     use super::*;
+    use crate::simulation::{IpSocket, IpSocketFactory, IpSocketSender};
+    use n0_watcher::Watcher as _;
+
+    #[derive(Debug, Default)]
+    struct RecordingFactory {
+        binds: Mutex<Vec<SocketAddr>>,
+        next_port: AtomicU16,
+    }
+
+    impl IpSocketFactory for RecordingFactory {
+        fn bind(&self, addr: SocketAddr) -> io::Result<Arc<dyn IpSocket>> {
+            self.binds.lock().unwrap().push(addr);
+            let port = if addr.port() == 0 {
+                self.next_port.fetch_add(1, Ordering::Relaxed).max(40_000)
+            } else {
+                addr.port()
+            };
+            Ok(Arc::new(FakeSocket {
+                local_addr: SocketAddr::new(addr.ip(), port),
+            }))
+        }
+    }
+
+    #[derive(Debug)]
+    struct FakeSocket {
+        local_addr: SocketAddr,
+    }
+
+    impl IpSocket for FakeSocket {
+        fn create_sender(self: Arc<Self>) -> Pin<Box<dyn IpSocketSender>> {
+            Box::pin(FakeSender)
+        }
+
+        fn poll_recv(
+            &self,
+            _cx: &mut Context<'_>,
+            _bufs: &mut [io::IoSliceMut<'_>],
+            _metas: &mut [noq_udp::RecvMeta],
+        ) -> Poll<io::Result<usize>> {
+            Poll::Pending
+        }
+
+        fn local_addr(&self) -> io::Result<SocketAddr> {
+            Ok(self.local_addr)
+        }
+
+        fn rebind(&self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct FakeSender;
+
+    impl IpSocketSender for FakeSender {
+        fn poll_send(
+            self: Pin<&mut Self>,
+            _transmit: &noq_udp::Transmit<'_>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[test]
+    fn injected_socket_factory_owns_bind_and_ephemeral_address() {
+        let factory = Arc::new(RecordingFactory {
+            binds: Mutex::new(Vec::new()),
+            next_port: AtomicU16::new(40_000),
+        });
+        let config = Config::V4 {
+            ip_net: Ipv4Net::new("192.0.2.10".parse().unwrap(), 24).unwrap(),
+            port: 0,
+            is_required: true,
+            is_default: true,
+        };
+        let transports = IpTransports::bind_with_factory(
+            std::iter::once(config),
+            &EndpointMetrics::default(),
+            factory.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(factory.binds.lock().unwrap().as_slice(), &[config.into()]);
+        assert_eq!(
+            transports.iter().next().unwrap().local_addr_watch().get(),
+            "192.0.2.10:40000".parse().unwrap()
+        );
+    }
 
     #[tokio::test]
     async fn test_bind_sorting() -> n0_error::Result {

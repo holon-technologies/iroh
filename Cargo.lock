@@ -2228,6 +2228,7 @@ dependencies = [
  "console_error_panic_hook",
  "ctor",
  "ctutils",
+ "curve25519-dalek",
  "data-encoding",
  "derive_more",
  "ed25519-dalek",
@@ -2241,6 +2242,7 @@ dependencies = [
  "iroh-dns",
  "iroh-metrics",
  "iroh-relay",
+ "iroh-runtime",
  "n0-error",
  "n0-future",
  "n0-tracing-test",
@@ -2278,6 +2280,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "wasm-tracing",
+ "zeroize",
 ]
 
 [[package]]
@@ -2455,6 +2458,7 @@ dependencies = [
  "iroh-base",
  "iroh-dns",
  "iroh-metrics",
+ "iroh-runtime",
  "lru 0.18.0",
  "n0-error",
  "n0-future",
@@ -2494,6 +2498,43 @@ dependencies = [
  "url",
  "webpki-roots",
  "ws_stream_wasm",
+]
+
+[[package]]
+name = "iroh-runtime"
+version = "1.0.3"
+dependencies = [
+ "blake3",
+ "futures-util",
+ "getrandom 0.4.3",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "web-time",
+]
+
+[[package]]
+name = "iroh-sim"
+version = "1.0.3"
+dependencies = [
+ "blake3",
+ "clap",
+ "criterion",
+ "iroh",
+ "iroh-relay",
+ "iroh-runtime",
+ "n0-error",
+ "n0-future",
+ "n0-watcher",
+ "netwatch",
+ "noq-udp",
+ "proptest",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -4122,8 +4163,6 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.23.41"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b92b125634d9b795e7beca796cc790df15a7fb38323bf3196fda83292d06b1f"
 dependencies = [
  "aws-lc-rs",
  "log",

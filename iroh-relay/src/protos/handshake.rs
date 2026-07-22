@@ -422,6 +422,17 @@ pub async fn serverside(
     io: &mut (impl BytesStreamSink + ExportKeyingMaterial),
     client_auth_header: Option<HeaderValue>,
 ) -> Result<SuccessfulAuthentication, Error> {
+    let challenge = ServerChallenge::new(&mut rand::rng());
+    serverside_with_challenge(io, client_auth_header, challenge.challenge).await
+}
+
+/// Runs the server handshake with caller-owned challenge entropy.
+#[cfg(feature = "server")]
+pub(crate) async fn serverside_with_challenge(
+    io: &mut (impl BytesStreamSink + ExportKeyingMaterial),
+    client_auth_header: Option<HeaderValue>,
+    challenge: [u8; 16],
+) -> Result<SuccessfulAuthentication, Error> {
     if let Some(client_auth_header) = client_auth_header {
         let client_auth_bytes = data_encoding::BASE64URL_NOPAD
             .decode(client_auth_header.as_ref())
@@ -449,7 +460,7 @@ pub async fn serverside(
         // We'll fall back to verification that takes another round trip more time.
     }
 
-    let challenge = ServerChallenge::new(&mut rand::rng());
+    let challenge = ServerChallenge { challenge };
     write_frame(io, &challenge).await?;
 
     let (_, frame) = read_frame(io, &[ClientAuth::TAG]).await?;

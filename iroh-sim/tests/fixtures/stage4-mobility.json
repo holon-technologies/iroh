@@ -1,0 +1,129 @@
+{
+  "schema_version": 2,
+  "metadata": {
+    "id": "stage4/mobility-switch-uplink",
+    "description": "Production QUIC delivery across deterministic interface and route migration.",
+    "tags": ["mobility", "stage4"]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": false,
+    "relay": false,
+    "discovery": false,
+    "mobility": true
+  },
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 60000000000,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_trace_events": 200000,
+    "max_obligations": 1024,
+    "max_actions": 64,
+    "max_payload_bytes": 1048576
+  },
+  "topology": {
+    "hosts": [
+      {
+        "id": "client",
+        "interfaces": [
+          { "id": "eth0", "link": "lan", "addresses": ["192.0.2.1/24"] },
+          { "id": "wifi0", "link": "lan", "addresses": ["192.0.3.1/0"] }
+        ]
+      },
+      {
+        "id": "server",
+        "interfaces": [
+          { "id": "eth0", "link": "lan", "addresses": ["192.0.2.2/0"] }
+        ]
+      }
+    ],
+    "links": [
+      {
+        "id": "lan",
+        "latency_nanos": 1000000,
+        "bits_per_second": 1000000000,
+        "mtu": 1500,
+        "queue_packets": 1024
+      }
+    ],
+    "nats": [],
+    "discovery": []
+  },
+  "endpoints": [
+    { "id": "client", "host": "client", "bind": "0.0.0.0:31001", "identity_ordinal": 1 },
+    { "id": "server", "host": "server", "bind": "192.0.2.2:31002", "identity_ordinal": 2 }
+  ],
+  "actions": [
+    {
+      "id": "01-start-client",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "start_endpoint", "endpoint": "client" }
+    },
+    {
+      "id": "02-start-server",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "start_endpoint", "endpoint": "server" }
+    },
+    {
+      "id": "03-connect",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "connect", "client": "client", "server": "server", "connection": "c1" }
+    },
+    {
+      "id": "04-stream-before-switch",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stream_round_trip", "connection": "c1", "payload": { "bytes": 28, "fill": 165 } }
+    },
+    {
+      "id": "05-old-uplink-down",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "interface_change", "host": "client", "interface": "eth0", "up": false }
+    },
+    {
+      "id": "06-new-route",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": {
+        "kind": "route_change",
+        "host": "client",
+        "route": "wifi-uplink",
+        "destination": "192.0.2.2/32",
+        "interface": "wifi0",
+        "next_hop": "server",
+        "active": true
+      }
+    },
+    {
+      "id": "07-stream-after-switch",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stream_round_trip", "connection": "c1", "payload": { "bytes": 32, "fill": 90 } }
+    },
+    {
+      "id": "08-close",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "close_connection", "connection": "c1" }
+    },
+    {
+      "id": "09-stop-client",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stop_endpoint", "endpoint": "client" }
+    },
+    {
+      "id": "10-stop-server",
+      "schedule": { "kind": "at", "nanos": 0 },
+      "action": { "kind": "stop_endpoint", "endpoint": "server" }
+    }
+  ],
+  "fault_rules": [],
+  "fairness": ["fifo_progress", "reachable_network"],
+  "completion": { "kind": "all_actions", "shutdown_deadline_nanos": 60000000000 },
+  "allowed_terminals": ["success"],
+  "invariants": [
+    { "name": "authentication_identity", "deadline_nanos": null, "max_events": null },
+    { "name": "delivery_integrity", "deadline_nanos": null, "max_events": null },
+    { "name": "monotonic_lifecycle", "deadline_nanos": null, "max_events": null },
+    { "name": "resource_cleanup", "deadline_nanos": 60000000000, "max_events": 100000 }
+  ]
+}

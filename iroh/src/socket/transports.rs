@@ -193,6 +193,8 @@ impl Transports {
         relay_actor_config: RelayActorConfig,
         metrics: &EndpointMetrics,
         shutdown_token: CancellationToken,
+        #[cfg(not(wasm_browser))] runtime: Arc<crate::runtime::Runtime>,
+        #[cfg(not(wasm_browser))] ip_socket_factory: Arc<dyn crate::simulation::IpSocketFactory>,
     ) -> io::Result<Self> {
         #[cfg(not(wasm_browser))]
         let ip_configs = {
@@ -223,13 +225,21 @@ impl Transports {
             ip_configs
         };
         #[cfg(not(wasm_browser))]
-        let ip = IpTransports::bind(ip_configs.into_iter(), metrics)?;
+        let ip =
+            IpTransports::bind_with_factory(ip_configs.into_iter(), metrics, ip_socket_factory)?;
 
         let relay = configs
             .iter()
             .filter(|t| matches!(t, TransportConfig::Relay { .. }))
-            .map(|_c| RelayTransport::new(relay_actor_config.clone(), shutdown_token.child_token()))
-            .collect();
+            .map(|_c| {
+                RelayTransport::new(
+                    relay_actor_config.clone(),
+                    shutdown_token.child_token(),
+                    #[cfg(not(wasm_browser))]
+                    runtime.clone(),
+                )
+            })
+            .collect::<io::Result<Vec<_>>>()?;
 
         let mut custom = Vec::new();
         for config in configs.iter().filter_map(|t| {

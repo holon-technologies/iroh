@@ -39,6 +39,22 @@ impl RustlsTokenKey {
             aead,
         })
     }
+
+    /// Constructs a token key from explicit simulation-only material.
+    pub(crate) fn from_key(
+        key: [u8; 32],
+        crypto_provider: &rustls::crypto::CryptoProvider,
+    ) -> Option<Self> {
+        let suite = crypto_provider
+            .cipher_suites
+            .iter()
+            .filter_map(|suite| suite.tls13())
+            .next()?;
+        Some(Self {
+            key,
+            aead: suite.aead_alg,
+        })
+    }
 }
 
 impl crypto::HandshakeTokenKey for RustlsTokenKey {
@@ -99,6 +115,11 @@ impl Blake3HmacKey {
     pub(crate) fn new(rng: &mut impl rand::CryptoRng) -> Self {
         let mut key = [0u8; 32];
         rng.fill_bytes(&mut key);
+        Self(key)
+    }
+
+    /// Constructs a reset key from explicit simulation-only material.
+    pub(crate) const fn from_key(key: [u8; 32]) -> Self {
         Self(key)
     }
 }

@@ -7,10 +7,9 @@ use std::{
 use bytes::Bytes;
 use iroh_base::{EndpointId, RelayUrl};
 use iroh_relay::protos::relay::Datagrams;
-use n0_future::{
-    ready,
-    task::{self, AbortOnDropHandle},
-};
+use n0_future::ready;
+#[cfg(wasm_browser)]
+use n0_future::task::{self, AbortOnDropHandle};
 use n0_watcher::Watcher as _;
 use tokio::sync::mpsc;
 use tokio_util::sync::{CancellationToken, PollSender};
@@ -36,7 +35,10 @@ pub(crate) struct RelayTransport {
     /// A datagram from the last poll_recv that didn't quite fit our buffers.
     pending_item: Option<RelayRecvDatagram>,
     actor_sender: mpsc::Sender<RelayActorMessage>,
+    #[cfg(wasm_browser)]
     _actor_handle: AbortOnDropHandle<()>,
+    #[cfg(not(wasm_browser))]
+    _actor_handle: iroh_runtime::OwnedTaskHandle,
     my_relay: HomeRelayWatch,
     my_endpoint_id: EndpointId,
 }
@@ -48,7 +50,11 @@ impl std::fmt::Display for RelayTransport {
 }
 
 impl RelayTransport {
-    pub(crate) fn new(config: RelayActorConfig, cancel_token: CancellationToken) -> Self {
+    pub(crate) fn new(
+        config: RelayActorConfig,
+        cancel_token: CancellationToken,
+        #[cfg(not(wasm_browser))] runtime: std::sync::Arc<crate::runtime::Runtime>,
+    ) -> io::Result<Self> {
         let (relay_datagram_send_tx, relay_datagram_send_rx) = mpsc::channel(256);
 
         let (relay_datagram_recv_tx, relay_datagram_recv_rx) = mpsc::channel(512);
@@ -58,18 +64,32 @@ impl RelayTransport {
         let my_endpoint_id = config.secret_key.public();
         let my_relay = config.my_relay.clone();
 
-        let relay_actor = RelayActor::new(config, relay_datagram_recv_tx, cancel_token);
+        let relay_actor = RelayActor::new(
+            config,
+            relay_datagram_recv_tx,
+            cancel_token,
+            #[cfg(not(wasm_browser))]
+            runtime.clone(),
+        );
 
-        let actor_handle = AbortOnDropHandle::new(task::spawn(
-            async move {
-                relay_actor
-                    .run(actor_receiver, relay_datagram_send_rx)
-                    .await;
-            }
-            .instrument(info_span!("relay-actor")),
-        ));
+        let actor_future = async move {
+            relay_actor
+                .run(actor_receiver, relay_datagram_send_rx)
+                .await;
+        }
+        .instrument(info_span!("relay-actor"));
+        #[cfg(not(wasm_browser))]
+        let actor_handle = runtime
+            .spawn_owned(
+                iroh_runtime::TaskKind::Relay,
+                "relay-actor",
+                Box::pin(actor_future),
+            )
+            .map_err(io::Error::other)?;
+        #[cfg(wasm_browser)]
+        let actor_handle = AbortOnDropHandle::new(task::spawn(actor_future));
 
-        Self {
+        Ok(Self {
             relay_datagram_recv_queue: relay_datagram_recv_rx,
             relay_datagram_send_channel: relay_datagram_send_tx,
             pending_item: None,
@@ -77,7 +97,7 @@ impl RelayTransport {
             _actor_handle: actor_handle,
             my_relay,
             my_endpoint_id,
-        }
+        })
     }
 
     pub(crate) fn create_sender(&self) -> RelaySender {

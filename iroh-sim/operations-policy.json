@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "owner": "Iroh connectivity and simulation maintainers",
+  "failure_triage_slo_hours": 24,
+  "tiers": [
+    {
+      "tier": "pull_request",
+      "maximum_campaign_runs": 8,
+      "maximum_wall_minutes": 15,
+      "workers": 2,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "main",
+      "maximum_campaign_runs": 64,
+      "maximum_wall_minutes": 30,
+      "workers": 4,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "nightly",
+      "maximum_campaign_runs": 256,
+      "maximum_wall_minutes": 30,
+      "workers": 4,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "weekly",
+      "maximum_campaign_runs": 1024,
+      "maximum_wall_minutes": 60,
+      "workers": 4,
+      "artifact_retention_days": 30
+    }
+  ],
+  "replay": {
+    "exact_source_required": true,
+    "manifest_schema": 3,
+    "scenario_schema": 2,
+    "trace_schema": 2,
+    "compatibility_window_days": 30,
+    "accepted_new_run_grades": [
+      "fully_deterministic",
+      "semantically_deterministic"
+    ],
+    "crypto_modes": [
+      "deterministic_test",
+      "production_provider"
+    ],
+    "trace_comparison_modes": [
+      "raw",
+      "semantic"
+    ]
+  },
+  "corpus": {
+    "review_required": true,
+    "provenance_required": true,
+    "issue_required_for_failures": true,
+    "maximum_pending_days": 14
+  },
+  "swarm": {
+    "schema": 1,
+    "maximum_choices": 128,
+    "maximum_options_per_choice": 128,
+    "pull_request_runs": 4,
+    "nightly_runs": 256
+  },
+  "parity": {
+    "fixture_schema": 2,
+    "maximum_evidence_age_hours": 744,
+    "skips_fail_strict_comparison": true
+  }
+}

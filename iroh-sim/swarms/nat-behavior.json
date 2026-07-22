@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "nat-behavior",
+  "base_path": "iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json",
+  "base_blake3": "8311c3f71bae5ee9eb43321d41145b052541ad168a2964690e94dfd6785cb552",
+  "choices": [
+    {
+      "id": "nat-behavior",
+      "options": [
+        {
+          "id": "address-and-port-dependent",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "address_and_port_dependent",
+            "filtering": "address_and_port_dependent"
+          }
+        },
+        {
+          "id": "endpoint-independent",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "endpoint_independent",
+            "filtering": "endpoint_independent"
+          }
+        },
+        {
+          "id": "mixed-filtering",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "endpoint_independent",
+            "filtering": "address_and_port_dependent"
+          }
+        }
+      ]
+    }
+  ]
+}
