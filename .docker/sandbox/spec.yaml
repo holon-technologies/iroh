@@ -1,0 +1,77 @@
+schemaVersion: "1"
+kind: mixin
+name: iroh-dev
+displayName: Iroh development environment
+description: Pinned Rust and native build tooling for the Iroh workspace
+
+caps:
+  network:
+    allow:
+      # Ubuntu and Docker package repositories used during kit installation.
+      - archive.ubuntu.com
+      - security.ubuntu.com
+      - ports.ubuntu.com
+      - download.docker.com
+      # Rust toolchains and Cargo dependencies.
+      - sh.rustup.rs
+      - static.rust-lang.org
+      - crates.io
+      - index.crates.io
+      - static.crates.io
+      # Git dependencies and repository operations.
+      - github.com
+      - api.github.com
+      - codeload.github.com
+      - objects.githubusercontent.com
+      - raw.githubusercontent.com
+      # Registries used by the sandbox's private Docker engine.
+      - auth.docker.io
+      - registry-1.docker.io
+      - production.cloudflare.docker.com
+      - ghcr.io
+
+environment:
+  variables:
+    CARGO_TARGET_DIR: /home/agent/.cache/iroh-target
+    CARGO_TERM_COLOR: always
+    RUST_BACKTRACE: "1"
+
+commands:
+  install:
+    - command: >-
+        apt-get update &&
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends
+        build-essential ca-certificates clang cmake curl git libssl-dev lld
+        perl pkg-config &&
+        rm -rf /var/lib/apt/lists/*
+      user: "0"
+      description: Install native Rust build and linker dependencies
+    - command: >-
+        set -eu;
+        export PATH="/home/agent/.cargo/bin:$PATH";
+        if [ ! -x /home/agent/.cargo/bin/rustup ]; then
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+          sh -s -- -y --profile minimal --no-modify-path;
+        fi;
+        rustup set profile minimal;
+        rustup toolchain install 1.97.1 --component clippy --component rustfmt;
+        rustup target add --toolchain 1.97.1 wasm32-unknown-unknown;
+        rustup default 1.97.1
+      user: "1000"
+      description: Install the pinned Rust toolchain and Wasm target
+    - command: >-
+        set -eu;
+        for binary in cargo cargo-clippy cargo-fmt clippy-driver rustc rustdoc
+        rustfmt rustup; do
+          ln -sf "/home/agent/.cargo/bin/$binary" "/usr/local/bin/$binary";
+        done
+      user: "0"
+      description: Expose Rust tools to non-login agent processes
+
+agentContext: |
+  The repository environment is provisioned by the iroh-dev Docker Sandbox kit.
+  Rust and native build dependencies are pinned by `.docker/sandbox/spec.yaml`.
+  Cargo artifacts live inside the VM at `/home/agent/.cache/iroh-target`, not in
+  the host workspace. Run the narrowest relevant Cargo test first, then format,
+  Clippy, and broader tests. Loopback TCP works inside the sandbox; external raw
+  TCP and UDP remain subject to Docker Sandbox network restrictions.
