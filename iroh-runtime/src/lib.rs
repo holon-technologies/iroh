@@ -1,4 +1,5 @@
 //! Runtime capabilities shared by Iroh's production and simulation environments.
+#![forbid(unsafe_code)]
 
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 mod context;

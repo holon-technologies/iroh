@@ -205,10 +205,10 @@ explicit domain-separated materialization seed.
 | `iroh/src/socket.rs:816,1098`; `address_lookup/pkarr.rs:324`; `net_report.rs:862,931`; `net_report/reportgen.rs:141`; `protocol.rs:614`; `socket/transports/relay.rs:63` | **Architectural problem** | Route all core-path root task creation through the environment with stable IDs and ownership metadata. |
 | `RemoteMap`, `RemoteStateActor`, net-report, protocol router, and relay actor `JoinSet::spawn` calls | **Architectural problem** | Replace direct Tokio `JoinSet` ownership in simulator-supported paths with an environment-owned task group abstraction. |
 | `iroh-relay/src/client/tls.rs:200`, `quic.rs:124`, `server.rs:772,810,860`, `server/client.rs:146`, `server/http_server.rs:471,495,631`, `server/resolver.rs:79` | **Architectural problem** | Add relay runtime/task capabilities before claiming deterministic relay coverage. |
-| `iroh-dns-server/src/http/tls.rs:140` and DNS/HTTP server task sets | **Architectural problem** | Keep real-server integration tests initially; later inject server executor/I/O when the scenario backend supports a real DNS server. |
+| DNS/HTTP server task sets and `iroh-dns-server/src/http/transport.rs` | **Acceptable nondeterminism** in the real-server backend | Listener and connection work is now owned by supervisors, bounded before spawn, and cancelled/drained on shutdown. Runtime/I/O injection remains required before full DNS-server simulation. |
 | Direct spawns in `#[cfg(test)]` regions, `tests/`, `examples/`, and `iroh/bench` | **Acceptable nondeterminism** | Do not route through production environment unless the scenario runner reuses that code. |
 | `iroh-relay/src/main.rs:627` certificate file `spawn_blocking` | **Acceptable nondeterminism** | Keep in production binary; exclude from in-process simulation. |
-| `iroh-dns-server/src/http/rate_limiting.rs:79` unmanaged GC thread | **Architectural problem** | Replace with owned, cancellable runtime task before simulating the complete DNS server. |
+| DNS-server bounded per-IP token buckets | **Behavioral randomness** with explicit transition input | The LRU has a validated hard capacity; token transitions receive `Instant` explicitly. Only the HTTP middleware samples the production clock. There is no GC thread. |
 
 ### Gaps
 
@@ -318,7 +318,7 @@ Every retry policy needs an observable attempt number, next deadline, decision-s
 | Example secrets, qlog paths, trace output | **Acceptable nondeterminism** | Scenario identity specifies artifact paths; event semantics must not depend on them. |
 | `chuck` workflow cloning and Python/process execution | **Acceptable nondeterminism** in a controlled real-network backend | Pin the external revision and record it in run identity; it cannot be the deterministic backend. |
 | Benchmark threads | **Acceptable nondeterminism** | Keep as performance-layer measurement. |
-| DNS-server rate-limit GC thread | **Architectural problem** | Must become owned/cancellable for lifecycle simulation. |
+| DNS-server HTTP/ACME supervision | **Acceptable nondeterminism** in the real-server backend | ACME maintenance, listeners, and connections are supervisor-owned; shutdown cancellation and its validated deadline are explicit. |
 
 No Rust `std::process::Command` use was found in production library code. Process nondeterminism currently lives primarily in CI workflows and executable orchestration.
 

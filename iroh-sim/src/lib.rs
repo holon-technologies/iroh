@@ -1,4 +1,5 @@
 //! Deterministic simulation artifacts, replay contracts, and command surface.
+#![forbid(unsafe_code)]
 
 mod artifact;
 mod backend;

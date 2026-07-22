@@ -1,4 +1,5 @@
 //! The relay server for iroh.
+#![forbid(unsafe_code)]
 //!
 //! This handles only the CLI and config file loading, the server implementation lives in
 //! [`iroh::relay::server`].

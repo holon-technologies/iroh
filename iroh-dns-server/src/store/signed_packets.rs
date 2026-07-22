@@ -1,5 +1,6 @@
 use std::{
     future::Future,
+    num::NonZeroUsize,
     path::Path,
     result,
     sync::{
@@ -119,26 +120,44 @@ struct Actor {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Options {
     /// Maximum number of packets to process in a single write transaction.
-    pub(crate) max_batch_size: usize,
+    pub(crate) max_batch_size: NonZeroUsize,
     /// Maximum time to keep a write transaction open.
-    pub(crate) max_batch_time: Duration,
+    pub(crate) max_batch_time: NonZeroDuration,
     /// Time to keep packets in the store before eviction.
-    pub(crate) eviction: Duration,
+    pub(crate) eviction: NonZeroDuration,
     /// Pause between eviction checks.
-    pub(crate) eviction_interval: Duration,
+    pub(crate) eviction_interval: NonZeroDuration,
+}
+
+/// A duration proven to be nonzero at the configuration boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NonZeroDuration(Duration);
+
+impl NonZeroDuration {
+    pub(crate) fn new(value: Duration) -> Option<Self> {
+        (!value.is_zero()).then_some(Self(value))
+    }
+
+    pub(crate) fn get(self) -> Duration {
+        self.0
+    }
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             // 64k packets
-            max_batch_size: 1024 * 64,
+            max_batch_size: NonZeroUsize::new(1024 * 64)
+                .expect("default store batch size is nonzero"),
             // this means we lose at most 1 second of data in case of a crash
-            max_batch_time: Duration::from_secs(1),
+            max_batch_time: NonZeroDuration::new(Duration::from_secs(1))
+                .expect("default store batch time is nonzero"),
             // 7 days
-            eviction: Duration::from_secs(3600 * 24 * 7),
+            eviction: NonZeroDuration::new(Duration::from_secs(3600 * 24 * 7))
+                .expect("default store eviction age is nonzero"),
             // eviction can run frequently since it does not do a full scan
-            eviction_interval: Duration::from_secs(10),
+            eviction_interval: NonZeroDuration::new(Duration::from_secs(10))
+                .expect("default store eviction interval is nonzero"),
         }
     }
 }
@@ -172,9 +191,9 @@ impl Actor {
             }
             let transaction = self.db.begin_write().anyerr()?;
             let mut tables = Tables::new(&transaction).anyerr()?;
-            let timeout = tokio::time::sleep(self.options.max_batch_time);
+            let timeout = tokio::time::sleep(self.options.max_batch_time.get());
             tokio::pin!(timeout);
-            for _ in 0..self.options.max_batch_size {
+            for _ in 0..self.options.max_batch_size.get() {
                 tokio::select! {
                     _ = self.cancel.cancelled() => {
                         drop(tables);
@@ -263,7 +282,8 @@ impl Actor {
                 trace!("check expired {} at {}", key, fmt_time(time));
                 match self.get_packet(&tables.signed_packets, &key)? {
                     Some(packet) => {
-                        let expiry_us = self.options.eviction.as_micros() as u64;
+                        let expiry_us = u64::try_from(self.options.eviction.get().as_micros())
+                            .unwrap_or(u64::MAX);
                         let expired = Timestamp::from_micros(
                             Timestamp::now().as_micros().saturating_sub(expiry_us),
                         );
@@ -526,7 +546,7 @@ async fn evict_task(
 
 /// Periodically check for expired packets and remove them.
 async fn evict_task_inner(send: mpsc::Sender<Message>, options: Options) -> Result<()> {
-    let expiry_us = options.eviction.as_micros() as u64;
+    let expiry_us = u64::try_from(options.eviction.get().as_micros()).unwrap_or(u64::MAX);
     loop {
         let (tx, rx) = oneshot::channel();
         let _ = send.send(Message::Snapshot { res: tx }).await.ok();
@@ -574,7 +594,7 @@ async fn evict_task_inner(send: mpsc::Sender<Message>, options: Options) -> Resu
             }
         }
         // sleep for the eviction interval so we don't constantly check
-        tokio::time::sleep(options.eviction_interval).await;
+        tokio::time::sleep(options.eviction_interval.get()).await;
     }
 }
 

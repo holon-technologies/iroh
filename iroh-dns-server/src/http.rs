@@ -3,21 +3,25 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
+    sync::Arc,
     time::Instant,
 };
 
 use axum::{
     Json, Router,
+    body::Body,
+    extract::DefaultBodyLimit,
     extract::{ConnectInfo, Request, State},
     handler::Handler,
-    http::Method,
+    http::{Method, StatusCode, header},
     middleware::{self, Next},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::get,
 };
 use n0_error::{Result, StdResultExt, anyerr, bail_any};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, task::JoinSet};
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{self, CorsLayer},
     trace::TraceLayer,
@@ -29,9 +33,14 @@ mod error;
 mod pkarr;
 mod rate_limiting;
 mod tls;
+mod transport;
 
 pub use self::{rate_limiting::RateLimitConfig, tls::CertMode};
 use crate::state::AppState;
+use crate::{
+    admission::{AdmissionControl, RequestAdmission},
+    config::IngressPolicy,
+};
 
 /// Configuration for the HTTP listener.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -75,6 +84,8 @@ pub(crate) struct HttpServer {
     tasks: JoinSet<std::io::Result<()>>,
     http_addr: Option<SocketAddr>,
     https_addr: Option<SocketAddr>,
+    cancel: CancellationToken,
+    shutdown_timeout: std::time::Duration,
 }
 
 impl HttpServer {
@@ -85,14 +96,21 @@ impl HttpServer {
         rate_limit_config: RateLimitConfig,
         state: AppState,
         cert_cache_dir: PathBuf,
+        ingress: IngressPolicy,
     ) -> Result<HttpServer> {
         if http_config.is_none() && https_config.is_none() {
             bail_any!("Either http or https config is required");
         }
 
-        let app = create_app(state, &rate_limit_config);
+        let admission = Arc::new(AdmissionControl::new(
+            ingress.clone(),
+            state.metrics.clone(),
+            Instant::now(),
+        ));
+        let app = create_app(state, &rate_limit_config, admission.clone(), &ingress);
 
         let mut tasks = JoinSet::new();
+        let cancel = CancellationToken::new();
 
         // launch http
         let http_addr = if let Some(config) = http_config {
@@ -101,14 +119,16 @@ impl HttpServer {
                 config.port,
             );
             let app = app.clone();
-            let listener = TcpListener::bind(bind_addr)
-                .await
-                .anyerr()?
-                .into_std()
-                .anyerr()?;
+            let listener = TcpListener::bind(bind_addr).await.anyerr()?;
             let bound_addr = listener.local_addr().anyerr()?;
-            let fut = axum_server::from_tcp(listener)?
-                .serve(app.into_make_service_with_connect_info::<SocketAddr>());
+            let fut = transport::serve_listener(
+                listener,
+                app,
+                None,
+                admission.clone(),
+                ingress.max_http2_streams_per_connection,
+                cancel.clone(),
+            );
             info!("HTTP server listening on {bind_addr}");
             tasks.spawn(fut);
             Some(bound_addr)
@@ -122,7 +142,7 @@ impl HttpServer {
                 config.bind_addr.unwrap_or(Ipv4Addr::UNSPECIFIED.into()),
                 config.port,
             );
-            let acceptor = {
+            let tls_runtime = {
                 tokio::fs::create_dir_all(&cert_cache_dir)
                     .await
                     .with_std_context(|_| {
@@ -141,17 +161,21 @@ impl HttpServer {
                     )
                     .await?
             };
-            let listener = TcpListener::bind(bind_addr)
-                .await
-                .anyerr()?
-                .into_std()
-                .anyerr()?;
+            let listener = TcpListener::bind(bind_addr).await.anyerr()?;
             let bound_addr = listener.local_addr().anyerr()?;
-            let fut = axum_server::from_tcp(listener)?
-                .acceptor(acceptor)
-                .serve(app.into_make_service_with_connect_info::<SocketAddr>());
+            let fut = transport::serve_listener(
+                listener,
+                app,
+                Some(tls_runtime.acceptor),
+                admission,
+                ingress.max_http2_streams_per_connection,
+                cancel.clone(),
+            );
             info!("HTTPS server listening on {bind_addr}");
             tasks.spawn(fut);
+            if let Some(maintenance) = tls_runtime.maintenance {
+                tasks.spawn(maintenance);
+            }
             Some(bound_addr)
         } else {
             None
@@ -161,6 +185,8 @@ impl HttpServer {
             tasks,
             http_addr,
             https_addr,
+            cancel,
+            shutdown_timeout: ingress.shutdown_timeout,
         })
     }
 
@@ -176,28 +202,53 @@ impl HttpServer {
 
     /// Shutdown the server and wait for all tasks to complete.
     pub(crate) async fn shutdown(mut self) -> Result<()> {
-        // TODO: Graceful cancellation.
-        self.tasks.abort_all();
-        self.run_until_done().await?;
-        Ok(())
+        self.cancel.cancel();
+        match tokio::time::timeout(self.shutdown_timeout, self.run_tasks_until_done()).await {
+            Ok(result) => result,
+            Err(_) => {
+                self.tasks.abort_all();
+                while self.tasks.join_next().await.is_some() {}
+                Err(anyerr!(
+                    "HTTP shutdown exceeded {:?}",
+                    self.shutdown_timeout
+                ))
+            }
+        }
     }
 
     /// Wait for all tasks to complete.
     ///
     /// Runs forever unless tasks fail.
     pub(crate) async fn run_until_done(mut self) -> Result<()> {
+        self.run_tasks_until_done().await
+    }
+
+    async fn run_tasks_until_done(&mut self) -> Result<()> {
         let mut final_res: Result<()> = Ok(());
         while let Some(res) = self.tasks.join_next().await {
             match res {
-                Ok(Ok(())) => {}
+                Ok(Ok(())) if self.cancel.is_cancelled() => {}
+                Ok(Ok(())) => {
+                    warn!("HTTP supervisor task exited unexpectedly");
+                    if final_res.is_ok() {
+                        final_res = Err(anyerr!("HTTP supervisor task exited unexpectedly"));
+                    }
+                    self.cancel.cancel();
+                }
                 Err(err) if err.is_cancelled() => {}
                 Ok(Err(err)) => {
                     warn!(?err, "task failed");
-                    final_res = Err(anyerr!(err, "task"));
+                    if final_res.is_ok() {
+                        final_res = Err(anyerr!(err, "task"));
+                    }
+                    self.cancel.cancel();
                 }
                 Err(err) => {
                     warn!(?err, "task panicked");
-                    final_res = Err(anyerr!(err, "join"));
+                    if final_res.is_ok() {
+                        final_res = Err(anyerr!(err, "join"));
+                    }
+                    self.cancel.cancel();
                 }
             }
         }
@@ -225,7 +276,12 @@ async fn healthz(State(state): State<AppState>) -> Json<Health> {
     })
 }
 
-pub(crate) fn create_app(state: AppState, rate_limit_config: &RateLimitConfig) -> Router {
+pub(crate) fn create_app(
+    state: AppState,
+    rate_limit_config: &RateLimitConfig,
+    admission: Arc<AdmissionControl>,
+    ingress: &IngressPolicy,
+) -> Router {
     // configure cors middleware
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource
@@ -250,7 +306,7 @@ pub(crate) fn create_app(state: AppState, rate_limit_config: &RateLimitConfig) -
     });
 
     // configure rate limiting middleware
-    let rate_limit = rate_limiting::create(rate_limit_config);
+    let rate_limit = rate_limiting::create(rate_limit_config, ingress, state.metrics.clone());
 
     // configure routes
     //
@@ -260,9 +316,20 @@ pub(crate) fn create_app(state: AppState, rate_limit_config: &RateLimitConfig) -
         .route(
             "/pkarr/{key}",
             if let Some(rate_limit) = rate_limit {
-                get(pkarr::get).put(pkarr::put.layer(rate_limit))
+                get(pkarr::get).put(
+                    pkarr::put
+                        .layer(DefaultBodyLimit::max(
+                            iroh_dns::pkarr::SignedPacket::MAX_RELAY_PAYLOAD_BYTES,
+                        ))
+                        .layer(middleware::from_fn_with_state(
+                            rate_limit,
+                            rate_limiting::middleware,
+                        )),
+                )
             } else {
-                get(pkarr::get).put(pkarr::put)
+                get(pkarr::get).put(pkarr::put.layer(DefaultBodyLimit::max(
+                    iroh_dns::pkarr::SignedPacket::MAX_RELAY_PAYLOAD_BYTES,
+                )))
             },
         )
         // Deprecated: use /healthz instead
@@ -273,9 +340,32 @@ pub(crate) fn create_app(state: AppState, rate_limit_config: &RateLimitConfig) -
 
     // configure app
     router
+        .layer(DefaultBodyLimit::max(ingress.max_http_body_bytes.get()))
         .layer(cors)
         .layer(trace)
         .route_layer(middleware::from_fn_with_state(state, metrics_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            admission,
+            admission_middleware,
+        ))
+}
+
+async fn admission_middleware(
+    State(admission): State<Arc<AdmissionControl>>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    match admission.try_request() {
+        RequestAdmission::Accepted(lease) => {
+            let _lease = lease;
+            next.run(req).await
+        }
+        RequestAdmission::CapacityFull => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            [(header::RETRY_AFTER, "1")],
+        )
+            .into_response(),
+    }
 }
 
 /// Record request metrics.
@@ -331,6 +421,30 @@ mod tests {
     use rand::{RngExt, SeedableRng};
 
     use crate::{http::HttpsConfig, server::Server};
+
+    #[tokio::test]
+    async fn pkarr_body_is_rejected_before_handler_buffering() -> n0_error::Result {
+        let dir = tempfile::tempdir()?;
+        let server = Server::spawn_for_tests(dir.path()).await?;
+        let url = format!("{}pkarr/invalid", server.http_url().expect("HTTP is bound"));
+        let client = reqwest::Client::builder()
+            .use_preconfigured_tls(self::tls::insecure_tls_config())
+            .build()
+            .anyerr()?;
+        let response = client
+            .put(url)
+            .body(vec![
+                0_u8;
+                iroh_dns::pkarr::SignedPacket::MAX_RELAY_PAYLOAD_BYTES
+                    + 1
+            ])
+            .send()
+            .await
+            .anyerr()?;
+        assert_eq!(response.status(), http::StatusCode::PAYLOAD_TOO_LARGE);
+        server.shutdown().await?;
+        Ok(())
+    }
 
     #[tokio::test]
     #[traced_test]

@@ -87,6 +87,8 @@ pub(crate) fn read_system_conf() -> Result<(ResolverConfig, ResolverOpts), NetEr
 /// [`ndk_context`]: https://docs.rs/ndk-context
 /// [`ndk_context::initialize_android_context`]: https://docs.rs/ndk-context/latest/ndk_context/fn.initialize_android_context.html
 pub unsafe fn install_android_jni_context(java_vm: *mut c_void, context_jobject: *mut c_void) {
+    // SAFETY: the caller contract requires live VM and global context pointers for the process
+    // lifetime, exactly matching `initialize_android_context`'s requirements.
     unsafe {
         ndk_context::initialize_android_context(java_vm, context_jobject);
     }

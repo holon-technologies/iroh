@@ -25,6 +25,7 @@ pub const MAX_PACKET_SIZE: usize = 64 * 1024;
 /// Largest restart duration representable by the relay wire protocol, in milliseconds.
 pub const MAX_RESTART_DURATION_MILLIS: u64 = u32::MAX as u64;
 
+#[cfg(feature = "server")]
 fn restart_duration_millis(duration: Duration) -> u32 {
     u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
 }
@@ -236,7 +237,9 @@ impl Datagrams {
         };
 
         let usize_segment_size = usize::from(u16::from(segment_size));
-        let max_content_len = num_segments * usize_segment_size;
+        // Saturation preserves the existing "take at most what is available" semantics:
+        // an unrepresentably large requested segment count simply means take all bytes.
+        let max_content_len = num_segments.saturating_mul(usize_segment_size);
         let contents = self
             .contents
             .split_to(std::cmp::min(max_content_len, self.contents.len()));
@@ -955,6 +958,26 @@ mod proptests {
         let claimed_encoded_len = datagrams.encoded_len();
         let actual_encoded_len = datagrams.write_to(Vec::new()).len();
         prop_assert_eq!(claimed_encoded_len, actual_encoded_len);
+    }
+
+    #[proptest]
+    fn take_segments_is_total(
+        #[strategy(1_u16..=u16::MAX)] segment_size: u16,
+        #[strategy(vec(any::<u8>(), 0..MAX_PACKET_SIZE))] contents: Vec<u8>,
+        num_segments: usize,
+    ) {
+        let original_len = contents.len();
+        let mut datagrams = Datagrams {
+            ecn: None,
+            segment_size: NonZeroU16::new(segment_size),
+            contents: Bytes::from(contents),
+        };
+        let taken = datagrams.take_segments(num_segments);
+        prop_assert!(taken.contents.len() <= original_len);
+        prop_assert_eq!(
+            taken.contents.len() + datagrams.contents.len(),
+            original_len
+        );
     }
 
     const MAX_TEST_MSG_SIZE: usize = 100_000;

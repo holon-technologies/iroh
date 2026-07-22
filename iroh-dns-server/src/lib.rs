@@ -1,4 +1,5 @@
 //! A DNS server and [pkarr] relay.
+#![forbid(unsafe_code)]
 //!
 //! [`Server`] combines a DNS server (UDP and TCP) with an HTTP/HTTPS server
 //! into a single process. Clients publish self-signed DNS records as [pkarr]
@@ -24,6 +25,7 @@
 
 #![deny(missing_docs, rustdoc::broken_intra_doc_links, unreachable_pub)]
 
+mod admission;
 pub mod config;
 mod dns;
 mod http;
@@ -58,7 +60,7 @@ mod tests {
     use crate::{
         config::BootstrapOption,
         server::Server,
-        store::{Options, PacketSource, ZoneStore},
+        store::{NonZeroDuration, Options, PacketSource, ZoneStore},
         util::PublicKeyBytes,
     };
 
@@ -246,9 +248,12 @@ mod tests {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
 
         let options = Options {
-            eviction: Duration::from_millis(100),
-            eviction_interval: Duration::from_millis(100),
-            max_batch_time: Duration::from_millis(100),
+            eviction: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test eviction age is nonzero"),
+            eviction_interval: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test eviction interval is nonzero"),
+            max_batch_time: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test batch time is nonzero"),
             ..Default::default()
         };
         let store = ZoneStore::in_memory(options, Default::default())?;

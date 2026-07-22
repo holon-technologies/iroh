@@ -138,6 +138,19 @@ impl fmt::Display for TransportAddr {
 }
 
 impl EndpointAddr {
+    /// Validate this address against the default untrusted-input limits.
+    ///
+    /// This is required at system boundaries while the public fields retained for 1.x source
+    /// compatibility still allow callers to construct an out-of-policy value.
+    pub fn validate(&self) -> Result<(), AddressLimitError> {
+        self.validate_with_limits(AddressLimits::default())
+    }
+
+    /// Validate this address using explicit input limits.
+    pub fn validate_with_limits(&self, limits: AddressLimits) -> Result<(), AddressLimitError> {
+        Self::try_from_parts_with_limits(self.id, self.addrs.iter().cloned(), limits).map(|_| ())
+    }
+
     /// Creates a new [`EndpointAddr`] with no network level addresses.
     ///
     /// This still is usable with e.g. an address lookup service to establish a connection,
@@ -864,6 +877,22 @@ mod tests {
             postcard::from_bytes::<EndpointAddr>(&serialized).is_err(),
             "deserialization must reject excessive endpoint address counts"
         );
+    }
+
+    #[test]
+    fn public_field_mutation_is_detected_by_validation() {
+        let key = crate::SecretKey::generate().public();
+        let mut addr = EndpointAddr::new(key);
+        for port in 0..=MAX_ENDPOINT_ADDRS {
+            addr.addrs.insert(TransportAddr::Ip(SocketAddr::from((
+                [127, 0, 0, 1],
+                40_000 + port as u16,
+            ))));
+        }
+        assert!(matches!(
+            addr.validate(),
+            Err(AddressLimitError::EndpointAddrCount { .. })
+        ));
     }
 
     #[test]

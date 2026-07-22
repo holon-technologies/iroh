@@ -1,4 +1,5 @@
 //! Iroh's relay is a feature within [iroh](https://github.com/n0-computer/iroh), a peer-to-peer
+#![forbid(unsafe_code)]
 //! networking system designed to facilitate direct, encrypted connections between devices. Iroh
 //! aims to simplify decentralized communication by automatically handling connections through
 //! "relays" when direct connections aren't immediately possible. The relay server helps establish

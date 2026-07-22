@@ -17,6 +17,14 @@ pub struct Metrics {
     pub dns_requests_udp: Counter,
     /// Number of DNS requests received over HTTPS (DoH).
     pub dns_requests_https: Counter,
+    /// Current number of admitted UDP DNS request tasks.
+    pub dns_udp_requests_active: Gauge,
+    /// Number of UDP DNS requests dropped because request capacity was full.
+    pub dns_udp_requests_rejected: Counter,
+    /// Current number of admitted DNS TCP connection tasks.
+    pub dns_tcp_connections_active: Gauge,
+    /// Number of DNS TCP connections closed because connection capacity was full.
+    pub dns_tcp_connections_rejected: Counter,
     /// Number of DNS lookups that returned at least one answer.
     pub dns_lookup_success: Counter,
     /// Number of DNS lookups that returned no answers.
@@ -31,6 +39,20 @@ pub struct Metrics {
     pub http_requests_error: Counter,
     /// Cumulative duration of all HTTP requests, in milliseconds.
     pub http_requests_duration_ms: Counter,
+    /// Current number of admitted HTTP and HTTPS connections.
+    pub http_connections_active: Gauge,
+    /// Number of HTTP(S) connections rejected because capacity was full.
+    pub http_connections_rejected_capacity: Counter,
+    /// Number of HTTP(S) connections rejected by the global accept rate.
+    pub http_connections_rejected_rate: Counter,
+    /// Current number of admitted HTTP requests.
+    pub http_requests_active: Gauge,
+    /// Number of HTTP requests rejected because request capacity was full.
+    pub http_requests_rejected_capacity: Counter,
+    /// Number of HTTP requests rejected by the per-IP rate policy.
+    pub http_requests_rejected_rate: Counter,
+    /// Current bounded per-IP rate-limit entry count.
+    pub http_rate_limit_entries: Gauge,
     /// Number of signed packets newly inserted into the store.
     pub store_packets_inserted: Counter,
     /// Number of signed packets removed from the store.
@@ -49,4 +71,39 @@ pub struct Metrics {
     pub cache_zones: Gauge,
     /// Current number of zones in the DHT cache
     pub cache_zones_dht: Gauge,
+}
+
+impl hickory_server::server::AdmissionObserver for Metrics {
+    fn admitted(&self, kind: hickory_server::server::AdmissionKind) {
+        match kind {
+            hickory_server::server::AdmissionKind::UdpRequest => {
+                self.dns_udp_requests_active.inc();
+            }
+            hickory_server::server::AdmissionKind::TcpConnection => {
+                self.dns_tcp_connections_active.inc();
+            }
+        }
+    }
+
+    fn released(&self, kind: hickory_server::server::AdmissionKind) {
+        match kind {
+            hickory_server::server::AdmissionKind::UdpRequest => {
+                self.dns_udp_requests_active.dec();
+            }
+            hickory_server::server::AdmissionKind::TcpConnection => {
+                self.dns_tcp_connections_active.dec();
+            }
+        }
+    }
+
+    fn rejected(&self, rejection: hickory_server::server::AdmissionRejection) {
+        match rejection {
+            hickory_server::server::AdmissionRejection::UdpRequestCapacity => {
+                self.dns_udp_requests_rejected.inc();
+            }
+            hickory_server::server::AdmissionRejection::TcpConnectionCapacity => {
+                self.dns_tcp_connections_rejected.inc();
+            }
+        }
+    }
 }

@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::{net::SocketAddr, sync::Arc};
 
-use n0_error::Result;
+use n0_error::{Result, StdResultExt, anyerr};
 use tracing::info;
 #[cfg(test)]
 use url::Url;
@@ -11,7 +11,7 @@ use url::Url;
 #[cfg(test)]
 use crate::http::HttpsConfig;
 use crate::{
-    config::Config,
+    config::{Config, IngressPolicy, ValidatedConfig},
     dns::{DnsHandler, DnsServer},
     http::HttpServer,
     metrics::Metrics,
@@ -30,6 +30,7 @@ pub struct Server {
     dns_server: DnsServer,
     metrics_server: Option<iroh_metrics::service::MetricsServer>,
     metrics: Arc<Metrics>,
+    shutdown_timeout: std::time::Duration,
 }
 
 impl Server {
@@ -39,17 +40,22 @@ impl Server {
     /// fallback when configured, and spawns the DNS, HTTP(S), and metrics tasks.
     /// Returns once all listeners are bound.
     pub async fn bind(config: Config) -> Result<Self> {
+        let ValidatedConfig {
+            config,
+            ingress,
+            store_options,
+        } = ValidatedConfig::try_from(config).anyerr()?;
         let metrics = Arc::new(Metrics::default());
         let mut store = ZoneStore::persistent(
             config.signed_packet_store_path()?,
-            config.zone_store.clone().unwrap_or_default().into(),
+            store_options,
             metrics.clone(),
         )?;
         if let Some(bootstrap) = config.mainline_enabled() {
             info!("mainline fallback enabled");
             store = store.with_mainline_fallback(bootstrap);
         };
-        Self::bind_with_store(config, store, metrics).await
+        Self::bind_with_store_validated(config, ingress, store, metrics).await
     }
 
     /// Spawn the server.
@@ -58,8 +64,23 @@ impl Server {
     /// * A DNS server task
     /// * A HTTP server task, if `config.http` is not empty
     /// * A HTTPS server task, if `config.https` is not empty
+    #[cfg(test)]
     async fn bind_with_store(
         config: Config,
+        store: ZoneStore,
+        metrics: Arc<Metrics>,
+    ) -> Result<Self> {
+        let ValidatedConfig {
+            config,
+            ingress,
+            store_options: _,
+        } = ValidatedConfig::try_from(config).anyerr()?;
+        Self::bind_with_store_validated(config, ingress, store, metrics).await
+    }
+
+    async fn bind_with_store_validated(
+        config: Config,
+        ingress: IngressPolicy,
         store: ZoneStore,
         metrics: Arc<Metrics>,
     ) -> Result<Self> {
@@ -71,6 +92,7 @@ impl Server {
             dns_handler,
             metrics: metrics.clone(),
         };
+        let shutdown_timeout = ingress.shutdown_timeout;
 
         let metrics_server = if let Some(addr) = config.metrics_addr() {
             let mut registry = iroh_metrics::Registry::default();
@@ -88,27 +110,36 @@ impl Server {
             config.pkarr_put_rate_limit,
             state.clone(),
             cert_cache_dir,
+            ingress.clone(),
         )
         .await?;
-        let dns_server = DnsServer::spawn(config.dns, state.dns_handler.clone()).await?;
+        let dns_server = DnsServer::spawn(config.dns, state.dns_handler.clone(), &ingress).await?;
 
         Ok(Self {
             http_server,
             dns_server,
             metrics_server,
             metrics,
+            shutdown_timeout,
         })
     }
 
     /// Cancels the server tasks and waits for them to complete.
     pub async fn shutdown(mut self) -> Result<()> {
-        if let Some(server) = self.metrics_server.take() {
-            server.shutdown().await;
-        }
-        let (res1, res2) = tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown(),);
-        res1?;
-        res2?;
-        Ok(())
+        let shutdown_timeout = self.shutdown_timeout;
+        let shutdown = async move {
+            if let Some(server) = self.metrics_server.take() {
+                server.shutdown().await;
+            }
+            let (dns, http) =
+                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown(),);
+            dns?;
+            http?;
+            Ok(())
+        };
+        tokio::time::timeout(shutdown_timeout, shutdown)
+            .await
+            .map_err(|_| anyerr!("server shutdown exceeded {shutdown_timeout:?}"))?
     }
 
     /// Waits for the server tasks to complete.

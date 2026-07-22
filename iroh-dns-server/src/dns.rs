@@ -19,7 +19,7 @@ use hickory_server::{
             rdata::{self},
         },
     },
-    server::{Request, RequestHandler, ResponseHandler, ResponseInfo},
+    server::{Request, RequestHandler, ResponseHandler, ResponseInfo, ServerLimits},
     store::in_memory::InMemoryZoneHandler,
     zone_handler::{AxfrPolicy, Catalog, MessageResponse, ZoneType},
 };
@@ -32,7 +32,7 @@ use tokio::{
 use tracing::{debug, info};
 
 use self::node_zone_handler::NodeZoneHandler;
-use crate::{metrics::Metrics, store::ZoneStore};
+use crate::{config::IngressPolicy, metrics::Metrics, store::ZoneStore};
 
 mod node_zone_handler;
 
@@ -95,9 +95,18 @@ pub(crate) struct DnsServer {
 
 impl DnsServer {
     /// Spawn the server.
-    pub(crate) async fn spawn(config: DnsConfig, dns_handler: DnsHandler) -> Result<Self> {
+    pub(crate) async fn spawn(
+        config: DnsConfig,
+        dns_handler: DnsHandler,
+        ingress: &IngressPolicy,
+    ) -> Result<Self> {
         const TCP_TIMEOUT: Duration = Duration::from_millis(1000);
-        let mut server = hickory_server::Server::new(dns_handler);
+        let limits = ServerLimits::new(
+            ingress.max_dns_udp_requests,
+            ingress.max_dns_tcp_connections,
+        );
+        let observer = dns_handler.metrics.clone();
+        let mut server = hickory_server::Server::with_limits(dns_handler, limits, observer);
 
         let bind_addr = SocketAddr::new(
             config.bind_addr.unwrap_or(Ipv4Addr::UNSPECIFIED.into()),

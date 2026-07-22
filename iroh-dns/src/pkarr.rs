@@ -38,6 +38,9 @@ impl SignedPacket {
     /// Maximum total byte size of a signed packet.
     pub const MAX_BYTES: usize = MAX_SIGNED_PACKET_SIZE;
 
+    /// Maximum byte size of a relay payload, which omits the public key.
+    pub const MAX_RELAY_PAYLOAD_BYTES: usize = MAX_SIGNED_PACKET_SIZE - PublicKey::LENGTH;
+
     /// Create a signed packet containing TXT records under a single name.
     ///
     /// This is the common case: multiple TXT values under the same DNS name (e.g. `"_iroh"`).
@@ -411,4 +414,18 @@ pub enum SignedPacketVerifyError {
     DnsError { source: AnyError },
     #[error("Invalid public key")]
     InvalidKey { source: iroh_base::KeyParsingError },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relay_payload_limit_excludes_public_key() {
+        assert_eq!(
+            SignedPacket::MAX_RELAY_PAYLOAD_BYTES,
+            SignedPacket::MAX_BYTES - PublicKey::LENGTH
+        );
+        assert_eq!(SignedPacket::MAX_RELAY_PAYLOAD_BYTES, 1_072);
+    }
 }

@@ -42,16 +42,35 @@ impl CertMode {
         cert_cache: PathBuf,
         letsencrypt_contact: Option<String>,
         letsencrypt_prod: bool,
-    ) -> Result<TlsAcceptor> {
+    ) -> Result<TlsRuntime> {
         Ok(match self {
-            CertMode::Manual => TlsAcceptor::manual(domains, cert_cache).await?,
-            CertMode::SelfSigned => TlsAcceptor::self_signed(domains)?,
+            CertMode::Manual => {
+                TlsRuntime::without_maintenance(TlsAcceptor::manual(domains, cert_cache).await?)
+            }
+            CertMode::SelfSigned => {
+                TlsRuntime::without_maintenance(TlsAcceptor::self_signed(domains)?)
+            }
             CertMode::LetsEncrypt => {
                 let contact =
                     letsencrypt_contact.context("contact is required for letsencrypt cert mode")?;
                 TlsAcceptor::letsencrypt(domains, &contact, letsencrypt_prod, cert_cache)?
             }
         })
+    }
+}
+
+/// TLS acceptor and its supervisor-owned maintenance work.
+pub(crate) struct TlsRuntime {
+    pub(crate) acceptor: TlsAcceptor,
+    pub(crate) maintenance: Option<BoxFuture<io::Result<()>>>,
+}
+
+impl TlsRuntime {
+    fn without_maintenance(acceptor: TlsAcceptor) -> Self {
+        Self {
+            acceptor,
+            maintenance: None,
+        }
     }
 }
 
@@ -126,7 +145,7 @@ impl TlsAcceptor {
         contact: &str,
         is_production: bool,
         dir: PathBuf,
-    ) -> Result<Self> {
+    ) -> Result<TlsRuntime> {
         let config = rustls::ServerConfig::builder().with_no_client_auth();
         let mut state = AcmeConfig::new(domains)
             .contact([format!("mailto:{contact}")])
@@ -137,20 +156,26 @@ impl TlsAcceptor {
         let config = config.with_cert_resolver(state.resolver());
         let acceptor = state.acceptor();
 
-        tokio::spawn(
-            async move {
-                loop {
-                    match state.next().await.unwrap() {
-                        Ok(ok) => debug!("acme event: {:?}", ok),
-                        Err(err) => error!("error: {:?}", err),
+        let config = Arc::new(config);
+        let acceptor = AxumAcceptor::new(acceptor, config);
+        let maintenance = async move {
+            while let Some(event) = state.next().await {
+                match event {
+                    Ok(ok) => debug!("acme event: {:?}", ok),
+                    Err(err) => {
+                        error!(?err, "ACME maintenance failed");
+                        return Err(io::Error::other(err));
                     }
                 }
             }
-            .instrument(info_span!("acme")),
-        );
-        let config = Arc::new(config);
-        let acceptor = AxumAcceptor::new(acceptor, config);
-        Ok(Self::LetsEncrypt(acceptor))
+            Err(io::Error::other("ACME maintenance stream ended"))
+        }
+        .instrument(info_span!("acme"))
+        .boxed();
+        Ok(TlsRuntime {
+            acceptor: Self::LetsEncrypt(acceptor),
+            maintenance: Some(maintenance),
+        })
     }
 }
 

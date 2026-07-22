@@ -10,7 +10,7 @@ use iroh_dns::pkarr::{SignedPacket, SignedPacketVerifyError, Timestamp};
 use lru::LruCache;
 use mainline::{Dht, DhtBuilder, MutableItem};
 use n0_error::{Result, StdResultExt};
-pub(crate) use signed_packets::Options;
+pub(crate) use signed_packets::{NonZeroDuration, Options};
 use tokio::sync::Mutex;
 use tracing::{debug, trace, warn};
 use ttl_cache::TtlCache;

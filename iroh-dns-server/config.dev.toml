@@ -1,5 +1,18 @@
 pkarr_put_rate_limit = "disabled"
 
+[limits]
+max_dns_udp_requests = 1024
+max_dns_tcp_connections = 256
+max_http_connections = 512
+max_http_requests = 1024
+max_http2_streams_per_connection = 32
+http_accept_rate_per_second = 200.0
+http_accept_burst = 400
+max_rate_limit_entries = 4096
+trusted_proxy_cidrs = []
+max_http_body_bytes = 65535
+shutdown_timeout = "20s"
+
 [http]
 port = 8080
 bind_addr = "127.0.0.1"
