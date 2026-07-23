@@ -1,4 +1,11 @@
-use std::{convert::Infallible, io, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{
+    convert::Infallible,
+    io,
+    net::SocketAddr,
+    num::NonZeroU32,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::Router;
 use axum_server::accept::Accept;
@@ -15,6 +22,9 @@ use tracing::{debug, warn};
 use crate::admission::{AdmissionControl, ConnectionAdmission};
 
 use super::tls::TlsAcceptor;
+
+/// Maximum time an accepted connection may spend completing its TLS handshake.
+const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Serve all connections accepted by `listener` while enforcing global admission limits.
 ///
@@ -62,7 +72,21 @@ pub(super) async fn serve_listener(
                 connections.spawn(async move {
                     let _lease = lease;
                     if let Some(acceptor) = tls_acceptor {
-                        let (stream, service) = acceptor.accept(stream, service).await?;
+                        let accepted = tokio::select! {
+                            biased;
+                            () = cancel.cancelled() => return Ok(()),
+                            result = tokio::time::timeout(
+                                TLS_HANDSHAKE_TIMEOUT,
+                                acceptor.accept(stream, service),
+                            ) => result,
+                        };
+                        let (stream, service) = accepted
+                            .map_err(|_| {
+                                io::Error::new(
+                                    io::ErrorKind::TimedOut,
+                                    "TLS handshake deadline exceeded",
+                                )
+                            })??;
                         let connection = builder
                             .serve_connection_with_upgrades(
                                 TokioIo::new(stream),

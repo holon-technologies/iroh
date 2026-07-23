@@ -43,7 +43,10 @@ use super::Source;
 #[cfg(not(wasm_browser))]
 use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep};
 use crate::{
-    address_lookup::{AddressLookupFailed, AddressLookupServices, Item as AddressLookupItem},
+    address_lookup::{
+        AddressLookupFailed, AddressLookupServices, Item as AddressLookupItem,
+        MAX_ADDRESS_LOOKUP_ITEMS,
+    },
     endpoint::DirectAddr,
     socket::{
         Metrics as SocketMetrics, RELAY_PATH_MAX_IDLE_TIMEOUT,
@@ -85,8 +88,6 @@ const UPGRADE_INTERVAL: Duration = Duration::from_secs(60);
 /// in a high frequency, and to keep data about previous path around for subsequent connections.
 const ACTOR_MAX_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Maximum number of results consumed from one address lookup run.
-const MAX_ADDRESS_LOOKUP_ITEMS: usize = 64;
 /// Maximum duration of one address lookup run.
 const ADDRESS_LOOKUP_DURATION: Duration = Duration::from_secs(15);
 
@@ -1120,10 +1121,17 @@ impl State {
                 self.finish_address_lookup(Ok(()));
             }
             Some(Err(err)) => {
-                if let AddressLookupFailed::NoServiceConfigured { .. } = err {
-                    trace!("Address Lookup not configured");
-                } else {
-                    debug!("Address Lookup failed: {err:#}");
+                match &err {
+                    AddressLookupFailed::NoServiceConfigured { .. } => {
+                        trace!("Address Lookup not configured");
+                    }
+                    AddressLookupFailed::ItemCapacityFull { .. } => {
+                        self.metrics.address_lookup_items_rejected.inc();
+                        debug!("Address Lookup failed: {err:#}");
+                    }
+                    _ => {
+                        debug!("Address Lookup failed: {err:#}");
+                    }
                 }
                 self.finish_address_lookup(Err(err));
             }

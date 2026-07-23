@@ -117,6 +117,9 @@ use tracing::debug;
 pub use crate::endpoint_info::{EndpointData, EndpointInfo, UserData};
 use crate::{Endpoint, endpoint::EndpointError};
 
+/// Maximum number of successful items and inline errors yielded by one aggregate lookup.
+pub(crate) const MAX_ADDRESS_LOOKUP_ITEMS: usize = 64;
+
 #[cfg(not(wasm_browser))]
 pub mod dns;
 pub mod memory;
@@ -553,6 +556,10 @@ impl AddressLookupServices {
     /// errors. If at least one [`Item`] was yielded, buffered errors are
     /// discarded and the stream ends with `None`.
     ///
+    /// At most 64 successful items and inline errors are yielded in total.
+    /// Attempting to yield another item terminates the aggregate lookup with
+    /// [`AddressLookupFailed::ItemCapacityFull`].
+    ///
     /// If no services are configured, the stream yields a single
     /// [`AddressLookupFailed::NoServiceConfigured`] error and then ends.
     ///
@@ -590,6 +597,7 @@ impl AddressLookupServices {
 struct AddressLookupStream {
     streams: Option<MergeBounded<BoxStream<Result<Item, Error>>>>,
     errors: Vec<Error>,
+    emitted_items: usize,
     did_emit: bool,
     closed: bool,
 }
@@ -599,6 +607,7 @@ impl AddressLookupStream {
         Self {
             streams: None,
             errors: Vec::new(),
+            emitted_items: 0,
             did_emit: false,
             closed: false,
         }
@@ -608,6 +617,7 @@ impl AddressLookupStream {
         Self {
             streams: Some(MergeBounded::from_iter(streams)),
             errors: Vec::new(),
+            emitted_items: 0,
             did_emit: false,
             closed: false,
         }
@@ -625,19 +635,38 @@ impl Stream for AddressLookupStream {
         if this.closed {
             return Poll::Ready(None);
         }
-        let mut inner = match this.streams.as_mut() {
-            Some(inner) => inner,
-            None => {
-                this.closed = true;
-                return Poll::Ready(Some(Err(e!(AddressLookupFailed::NoServiceConfigured))));
-            }
+        let next = {
+            let mut inner = match this.streams.as_mut() {
+                Some(inner) => inner,
+                None => {
+                    this.closed = true;
+                    return Poll::Ready(Some(Err(e!(AddressLookupFailed::NoServiceConfigured))));
+                }
+            };
+            ready!(Pin::new(&mut inner).poll_next(cx))
         };
-        let item = match ready!(Pin::new(&mut inner).poll_next(cx)) {
+        if next.is_some() && this.emitted_items >= MAX_ADDRESS_LOOKUP_ITEMS {
+            this.closed = true;
+            this.streams = None;
+            this.errors.clear();
+            return Poll::Ready(Some(Err(e!(AddressLookupFailed::ItemCapacityFull {
+                maximum: MAX_ADDRESS_LOOKUP_ITEMS,
+            }))));
+        }
+        let item = match next {
             Some(Ok(item)) => {
+                this.emitted_items = this
+                    .emitted_items
+                    .checked_add(1)
+                    .expect("bounded address lookup item count cannot overflow");
                 this.did_emit = true;
                 Some(Ok(Ok(item)))
             }
             Some(Err(error)) => {
+                this.emitted_items = this
+                    .emitted_items
+                    .checked_add(1)
+                    .expect("bounded address lookup item count cannot overflow");
                 debug!("address lookup error: {error:#}");
                 this.errors.push(error.clone());
                 Some(Ok(Err(error)))
@@ -675,7 +704,10 @@ mod tests {
     use super::*;
     use crate::{
         Endpoint,
-        endpoint::{ConnectOptions, IdleTimeout, QuicTransportConfig, presets},
+        endpoint::{
+            ConnectError, ConnectOptions, ConnectWithOptsError, IdleTimeout, QuicTransportConfig,
+            presets,
+        },
     };
 
     type InfoStore = HashMap<EndpointId, (EndpointData, u64)>;
@@ -815,7 +847,48 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone)]
+    struct ErrorFloodAddressLookup {
+        count: usize,
+    }
+
+    impl AddressLookup for ErrorFloodAddressLookup {
+        fn publish(&self, _data: &EndpointData) {}
+
+        fn resolve(&self, _endpoint_id: EndpointId) -> Option<BoxStream<Result<Item, Error>>> {
+            let errors = (0..self.count).map(|_| {
+                Err(Error::from_err(
+                    "error-flood-test",
+                    std::io::Error::other("simulated resolver failure"),
+                ))
+            });
+            Some(n0_future::stream::iter(errors).boxed())
+        }
+    }
+
     const TEST_ALPN: &[u8] = b"n0/iroh/test";
+
+    #[tokio::test]
+    async fn aggregate_lookup_bounds_inline_service_errors() {
+        const MAX_ITEMS: usize = 64;
+
+        let services = AddressLookupServices::default();
+        services.add(ErrorFloodAddressLookup {
+            count: MAX_ITEMS + 1,
+        });
+        let endpoint_id = SecretKey::from_bytes(&[42; 32]).public();
+        let mut stream = std::pin::pin!(services.resolve(endpoint_id));
+
+        for _ in 0..MAX_ITEMS {
+            assert!(matches!(stream.next().await, Some(Ok(Err(_)))));
+        }
+        assert!(matches!(
+            stream.next().await,
+            Some(Err(AddressLookupFailed::ItemCapacityFull { maximum, .. }))
+                if maximum == MAX_ITEMS
+        ));
+        assert!(stream.next().await.is_none());
+    }
 
     /// This is a smoke test for our Address Lookupmechanism.
     #[tokio::test]
@@ -1008,14 +1081,14 @@ mod tests {
         Ok(())
     }
 
-    /// Regression test: Pending address lookup must keep the `RemoteStateActor` alive.
+    /// Regression test: a pending address lookup must finish at its bounded deadline.
     ///
-    /// Previously, this test failed with an `InternalConsistencyError` because the
-    /// `RemoteStateActor` was marked idle and shut down while there were pending
-    /// `ResolveRemote` requests still queued.
+    /// The deadline must win before the actor's idle timeout, and the pending
+    /// `ResolveRemote` request must receive the typed lookup error rather than an
+    /// `InternalConsistencyError`.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     #[traced_test]
-    async fn pending_resolve_survives_actor_idle_timeout() -> Result {
+    async fn hanging_resolve_returns_bounded_deadline_error() -> Result {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
         let ep = Endpoint::builder(presets::Minimal)
             .secret_key(SecretKey::from_bytes(&rng.random()))
@@ -1028,12 +1101,21 @@ mod tests {
         let offline_id = SecretKey::from_bytes(&rng.random()).public();
         let connect_task = tokio::spawn(async move { ep.connect(offline_id, TEST_ALPN).await });
 
-        // `iroh::socket::remote_map::remote_state::ACTOR_MAX_IDLE_TIMEOUT`
-        // is 60s. Sleep for longer so that we are sure that the idle timeout expired.
-        let res = time::timeout(Duration::from_secs(65), connect_task).await;
-        // We expect the timeout to elapse, because the address lookup does not resolve.
-        // Before the fix, this would produce an `InternalConsistencyError` after the actor's idle timeout expired.
-        assert!(res.is_err(), "expected Elapsed, got {res:?}");
+        let error = time::timeout(Duration::from_secs(65), connect_task)
+            .await
+            .expect("address lookup deadline must precede the actor idle timeout")
+            .expect("connect task must not panic")
+            .expect_err("hanging address lookup must fail at its deadline");
+        assert!(matches!(
+            error,
+            ConnectError::Connect {
+                source: ConnectWithOptsError::NoAddress {
+                    source: AddressLookupFailed::DeadlineExceeded { duration, .. },
+                    ..
+                },
+                ..
+            } if duration == Duration::from_secs(15)
+        ));
         Ok(())
     }
 

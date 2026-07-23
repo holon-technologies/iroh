@@ -17,6 +17,7 @@ shutdown_timeout = "20s"
 port = 443
 domains = ["irohdns.example.org"]
 cert_mode = "lets_encrypt"
+letsencrypt_contact = "ops@example.org"
 letsencrypt_prod = true
 
 [dns]

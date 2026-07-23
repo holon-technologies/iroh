@@ -241,3 +241,25 @@ impl Server {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::MetricsConfig;
+
+    #[tokio::test]
+    async fn invalid_transport_config_does_not_create_persistent_state() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let data_dir = temp.path().join("must-not-be-created");
+        let config = Config {
+            http: None,
+            https: None,
+            metrics: Some(MetricsConfig::disabled()),
+            data_dir: Some(data_dir.clone()),
+            ..Config::default()
+        };
+
+        assert!(Server::bind(config).await.is_err());
+        assert!(!data_dir.exists());
+    }
+}

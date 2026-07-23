@@ -283,36 +283,40 @@ impl RemotePathState {
     ) -> PathAdmissionOutcome {
         if let Some(existing) = self.paths.get(&addr) {
             let adds_attribution = !existing.sources.contains_key(&source);
-            if adds_attribution && existing.sources.len() >= MAX_SOURCES_PER_PATH {
-                self.metrics.path_candidates_rejected.inc();
-                return PathAdmissionOutcome::Rejected {
-                    limit: PathLimit::SourcesPerPath,
+            let attribution_limit =
+                if adds_attribution && existing.sources.len() >= MAX_SOURCES_PER_PATH {
+                    Some(PathLimit::SourcesPerPath)
+                } else if adds_attribution
+                    && self
+                        .paths
+                        .values()
+                        .filter(|state| state.sources.contains_key(&source))
+                        .count()
+                        >= MAX_CANDIDATES_PER_SOURCE
+                {
+                    Some(PathLimit::CandidatesPerSource)
+                } else if adds_attribution
+                    && !self
+                        .paths
+                        .values()
+                        .any(|state| state.sources.contains_key(&source))
+                    && self.distinct_source_count() >= MAX_DISTINCT_SOURCES
+                {
+                    Some(PathLimit::DistinctSources)
+                } else {
+                    None
                 };
-            }
-            if adds_attribution
-                && self
-                    .paths
-                    .values()
-                    .filter(|state| state.sources.contains_key(&source))
-                    .count()
-                    >= MAX_CANDIDATES_PER_SOURCE
-            {
+            if let Some(limit) = attribution_limit {
+                if matches!(status, PathStatus::Open) {
+                    let existing = self
+                        .paths
+                        .get_mut(&addr)
+                        .expect("existing path must remain present during an open transition");
+                    existing.status = PathStatus::Open;
+                    return PathAdmissionOutcome::Updated;
+                }
                 self.metrics.path_candidates_rejected.inc();
-                return PathAdmissionOutcome::Rejected {
-                    limit: PathLimit::CandidatesPerSource,
-                };
-            }
-            if adds_attribution
-                && !self
-                    .paths
-                    .values()
-                    .any(|state| state.sources.contains_key(&source))
-                && self.distinct_source_count() >= MAX_DISTINCT_SOURCES
-            {
-                self.metrics.path_candidates_rejected.inc();
-                return PathAdmissionOutcome::Rejected {
-                    limit: PathLimit::DistinctSources,
-                };
+                return PathAdmissionOutcome::Rejected { limit };
             }
             let Some(existing) = self.paths.get_mut(&addr) else {
                 return PathAdmissionOutcome::Rejected {
@@ -917,6 +921,36 @@ mod tests {
         );
         assert_eq!(state.paths.len(), MAX_NON_RELAY_PATHS);
         assert!(!state.paths.contains_key(&rejected));
+    }
+
+    #[test]
+    fn opening_an_existing_path_overrides_attribution_pressure() {
+        let mut state = RemotePathState::new(Default::default());
+        let now = Instant::now();
+        let addr = ip_addr(42);
+        for index in 0..MAX_SOURCES_PER_PATH {
+            state.insert_multiple(
+                [addr.clone()].into_iter(),
+                Source::AddressLookup {
+                    name: format!("lookup-{index}"),
+                },
+                now,
+            );
+        }
+        assert!(matches!(
+            state.paths.get(&addr).map(|state| &state.status),
+            Some(PathStatus::Unknown)
+        ));
+
+        assert_eq!(
+            state.insert_open_path(addr.clone(), Source::Connection, now),
+            PathAdmissionOutcome::Updated
+        );
+        assert!(matches!(
+            state.paths.get(&addr).map(|state| &state.status),
+            Some(PathStatus::Open)
+        ));
+        assert_path_bounds(&state);
     }
 
     #[test]

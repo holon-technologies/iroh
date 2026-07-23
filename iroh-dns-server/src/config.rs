@@ -178,6 +178,17 @@ pub enum ConfigError {
     },
     /// Smart client-IP extraction was enabled without a trusted proxy network.
     SmartRateLimitWithoutTrustedProxy,
+    /// Neither an HTTP nor HTTPS listener was configured.
+    MissingHttpTransport,
+    /// HTTPS was configured without any certificate domains.
+    HttpsDomainsEmpty,
+    /// Manual TLS supports exactly one certificate domain.
+    ManualTlsDomainCount {
+        /// Supplied domain count.
+        count: usize,
+    },
+    /// Let's Encrypt TLS was configured without a contact address.
+    LetsEncryptContactRequired,
 }
 
 impl fmt::Display for ConfigError {
@@ -213,6 +224,18 @@ impl fmt::Display for ConfigError {
                 f,
                 "pkarr_put_rate_limit = smart requires limits.trusted_proxy_cidrs"
             ),
+            Self::MissingHttpTransport => {
+                write!(f, "either http or https config is required")
+            }
+            Self::HttpsDomainsEmpty => {
+                write!(f, "https.domains must contain at least one domain")
+            }
+            Self::ManualTlsDomainCount { count } => {
+                write!(f, "manual TLS requires exactly one domain, got {count}")
+            }
+            Self::LetsEncryptContactRequired => {
+                write!(f, "https.letsencrypt_contact is required for Let's Encrypt")
+            }
         }
     }
 }
@@ -424,6 +447,7 @@ impl TryFrom<Config> for ValidatedConfig {
     type Error = ConfigError;
 
     fn try_from(config: Config) -> std::result::Result<Self, Self::Error> {
+        validate_http_transport(&config)?;
         let ingress = IngressPolicy::try_from(&config.limits)?;
         validate_rate_limit(&config.pkarr_put_rate_limit, &ingress)?;
         let store_options = match config.zone_store.as_ref() {
@@ -439,14 +463,41 @@ impl TryFrom<Config> for ValidatedConfig {
 }
 
 impl Config {
-    /// Validates all resource and store limits without performing I/O.
+    /// Validates structural transport settings and all resource and store limits without I/O.
     pub fn validate(&self) -> std::result::Result<(), ConfigError> {
+        validate_http_transport(self)?;
         let ingress = IngressPolicy::try_from(&self.limits)?;
         validate_rate_limit(&self.pkarr_put_rate_limit, &ingress)?;
         if let Some(store) = self.zone_store.as_ref() {
             Options::try_from(store)?;
         }
         Ok(())
+    }
+}
+
+fn validate_http_transport(config: &Config) -> std::result::Result<(), ConfigError> {
+    if config.http.is_none() && config.https.is_none() {
+        return Err(ConfigError::MissingHttpTransport);
+    }
+    let Some(https) = config.https.as_ref() else {
+        return Ok(());
+    };
+    if https.domains.is_empty() {
+        return Err(ConfigError::HttpsDomainsEmpty);
+    }
+    match https.cert_mode {
+        CertMode::Manual if https.domains.len() != 1 => Err(ConfigError::ManualTlsDomainCount {
+            count: https.domains.len(),
+        }),
+        CertMode::LetsEncrypt
+            if https
+                .letsencrypt_contact
+                .as_deref()
+                .is_none_or(|contact| contact.trim().is_empty()) =>
+        {
+            Err(ConfigError::LetsEncryptContactRequired)
+        }
+        CertMode::Manual | CertMode::LetsEncrypt | CertMode::SelfSigned => Ok(()),
     }
 }
 
@@ -752,6 +803,50 @@ mod tests {
         );
         config.limits.trusted_proxy_cidrs = vec!["127.0.0.0/8".parse().unwrap()];
         config.validate().expect("trusted smart mode validates");
+    }
+
+    #[test]
+    fn validation_rejects_invalid_http_and_tls_structure() {
+        let mut missing_transport = Config::default();
+        missing_transport.http = None;
+        missing_transport.https = None;
+        assert_eq!(
+            missing_transport.validate(),
+            Err(ConfigError::MissingHttpTransport)
+        );
+
+        let mut missing_contact = Config::default();
+        let https = missing_contact
+            .https
+            .as_mut()
+            .expect("default HTTPS config");
+        https.cert_mode = CertMode::LetsEncrypt;
+        https.letsencrypt_contact = None;
+        assert_eq!(
+            missing_contact.validate(),
+            Err(ConfigError::LetsEncryptContactRequired)
+        );
+
+        let mut manual_domains = Config::default();
+        let https = manual_domains.https.as_mut().expect("default HTTPS config");
+        https.cert_mode = CertMode::Manual;
+        https.domains = vec!["one.example".to_string(), "two.example".to_string()];
+        assert_eq!(
+            manual_domains.validate(),
+            Err(ConfigError::ManualTlsDomainCount { count: 2 })
+        );
+
+        let mut empty_domains = Config::default();
+        empty_domains
+            .https
+            .as_mut()
+            .expect("default HTTPS config")
+            .domains
+            .clear();
+        assert_eq!(
+            empty_domains.validate(),
+            Err(ConfigError::HttpsDomainsEmpty)
+        );
     }
 
     #[test]

@@ -27,7 +27,11 @@ pub enum RateLimitConfig {
     /// Rate limits by the connection's peer IP address.
     #[default]
     Simple,
-    /// Uses forwarding headers only when the peer belongs to an explicitly trusted proxy CIDR.
+    /// Walks `X-Forwarded-For` from right to left when the peer belongs to an
+    /// explicitly trusted proxy CIDR.
+    ///
+    /// The first address outside the trusted proxy chain identifies the client.
+    /// Missing, malformed, or ambiguous headers fail closed to the peer address.
     Smart,
 }
 
@@ -80,26 +84,38 @@ impl RateLimiter {
     }
 
     fn client_ip(&self, peer: SocketAddr, headers: &HeaderMap) -> IpAddr {
-        if self.mode != RateLimitConfig::Smart
-            || !self
-                .trusted_proxies
-                .iter()
-                .any(|network| network.contains(&peer.ip()))
-        {
+        if self.mode != RateLimitConfig::Smart || !self.is_trusted_proxy(peer.ip()) {
             return peer.ip();
         }
-        headers
-            .get("x-forwarded-for")
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.split(',').next())
-            .and_then(|value| value.trim().parse().ok())
-            .or_else(|| {
-                headers
-                    .get("x-real-ip")
-                    .and_then(|value| value.to_str().ok())
-                    .and_then(|value| value.trim().parse().ok())
-            })
-            .unwrap_or_else(|| peer.ip())
+
+        let mut forwarded_values = headers.get_all("x-forwarded-for").iter();
+        let Some(forwarded) = forwarded_values.next() else {
+            return peer.ip();
+        };
+        if forwarded_values.next().is_some() {
+            return peer.ip();
+        }
+        let Ok(forwarded) = forwarded.to_str() else {
+            return peer.ip();
+        };
+
+        let mut current = peer.ip();
+        for value in forwarded.rsplit(',') {
+            if !self.is_trusted_proxy(current) {
+                break;
+            }
+            let Ok(next) = value.trim().parse() else {
+                return peer.ip();
+            };
+            current = next;
+        }
+        current
+    }
+
+    fn is_trusted_proxy(&self, ip: IpAddr) -> bool {
+        self.trusted_proxies
+            .iter()
+            .any(|network| network.contains(&ip))
     }
 
     #[cfg(test)]
@@ -217,6 +233,25 @@ mod tests {
         assert_eq!(
             limiter.client_ip(SocketAddr::from(([198, 51, 100, 4], 80)), &headers),
             "198.51.100.4".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn smart_mode_ignores_client_spoofed_forwarded_prefixes() {
+        let limiter = RateLimiter::new(
+            RateLimitConfig::Smart,
+            &policy(2, &["127.0.0.0/8"]),
+            Arc::new(Metrics::default()),
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            "198.51.100.99, 203.0.113.7".parse().unwrap(),
+        );
+
+        assert_eq!(
+            limiter.client_ip(SocketAddr::from(([127, 0, 0, 1], 80)), &headers),
+            "203.0.113.7".parse::<IpAddr>().unwrap()
         );
     }
 }

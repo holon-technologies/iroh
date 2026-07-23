@@ -403,6 +403,7 @@ mod tests {
     use std::{
         net::{IpAddr, Ipv4Addr},
         sync::Arc,
+        time::Duration,
     };
 
     use hickory_resolver::{
@@ -419,6 +420,7 @@ mod tests {
     use n0_error::StdResultExt;
     use n0_tracing_test::traced_test;
     use rand::{RngExt, SeedableRng};
+    use tokio::{net::TcpStream, time::timeout};
 
     use crate::{http::HttpsConfig, server::Server};
 
@@ -443,6 +445,37 @@ mod tests {
             .anyerr()?;
         assert_eq!(response.status(), http::StatusCode::PAYLOAD_TOO_LARGE);
         server.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn shutdown_cancels_an_incomplete_tls_handshake() -> n0_error::Result {
+        let dir = tempfile::tempdir()?;
+        let https_config = HttpsConfig {
+            port: 0,
+            bind_addr: Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            domains: vec!["localhost".to_string()],
+            cert_mode: crate::http::CertMode::SelfSigned,
+            letsencrypt_contact: None,
+            letsencrypt_prod: None,
+        };
+        let server =
+            Server::spawn_for_tests_with_options(dir.path(), None, None, Some(https_config))
+                .await?;
+        let https_addr = server.https_addr().expect("HTTPS is bound");
+        let _stalled_handshake = TcpStream::connect(https_addr).await?;
+
+        timeout(Duration::from_secs(2), async {
+            while server.metrics().http_connections_active.get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("stalled TLS connection should be admitted");
+
+        timeout(Duration::from_secs(1), server.shutdown())
+            .await
+            .expect("shutdown must cancel an incomplete TLS handshake")?;
         Ok(())
     }
 
