@@ -95,6 +95,8 @@ pub struct EventQueueStats {
     pub packet_events_current: usize,
     /// High-water number of queued packet events.
     pub packet_events_high_water: usize,
+    /// Largest queued packet-event count observed on any one connection.
+    pub packet_events_per_connection_high_water: usize,
     /// Current number of queued packet bytes.
     pub packet_bytes_current: usize,
     /// High-water number of queued packet bytes.
@@ -205,6 +207,7 @@ pub(crate) struct QueueBudgets {
     control_events: Arc<Semaphore>,
     connection_count: Counter,
     packet_event_count: Counter,
+    packet_events_per_connection_high_water: AtomicUsize,
     packet_byte_count: Counter,
     control_event_count: Counter,
     failed: AtomicBool,
@@ -222,6 +225,7 @@ impl QueueBudgets {
             limits,
             connection_count: Counter::new(),
             packet_event_count: Counter::new(),
+            packet_events_per_connection_high_water: AtomicUsize::new(0),
             packet_byte_count: Counter::new(),
             control_event_count: Counter::new(),
             failed: AtomicBool::new(false),
@@ -281,6 +285,9 @@ impl QueueBudgets {
             active_connections_high_water: self.connection_count.high_water.load(Ordering::Acquire),
             packet_events_current: self.packet_event_count.current.load(Ordering::Acquire),
             packet_events_high_water: self.packet_event_count.high_water.load(Ordering::Acquire),
+            packet_events_per_connection_high_water: self
+                .packet_events_per_connection_high_water
+                .load(Ordering::Acquire),
             packet_bytes_current: self.packet_byte_count.current.load(Ordering::Acquire),
             packet_bytes_high_water: self.packet_byte_count.high_water.load(Ordering::Acquire),
             control_events_current: self.control_event_count.current.load(Ordering::Acquire),
@@ -373,6 +380,16 @@ impl ConnectionBudget {
             drop(byte_permit);
             return Err(error);
         }
+        let per_connection = self
+            .budgets
+            .limits
+            .max_packet_events_per_connection
+            .get()
+            .checked_sub(self.packet_events.available_permits())
+            .expect("available packet-event permits cannot exceed the configured maximum");
+        self.budgets
+            .packet_events_per_connection_high_water
+            .fetch_max(per_connection, Ordering::AcqRel);
         Ok(PacketPermit {
             budgets: self.budgets.clone(),
             byte_count,
@@ -787,6 +804,7 @@ mod tests {
             Err(QueueAdmissionError::PacketItemsFull)
         ));
         assert_eq!(budgets.stats().packet_events_current, 2);
+        assert_eq!(budgets.stats().packet_events_per_connection_high_water, 2);
         assert_eq!(budgets.stats().packet_bytes_current, 5);
 
         drop(first);

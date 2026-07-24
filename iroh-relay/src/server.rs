@@ -485,8 +485,10 @@ impl TlsConfig {
     }
 }
 
-const DEFAULT_ACCEPT_CONN_LIMIT: f64 = 200.0;
-const DEFAULT_ACCEPT_CONN_BURST: usize = 400;
+/// Default relay connection-accept rate per second.
+pub const DEFAULT_ACCEPT_CONN_LIMIT: f64 = 200.0;
+/// Default relay connection-accept burst.
+pub const DEFAULT_ACCEPT_CONN_BURST: usize = 400;
 const DEFAULT_MAX_PENDING_ESTABLISHMENTS: usize = 256;
 const DEFAULT_MAX_REGISTERED_SESSIONS: usize = 4_096;
 const DEFAULT_MAX_SESSIONS_PER_ENDPOINT: usize = 4;

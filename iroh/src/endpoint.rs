@@ -93,7 +93,7 @@ pub use bind::{BindOpts, InvalidSocketAddr, ToSocketAddr};
 pub use hooks::{AfterHandshakeOutcome, BeforeConnectOutcome, EndpointHooks};
 pub use limits::{
     CapacitySnapshot, DEFAULT_MAX_ACTIVE_RELAY_ACTORS, DEFAULT_MAX_CONNECTIONS,
-    DEFAULT_MAX_LIVE_TASKS, DEFAULT_MAX_REMOTE_STATE_ACTORS, EndpointLimits,
+    DEFAULT_MAX_LIVE_TASKS, DEFAULT_MAX_REMOTE_STATE_ACTORS, EndpointLimits, TaskCapacitySnapshot,
 };
 
 #[cfg(feature = "qlog")]
@@ -1803,6 +1803,11 @@ impl Endpoint {
     /// Returns active-connection capacity utilization and rejection counters.
     pub fn connection_capacity_snapshot(&self) -> CapacitySnapshot {
         self.inner.connection_admission.snapshot()
+    }
+
+    /// Returns live-task capacity utilization and rejection counters.
+    pub fn task_capacity_snapshot(&self) -> TaskCapacitySnapshot {
+        self.inner.runtime_task_capacity_snapshot()
     }
 
     /// Returns Noq's bounded internal connection and event-queue diagnostics.

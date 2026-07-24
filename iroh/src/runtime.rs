@@ -39,6 +39,8 @@ pub(crate) struct Runtime {
     #[cfg(wasm_browser)]
     live_tasks: Arc<AtomicUsize>,
     #[cfg(wasm_browser)]
+    high_water_live_tasks: Arc<AtomicUsize>,
+    #[cfg(wasm_browser)]
     task_rejections: Arc<AtomicU64>,
     #[cfg(wasm_browser)]
     failed: Arc<AtomicBool>,
@@ -81,6 +83,7 @@ impl Runtime {
             id,
             max_tasks: limits.max_live_tasks().get(),
             live_tasks: Arc::new(AtomicUsize::new(0)),
+            high_water_live_tasks: Arc::new(AtomicUsize::new(0)),
             task_rejections: Arc::new(AtomicU64::new(0)),
             failed: Arc::new(AtomicBool::new(false)),
         }
@@ -107,6 +110,34 @@ impl Runtime {
     #[cfg(not(wasm_browser))]
     pub(crate) fn latch_failure(&self, error: String) {
         latch_failure(&self.failure, error);
+    }
+
+    #[cfg(not(wasm_browser))]
+    pub(crate) fn task_capacity_snapshot(&self) -> crate::endpoint::TaskCapacitySnapshot {
+        match self.tasks.capacity_snapshot() {
+            iroh_runtime::TaskGroupCapacitySnapshot::Reported {
+                max_live_tasks,
+                live_tasks,
+                high_water_live_tasks,
+                rejected_spawns,
+                counter_exhausted,
+            } => crate::endpoint::TaskCapacitySnapshot {
+                maximum: max_live_tasks,
+                current: live_tasks,
+                high_water: high_water_live_tasks,
+                rejections: rejected_spawns,
+                counter_exhausted,
+            },
+            iroh_runtime::TaskGroupCapacitySnapshot::Unreported => {
+                crate::endpoint::TaskCapacitySnapshot {
+                    maximum: 0,
+                    current: 0,
+                    high_water: 0,
+                    rejections: 0,
+                    counter_exhausted: true,
+                }
+            }
+        }
     }
 
     #[cfg(not(wasm_browser))]
@@ -156,6 +187,17 @@ impl Runtime {
     /// No-op on wasm. There is no task tracker or cancellation to perform.
     #[cfg(wasm_browser)]
     pub(crate) fn abort(&self) {}
+
+    #[cfg(wasm_browser)]
+    pub(crate) fn task_capacity_snapshot(&self) -> crate::endpoint::TaskCapacitySnapshot {
+        crate::endpoint::TaskCapacitySnapshot {
+            maximum: self.max_tasks,
+            current: self.live_tasks.load(Ordering::Acquire),
+            high_water: self.high_water_live_tasks.load(Ordering::Acquire),
+            rejections: self.task_rejections.load(Ordering::Acquire),
+            counter_exhausted: self.failed.load(Ordering::Acquire),
+        }
+    }
 }
 
 #[cfg(not(wasm_browser))]
@@ -242,6 +284,9 @@ impl noq::Runtime for Runtime {
             );
             return;
         }
+        let current = self.live_tasks.load(Ordering::Acquire);
+        self.high_water_live_tasks
+            .fetch_max(current, Ordering::AcqRel);
         let live_tasks = self.live_tasks.clone();
         wasm_bindgen_futures::spawn_local(async move {
             let _guard = BrowserTaskPermit { live_tasks };

@@ -93,6 +93,7 @@ async fn live_task_limit_rejects_before_polling_or_consuming_identity() {
             live_tasks: 2,
             high_water_live_tasks: 2,
             rejected_spawns: 1,
+            counter_exhausted: false,
         }
     );
 
@@ -167,6 +168,7 @@ async fn concurrent_admission_never_exceeds_the_live_task_limit() {
             live_tasks: 2,
             high_water_live_tasks: 2,
             rejected_spawns: 14,
+            counter_exhausted: false,
         }
     );
 

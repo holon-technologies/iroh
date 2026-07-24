@@ -1061,6 +1061,10 @@ impl EndpointInner {
         self.runtime.task_snapshot()
     }
 
+    pub(crate) fn runtime_task_capacity_snapshot(&self) -> crate::endpoint::TaskCapacitySnapshot {
+        self.runtime.task_capacity_snapshot()
+    }
+
     /// Creates a [`EndpointInner`].
     pub(crate) async fn bind(opts: Options) -> Result<Self, BindError> {
         // Use the current span as the main span for all tasks spawned in this endpoint.

@@ -945,6 +945,7 @@ struct GroupState {
     failure: Option<TaskGroupError>,
     high_water_live_tasks: usize,
     rejected_spawns: u64,
+    capacity_counter_exhausted: bool,
 }
 
 #[derive(Debug)]
@@ -989,6 +990,7 @@ impl TaskGroup for KernelTaskGroup {
         if !state.closed && state.tasks.len() >= max_live_tasks {
             let Some(rejected_spawns) = state.rejected_spawns.checked_add(1) else {
                 state.closed = true;
+                state.capacity_counter_exhausted = true;
                 state.failure = Some(TaskGroupError::CapacityCounterExhausted {
                     resource: "live_tasks",
                 });
@@ -1136,6 +1138,7 @@ impl TaskGroup for KernelTaskGroup {
             live_tasks: state.tasks.len(),
             high_water_live_tasks: state.high_water_live_tasks,
             rejected_spawns: state.rejected_spawns,
+            counter_exhausted: state.capacity_counter_exhausted,
         }
     }
 

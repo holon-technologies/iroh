@@ -257,6 +257,8 @@ pub enum TaskGroupCapacitySnapshot {
         high_water_live_tasks: usize,
         /// Total task admission rejections at the live-task limit.
         rejected_spawns: u64,
+        /// Whether the rejection counter exhausted and latched the group closed.
+        counter_exhausted: bool,
     },
 }
 
@@ -344,6 +346,7 @@ struct GroupState {
     tasks: BTreeMap<TaskId, TaskMetadata>,
     high_water_live_tasks: usize,
     rejected_spawns: u64,
+    capacity_counter_exhausted: bool,
 }
 
 #[derive(Debug)]
@@ -371,6 +374,7 @@ impl TaskGroup for TokioTaskGroup {
         if !state.closed && state.tasks.len() >= max_live_tasks {
             let Some(rejected_spawns) = state.rejected_spawns.checked_add(1) else {
                 state.closed = true;
+                state.capacity_counter_exhausted = true;
                 drop(state);
                 self.tracker.close();
                 latch_failure(
@@ -510,6 +514,7 @@ impl TaskGroup for TokioTaskGroup {
             live_tasks: state.tasks.len(),
             high_water_live_tasks: state.high_water_live_tasks,
             rejected_spawns: state.rejected_spawns,
+            counter_exhausted: state.capacity_counter_exhausted,
         }
     }
 

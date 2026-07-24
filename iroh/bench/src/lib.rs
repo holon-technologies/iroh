@@ -16,6 +16,8 @@ use tokio::{
 };
 use tracing::info;
 
+#[cfg(feature = "resource-canary")]
+pub mod canary;
 pub mod iroh;
 #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
 pub mod noq;

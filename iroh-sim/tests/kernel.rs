@@ -126,6 +126,7 @@ fn kernel_task_group_enforces_the_requested_group_limit_before_polling() {
             live_tasks: 2,
             high_water_live_tasks: 2,
             rejected_spawns: 1,
+            counter_exhausted: false,
         }
     );
 

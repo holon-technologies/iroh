@@ -1,5 +1,7 @@
 //! HTTP server part of iroh-dns-server
 
+#[cfg(feature = "test-utils")]
+use std::time::Duration;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
@@ -275,6 +277,21 @@ async fn healthz(State(state): State<AppState>) -> Json<Health> {
     })
 }
 
+#[cfg(feature = "test-utils")]
+async fn hold_for_admission_test(headers: http::HeaderMap) -> impl IntoResponse {
+    const MAX_HOLD_MILLIS: u64 = 10 * 60 * 1_000;
+    let duration = headers
+        .get("x-iroh-test-hold-millis")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|duration| *duration > 0 && *duration <= MAX_HOLD_MILLIS);
+    let Some(duration) = duration else {
+        return StatusCode::BAD_REQUEST;
+    };
+    tokio::time::sleep(Duration::from_millis(duration)).await;
+    StatusCode::OK
+}
+
 pub(crate) fn create_app(
     state: AppState,
     rate_limit_config: &RateLimitConfig,
@@ -336,6 +353,8 @@ pub(crate) fn create_app(
         .route("/healthz", get(healthz))
         .route("/", get(|| async { "Hi!" }))
         .with_state(state.clone());
+    #[cfg(feature = "test-utils")]
+    let router = router.route("/__iroh_test/hold", get(hold_for_admission_test));
 
     // configure app
     router

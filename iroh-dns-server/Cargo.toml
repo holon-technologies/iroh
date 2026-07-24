@@ -78,6 +78,7 @@ tempfile = "3.23.0"
 [features]
 default = ["ring"]
 ring = ["rustls/ring", "tokio-rustls/ring"]
+test-utils = []
 
 [[bin]]
 name = "iroh-dns-server"

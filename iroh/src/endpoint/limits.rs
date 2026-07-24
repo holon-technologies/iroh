@@ -143,6 +143,21 @@ pub struct CapacitySnapshot {
     pub counter_exhausted: bool,
 }
 
+/// Point-in-time utilization for the endpoint runtime's live-task capacity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TaskCapacitySnapshot {
+    /// Configured maximum number of live runtime tasks.
+    pub maximum: usize,
+    /// Current number of live runtime tasks.
+    pub current: usize,
+    /// Largest observed number of simultaneously live runtime tasks.
+    pub high_water: usize,
+    /// Number of rejected task spawns.
+    pub rejections: u64,
+    /// Whether rejection accounting exhausted and latched the task group closed.
+    pub counter_exhausted: bool,
+}
+
 #[derive(Debug)]
 pub(crate) struct AdmissionLedger {
     maximum: NonZeroUsize,
