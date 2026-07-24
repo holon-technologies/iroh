@@ -10,8 +10,7 @@ use std::{
 use axum::{
     Json, Router,
     body::Body,
-    extract::DefaultBodyLimit,
-    extract::{ConnectInfo, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Request, State},
     handler::Handler,
     http::{Method, StatusCode, header},
     middleware::{self, Next},
@@ -36,10 +35,10 @@ mod tls;
 mod transport;
 
 pub use self::{rate_limiting::RateLimitConfig, tls::CertMode};
-use crate::state::AppState;
 use crate::{
     admission::{AdmissionControl, RequestAdmission},
     config::IngressPolicy,
+    state::AppState,
 };
 
 /// Configuration for the HTTP listener.

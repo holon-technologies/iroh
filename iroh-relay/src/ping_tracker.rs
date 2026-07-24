@@ -1,8 +1,9 @@
+#[cfg(not(wasm_browser))]
+use std::time::Instant;
+
 #[cfg(wasm_browser)]
 use n0_future::time::Instant;
 use n0_future::time::{self, Duration};
-#[cfg(not(wasm_browser))]
-use std::time::Instant;
 use tracing::debug;
 
 /// Maximum time for a ping response in the relay protocol.

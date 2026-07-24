@@ -12,13 +12,12 @@ use n0_watcher::Watchable;
 use tracing::{debug, info, trace};
 
 use super::{RecvInfo, Transmit};
+#[cfg(test)]
+use crate::simulation::OsIpSocketFactory;
 use crate::{
     metrics::{EndpointMetrics, SocketMetrics},
     simulation::{IpSocket, IpSocketFactory, IpSocketSender},
 };
-
-#[cfg(test)]
-use crate::simulation::OsIpSocketFactory;
 
 #[derive(Debug)]
 pub(crate) struct IpTransport {
@@ -512,9 +511,10 @@ mod tests {
         atomic::{AtomicU16, Ordering},
     };
 
+    use n0_watcher::Watcher as _;
+
     use super::*;
     use crate::simulation::{IpSocket, IpSocketFactory, IpSocketSender};
-    use n0_watcher::Watcher as _;
 
     #[derive(Debug, Default)]
     struct RecordingFactory {

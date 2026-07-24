@@ -4,7 +4,6 @@
 //! or provides a no-op stub otherwise.
 
 use std::net::SocketAddrV4;
-
 #[cfg(not(wasm_browser))]
 use std::sync::Arc;
 

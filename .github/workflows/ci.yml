@@ -42,6 +42,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
       - name: Check boundary checker contract
         run: scripts/tests/check-determinism-boundaries.sh
       - name: Check reviewed boundary inventory
@@ -515,6 +519,10 @@ jobs:
         continue-on-error: true
       - uses: ./.github/workflows/sccache-probe
       - uses: taiki-e/install-action@cargo-make
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
       - run: cargo make format-check
       - name: Check determinism boundary inventory
         run: scripts/check-determinism-boundaries.sh --check

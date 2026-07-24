@@ -5,12 +5,11 @@ use std::{collections::BTreeMap, fmt, path::Path};
 use iroh_runtime::{TraceEvent, TraceEventKind, TraceSequence};
 use serde::{Deserialize, Serialize};
 
-use crate::bounded_io::read_file;
 use crate::{
     ArtifactError, ArtifactStore, InvariantClass, InvariantName, InvariantSnapshot,
     KernelSchedulerSnapshot, KernelTaskSnapshot, Observation, ReferenceModelSnapshot,
-    ResourceLedgerSnapshot, RunnerError, Scenario, ScenarioInventory, first_trace_divergence,
-    normalized_trace_json,
+    ResourceLedgerSnapshot, RunnerError, Scenario, ScenarioInventory, bounded_io::read_file,
+    first_trace_divergence, normalized_trace_json,
 };
 
 /// Current normalized failure-signature schema.

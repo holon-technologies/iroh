@@ -10,8 +10,7 @@ use std::{collections::BTreeSet, fmt, net::SocketAddr};
 
 use data_encoding::HEXLOWER;
 use n0_error::stack_error;
-use serde::de::VariantAccess as _;
-use serde::{Deserialize, Serialize, de};
+use serde::{Deserialize, Serialize, de, de::VariantAccess as _};
 
 use crate::{EndpointId, PublicKey, RelayUrl};
 

@@ -2,6 +2,8 @@
 
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+pub use std::time::{Instant, SystemTime};
 use std::{
     fmt,
     future::Future,
@@ -12,8 +14,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
-pub use std::time::{Instant, SystemTime};
 #[cfg(all(target_family = "wasm", target_os = "unknown"))]
 pub use web_time::{Instant, SystemTime};
 

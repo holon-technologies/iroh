@@ -9,9 +9,9 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::bounded_io::read_file;
 use crate::{
     FailureSignature, SCENARIO_SCHEMA_VERSION, SIMULATOR_VERSION, Scenario, ScenarioInventory,
+    bounded_io::read_file,
 };
 
 pub const CORPUS_SCHEMA_VERSION: u16 = 1;

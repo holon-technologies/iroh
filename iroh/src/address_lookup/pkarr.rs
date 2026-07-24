@@ -741,8 +741,10 @@ fn publish_deadline(after: Duration) -> Instant {
 mod tests {
     use bytes::Bytes;
     use iroh_dns::pkarr::SignedPacket;
-    use n0_future::stream;
-    use n0_future::time::{Duration, Instant};
+    use n0_future::{
+        stream,
+        time::{Duration, Instant},
+    };
 
     use super::{PkarrError, collect_bounded_payload, publish_deadline, publish_retry_delay};
 

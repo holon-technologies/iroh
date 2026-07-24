@@ -26,6 +26,10 @@
 
 #[cfg(test)]
 use std::net::SocketAddr;
+#[cfg(not(wasm_browser))]
+use std::panic::AssertUnwindSafe;
+#[cfg(wasm_browser)]
+use std::pin::Pin;
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
@@ -36,9 +40,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-
-#[cfg(not(wasm_browser))]
-use std::panic::AssertUnwindSafe;
 
 use backon::{Backoff, BackoffBuilder, ExponentialBuilder};
 #[cfg(not(wasm_browser))]
@@ -59,8 +60,6 @@ use n0_future::time::{self, Instant, MissedTickBehavior};
 use n0_future::{FuturesUnorderedBounded, MaybeFuture, SinkExt, StreamExt, time::Duration};
 use n0_watcher::Watchable;
 use netwatch::interfaces;
-#[cfg(wasm_browser)]
-use std::pin::Pin;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Level, debug, error, event, info, info_span, instrument, trace, warn};

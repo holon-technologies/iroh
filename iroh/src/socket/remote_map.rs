@@ -1,3 +1,5 @@
+#[cfg(wasm_browser)]
+use std::task::{Waker, ready};
 use std::{
     collections::BTreeSet,
     future::poll_fn,
@@ -5,9 +7,6 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-
-#[cfg(wasm_browser)]
-use std::task::{Waker, ready};
 
 use iroh_base::{CustomAddr, EndpointAddr, EndpointId, RelayUrl};
 use n0_error::{e, stack_error};

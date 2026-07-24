@@ -1,3 +1,5 @@
+#[cfg(not(wasm_browser))]
+use std::panic::AssertUnwindSafe;
 use std::{
     collections::{BTreeSet, VecDeque},
     net::SocketAddr,
@@ -5,9 +7,6 @@ use std::{
     sync::Arc,
     task::Poll,
 };
-
-#[cfg(not(wasm_browser))]
-use std::panic::AssertUnwindSafe;
 
 #[cfg(not(wasm_browser))]
 use futures_util::FutureExt;
@@ -37,11 +36,9 @@ pub use self::{
     path_watcher::{Path, PathEvent, PathEventStream, PathList, PathListIter, PathListStream},
     remote_info::{RemoteInfo, TransportAddrInfo, TransportAddrUsage},
 };
-use super::RemoteStateAdmissionError;
 #[cfg(not(wasm_browser))]
 use super::RemoteStateCompletion;
-use super::Source;
-use crate::endpoint::limits::AdmissionPermit;
+use super::{RemoteStateAdmissionError, Source};
 #[cfg(not(wasm_browser))]
 use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep};
 use crate::{
@@ -49,7 +46,7 @@ use crate::{
         AddressLookupFailed, AddressLookupServices, Item as AddressLookupItem,
         MAX_ADDRESS_LOOKUP_ITEMS,
     },
-    endpoint::DirectAddr,
+    endpoint::{DirectAddr, limits::AdmissionPermit},
     socket::{
         Metrics as SocketMetrics, RELAY_PATH_MAX_IDLE_TIMEOUT,
         mapped_addrs::{AddrMap, CustomMappedAddr, RelayMappedAddr},

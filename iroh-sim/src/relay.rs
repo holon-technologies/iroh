@@ -5,8 +5,10 @@ use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicU64, Ordering},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use iroh::{RelayUrl, SecretKey};

@@ -128,8 +128,7 @@ impl Scenario {
             .sort_by(|left, right| left.id.cmp(&right.id));
         self.fairness.sort();
         self.allowed_terminals.sort();
-        self.invariants
-            .sort_by(|left, right| left.name.cmp(&right.name));
+        self.invariants.sort_by_key(|invariant| invariant.name);
         self.validate()?;
         Ok(self)
     }

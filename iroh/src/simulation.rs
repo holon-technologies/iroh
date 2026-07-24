@@ -320,8 +320,9 @@ pub trait IpSocketSender: fmt::Debug + Send + Sync + 'static {
 
 #[cfg(all(test, with_crypto_provider, not(wasm_browser)))]
 mod crypto_ownership_tests {
-    use super::*;
     use rustls::crypto::{GetRandomFailed, SecureRandom};
+
+    use super::*;
 
     #[derive(Debug)]
     struct RunOwnedRandom([u8; 1]);

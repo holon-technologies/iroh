@@ -4,8 +4,10 @@
 use std::{
     collections::HashSet,
     fmt,
-    sync::atomic::{AtomicU64, Ordering},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use dashmap::DashMap;

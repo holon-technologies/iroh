@@ -19,9 +19,8 @@ use tokio_util::sync::CancellationToken;
 use tower_service::Service;
 use tracing::{debug, warn};
 
-use crate::admission::{AdmissionControl, ConnectionAdmission};
-
 use super::tls::TlsAcceptor;
+use crate::admission::{AdmissionControl, ConnectionAdmission};
 
 /// Maximum time an accepted connection may spend completing its TLS handshake.
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -162,13 +161,12 @@ mod tests {
     use axum::Router;
     use tokio::{net::TcpListener, time::timeout};
 
+    use super::*;
     use crate::{
         admission::AdmissionControl,
         config::{IngressPolicy, LimitsConfig},
         metrics::Metrics,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn listener_rejects_connections_before_spawning_past_capacity() {

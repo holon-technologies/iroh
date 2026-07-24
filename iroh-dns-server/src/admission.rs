@@ -147,12 +147,11 @@ mod tests {
 
     use std::{sync::Arc, time::Instant};
 
+    use super::*;
     use crate::{
         config::{IngressPolicy, LimitsConfig},
         metrics::Metrics,
     };
-
-    use super::*;
 
     fn policy(connection_limit: usize, request_limit: usize) -> IngressPolicy {
         let mut config = LimitsConfig::default();

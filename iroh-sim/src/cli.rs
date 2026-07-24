@@ -14,7 +14,6 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use iroh_runtime::{RootSeed, TraceEvent, TraceSink, TraceSinkError};
 
-use crate::bounded_io::read_file;
 use crate::{
     ArtifactError, ArtifactStore, ArtifactTraceWriter, BackendCapabilities, CampaignConfig,
     CampaignError, CampaignRunner, CampaignTerminal, CompatibilityError, Corpus, CorpusError,
@@ -25,9 +24,9 @@ use crate::{
     PatchbayReceipt, ReplayIdentity, RunBudgets, RunManifest, SCENARIO_SCHEMA_VERSION,
     SIMULATOR_VERSION, Scenario, ScenarioError, ScenarioGenerator, ScenarioHarness,
     ScenarioInventory, ScenarioModelError, ScenarioRunner, SourceIdentity, Stage2Scenario,
-    SwarmError, SwarmSpec, SwarmTemplate, TraceBuffer, canonical_patchbay_scenarios,
-    compare_failure_replay, compare_parity_fixtures_at, deterministic_semantic_outcome,
-    normalized_trace_json, verify_failure_artifacts,
+    SwarmError, SwarmSpec, SwarmTemplate, TraceBuffer, bounded_io::read_file,
+    canonical_patchbay_scenarios, compare_failure_replay, compare_parity_fixtures_at,
+    deterministic_semantic_outcome, normalized_trace_json, verify_failure_artifacts,
 };
 
 /// Exit code used when a requested later-stage backend is intentionally unavailable.
