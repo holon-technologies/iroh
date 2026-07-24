@@ -886,8 +886,8 @@ mod tests {
     #[tokio::test]
     async fn http_access_body_accepts_exact_true_across_chunks() {
         let chunks = stream::iter([
-            Ok::<_, reqwest::Error>(Bytes::from_static(b"tr")),
-            Ok(Bytes::from_static(b"ue")),
+            Ok::<_, reqwest::Error>(Bytes::from_static(b"t")),
+            Ok(Bytes::from_static(b"rue")),
         ]);
 
         validate_http_access_body(chunks)
