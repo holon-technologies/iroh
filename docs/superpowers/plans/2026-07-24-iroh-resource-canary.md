@@ -60,8 +60,10 @@ threads/tasks, and lifecycle phase once per second. The sampler is owned by the 
 returns a bounded sample vector.
 
 **Implementation:** RED fixture tests for `/proc` parsers and every preflight rejection. Implement
-read-only Linux sampling with checked parsing. Validate the output directory before load and write
-artifacts only beneath it.
+read-only Linux sampling with checked parsing and absolute sample deadlines. Skip missed ticks
+instead of backfilling them so collection overhead cannot accumulate drift and real gaps remain
+visible to phase-coverage acceptance. Validate the output directory before load and write artifacts
+only beneath it.
 
 **Failure and operations:** Missing or malformed kernel data, too many samples, storage pressure,
 or baseline contamination aborts before load. Partial evidence records the typed failure.

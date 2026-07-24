@@ -60,9 +60,10 @@ Production counts are derived from the service default configuration at build ti
 checked arithmetic, validated as nonzero, and constrained by absolute compiled ceilings. Arrival
 campaigns use absolute deadlines, record schedule lag and achieved rate, and fail when campaigns
 of at least 20 attempts achieve less than 95% of target. The default timing is a 30-second warm-up,
-300-second measurement, and 30-second cooldown, sampled once per second. Each timed phase retains
-successful service work and rejected overload attempts once per second. Explicit smoke overrides
-may reduce duration and scale but are marked non-evidence in the output.
+300-second measurement, and 30-second cooldown, sampled on absolute one-second deadlines. Missed
+ticks are skipped rather than backfilled so incomplete coverage still fails. Each timed phase
+retains successful service work and rejected overload attempts once per second. Explicit smoke
+overrides may reduce duration and scale but are marked non-evidence in the output.
 
 ## Ownership, Shutdown, and Failure
 

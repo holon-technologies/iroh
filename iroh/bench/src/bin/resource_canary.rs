@@ -845,6 +845,7 @@ async fn sample_resources(
         parse_cpu_ticks(&fs::read_to_string("/proc/stat").map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())?;
     let mut samples = Vec::new();
+    let mut ticker = resource_sample_ticker(interval)?;
     loop {
         tokio::select! {
             changed = stop.changed() => {
@@ -861,7 +862,7 @@ async fn sample_resources(
                     break;
                 }
             }
-            () = tokio::time::sleep(interval) => {
+            _ = ticker.tick() => {
                 if samples.len() >= MAX_RESOURCE_SAMPLES {
                     return Err(format!(
                         "resource sample count exceeds maximum {MAX_RESOURCE_SAMPLES}"
@@ -878,6 +879,15 @@ async fn sample_resources(
         }
     }
     Ok(samples)
+}
+
+fn resource_sample_ticker(interval: Duration) -> Result<tokio::time::Interval, String> {
+    let first_sample = tokio::time::Instant::now()
+        .checked_add(interval)
+        .ok_or_else(|| "resource sample deadline overflowed".to_owned())?;
+    let mut ticker = tokio::time::interval_at(first_sample, interval);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    Ok(ticker)
 }
 
 fn collect_resource_sample(
@@ -1712,6 +1722,18 @@ mod tests {
 
         assert_eq!(samples.len(), 357);
         assert!(!phase_coverage_complete(timing, &samples).expect("coverage"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn resource_sampler_skips_missed_absolute_deadlines() {
+        let mut ticker =
+            resource_sample_ticker(Duration::from_secs(1)).expect("resource sample ticker");
+        tokio::time::advance(Duration::from_secs(3)).await;
+        ticker.tick().await;
+
+        let before = tokio::time::Instant::now();
+        ticker.tick().await;
+        assert_eq!(before.elapsed(), Duration::from_secs(1));
     }
 
     #[test]
