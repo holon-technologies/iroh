@@ -43,7 +43,7 @@ use n0_future::{SinkExt, StreamExt};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, UdpSocket},
-    sync::watch,
+    sync::{mpsc, oneshot, watch},
     task::JoinSet,
 };
 
@@ -1023,6 +1023,7 @@ async fn run_relay_lane_body(
     let pending_before_sessions = metrics.admission_pending_full.get();
 
     let tls_config = CaTlsConfig::default().client_config(default_provider())?;
+    let mut client_drivers = JoinSet::new();
     let mut clients = Vec::with_capacity(config.session_capacity.get());
     let mut high_water = 0usize;
     let mut accepted_latency = LatencyAccumulator::new(config.session_capacity.get());
@@ -1046,7 +1047,11 @@ async fn run_relay_lane_body(
         .await
         .map_err(|error| lane_error(error.to_string()))?;
         accepted_latency.record(started.elapsed())?;
-        clients.push(client);
+        clients.push(RetainedRelayClient::new(
+            client,
+            config.operation_timeout,
+            &mut client_drivers,
+        ));
         high_water = high_water.max(relay_connection_count(server)?);
     }
 
@@ -1102,12 +1107,31 @@ async fn run_relay_lane_body(
             .await;
             Ok::<_, Box<dyn Error + Send + Sync>>((started.elapsed(), result))
         });
+        while let Some(result) = fill_tasks.try_join_next() {
+            let (latency, client) = result
+                .map_err(|error| lane_error(format!("relay fill task failed: {error}")))??;
+            retain_relay_fill_client(
+                latency,
+                client,
+                config.operation_timeout,
+                &mut accepted_latency,
+                &mut clients,
+                &mut client_drivers,
+            )?;
+        }
+        ensure_relay_client_drivers_running(&mut client_drivers)?;
     }
     while let Some(result) = fill_tasks.join_next().await {
         let (latency, client) =
             result.map_err(|error| lane_error(format!("relay fill task failed: {error}")))??;
-        accepted_latency.record(latency)?;
-        clients.push(client.map_err(|error| lane_error(error.to_string()))?);
+        retain_relay_fill_client(
+            latency,
+            client,
+            config.operation_timeout,
+            &mut accepted_latency,
+            &mut clients,
+            &mut client_drivers,
+        )?;
     }
     if clients.len() != config.session_capacity.get() {
         return Err(lane_error(format!(
@@ -1116,6 +1140,7 @@ async fn run_relay_lane_body(
             config.session_capacity
         )));
     }
+    ensure_relay_client_drivers_running(&mut client_drivers)?;
     let fill_arrival = fill_schedule.finish()?;
     wait_for_condition(
         config.operation_timeout,
@@ -1175,15 +1200,25 @@ async fn run_relay_lane_body(
             rejected_clients.push(client);
         }
     }
-    wait_for_condition(config.operation_timeout, "relay global rejection", || {
-        rejection_total(&metrics)
-            .map(|current| current >= expected_rejections_after_overload)
-            .unwrap_or(false)
-            && relay_connection_count(server)
-                .map(|count| count == config.session_capacity.get())
+    let global_rejection_result =
+        wait_for_condition(config.operation_timeout, "relay global rejection", || {
+            rejection_total(&metrics)
+                .map(|current| current >= expected_rejections_after_overload)
                 .unwrap_or(false)
-    })
-    .await?;
+                && relay_connection_count(server)
+                    .map(|count| count == config.session_capacity.get())
+                    .unwrap_or(false)
+        })
+        .await;
+    if let Err(error) = global_rejection_result {
+        return Err(lane_error(format!(
+            "{error}: observed_rejections={}, expected_rejections={}, registered_sessions={}, retained_rejection_clients={}",
+            rejection_total(&metrics)?,
+            expected_rejections_after_overload,
+            relay_connection_count(server)?,
+            rejected_clients.len(),
+        )));
+    }
     if rejection_total(&metrics)? != expected_rejections_after_overload {
         return Err(lane_error(
             "relay overload rejection counters exceeded offered attempts",
@@ -1201,7 +1236,7 @@ async fn run_relay_lane_body(
             &relay_url,
             &tls_config,
             &metrics,
-            &mut clients,
+            &clients,
             &mut continuity_success_latency,
             &mut continuity_rejection_latency,
         )
@@ -1260,7 +1295,11 @@ async fn run_relay_lane_body(
         )
         .await
         .map_err(|error| lane_error(error.to_string()))?;
-        clients.push(replacement);
+        clients.push(RetainedRelayClient::new(
+            replacement,
+            config.operation_timeout,
+            &mut client_drivers,
+        ));
         wait_for_condition(
             config.operation_timeout,
             "relay replacement registration",
@@ -1272,6 +1311,11 @@ async fn run_relay_lane_body(
         )
         .await?;
         drop(clients);
+        while let Some(result) = client_drivers.join_next().await {
+            result.map_err(|error| {
+                lane_error(format!("relay client driver task failed: {error}"))
+            })??;
+        }
         wait_for_condition(config.operation_timeout, "relay client drain", || {
             relay_connection_count(server)
                 .map(|count| count == 0)
@@ -1326,7 +1370,7 @@ async fn run_relay_phases(
     relay_url: &iroh::RelayUrl,
     tls_config: &rustls::ClientConfig,
     metrics: &iroh_relay::server::Metrics,
-    clients: &mut [Client],
+    clients: &[RetainedRelayClient],
     success_latency: &mut LatencyAccumulator,
     rejection_latency: &mut LatencyAccumulator,
 ) -> LaneResult<(usize, usize, RelayClientOutcomeCounts)> {
@@ -1347,14 +1391,11 @@ async fn run_relay_phases(
                 .map_err(|_| lane_error("relay continuity ordinal is out of range"))?
                 .to_le_bytes();
             let started = StdInstant::now();
-            relay_ping(
-                clients
-                    .first_mut()
-                    .ok_or_else(|| lane_error("relay continuity requires an accepted client"))?,
-                payload,
-                config.operation_timeout,
-            )
-            .await?;
+            clients
+                .first()
+                .ok_or_else(|| lane_error("relay continuity requires an accepted client"))?
+                .ping(payload, config.operation_timeout)
+                .await?;
             success_latency.record(started.elapsed())?;
             successes = checked_increment(successes, "relay continuity success")?;
 
@@ -1434,6 +1475,131 @@ async fn relay_ping(client: &mut Client, payload: [u8; 8], timeout: Duration) ->
     })
     .await
     .map_err(|_| lane_error("relay continuity ping timed out"))?
+}
+
+#[derive(Debug)]
+struct RetainedRelayClient {
+    commands: mpsc::Sender<RelayClientCommand>,
+}
+
+#[derive(Debug)]
+enum RelayClientCommand {
+    Ping {
+        payload: [u8; 8],
+        response: oneshot::Sender<Result<(), String>>,
+    },
+}
+
+impl RetainedRelayClient {
+    fn new(
+        client: Client,
+        operation_timeout: Duration,
+        drivers: &mut JoinSet<LaneResult<()>>,
+    ) -> Self {
+        let (commands, receiver) = mpsc::channel(1);
+        drivers.spawn(drive_relay_client(client, receiver, operation_timeout));
+        Self { commands }
+    }
+
+    async fn ping(&self, payload: [u8; 8], timeout: Duration) -> LaneResult<()> {
+        let (response, receiver) = oneshot::channel();
+        let result = tokio::time::timeout(timeout, async {
+            self.commands
+                .send(RelayClientCommand::Ping { payload, response })
+                .await
+                .map_err(|_| lane_error("relay client driver command channel closed"))?;
+            receiver
+                .await
+                .map_err(|_| lane_error("relay client driver response channel closed"))
+        })
+        .await
+        .map_err(|_| lane_error("relay client driver ping timed out"))??;
+        result.map_err(lane_error)
+    }
+}
+
+async fn drive_relay_client(
+    mut client: Client,
+    mut commands: mpsc::Receiver<RelayClientCommand>,
+    operation_timeout: Duration,
+) -> LaneResult<()> {
+    loop {
+        tokio::select! {
+            biased;
+            command = commands.recv() => {
+                let Some(command) = command else {
+                    return Ok(());
+                };
+                match command {
+                    RelayClientCommand::Ping { payload, response } => {
+                        let result = relay_ping(&mut client, payload, operation_timeout)
+                            .await
+                            .map_err(|error| error.to_string());
+                        let failure = result.as_ref().err().cloned();
+                        let _response_delivered = response.send(result).is_ok();
+                        if let Some(failure) = failure {
+                            return Err(lane_error(format!(
+                                "retained relay client ping failed: {failure}"
+                            )));
+                        }
+                    }
+                }
+            }
+            message = client.next() => {
+                match message {
+                    Some(Ok(RelayToClientMsg::Ping(payload))) => {
+                        client
+                            .send(ClientToRelayMsg::Pong(payload))
+                            .await
+                            .map_err(|error| {
+                                lane_error(format!(
+                                    "retained relay client pong failed: {error}"
+                                ))
+                            })?;
+                    }
+                    Some(Ok(_)) => {}
+                    Some(Err(error)) => {
+                        return Err(lane_error(format!(
+                            "retained relay client receive failed: {error}"
+                        )));
+                    }
+                    None => return Err(lane_error("retained relay client closed")),
+                }
+            }
+        }
+    }
+}
+
+fn ensure_relay_client_drivers_running(drivers: &mut JoinSet<LaneResult<()>>) -> LaneResult<()> {
+    let Some(result) = drivers.try_join_next() else {
+        return Ok(());
+    };
+    match result {
+        Err(error) => Err(lane_error(format!(
+            "relay client driver task failed: {error}"
+        ))),
+        Ok(Err(error)) => Err(error),
+        Ok(Ok(())) => Err(lane_error(
+            "relay client driver exited during retained load",
+        )),
+    }
+}
+
+fn retain_relay_fill_client(
+    latency: Duration,
+    client: Result<Client, RelayConnectFailure>,
+    operation_timeout: Duration,
+    accepted_latency: &mut LatencyAccumulator,
+    clients: &mut Vec<RetainedRelayClient>,
+    drivers: &mut JoinSet<LaneResult<()>>,
+) -> LaneResult<()> {
+    accepted_latency.record(latency)?;
+    clients.push(RetainedRelayClient::new(
+        client.map_err(|error| lane_error(error.to_string()))?,
+        operation_timeout,
+        drivers,
+    ));
+    Ok(())
 }
 
 async fn connect_relay_client(
@@ -1866,13 +2032,22 @@ async fn run_dns_lane_body(
                 .map_err(|error| lane_error(format!("DNS HTTP connect task failed: {error}")))??,
         );
     }
+    let expected_initial_http_connection_rejections = u64::try_from(
+        config
+            .http_connections_offered
+            .get()
+            .checked_sub(config.http_connection_capacity.get())
+            .ok_or_else(|| lane_error("DNS HTTP connection rejection target underflowed"))?,
+    )
+    .map_err(|_| lane_error("DNS HTTP connection rejection target is out of range"))?;
     wait_for_condition(
         config.operation_timeout,
         "DNS HTTP connection saturation",
         || {
             metrics.http_connections_active.get()
                 == i64::try_from(config.http_connection_capacity.get()).unwrap_or(i64::MAX)
-                && dns_http_connection_rejections(&metrics).unwrap_or(0) > 0
+                && dns_http_connection_rejections(&metrics).unwrap_or(0)
+                    == expected_initial_http_connection_rejections
         },
     )
     .await?;

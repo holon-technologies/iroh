@@ -101,10 +101,12 @@ overload evidence, or shutdown timeout fails the lane. Always cancel and drain w
 **Interfaces and state:** Start the production relay protocol on loopback with default admission.
 Derive bounded deterministic keys, enforce at most four sessions per identity, pace fill attempts
 at 200/s and overload at 400/s using absolute deadlines, retain accepted clients for measurement,
-and count each typed rejection.
+service their keepalive traffic, and count each typed rejection.
 
 **Implementation:** RED small-limit test for global and per-identity saturation, recovery, and
-deadline shutdown. Use a bounded `JoinSet`; no detached connections or random/global key source.
+deadline shutdown. Give every retained client one bounded driver and one-slot command channel so
+server pings are answered while the continuity client remains controllable. Use bounded
+`JoinSet`s; no detached connections or random/global key source.
 
 **Failure and operations:** Timeout, rate-limit, protocol, per-identity, global-capacity, and
 session-campaign pending-establishment results are classified separately and conserved against

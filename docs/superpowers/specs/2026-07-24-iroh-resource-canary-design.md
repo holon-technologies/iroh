@@ -50,6 +50,8 @@ failure is attributable to one ownership boundary.
    new connections per second against the production relay protocol. Fill is paced at the
    production 200-connection-per-second rate and overload is paced at twice that rate. Endpoint
    identities are deterministically derived and no identity offers more than four sessions.
+   Bounded client-driver tasks answer relay keepalive pings so every admitted session remains
+   active throughout fill, overload, and measurement.
 3. **Endpoint admission:** offers 4,096 direct loopback QUIC connections against the default 2,048
    connection ceiling. The accepted connections remain open during measurement, while rejected
    attempts are counted and drained.
