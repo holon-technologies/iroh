@@ -828,6 +828,8 @@ pub struct RelayLaneOutcome {
     pub endpoint_session_rejections: u64,
     /// Global session-capacity rejections.
     pub global_session_rejections: u64,
+    /// Pending-establishment rejections during session campaigns.
+    pub session_pending_rejections: u64,
     /// Global connection-rate rejections across both relay phases.
     pub rate_rejections: u64,
     /// Whether one released session admitted a replacement.
@@ -996,6 +998,7 @@ async fn run_relay_lane_body(
     ))
     .await;
     let rate_before_sessions = metrics.admission_rate_limited.get();
+    let pending_before_sessions = metrics.admission_pending_full.get();
 
     let tls_config = CaTlsConfig::default().client_config(default_provider())?;
     let mut clients = Vec::with_capacity(config.session_capacity.get());
@@ -1039,7 +1042,7 @@ async fn run_relay_lane_body(
     rejected_latency.record(started.elapsed())?;
     let identity_overload_arrival = identity_overload_schedule.finish()?;
     let mut rejection_client_outcomes = RelayClientOutcomeCounts::default();
-    record_relay_client_outcome(&mut rejection_client_outcomes, duplicate)?;
+    let duplicate_client = record_relay_client_outcome(&mut rejection_client_outcomes, duplicate)?;
     wait_for_condition(
         config.operation_timeout,
         "relay per-identity rejection",
@@ -1051,6 +1054,7 @@ async fn run_relay_lane_body(
         },
     )
     .await?;
+    drop(duplicate_client);
 
     let remaining_fill = config
         .session_capacity
@@ -1112,6 +1116,12 @@ async fn run_relay_lane_body(
         .checked_sub(1)
         .ok_or_else(|| lane_error("relay overload requires a global rejection attempt"))?;
     let rejection_before_overload = rejection_total(&metrics)?;
+    let expected_rejections_after_overload = rejection_before_overload
+        .checked_add(
+            u64::try_from(overload_attempts)
+                .map_err(|_| lane_error("relay overload attempt count is out of range"))?,
+        )
+        .ok_or_else(|| lane_error("relay overload rejection target overflowed"))?;
     let mut overload_schedule = ScheduleTracker::new(config.overload_rate_per_second);
     let mut overload_tasks = JoinSet::new();
     for ordinal in 0..overload_attempts {
@@ -1134,21 +1144,30 @@ async fn run_relay_lane_body(
         });
     }
     let overload_arrival = overload_schedule.finish()?;
+    let mut rejected_clients = Vec::with_capacity(overload_attempts);
     while let Some(result) = overload_tasks.join_next().await {
         let (latency, result) = result
             .map_err(|error| lane_error(format!("relay overload task failed: {error}")))??;
         rejected_latency.record(latency)?;
-        record_relay_client_outcome(&mut rejection_client_outcomes, result)?;
+        if let Some(client) = record_relay_client_outcome(&mut rejection_client_outcomes, result)? {
+            rejected_clients.push(client);
+        }
     }
     wait_for_condition(config.operation_timeout, "relay global rejection", || {
         rejection_total(&metrics)
-            .map(|current| current > rejection_before_overload)
+            .map(|current| current >= expected_rejections_after_overload)
             .unwrap_or(false)
             && relay_connection_count(server)
                 .map(|count| count == config.session_capacity.get())
                 .unwrap_or(false)
     })
     .await?;
+    if rejection_total(&metrics)? != expected_rejections_after_overload {
+        return Err(lane_error(
+            "relay overload rejection counters exceeded offered attempts",
+        ));
+    }
+    drop(rejected_clients);
 
     let mut continuity_success_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
     let mut continuity_rejection_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
@@ -1174,6 +1193,11 @@ async fn run_relay_lane_body(
         .checked_sub(endpoint_rejections_before)
         .ok_or_else(|| lane_error("relay endpoint rejection counter regressed"))?;
     let global_session_rejections = metrics.admission_global_session_full.get();
+    let session_pending_rejections = metrics
+        .admission_pending_full
+        .get()
+        .checked_sub(pending_before_sessions)
+        .ok_or_else(|| lane_error("relay pending rejection counter regressed"))?;
     let rate_rejections = metrics
         .admission_rate_limited
         .get()
@@ -1249,6 +1273,7 @@ async fn run_relay_lane_body(
             session_high_water: high_water,
             endpoint_session_rejections,
             global_session_rejections,
+            session_pending_rejections,
             rate_rejections,
             recovered: true,
             accepted_session_latency: accepted_latency.finish()?,
@@ -1327,7 +1352,7 @@ async fn run_relay_phases(
             )
             .await;
             rejection_latency.record(started.elapsed())?;
-            record_relay_client_outcome(&mut client_outcomes, result)?;
+            let rejected_client = record_relay_client_outcome(&mut client_outcomes, result)?;
             wait_for_condition(
                 config.operation_timeout,
                 "relay continuity rejection",
@@ -1341,6 +1366,7 @@ async fn run_relay_phases(
                 },
             )
             .await?;
+            drop(rejected_client);
             rejections = checked_increment(rejections, "relay continuity rejection")?;
 
             let next = tokio::time::Instant::now()
@@ -1430,18 +1456,15 @@ impl Error for RelayConnectFailure {}
 fn record_relay_client_outcome(
     counts: &mut RelayClientOutcomeCounts,
     result: Result<Client, RelayConnectFailure>,
-) -> LaneResult<()> {
-    let counter = match result {
-        Ok(client) => {
-            drop(client);
-            &mut counts.connected_then_rejected
-        }
-        Err(RelayConnectFailure::RateLimited) => &mut counts.rate_limited,
-        Err(RelayConnectFailure::Protocol(_)) => &mut counts.protocol_closed,
-        Err(RelayConnectFailure::Timeout) => &mut counts.timed_out,
+) -> LaneResult<Option<Client>> {
+    let (counter, client) = match result {
+        Ok(client) => (&mut counts.connected_then_rejected, Some(client)),
+        Err(RelayConnectFailure::RateLimited) => (&mut counts.rate_limited, None),
+        Err(RelayConnectFailure::Protocol(_)) => (&mut counts.protocol_closed, None),
+        Err(RelayConnectFailure::Timeout) => (&mut counts.timed_out, None),
     };
     *counter = checked_increment(*counter, "relay client outcome")?;
-    Ok(())
+    Ok(client)
 }
 
 fn relay_connection_count(server: &RelayServer) -> LaneResult<usize> {
@@ -2361,6 +2384,16 @@ mod tests {
         assert_eq!(outcome.session_high_water, 2);
         assert!(outcome.endpoint_session_rejections >= 1);
         assert!(outcome.global_session_rejections + outcome.rate_rejections >= 1);
+        assert_eq!(
+            outcome
+                .endpoint_session_rejections
+                .checked_add(outcome.global_session_rejections)
+                .and_then(|value| value.checked_add(outcome.session_pending_rejections))
+                .and_then(|value| value.checked_add(outcome.rate_rejections))
+                .expect("bounded relay rejection total"),
+            u64::try_from(outcome.sessions_rejected + outcome.continuity_rejections)
+                .expect("bounded offered relay rejections")
+        );
         assert!(outcome.recovered);
         assert_eq!(outcome.accepted_session_latency.samples, 2);
         assert_eq!(outcome.rejected_session_latency.samples, 2);

@@ -104,9 +104,11 @@ and count each typed rejection.
 **Implementation:** RED small-limit test for global and per-identity saturation, recovery, and
 deadline shutdown. Use a bounded `JoinSet`; no detached connections or random/global key source.
 
-**Failure and operations:** Timeout, rate-limit, protocol, per-identity, and global-capacity results
-are classified separately and conserved against attempts. Missing saturation, session growth beyond
-the configured maximum, unexpected protocol failure, or incomplete drain fails the lane.
+**Failure and operations:** Timeout, rate-limit, protocol, per-identity, global-capacity, and
+session-campaign pending-establishment results are classified separately and conserved against
+attempts. Successful upgrade handles remain owned until the matching server classification is
+observed. Missing global saturation, session growth beyond the configured maximum, unexpected
+protocol failure, or incomplete drain fails the lane.
 
 **Validation:** Focused integration test and reduced smoke lane.
 

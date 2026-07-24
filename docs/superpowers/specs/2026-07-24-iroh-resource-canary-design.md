@@ -105,8 +105,9 @@ An evidence run passes only when:
 - successful work continues while excess work is rejected in warm-up, measurement, and cooldown;
 - each timed phase retains its expected one-second samples with at most one boundary sample of
   tolerance per phase;
-- every DNS and relay arrival is scheduled, typed capacity/rate/client outcomes exactly conserve
-  the offered attempts, and campaigns meet their rate floor;
+- every DNS and relay arrival is scheduled; typed DNS capacity/rate outcomes and relay
+  endpoint/global/session-pending/rate plus client-visible outcomes exactly conserve the offered
+  attempts; and campaigns meet their rate floor;
 - accounting counters do not exhaust or regress; and
 - each lane shuts down within 20 seconds.
 

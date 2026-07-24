@@ -29,6 +29,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
+use tracing_subscriber::EnvFilter;
 
 const MAX_BASELINE_SECONDS: u64 = 60;
 const MAX_PROCESSES: usize = 65_536;
@@ -216,6 +217,11 @@ struct ArtifactManifest {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("resource_canary=warn"));
+    if let Err(error) = tracing_subscriber::fmt().with_env_filter(filter).try_init() {
+        eprintln!("resource canary tracing initialization failed: {error}");
+    }
     match run(Cli::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -620,8 +626,7 @@ async fn execute_relay_lane(
             if failure.is_none() && outcome.endpoint_session_rejections == 0 {
                 failure = Some("relay per-identity admission did not reject overload".to_owned());
             }
-            if failure.is_none() && outcome.global_session_rejections + outcome.rate_rejections == 0
-            {
+            if failure.is_none() && outcome.global_session_rejections == 0 {
                 failure = Some("relay global admission did not reject overload".to_owned());
             }
             if failure.is_none()
@@ -657,6 +662,7 @@ async fn execute_relay_lane(
                 && outcome
                     .endpoint_session_rejections
                     .checked_add(outcome.global_session_rejections)
+                    .and_then(|value| value.checked_add(outcome.session_pending_rejections))
                     .and_then(|value| value.checked_add(outcome.rate_rejections))
                     != u64::try_from(
                         outcome
@@ -1176,6 +1182,7 @@ fn relay_outcome_json(outcome: &RelayLaneOutcome) -> Result<Value, Box<dyn Error
         "session_high_water": outcome.session_high_water,
         "endpoint_session_rejections": outcome.endpoint_session_rejections,
         "global_session_rejections": outcome.global_session_rejections,
+        "session_pending_rejections": outcome.session_pending_rejections,
         "rate_rejections": outcome.rate_rejections,
         "recovered": outcome.recovered,
         "accepted_session_latency": latency_json(outcome.accepted_session_latency),
