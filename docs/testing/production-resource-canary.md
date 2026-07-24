@@ -28,7 +28,7 @@ target/release/resource-canary run --lane all --scale-percent 100 \
 ```
 
 The retained [run report](resource-canary/2026-07-24/run.json), [preflight report](resource-canary/2026-07-24/preflight.json),
-and [manifest](resource-canary/2026-07-24/manifest.json) are immutable copies of the finalized
+and [manifest](resource-canary/2026-07-24/manifest.json) are byte-for-byte copies of the finalized
 artifact.
 
 ## Host
@@ -97,10 +97,11 @@ Every lane retained more than 30% CPU, memory, and descriptor headroom and shut 
 
 ## Integrity
 
-The artifact directory and every retained file are read-only. `manifest.sha256` verifies
-`manifest.json`; the manifest records the byte length and SHA-256 digest of every preflight,
-partial report, final report, and sample stream. The manifest digest printed by the canary matches
-the retained file:
+At verification time, the finalized artifact directory and retained workspace copy were read-only.
+Git does not preserve non-executable read-only mode bits, so the portable integrity check after a
+checkout is the digest set. `manifest.sha256` verifies `manifest.json`; the manifest records the
+byte length and SHA-256 digest of every preflight, partial report, final report, and sample stream.
+The manifest digest printed by the canary matches the retained file:
 
 ```text
 f469ea3b02302da95981c41e16b142c78d311af3c2c815dd5b8db81e1c9d5537
