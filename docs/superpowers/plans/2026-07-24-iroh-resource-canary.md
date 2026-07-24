@@ -14,8 +14,8 @@ traffic, or CI gating.
 **Approach:** Extend the existing unpublished `iroh-bench` crate with a `resource-canary` feature
 and binary. Keep validation and acceptance arithmetic in a deterministic library module; keep host,
 clock, filesystem, and network effects in the binary. Expose the endpoint task-capacity snapshot and
-relay default constants needed to derive and verify production headroom. Gate the DNS request-hold
-route behind the canary-only `test-utils` feature while leaving production admission middleware
+relay default constants needed to derive and verify production headroom. Gate the DNS hold controls
+behind the canary-only `test-utils` feature while leaving production admission middleware
 unchanged.
 
 **Global constraints:** Rust 2024, workspace lints, `#![forbid(unsafe_code)]`, checked arithmetic,
@@ -81,9 +81,11 @@ successful/rejected latency, and errors.
 
 **Implementation:** RED smoke test at injected small limits proving overload, service continuity,
 metrics conservation, and deadline shutdown. Implement fixed DNS wire messages and bounded HTTP
-requests without unbounded response buffering. Hold admitted HTTP/2 requests behind a
-feature-gated local test route so exactly the production request ceiling remains in flight while
-excess requests traverse the production rejection path.
+requests without unbounded response buffering. Pace UDP requests against absolute deadlines, hold
+the first capacity-sized set through a feature-gated reserved query, and send the excess through
+Hickory's unchanged rejection path. Hold admitted HTTP/2 requests behind a feature-gated local test
+route so exactly the production request ceiling remains in flight while excess requests traverse
+the production rejection path.
 
 **Failure and operations:** Any non-loopback bind, worker panic, store background failure, missing
 overload evidence, or shutdown timeout fails the lane. Always cancel and drain workers first.

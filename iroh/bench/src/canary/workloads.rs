@@ -28,6 +28,7 @@ use iroh_dns::dns::DnsResolver;
 use iroh_dns_server::{
     Server as DnsServer,
     config::{Config as DnsServerConfig, MetricsConfig, RateLimitConfig},
+    test_utils::{RESOURCE_CANARY_UDP_HOLD_DURATION, RESOURCE_CANARY_UDP_HOLD_NAME},
 };
 use iroh_relay::{
     client::{Client, ClientBuilder, ConnectError},
@@ -54,6 +55,7 @@ const MAX_RELAY_PENDING_OFFERED: usize = 512;
 const MAX_RELAY_SESSIONS_OFFERED: usize = 8_192;
 const MAX_RELAY_CONNECTION_RATE: usize = 10_000;
 const MAX_DNS_UDP_OFFERED: usize = 2_048;
+const MAX_DNS_UDP_RATE: usize = 10_000;
 const MAX_DNS_TCP_OFFERED: usize = 512;
 const MAX_DNS_HTTP_CONNECTIONS_OFFERED: usize = 1_024;
 const MAX_DNS_HTTP_REQUESTS_OFFERED: usize = 2_048;
@@ -807,6 +809,26 @@ fn validate_maximum(
     Ok(())
 }
 
+fn validate_schedule_within_hold(
+    attempts: NonZeroUsize,
+    rate_per_second: NonZeroUsize,
+    hold: Duration,
+    field: &'static str,
+) -> Result<(), CanaryError> {
+    let intervals =
+        u128::try_from(attempts.get() - 1).map_err(|_| CanaryError::ArithmeticOverflow)?;
+    let rate =
+        u128::try_from(rate_per_second.get()).map_err(|_| CanaryError::ArithmeticOverflow)?;
+    let last_launch_nanos = intervals
+        .checked_mul(1_000_000_000)
+        .map(|value| value / rate)
+        .ok_or(CanaryError::ArithmeticOverflow)?;
+    if last_launch_nanos >= hold.as_nanos() {
+        return Err(CanaryError::ArrivalWindowTooLong { field });
+    }
+    Ok(())
+}
+
 /// Retained relay admission and shutdown evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RelayLaneOutcome {
@@ -1518,6 +1540,7 @@ fn checked_increment(value: usize, field: &'static str) -> LaneResult<usize> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DnsLaneConfig {
     udp_capacity: NonZeroUsize,
+    udp_rate_per_second: NonZeroUsize,
     tcp_capacity: NonZeroUsize,
     http_connection_capacity: NonZeroUsize,
     http_request_capacity: NonZeroUsize,
@@ -1540,6 +1563,7 @@ impl DnsLaneConfig {
     )]
     pub fn new(
         udp_capacity: NonZeroUsize,
+        udp_rate_per_second: NonZeroUsize,
         tcp_capacity: NonZeroUsize,
         http_connection_capacity: NonZeroUsize,
         http_request_capacity: NonZeroUsize,
@@ -1566,6 +1590,17 @@ impl DnsLaneConfig {
             "dns_http_requests",
         )?;
         validate_maximum(udp_offered, MAX_DNS_UDP_OFFERED, "dns_udp_requests")?;
+        validate_maximum(
+            udp_rate_per_second,
+            MAX_DNS_UDP_RATE,
+            "dns_udp_request_rate",
+        )?;
+        validate_schedule_within_hold(
+            udp_offered,
+            udp_rate_per_second,
+            RESOURCE_CANARY_UDP_HOLD_DURATION,
+            "dns_udp_requests",
+        )?;
         validate_maximum(tcp_offered, MAX_DNS_TCP_OFFERED, "dns_tcp_connections")?;
         validate_maximum(
             http_connections_offered,
@@ -1594,6 +1629,7 @@ impl DnsLaneConfig {
         }
         Ok(Self {
             udp_capacity,
+            udp_rate_per_second,
             tcp_capacity,
             http_connection_capacity,
             http_request_capacity,
@@ -1621,6 +1657,8 @@ pub struct DnsLaneOutcome {
     pub udp_timed_out: usize,
     /// Server-observed UDP capacity rejections.
     pub udp_rejections: u64,
+    /// Absolute-deadline UDP arrival evidence.
+    pub udp_arrival: ArrivalSummary,
     /// Successful DNS UDP request latency.
     pub udp_latency: LatencySummary,
     /// DNS TCP connections offered.
@@ -1725,9 +1763,34 @@ async fn run_dns_lane_body(
     let metrics = server.metrics().clone();
 
     let mut udp_tasks = JoinSet::new();
-    for ordinal in 0..config.udp_offered.get() {
-        udp_tasks.spawn(udp_query(dns_addr, ordinal, config.operation_timeout));
+    let udp_probe_timeout = RESOURCE_CANARY_UDP_HOLD_DURATION
+        .checked_add(Duration::from_secs(2))
+        .ok_or_else(|| lane_error("DNS UDP probe timeout overflowed"))?;
+    if udp_probe_timeout > config.operation_timeout {
+        return Err(lane_error(
+            "DNS operation timeout is shorter than the reserved UDP hold probe",
+        ));
     }
+    let udp_rejections_before = metrics.dns_udp_requests_rejected.get();
+    let mut udp_schedule = ScheduleTracker::new(config.udp_rate_per_second);
+    for ordinal in 0..config.udp_capacity.get() {
+        udp_schedule.wait_for_attempt().await?;
+        udp_tasks.spawn(udp_query(dns_addr, ordinal, udp_probe_timeout, true));
+    }
+    wait_for_condition(config.operation_timeout, "DNS UDP saturation", || {
+        metrics.dns_udp_requests_active.get()
+            == i64::try_from(config.udp_capacity.get()).unwrap_or(i64::MAX)
+    })
+    .await?;
+    for ordinal in config.udp_capacity.get()..config.udp_offered.get() {
+        udp_schedule.wait_for_attempt().await?;
+        udp_tasks.spawn(udp_query(dns_addr, ordinal, udp_probe_timeout, true));
+    }
+    wait_for_condition(config.operation_timeout, "DNS UDP overload", || {
+        metrics.dns_udp_requests_rejected.get() > udp_rejections_before
+    })
+    .await?;
+    let udp_arrival = udp_schedule.finish()?;
     let mut udp_completed = 0usize;
     let mut udp_timed_out = 0usize;
     let mut udp_latency = LatencyAccumulator::new(config.udp_offered.get());
@@ -1818,6 +1881,11 @@ async fn run_dns_lane_body(
     let http_connection_capacity_rejections = metrics.http_connections_rejected_capacity.get();
     let http_connection_rate_rejections = metrics.http_connections_rejected_rate.get();
 
+    let http_request_hold = config
+        .timing
+        .total()
+        .checked_add(config.operation_timeout / 2)
+        .ok_or_else(|| lane_error("DNS HTTP request hold overflowed"))?;
     let mut http_request_tasks = JoinSet::new();
     for ordinal in 0..config.http_requests_offered.get() {
         let client_index = ordinal / config.http2_streams_per_connection.get();
@@ -1828,7 +1896,7 @@ async fn run_dns_lane_body(
         http_request_tasks.spawn(held_http_request(
             sender,
             http_addr,
-            config.timing.total(),
+            http_request_hold,
             config.operation_timeout,
         ));
     }
@@ -1971,6 +2039,7 @@ async fn run_dns_lane_body(
             udp_completed,
             udp_timed_out,
             udp_rejections,
+            udp_arrival,
             udp_latency: udp_latency.finish()?,
             tcp_offered: config.tcp_offered.get(),
             tcp_active_high_water,
@@ -2026,7 +2095,7 @@ async fn run_dns_phases(
             .ok_or_else(|| lane_error("DNS phase deadline overflowed"))?;
         while tokio::time::Instant::now() < deadline {
             let (completed, latency) =
-                udp_query(dns_addr, udp_successes, config.operation_timeout).await?;
+                udp_query(dns_addr, udp_successes, config.operation_timeout, false).await?;
             if !completed {
                 return Err(lane_error(
                     "DNS UDP continuity request failed during timed pressure",
@@ -2127,15 +2196,31 @@ async fn udp_query(
     server_addr: SocketAddr,
     ordinal: usize,
     timeout: Duration,
+    hold_admission: bool,
 ) -> LaneResult<(bool, Duration)> {
     let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await?;
     let transaction =
         u16::try_from(ordinal).map_err(|_| lane_error("DNS UDP ordinal is out of range"))?;
     let [high, low] = transaction.to_be_bytes();
-    let query = [
-        high, low, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        0x00, 0x01,
-    ];
+    let mut query = Vec::with_capacity(64);
+    query.extend_from_slice(&[
+        high, low, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    if hold_admission {
+        for label in RESOURCE_CANARY_UDP_HOLD_NAME
+            .trim_end_matches('.')
+            .split('.')
+        {
+            let label_length = u8::try_from(label.len())
+                .map_err(|_| lane_error("DNS UDP canary label exceeds wire-format capacity"))?;
+            if label_length == 0 || label_length > 63 {
+                return Err(lane_error("DNS UDP canary label length is invalid"));
+            }
+            query.push(label_length);
+            query.extend_from_slice(label.as_bytes());
+        }
+    }
+    query.extend_from_slice(&[0x00, 0x00, 0x01, 0x00, 0x01]);
     let started = StdInstant::now();
     let exchange = async {
         socket.send_to(&query, server_addr).await?;
@@ -2298,6 +2383,8 @@ async fn wait_for_accept_refill(
 mod tests {
     use std::{num::NonZeroUsize, time::Duration};
 
+    use crate::canary::CanaryError;
+
     use super::{
         DnsLaneConfig, EndpointLaneConfig, LaneTiming, PhaseReporter, RelayLaneConfig,
         run_dns_lane, run_endpoint_lane, run_relay_lane,
@@ -2310,6 +2397,37 @@ mod tests {
             Duration::from_millis(20),
         )
         .expect("valid test timing")
+    }
+
+    #[test]
+    fn dns_lane_rejects_udp_schedule_that_outlives_hold() {
+        let one = NonZeroUsize::new(1).expect("nonzero rate");
+        let two = NonZeroUsize::new(2).expect("nonzero capacity");
+        let four = NonZeroUsize::new(4).expect("nonzero offered load");
+        let error = DnsLaneConfig::new(
+            two,
+            one,
+            two,
+            two,
+            two,
+            NonZeroUsize::new(32).expect("nonzero HTTP/2 stream limit"),
+            four,
+            four,
+            four,
+            four,
+            NonZeroUsize::new(100).expect("nonzero accept rate"),
+            four,
+            test_timing(),
+            Duration::from_secs(10),
+        )
+        .expect_err("three-second arrival window must not equal the hold duration");
+
+        assert_eq!(
+            error,
+            CanaryError::ArrivalWindowTooLong {
+                field: "dns_udp_requests"
+            }
+        );
     }
 
     #[tokio::test]
@@ -2427,6 +2545,7 @@ mod tests {
         let four = NonZeroUsize::new(4).expect("nonzero offered load");
         let config = DnsLaneConfig::new(
             two,
+            NonZeroUsize::new(100).expect("nonzero UDP rate"),
             two,
             two,
             two,
@@ -2438,7 +2557,7 @@ mod tests {
             NonZeroUsize::new(100).expect("nonzero accept rate"),
             four,
             test_timing(),
-            Duration::from_secs(2),
+            Duration::from_secs(10),
         )
         .expect("valid DNS lane");
 
@@ -2447,6 +2566,16 @@ mod tests {
             .expect("bounded DNS lane");
         assert_eq!(outcome.udp_offered, 4);
         assert_eq!(outcome.udp_completed + outcome.udp_timed_out, 4);
+        assert_eq!(outcome.udp_completed, 2);
+        assert_eq!(outcome.udp_rejections, 2);
+        assert_eq!(outcome.udp_arrival.attempts, 4);
+        assert_eq!(
+            u64::try_from(outcome.udp_completed)
+                .expect("bounded UDP completion count")
+                .checked_add(outcome.udp_rejections)
+                .expect("bounded UDP admission outcomes"),
+            4
+        );
         assert_eq!(outcome.tcp_offered, 4);
         assert_eq!(outcome.tcp_active_high_water, 2);
         assert!(outcome.tcp_rejections >= 1);
@@ -2495,6 +2624,6 @@ mod tests {
         );
         assert!(outcome.recovered);
         assert_eq!(outcome.store_background_failures, 0);
-        assert!(outcome.shutdown <= Duration::from_secs(2));
+        assert!(outcome.shutdown <= Duration::from_secs(10));
     }
 }

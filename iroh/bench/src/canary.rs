@@ -107,6 +107,11 @@ pub enum CanaryError {
         /// Largest supported count.
         maximum: usize,
     },
+    /// A paced campaign can outlive its deterministic admission hold.
+    ArrivalWindowTooLong {
+        /// Workload field.
+        field: &'static str,
+    },
 }
 
 impl fmt::Display for CanaryError {
@@ -193,6 +198,9 @@ impl fmt::Display for CanaryError {
                 f,
                 "{field} workload {requested} exceeds supported maximum {maximum}"
             ),
+            Self::ArrivalWindowTooLong { field } => {
+                write!(f, "{field} arrival window exceeds its admission hold")
+            }
         }
     }
 }

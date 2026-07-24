@@ -32,6 +32,8 @@ use tokio::{
 use tracing::{debug, info};
 
 use self::node_zone_handler::NodeZoneHandler;
+#[cfg(feature = "test-utils")]
+use crate::test_utils::{RESOURCE_CANARY_UDP_HOLD_DURATION, RESOURCE_CANARY_UDP_HOLD_NAME};
 use crate::{config::IngressPolicy, metrics::Metrics, store::ZoneStore};
 
 mod node_zone_handler;
@@ -204,6 +206,14 @@ impl DnsHandler {
     }
 }
 
+#[cfg(feature = "test-utils")]
+fn is_resource_canary_hold_request(request: &Request) -> bool {
+    request.protocol() == Protocol::Udp
+        && request
+            .request_info()
+            .is_ok_and(|info| info.query.name().to_ascii() == RESOURCE_CANARY_UDP_HOLD_NAME)
+}
+
 #[async_trait::async_trait]
 impl RequestHandler for DnsHandler {
     async fn handle_request<R: ResponseHandler, T: hickory_server::net::runtime::Time>(
@@ -222,6 +232,11 @@ impl RequestHandler for DnsHandler {
             _ => {}
         }
         debug!(protocol=%request.protocol(), queries=?request.queries, "incoming DNS request");
+
+        #[cfg(feature = "test-utils")]
+        if is_resource_canary_hold_request(request) {
+            tokio::time::sleep(RESOURCE_CANARY_UDP_HOLD_DURATION).await;
+        }
 
         let res = self
             .catalog
@@ -324,6 +339,11 @@ fn push_record(records: &mut BTreeMap<RrKey, RecordSet>, serial: u32, record: Re
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "test-utils")]
+    use std::net::{Ipv4Addr, SocketAddr};
+
+    #[cfg(feature = "test-utils")]
+    use hickory_server::{net::xfer::Protocol, server::Request};
     use hickory_server::{
         proto::{
             op::{MessageType, Metadata, OpCode},
@@ -334,6 +354,8 @@ mod tests {
     };
 
     use super::Handle;
+    #[cfg(feature = "test-utils")]
+    use super::is_resource_canary_hold_request;
 
     #[tokio::test]
     async fn response_delivery_reports_a_dropped_receiver() {
@@ -351,5 +373,27 @@ mod tests {
             .await
             .expect_err("dropped response receiver must be reported");
         assert_eq!(error.to_string(), "DNS response receiver closed");
+    }
+
+    #[cfg(feature = "test-utils")]
+    #[test]
+    fn resource_canary_hold_requires_reserved_udp_query() {
+        let source = SocketAddr::from((Ipv4Addr::LOCALHOST, 1_234));
+        let mut wire = vec![
+            0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        for label in ["_iroh-resource-canary-hold", "invalid"] {
+            wire.push(u8::try_from(label.len()).expect("test label fits DNS wire format"));
+            wire.extend_from_slice(label.as_bytes());
+        }
+        wire.extend_from_slice(&[0x00, 0x00, 0x01, 0x00, 0x01]);
+
+        let udp = Request::from_bytes(wire.clone(), source, Protocol::Udp)
+            .expect("reserved UDP request decodes");
+        assert!(is_resource_canary_hold_request(&udp));
+
+        let tcp =
+            Request::from_bytes(wire, source, Protocol::Tcp).expect("reserved TCP request decodes");
+        assert!(!is_resource_canary_hold_request(&tcp));
     }
 }

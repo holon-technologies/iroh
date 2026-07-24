@@ -404,8 +404,10 @@ async fn execute_dns_lane(
         doubled(http_connection_capacity, "DNS HTTP accept burst")?
     };
     let operation_timeout = operation_timeout(scale_percent);
+    let udp_rate = scaled_nonzero(1_000, scale_percent, 100)?;
     let config = DnsLaneConfig::new(
         udp_capacity,
+        udp_rate,
         tcp_capacity,
         http_connection_capacity,
         http_request_capacity,
@@ -431,6 +433,14 @@ async fn execute_dns_lane(
     let resources = resource_summary(&samples)?;
     match outcome {
         Ok(outcome) => {
+            let udp_admission_outcomes = u64::try_from(outcome.udp_completed)
+                .map_err(|_| "DNS UDP completion count is out of range")?
+                .checked_add(outcome.udp_rejections)
+                .ok_or(CanaryError::ArithmeticOverflow)?;
+            let expected_udp_rejections = outcome
+                .udp_offered
+                .checked_sub(udp_capacity.get())
+                .ok_or(CanaryError::ArithmeticOverflow)?;
             let initial_http_connection_rejections = outcome
                 .http_connection_capacity_rejections
                 .checked_add(outcome.http_connection_rate_rejections)
@@ -470,6 +480,14 @@ async fn execute_dns_lane(
             if failure.is_none()
                 && (outcome.udp_completed == 0
                     || outcome.udp_rejections == 0
+                    || outcome.udp_arrival.attempts != outcome.udp_offered
+                    || outcome.udp_completed != udp_capacity.get()
+                    || outcome.udp_rejections
+                        != u64::try_from(expected_udp_rejections)
+                            .map_err(|_| "DNS UDP rejection count is out of range")?
+                    || udp_admission_outcomes
+                        != u64::try_from(outcome.udp_offered)
+                            .map_err(|_| "DNS UDP offered count is out of range")?
                     || outcome
                         .udp_completed
                         .checked_add(outcome.udp_timed_out)
@@ -1217,6 +1235,7 @@ fn dns_outcome_json(outcome: &DnsLaneOutcome) -> Result<Value, Box<dyn Error>> {
         "udp_completed": outcome.udp_completed,
         "udp_timed_out": outcome.udp_timed_out,
         "udp_rejections": outcome.udp_rejections,
+        "udp_arrival": arrival_json(outcome.udp_arrival),
         "udp_latency": latency_json(outcome.udp_latency),
         "tcp_offered": outcome.tcp_offered,
         "tcp_active_high_water": outcome.tcp_active_high_water,

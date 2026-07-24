@@ -38,12 +38,14 @@ classified as production evidence.
 The canary is a feature-gated `iroh-bench` binary. It runs three independent loopback lanes so a
 failure is attributable to one ownership boundary.
 
-1. **DNS ingress:** offers 2,048 concurrent UDP requests, 512 DNS TCP connections, 1,024 HTTP
-   connections, 2,048 HTTP requests, and 400 new HTTP connections per second. These are twice the
-   current production defaults. DNS and HTTP requests use fixed, bounded messages and a local
-   persistent store with mainline fallback disabled. HTTP/2 request saturation uses a
-   feature-gated test route that holds admitted requests while exercising the unchanged production
-   admission middleware; the route is absent from normal builds.
+1. **DNS ingress:** offers 2,048 UDP requests at 1,000 requests per second, 512 DNS TCP
+   connections, 1,024 HTTP connections, 2,048 HTTP requests, and 400 new HTTP connections per
+   second. These are twice the current production defaults. The first 1,024 UDP requests are held
+   after the unchanged Hickory admission semaphore admits them; the remaining requests traverse
+   its rejection path. DNS and HTTP requests use fixed, bounded messages and a local persistent
+   store with mainline fallback disabled. UDP and HTTP/2 saturation use feature-gated reserved
+   test requests that hold admitted work while exercising the unchanged production admission
+   middleware; these controls are absent from normal builds.
 2. **Relay admission:** offers 512 pending establishments, 8,192 authenticated sessions, and 400
    new connections per second against the production relay protocol. Fill is paced at the
    production 200-connection-per-second rate and overload is paced at twice that rate. Endpoint
@@ -105,7 +107,7 @@ An evidence run passes only when:
 - successful work continues while excess work is rejected in warm-up, measurement, and cooldown;
 - each timed phase retains its expected one-second samples with at most one boundary sample of
   tolerance per phase;
-- every DNS and relay arrival is scheduled; typed DNS capacity/rate outcomes and relay
+- every DNS UDP/HTTP and relay arrival is scheduled; typed DNS capacity/rate outcomes and relay
   endpoint/global/session-pending/rate plus client-visible outcomes exactly conserve the offered
   attempts; and campaigns meet their rate floor;
 - accounting counters do not exhaust or regress; and
@@ -121,8 +123,8 @@ The first run is local and loopback-only. A retained passing report may close th
 follow-up but does not authorize a default increase. Any future increase must repeat the same
 profile at twice the proposed value.
 
-The harness and DNS hold route are isolated behind opt-in Cargo features and do not ship in normal
-library artifacts. Narrow read-only task-capacity snapshots and relay default constants are public
-diagnostic interfaces used to keep evidence tied to production configuration. Rollback removes the
-feature-gated tooling, diagnostic exposure, and evidence documents; it never restores an unlimited
-runtime or ingress path.
+The harness and DNS hold controls are isolated behind opt-in Cargo features and do not ship in
+normal library artifacts. Narrow read-only task-capacity snapshots and relay default constants are
+public diagnostic interfaces used to keep evidence tied to production configuration. Rollback
+removes the feature-gated tooling, diagnostic exposure, and evidence documents; it never restores
+an unlimited runtime or ingress path.

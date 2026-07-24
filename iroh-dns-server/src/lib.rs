@@ -33,6 +33,8 @@ mod metrics;
 mod server;
 mod state;
 mod store;
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
 mod util;
 
 pub use crate::{metrics::Metrics, server::Server};
