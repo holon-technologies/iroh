@@ -535,6 +535,50 @@ fn declarative_run_and_expected_failure_replay_through_the_same_cli() {
 }
 
 #[test]
+fn generated_campaign_respects_operation_payload_limits() {
+    let _guard = CLI_RUN_LOCK.lock().unwrap();
+    let root = temp_dir();
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let campaign_root = root.join("campaign");
+    let scenario = workspace.join("iroh-sim/tests/fixtures/v2-ipv4-stream.json");
+    let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("campaign")
+        .arg(scenario)
+        .args([
+            "--seeds",
+            "0..4",
+            "--jobs",
+            "2",
+            "--generated",
+            "--continue-on-failure",
+            "--artifacts",
+        ])
+        .arg(&campaign_root)
+        .output()
+        .unwrap();
+    assert!(
+        campaign.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&campaign.stdout),
+        String::from_utf8_lossy(&campaign.stderr)
+    );
+    let summary: serde_json::Value =
+        serde_json::from_slice(&fs::read(campaign_root.join("campaign-summary.json")).unwrap())
+            .unwrap();
+    assert!(
+        summary["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|result| result["terminal"]["terminal"] == "success")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn corpus_and_parallel_campaign_collect_all_expected_failure_artifacts() {
     let _guard = CLI_RUN_LOCK.lock().unwrap();
     let root = temp_dir();

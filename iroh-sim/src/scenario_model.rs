@@ -1561,6 +1561,9 @@ pub struct GeneratorConfig {
     pub max_virtual_time: Duration,
 }
 
+/// Leaves headroom for QUIC packet metadata within its minimum 1,200-byte UDP payload.
+const MAX_GENERATED_DATAGRAM_PAYLOAD_BYTES: u64 = 1_024;
+
 /// Domain-separated canonical scenario generator.
 #[derive(Clone, Debug)]
 pub struct ScenarioGenerator {
@@ -1617,8 +1620,15 @@ impl ScenarioGenerator {
         {
             cleanup.deadline_nanos = Some(scenario.budgets.max_virtual_time_nanos);
         }
+        let payload_limit = match operation {
+            ScenarioOperation::Stream => self.config.max_payload_bytes,
+            ScenarioOperation::Datagram => self
+                .config
+                .max_payload_bytes
+                .min(MAX_GENERATED_DATAGRAM_PAYLOAD_BYTES),
+        };
         let payload_bytes = stream
-            .range_u64(1..self.config.max_payload_bytes.saturating_add(1))
+            .range_u64(1..payload_limit.saturating_add(1))
             .map_err(|error| ScenarioModelError::Generation(error.to_string()))?;
         if let ScenarioAction::StreamRoundTrip { payload, .. }
         | ScenarioAction::DatagramRoundTrip { payload, .. } = &mut scenario.actions[3].action
@@ -1634,7 +1644,7 @@ impl ScenarioGenerator {
         let fault = stream
             .range_u64(0..3)
             .map_err(|error| ScenarioModelError::Generation(error.to_string()))?;
-        if fault != 0 {
+        if operation == ScenarioOperation::Stream && fault != 0 {
             scenario.fault_rules.push(FaultRule {
                 id: "packet-fault".to_owned(),
                 link: "lan".to_owned(),
