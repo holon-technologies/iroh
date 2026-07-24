@@ -1975,10 +1975,18 @@ async fn run_dns_lane_body(
     for _ in 0..config.tcp_offered.get() {
         tcp_sockets.push(connect_tcp(dns_addr, config.operation_timeout).await?);
     }
+    let expected_tcp_rejections = u64::try_from(
+        config
+            .tcp_offered
+            .get()
+            .checked_sub(config.tcp_capacity.get())
+            .ok_or_else(|| lane_error("DNS TCP rejection target underflowed"))?,
+    )
+    .map_err(|_| lane_error("DNS TCP rejection target is out of range"))?;
     wait_for_condition(config.operation_timeout, "DNS TCP saturation", || {
         metrics.dns_tcp_connections_active.get()
             == i64::try_from(config.tcp_capacity.get()).unwrap_or(i64::MAX)
-            && metrics.dns_tcp_connections_rejected.get() > 0
+            && metrics.dns_tcp_connections_rejected.get() == expected_tcp_rejections
     })
     .await?;
     let tcp_active_high_water = usize::try_from(metrics.dns_tcp_connections_active.get())
@@ -2075,13 +2083,21 @@ async fn run_dns_lane_body(
             config.operation_timeout,
         ));
     }
+    let expected_http_request_rejections = u64::try_from(
+        config
+            .http_requests_offered
+            .get()
+            .checked_sub(config.http_request_capacity.get())
+            .ok_or_else(|| lane_error("DNS HTTP request rejection target underflowed"))?,
+    )
+    .map_err(|_| lane_error("DNS HTTP request rejection target is out of range"))?;
     wait_for_condition(
         config.operation_timeout,
         "DNS HTTP request saturation",
         || {
             metrics.http_requests_active.get()
                 == i64::try_from(config.http_request_capacity.get()).unwrap_or(i64::MAX)
-                && metrics.http_requests_rejected_capacity.get() > 0
+                && metrics.http_requests_rejected_capacity.get() == expected_http_request_rejections
         },
     )
     .await?;
@@ -2753,7 +2769,7 @@ mod tests {
         );
         assert_eq!(outcome.tcp_offered, 4);
         assert_eq!(outcome.tcp_active_high_water, 2);
-        assert!(outcome.tcp_rejections >= 1);
+        assert_eq!(outcome.tcp_rejections, 2);
         assert_eq!(outcome.http_connections_offered, 4);
         assert_eq!(outcome.http_connection_arrival.attempts, 4);
         assert_eq!(outcome.http_connections_active_high_water, 2);

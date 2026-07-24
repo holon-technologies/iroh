@@ -478,6 +478,18 @@ async fn execute_dns_lane(
                 failure = Some("DNS admission did not recover after release".to_owned());
             }
             if failure.is_none()
+                && outcome.tcp_rejections
+                    != u64::try_from(
+                        outcome
+                            .tcp_offered
+                            .checked_sub(tcp_capacity.get())
+                            .ok_or(CanaryError::ArithmeticOverflow)?,
+                    )
+                    .map_err(|_| "DNS TCP rejection count is out of range")?
+            {
+                failure = Some("DNS TCP admission outcomes do not conserve attempts".to_owned());
+            }
+            if failure.is_none()
                 && (outcome.udp_completed == 0
                     || outcome.udp_rejections == 0
                     || outcome.udp_arrival.attempts != outcome.udp_offered
