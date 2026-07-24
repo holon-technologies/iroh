@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "recorded_unix_seconds": 1784928783,
+  "source_revision": "fce2f1eb3f29c30b18a06b3b63022bb924b46ba1",
+  "mode": "evidence",
+  "evidence": true,
+  "build_profile": "release",
+  "optimization_level": "3",
+  "release_build": true,
+  "source_clean": true,
+  "all_lanes": false,
+  "scale_percent": 100,
+  "warmup_seconds": 30,
+  "measurement_seconds": 300,
+  "cooldown_seconds": 30,
+  "sample_interval_seconds": 1,
+  "accepted": false,
+  "lanes": [
+    {
+      "lane": "dns",
+      "accepted": true,
+      "failure": null,
+      "resources": {
+        "sample_count": 381,
+        "warmup_samples": 30,
+        "measurement_samples": 300,
+        "cooldown_samples": 30,
+        "peak_cpu_basis_points": 1540,
+        "peak_rss_bytes": 51785728,
+        "peak_file_descriptors": 2063,
+        "peak_threads": 11,
+        "minimum_available_memory_bytes": 31624175616
+      },
+      "outcome": {
+        "continuity_http_connection_rejections": 357,
+        "continuity_http_request_rejections": 357,
+        "continuity_udp_latency": {
+          "maximum_micros": 560,
+          "p50_micros": 227,
+          "p95_micros": 327,
+          "p99_micros": 374,
+          "samples": 357
+        },
+        "continuity_udp_successes": 357,
+        "http_connection_arrival": {
+          "achieved_per_second_milli": 399821,
+          "attempts": 1024,
+          "elapsed_micros": 2558641,
+          "maximum_schedule_lag_micros": 1834,
+          "target_per_second": 400
+        },
+        "http_connection_capacity_rejections": 512,
+        "http_connection_rate_rejections": 0,
+        "http_connection_rejections": 869,
+        "http_connections_active_high_water": 512,
+        "http_connections_offered": 1024,
+        "http_request_latency": {
+          "maximum_micros": 586,
+          "p50_micros": 586,
+          "p95_micros": 586,
+          "p99_micros": 586,
+          "samples": 1
+        },
+        "http_request_recovered": true,
+        "http_request_rejections": 1024,
+        "http_requests_active_high_water": 1024,
+        "http_requests_admitted": 1024,
+        "http_requests_offered": 2048,
+        "recovered": true,
+        "shutdown_millis": 12163,
+        "store_background_failures": 0,
+        "tcp_active_high_water": 256,
+        "tcp_offered": 512,
+        "tcp_rejections": 256,
+        "udp_arrival": {
+          "achieved_per_second_milli": 999401,
+          "attempts": 2048,
+          "elapsed_micros": 2048226,
+          "maximum_schedule_lag_micros": 10403,
+          "target_per_second": 1000
+        },
+        "udp_completed": 1024,
+        "udp_latency": {
+          "maximum_micros": 3002107,
+          "p50_micros": 3001131,
+          "p95_micros": 3001875,
+          "p99_micros": 3002020,
+          "samples": 1024
+        },
+        "udp_offered": 2048,
+        "udp_rejections": 1024,
+        "udp_timed_out": 1024
+      },
+      "samples_file": "dns-samples.ndjson"
+    }
+  ]
+}

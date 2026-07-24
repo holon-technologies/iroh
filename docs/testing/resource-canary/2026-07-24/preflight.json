@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "recorded_unix_seconds": 1784928402,
+  "source_revision": "fce2f1eb3f29c30b18a06b3b63022bb924b46ba1",
+  "accepted": true,
+  "failure": null,
+  "operating_system": "linux",
+  "architecture": "x86_64",
+  "kernel_release": "6.8.0-136-generic",
+  "cpu_model": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+  "load_averages": "0.65 0.66 0.63",
+  "baseline_seconds": 5,
+  "cpu_cores": 8,
+  "memory_total_bytes": 33654890496,
+  "memory_available_bytes": 31706284032,
+  "swap_used_bytes": 1273663488,
+  "file_descriptor_limit": 1048576,
+  "free_storage_bytes": 120654807040,
+  "baseline_cpu_basis_points": 162,
+  "largest_competitor_cpu_basis_points": 17,
+  "largest_competitor_rss_bytes": 289890304,
+  "competitors": [
+    {
+      "pid": 378796,
+      "name": "codex",
+      "cpu_basis_points": 17,
+      "rss_bytes": 289890304
+    },
+    {
+      "pid": 1713201,
+      "name": "codex",
+      "cpu_basis_points": 17,
+      "rss_bytes": 162082816
+    },
+    {
+      "pid": 9868,
+      "name": "codex",
+      "cpu_basis_points": 0,
+      "rss_bytes": 131715072
+    },
+    {
+      "pid": 1302,
+      "name": "node",
+      "cpu_basis_points": 0,
+      "rss_bytes": 86958080
+    },
+    {
+      "pid": 1319,
+      "name": "dockerd",
+      "cpu_basis_points": 5,
+      "rss_bytes": 47529984
+    },
+    {
+      "pid": 829,
+      "name": "tailscaled",
+      "cpu_basis_points": 15,
+      "rss_bytes": 39079936
+    },
+    {
+      "pid": 2284,
+      "name": "panel-rs",
+      "cpu_basis_points": 0,
+      "rss_bytes": 33177600
+    },
+    {
+      "pid": 1075,
+      "name": "containerd",
+      "cpu_basis_points": 2,
+      "rss_bytes": 30466048
+    },
+    {
+      "pid": 1842,
+      "name": "beam.smp",
+      "cpu_basis_points": 5,
+      "rss_bytes": 28426240
+    },
+    {
+      "pid": 427,
+      "name": "multipathd",
+      "cpu_basis_points": 0,
+      "rss_bytes": 28102656
+    },
+    {
+      "pid": 823,
+      "name": "snapd",
+      "cpu_basis_points": 0,
+      "rss_bytes": 22159360
+    },
+    {
+      "pid": 849852,
+      "name": "systemd-journal",
+      "cpu_basis_points": 0,
+      "rss_bytes": 20111360
+    },
+    {
+      "pid": 8250,
+      "name": "tmux: server",
+      "cpu_basis_points": 17,
+      "rss_bytes": 16490496
+    },
+    {
+      "pid": 2037167,
+      "name": "postgres",
+      "cpu_basis_points": 0,
+      "rss_bytes": 15540224
+    },
+    {
+      "pid": 2037412,
+      "name": "postgres",
+      "cpu_basis_points": 0,
+      "rss_bytes": 15261696
+    },
+    {
+      "pid": 2037169,
+      "name": "postgres",
+      "cpu_basis_points": 0,
+      "rss_bytes": 15036416
+    }
+  ]
+}

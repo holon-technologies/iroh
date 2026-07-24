@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_revision": "fce2f1eb3f29c30b18a06b3b63022bb924b46ba1",
+  "files": [
+    {
+      "path": "dns-samples.ndjson",
+      "bytes": 95435,
+      "sha256": "c3963a5892b3e83ea6bcac0322c163dce8b8d036b594e08a458a30a9e9b19094"
+    },
+    {
+      "path": "endpoint-samples.ndjson",
+      "bytes": 90902,
+      "sha256": "04c9cce5a690571e520822e46fd7c31398a49fbcdf08555caaa33371950c38a4"
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 2603,
+      "sha256": "8eadb554d0e6f3151141851d29cb5368fe3653d34e2b996b982db2b7acf1228d"
+    },
+    {
+      "path": "relay-samples.ndjson",
+      "bytes": 98475,
+      "sha256": "844f0191bb6cb6dcf32941a4bfcd94df9d3cd70fc8c3ed0900b2b5c07d50f283"
+    },
+    {
+      "path": "run-partial-1.json",
+      "bytes": 2941,
+      "sha256": "66a54349a5be5787c9414c04b2f146bbf7aed0ece9ecf4f9b76f1b3791f6f353"
+    },
+    {
+      "path": "run-partial-2.json",
+      "bytes": 5838,
+      "sha256": "c63425296dade87692ef794d5d0600f478b99960efa5779c0d4db0ce94e0229c"
+    },
+    {
+      "path": "run-partial-3.json",
+      "bytes": 9130,
+      "sha256": "2e3bfd76eceeb646d07b75520f2024ef7fafa1c4c307f3a84918ca64bc4d5b6c"
+    },
+    {
+      "path": "run.json",
+      "bytes": 9129,
+      "sha256": "cfaf0ccd944aa1858a51e170dc70b556491180ac93dc82787fb2650b8d876352"
+    }
+  ]
+}

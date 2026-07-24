@@ -25,13 +25,12 @@ determinism, unsafe, and validation boundaries in `iroh`, `iroh-runtime`, `iroh-
 
 ## Non-Goals
 
-- This audit is not the production-host 2x offered-load canary.
-- It does not replace Android emulator execution or internet-canary testing.
+- This audit does not replace Android emulator execution or internet-canary testing.
 - It does not claim source compatibility for the explicitly approved fallible-constructor changes.
 
 ## Result
 
-**Raw score: 96/100 — Exemplary.**
+**Raw score: 97/100 — Exemplary.**
 
 No TigerStyle safety gate applies. There are no unresolved Critical or High findings in the
 audited scope.
@@ -45,10 +44,10 @@ audited scope.
 | Determinism and effect isolation | 10/10 | Clock, entropy, scheduling, external-state, spawn, and unordered-collection boundaries are inventoried in `docs/testing/determinism-audit.md` and mechanically checked by `scripts/check-determinism-boundaries.sh`. Runtime and simulator tests prove seeded replay and byte-identical normalized traces. |
 | Structured concurrency | 10/10 | Runtime groups reject before polling at capacity, conserve permits through completion and panic, and observe task outcomes (`iroh-runtime/src/task.rs:359`, `iroh-runtime/tests/task.rs:49`, `iroh-runtime/tests/task.rs:179`). DNS, relay, endpoint, and Noq supervisors own cancellation and join paths; shutdown tests pass under saturation. |
 | Unsafe discipline | 10/10 | Workspace policy denies unsafe code (`Cargo.toml:37`); safe crate roots forbid it. The only project unsafe boundary is the Android JNI handoff, isolated behind a module allowance with a public caller contract and an adjacent safety proof (`iroh-dns/src/lib.rs:9`, `iroh-dns/src/android.rs:80`, `iroh-dns/src/android.rs:89`). The Android CI matrix cross-compiles and executes the affected crate on an emulator (`.github/workflows/ci.yml:189`). Miri is not applicable to the JNI VM operation itself. |
-| System testing | 12/15 | Native unit/integration/property tests, deterministic simulation, Patchbay network namespaces, browser-target Wasm execution, documentation tests, and three Android compile targets cover the primary invariants. Three points are deducted because a final-tree production-host 2x load/canary report, dedicated bounded fuzz targets, and a fresh local Android emulator run are not present. |
+| System testing | 13/15 | Native unit/integration/property tests, deterministic simulation, Patchbay network namespaces, browser-target Wasm execution, documentation tests, three Android compile targets, and a retained final-tree production-host 2x canary cover the primary invariants. Two points are deducted because dedicated bounded fuzz targets and a fresh local Android emulator run are not present. |
 | Auditability and lint enforcement | 5/5 | Every workspace member inherits the lint policy; correctness, suspicious behavior, checked casts, unsafe operations, and unused results are denied (`Cargo.toml:36`, `Cargo.toml:50`). Determinism drift and strict `-D warnings` Clippy matrices are enforced and green. |
 
-Calculation: `15 + 9 + 15 + 10 + 10 + 10 + 10 + 12 + 5 = 96` out of 100
+Calculation: `15 + 9 + 15 + 10 + 10 + 10 + 10 + 13 + 5 = 97` out of 100
 applicable points.
 
 ## Confirmed Invariants
@@ -85,21 +84,14 @@ The following commands passed on the final relevant source state:
 - no-default-feature optional-dependency absence checks
 - all four Wasm CI builds, both forbidden-`env` import scans, and the Wasm integration test
 - full aarch64 and armv7 Android workspace builds, plus the four x86_64 Android test-binary builds
+- the clean release production resource canary at 2x offered load, with exact 30/300/30
+  one-second sampling and immutable artifacts under `docs/testing/resource-canary/2026-07-24`
 
 `cargo semver-checks` was not used as an acceptance gate because the user approved the coordinated
 source-breaking fallible-constructor change. The change is documented in the changelog and
 migration guidance.
 
 ## Residual Findings
-
-### Medium: production-host capacity evidence is still operational
-
-The finite defaults prevent uncontrolled growth, but the required 2x offered-load canary has not
-yet measured CPU, RSS, descriptors, tasks, queues, latency, rejection counts, and shutdown
-duration on the documented minimum production host.
-
-**Repair:** run the documented canary before raising any default, retain at least 30% headroom,
-and attach the exported metrics to the release evidence.
 
 ### Medium: dedicated fuzz smoke targets are absent
 
@@ -122,11 +114,10 @@ state check before entering the upstream system-configuration reader.
 
 - No safety cap applies: **met**.
 - No unresolved Critical or High finding: **met**.
-- Raw score is at least 80: **met (96)**.
+- Raw score is at least 80: **met (97)**.
 - Formatting, deterministic-boundary checks, strict linting, workspace tests, docs, dependency
   policy, Wasm execution, and Android cross-compilation pass: **met**.
-- Production-host 2x load/canary evidence exists before raising defaults: **open operational
-  follow-up**.
+- Production-host 2x load/canary evidence exists before raising defaults: **met**.
 - Android JNI behavior executes on the CI emulator: **open for the next CI run**.
 
 ## Evidence Map
@@ -144,9 +135,10 @@ state check before entering the upstream system-configuration reader.
   `iroh-relay/src/quic.rs`, `iroh-relay/src/server.rs`
 - Deterministic verification: `docs/testing/determinism-audit.md`, `iroh-sim/tests`
 - Platform verification: `.github/workflows/ci.yml`
+- Production capacity evidence: `docs/testing/production-resource-canary.md`,
+  `docs/testing/resource-canary/2026-07-24`
 
 ## Open Questions
 
-1. Which production host profile and traffic generator will own the retained 2x canary evidence?
-2. Should the four bounded fuzz targets land with this hardening series or in a dedicated
+1. Should the four bounded fuzz targets land with this hardening series or in a dedicated
    follow-up change?
