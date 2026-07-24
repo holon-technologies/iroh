@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     match iroh_sim::cli::run(args) {

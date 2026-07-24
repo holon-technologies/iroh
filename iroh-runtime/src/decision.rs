@@ -276,7 +276,9 @@ impl DecisionStream for SeededDecisionStream {
 fn derive_stream_seed(root: RootSeed, path: &DecisionPath) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new_derive_key(DERIVATION_CONTEXT);
     hasher.update(root.as_bytes());
-    hasher.update(&(path.as_str().len() as u32).to_le_bytes());
+    let path_len = u32::try_from(path.as_str().len())
+        .expect("validated decision paths contain at most 256 bytes");
+    hasher.update(&path_len.to_le_bytes());
     hasher.update(path.as_str().as_bytes());
     *hasher.finalize().as_bytes()
 }
@@ -285,8 +287,8 @@ fn encode_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut encoded = String::with_capacity(bytes.len() * 2);
     for &byte in bytes {
-        encoded.push(HEX[(byte >> 4) as usize] as char);
-        encoded.push(HEX[(byte & 0x0f) as usize] as char);
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     encoded
 }

@@ -348,7 +348,8 @@ impl ClientBuilder {
 
         let stream = builder.connect().await?;
         let local_addr = stream
-            .as_ref()
+            .underlying_io()
+            .ok_or_else(|| e!(ConnectError::NoLocalAddr))?
             .local_addr()
             .map_err(|_| e!(ConnectError::NoLocalAddr))?;
 

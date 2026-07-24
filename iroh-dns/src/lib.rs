@@ -2,10 +2,15 @@
 //!
 //! This crate contains the core types for publishing and resolving iroh endpoint
 //! information via DNS, using the [pkarr](https://pkarr.org) signed packet format.
+#![deny(unsafe_code)]
 #![deny(missing_docs, rustdoc::broken_intra_doc_links, unreachable_pub)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 
 #[cfg(any(target_os = "android", doc))]
+#[allow(
+    unsafe_code,
+    reason = "the Android JNI boundary has a public safety contract and a reviewed unsafe operation"
+)]
 mod android;
 mod attrs;
 #[cfg(not(wasm_browser))]

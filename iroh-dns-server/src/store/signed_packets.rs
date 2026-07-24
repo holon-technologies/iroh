@@ -1,10 +1,11 @@
 use std::{
     future::Future,
     num::NonZeroUsize,
+    panic::AssertUnwindSafe,
     path::Path,
     result,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU8, Ordering},
     },
     time::{Duration, SystemTime},
@@ -12,9 +13,8 @@ use std::{
 
 use iroh_dns::pkarr::{SignedPacket, Timestamp};
 use n0_error::{Result, StackResultExt, StdResultExt, anyerr, stack_error};
-use n0_future::FutureExt;
 use redb::{Database, MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace, warn};
 
@@ -62,13 +62,86 @@ impl StoreHealth {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StoreWorker {
+    Write,
+    Eviction,
+}
+
+impl std::fmt::Display for StoreWorker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Write => f.write_str("packet-store-actor"),
+            Self::Eviction => f.write_str("packet-store-evict"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ThreadOutcome {
+    Running {
+        worker: StoreWorker,
+    },
+    Completed,
+    Failed {
+        worker: StoreWorker,
+        cause: Arc<str>,
+    },
+    Panicked {
+        worker: StoreWorker,
+        cause: Arc<str>,
+    },
+    CompletionSignalLost {
+        worker: StoreWorker,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StoreShutdownError {
+    WorkerFailed {
+        worker: StoreWorker,
+        cause: Arc<str>,
+    },
+    WorkerPanicked {
+        worker: StoreWorker,
+        cause: Arc<str>,
+    },
+    CompletionSignalLost {
+        worker: StoreWorker,
+    },
+    JoinPanicked {
+        worker: StoreWorker,
+    },
+}
+
+impl std::fmt::Display for StoreShutdownError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WorkerFailed { worker, cause } => {
+                write!(f, "{worker} failed: {cause}")
+            }
+            Self::WorkerPanicked { worker, cause } => {
+                write!(f, "{worker} panicked: {cause}")
+            }
+            Self::CompletionSignalLost { worker } => {
+                write!(f, "{worker} exited without reporting completion")
+            }
+            Self::JoinPanicked { worker } => {
+                write!(f, "{worker} panicked after reporting completion")
+            }
+        }
+    }
+}
+
+impl std::error::Error for StoreShutdownError {}
+
 #[derive(Debug)]
 pub(super) struct SignedPacketStore {
     send: mpsc::Sender<Message>,
     cancel: CancellationToken,
     health: Arc<StoreHealth>,
-    _write_thread: IoThread,
-    _evict_thread: IoThread,
+    write_thread: IoThread,
+    evict_thread: IoThread,
 }
 
 impl Drop for SignedPacketStore {
@@ -163,20 +236,21 @@ impl Default for Options {
 }
 
 impl Actor {
-    async fn run(mut self) {
-        match self.run0().await {
-            Ok(()) => {}
-            Err(e) => {
-                tracing::error!("packet store actor failed: {:?}", e);
-                self.metrics.store_background_failures.inc();
-                self.health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
-                self.cancel.cancel();
-            }
-        }
+    async fn run(mut self) -> Result<()> {
+        self.run0().await
     }
 
     async fn run0(&mut self) -> Result<()> {
-        while let Some(msg) = self.recv.recv().await {
+        loop {
+            let msg = tokio::select! {
+                _ = self.cancel.cancelled() => return Ok(()),
+                msg = self.recv.recv() => {
+                    let Some(msg) = msg else {
+                        return Ok(());
+                    };
+                    msg
+                }
+            };
             // if we get a snapshot message here we don't need to do a write transaction
             let msg = if let Message::Snapshot { res } = msg {
                 let snapshot = Snapshot::new(&self.db)?;
@@ -207,7 +281,6 @@ impl Actor {
             drop(tables);
             transaction.commit().anyerr()?;
         }
-        Ok(())
     }
 
     fn handle_message(&self, msg: Message, tables: &mut Tables) -> Result<()> {
@@ -429,29 +502,26 @@ impl SignedPacketStore {
         };
         // start an io thread and donate it to the tokio runtime so we can do blocking IO
         // inside the thread despite being in a tokio runtime
-        let actor_health = health.clone();
-        let actor_metrics = metrics.clone();
-        let _write_thread = IoThread::new("packet-store-actor", move || async move {
-            if std::panic::AssertUnwindSafe(actor.run())
-                .catch_unwind()
-                .await
-                .is_err()
-            {
-                actor_metrics.store_background_failures.inc();
-                actor_health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
-            }
-        })?;
-        let evict_health = health.clone();
-        let evict_metrics = metrics;
-        let _evict_thread = IoThread::new("packet-store-evict", move || {
-            evict_task(send2, options, cancel3, evict_health, evict_metrics)
-        })?;
+        let write_thread = IoThread::new(
+            StoreWorker::Write,
+            cancel.clone(),
+            health.clone(),
+            metrics.clone(),
+            move || actor.run(),
+        )?;
+        let evict_thread = IoThread::new(
+            StoreWorker::Eviction,
+            cancel.clone(),
+            health.clone(),
+            metrics,
+            move || evict_task(send2, options, cancel3),
+        )?;
         Ok(Self {
             send,
             cancel,
             health,
-            _write_thread,
-            _evict_thread,
+            write_thread,
+            evict_thread,
         })
     }
 
@@ -475,6 +545,18 @@ impl SignedPacketStore {
             .await
             .anyerr()?;
         rx.await.anyerr()
+    }
+
+    pub(super) async fn shutdown(&self) -> std::result::Result<(), StoreShutdownError> {
+        self.cancel.cancel();
+        let (write_outcome, evict_outcome) =
+            tokio::join!(self.write_thread.wait(), self.evict_thread.wait());
+
+        self.write_thread.join_finished()?;
+        self.evict_thread.join_finished()?;
+        outcome_result(write_outcome)?;
+        outcome_result(evict_outcome)?;
+        Ok(())
     }
 
     #[cfg(test)]
@@ -526,22 +608,22 @@ async fn evict_task(
     send: mpsc::Sender<Message>,
     options: Options,
     cancel: CancellationToken,
-    health: Arc<StoreHealth>,
-    metrics: Arc<Metrics>,
-) {
+) -> Result<()> {
     let cancel2 = cancel.clone();
-    let _ = cancel2
+    let result = cancel2
         .run_until_cancelled(async move {
             info!("starting evict task");
-            if let Err(cause) = evict_task_inner(send, options).await {
-                error!("evict task failed: {:?}", cause);
-                metrics.store_background_failures.inc();
-                health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
-            }
-            // when we are done for whatever reason we want to shut down the actor
-            cancel.cancel();
+            evict_task_inner(send, options).await
         })
         .await;
+    match result {
+        Some(result) => {
+            // A worker finishing for any reason stops its peer.
+            cancel.cancel();
+            result
+        }
+        None => Ok(()),
+    }
 }
 
 /// Periodically check for expired packets and remove them.
@@ -604,7 +686,9 @@ async fn evict_task_inner(send: mpsc::Sender<Message>, options: Options) -> Resu
 /// pool threads.
 #[derive(Debug)]
 struct IoThread {
-    handle: Option<std::thread::JoinHandle<()>>,
+    worker: StoreWorker,
+    handle: Mutex<Option<std::thread::JoinHandle<()>>>,
+    outcome: watch::Receiver<ThreadOutcome>,
 }
 
 impl IoThread {
@@ -613,27 +697,116 @@ impl IoThread {
     /// Calling this function requires that the current thread is running in a
     /// tokio runtime. It is up to the caller to make sure the future exits,
     /// e.g. by using a cancellation token. Otherwise, drop will block.
-    fn new<F, Fut>(name: &str, f: F) -> Result<Self>
+    fn new<F, Fut>(
+        worker: StoreWorker,
+        cancel: CancellationToken,
+        health: Arc<StoreHealth>,
+        metrics: Arc<Metrics>,
+        f: F,
+    ) -> Result<Self>
     where
         F: FnOnce() -> Fut + Send + 'static,
-        Fut: Future<Output = ()>,
+        Fut: Future<Output = Result<()>>,
     {
         let rt = tokio::runtime::Handle::try_current().std_context("get tokio handle")?;
+        let (outcome_tx, outcome) = watch::channel(ThreadOutcome::Running { worker });
         let handle = std::thread::Builder::new()
-            .name(name.into())
-            .spawn(move || rt.block_on(f()))
+            .name(worker.to_string())
+            .spawn(move || {
+                let outcome = match std::panic::catch_unwind(AssertUnwindSafe(|| rt.block_on(f())))
+                {
+                    Ok(Ok(())) => ThreadOutcome::Completed,
+                    Ok(Err(error)) => ThreadOutcome::Failed {
+                        worker,
+                        cause: format!("{error:#}").into(),
+                    },
+                    Err(payload) => ThreadOutcome::Panicked {
+                        worker,
+                        cause: panic_message(payload).into(),
+                    },
+                };
+                if !matches!(outcome, ThreadOutcome::Completed) {
+                    error!(%worker, ?outcome, "packet store worker failed");
+                    metrics.store_background_failures.inc();
+                    health.latch(STORE_HEALTH_BACKGROUND_FAILURE);
+                    cancel.cancel();
+                }
+                let _ = outcome_tx.send(outcome);
+            })
             .std_context("failed to spawn thread")?;
         Ok(Self {
-            handle: Some(handle),
+            worker,
+            handle: Mutex::new(Some(handle)),
+            outcome,
+        })
+    }
+
+    async fn wait(&self) -> ThreadOutcome {
+        let mut outcome = self.outcome.clone();
+        if !matches!(*outcome.borrow(), ThreadOutcome::Running { .. }) {
+            return outcome.borrow().clone();
+        }
+        if outcome.changed().await.is_err() {
+            return ThreadOutcome::CompletionSignalLost {
+                worker: self.worker,
+            };
+        }
+        outcome.borrow().clone()
+    }
+
+    fn join_finished(&self) -> std::result::Result<(), StoreShutdownError> {
+        let handle = self
+            .handle
+            .lock()
+            .expect("packet-store thread handle mutex must not be poisoned")
+            .take();
+        let Some(handle) = handle else {
+            return Ok(());
+        };
+        handle.join().map_err(|_| StoreShutdownError::JoinPanicked {
+            worker: self.worker,
         })
     }
 }
 
 impl Drop for IoThread {
     fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
+        let handle = self
+            .handle
+            .get_mut()
+            .expect("packet-store thread handle mutex must not be poisoned")
+            .take();
+        if let Some(handle) = handle {
+            // Dropping a native join handle detaches the worker. Normal shutdown
+            // must observe and join it explicitly; a destructor must never make
+            // an async shutdown deadline unbounded.
+            drop(handle);
         }
+    }
+}
+
+fn outcome_result(outcome: ThreadOutcome) -> std::result::Result<(), StoreShutdownError> {
+    match outcome {
+        ThreadOutcome::Completed => Ok(()),
+        ThreadOutcome::Failed { worker, cause } => {
+            Err(StoreShutdownError::WorkerFailed { worker, cause })
+        }
+        ThreadOutcome::Panicked { worker, cause } => {
+            Err(StoreShutdownError::WorkerPanicked { worker, cause })
+        }
+        ThreadOutcome::Running { worker } | ThreadOutcome::CompletionSignalLost { worker } => {
+            Err(StoreShutdownError::CompletionSignalLost { worker })
+        }
+    }
+}
+
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "non-string panic payload".to_string()
     }
 }
 
@@ -675,6 +848,11 @@ impl<T> PeekableReceiver<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        sync::mpsc as std_mpsc,
+        time::{Duration, Instant},
+    };
+
     use iroh_base::SecretKey;
 
     use super::*;
@@ -737,6 +915,167 @@ mod tests {
             .find(|bytes| iroh_base::PublicKey::from_bytes(bytes).is_err())
             .expect("the Ed25519 compressed-point domain contains invalid encodings");
         assert!(PublicKeyBytes::try_from(invalid).is_err());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn dropping_io_thread_does_not_wait_for_worker_completion() {
+        const WORKER_DELAY: Duration = Duration::from_millis(500);
+        const MAX_DROP_TIME: Duration = Duration::from_millis(100);
+
+        let (started_tx, started_rx) = std_mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std_mpsc::sync_channel(1);
+        let (completed_tx, completed_rx) = std_mpsc::sync_channel(1);
+        let io_thread = IoThread::new(
+            StoreWorker::Write,
+            CancellationToken::new(),
+            Arc::new(StoreHealth::default()),
+            Arc::new(Metrics::default()),
+            move || async move {
+                started_tx
+                    .send(())
+                    .expect("test worker start receiver must remain live");
+                release_rx
+                    .recv()
+                    .expect("test worker release sender must remain live");
+                completed_tx
+                    .send(())
+                    .expect("test worker completion receiver must remain live");
+                Ok(())
+            },
+        )
+        .expect("test I/O thread must start");
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("test I/O thread must report startup");
+
+        let release_thread = std::thread::spawn(move || {
+            std::thread::sleep(WORKER_DELAY);
+            release_tx
+                .send(())
+                .expect("test I/O thread must remain live until released");
+        });
+        let drop_started = Instant::now();
+        drop(io_thread);
+        let drop_elapsed = drop_started.elapsed();
+
+        release_thread
+            .join()
+            .expect("test release thread must not panic");
+        completed_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("detached test I/O thread must finish after release");
+        assert!(
+            drop_elapsed < MAX_DROP_TIME,
+            "dropping an I/O thread handle must not wait for worker completion: \
+             elapsed={drop_elapsed:?}, maximum={MAX_DROP_TIME:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn idle_store_shutdown_is_explicit_bounded_and_idempotent() {
+        const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(1);
+
+        let store = SignedPacketStore::in_memory(Options::default(), Arc::new(Metrics::default()))
+            .expect("in-memory store");
+
+        tokio::time::timeout(SHUTDOWN_DEADLINE, store.shutdown())
+            .await
+            .expect("idle store shutdown must finish before its parent deadline")
+            .expect("idle store workers must report clean completion");
+        assert!(
+            store
+                .write_thread
+                .handle
+                .lock()
+                .expect("write-thread handle mutex must remain healthy")
+                .is_none(),
+            "clean shutdown must join the write thread"
+        );
+        assert!(
+            store
+                .evict_thread
+                .handle
+                .lock()
+                .expect("eviction-thread handle mutex must remain healthy")
+                .is_none(),
+            "clean shutdown must join the eviction thread"
+        );
+        tokio::time::timeout(SHUTDOWN_DEADLINE, store.shutdown())
+            .await
+            .expect("repeated store shutdown must finish before its parent deadline")
+            .expect("repeated store shutdown must preserve clean completion");
+    }
+
+    #[tokio::test]
+    async fn io_thread_failure_is_typed_and_latches_store_health() {
+        let cancel = CancellationToken::new();
+        let health = Arc::new(StoreHealth::default());
+        let metrics = Arc::new(Metrics::default());
+        let io_thread = IoThread::new(
+            StoreWorker::Eviction,
+            cancel.clone(),
+            health.clone(),
+            metrics.clone(),
+            || async { Err(anyerr!("injected eviction failure")) },
+        )
+        .expect("test I/O thread must start");
+
+        let outcome = io_thread.wait().await;
+        io_thread
+            .join_finished()
+            .expect("failed worker must still join without panicking");
+        assert!(matches!(
+            outcome_result(outcome),
+            Err(StoreShutdownError::WorkerFailed {
+                worker: StoreWorker::Eviction,
+                ref cause,
+            }) if cause.contains("injected eviction failure")
+        ));
+        assert!(cancel.is_cancelled(), "worker failure must cancel its peer");
+        assert!(!health.is_ready(), "worker failure must latch store health");
+        assert_eq!(
+            metrics.store_background_failures.get(),
+            1,
+            "worker failure must be observable in bounded metrics"
+        );
+    }
+
+    #[tokio::test]
+    async fn io_thread_panic_is_typed_and_latches_store_health() {
+        let cancel = CancellationToken::new();
+        let health = Arc::new(StoreHealth::default());
+        let metrics = Arc::new(Metrics::default());
+        let io_thread = IoThread::new(
+            StoreWorker::Write,
+            cancel.clone(),
+            health.clone(),
+            metrics.clone(),
+            || async {
+                panic!("injected write panic");
+                #[allow(unreachable_code)]
+                Ok(())
+            },
+        )
+        .expect("test I/O thread must start");
+
+        let outcome = io_thread.wait().await;
+        io_thread
+            .join_finished()
+            .expect("caught worker panic must still join cleanly");
+        assert!(matches!(
+            outcome_result(outcome),
+            Err(StoreShutdownError::WorkerPanicked {
+                worker: StoreWorker::Write,
+                ref cause,
+            }) if cause.contains("injected write panic")
+        ));
+        assert!(cancel.is_cancelled(), "worker panic must cancel its peer");
+        assert!(!health.is_ready(), "worker panic must latch store health");
+        assert_eq!(
+            metrics.store_background_failures.get(),
+            1,
+            "worker panic must be observable in bounded metrics"
+        );
     }
 
     #[tokio::test]

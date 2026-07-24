@@ -14,6 +14,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use iroh_runtime::{RootSeed, TraceEvent, TraceSink, TraceSinkError};
 
+use crate::bounded_io::read_file;
 use crate::{
     ArtifactError, ArtifactStore, ArtifactTraceWriter, BackendCapabilities, CampaignConfig,
     CampaignError, CampaignRunner, CampaignTerminal, CompatibilityError, Corpus, CorpusError,
@@ -265,7 +266,7 @@ fn execute_run(
     artifact_override: Option<&Path>,
     crypto: CryptoLane,
 ) -> Result<(), CliError> {
-    let scenario_bytes = fs::read(scenario_path).map_err(CliError::Io)?;
+    let scenario_bytes = read_file(scenario_path).map_err(CliError::Io)?;
     let schema_version = scenario_schema_version(&scenario_bytes)?;
     if schema_version == SCENARIO_SCHEMA_VERSION {
         return execute_declarative_run(
@@ -542,7 +543,7 @@ fn execute_declarative_replay(
     manifest: &RunManifest,
     artifact_root: &Path,
 ) -> Result<(), CliError> {
-    let scenario = Scenario::from_json(&fs::read(artifact_root.join("scenario.json"))?)?;
+    let scenario = Scenario::from_json(&read_file(artifact_root.join("scenario.json"))?)?;
     let workspace = workspace_root()?;
     let identity = declarative_scenario_identity(&workspace, &scenario, Some(artifact_root))?;
     manifest.check_compatible(&ReplayIdentity {
@@ -586,7 +587,7 @@ fn execute_declarative_replay(
     let expected_trace = read_trace_jsonl(&artifact_root.join("trace.raw.jsonl"))?;
     if expected_failure {
         let expected_signature =
-            FailureSignature::from_json(&fs::read(artifact_root.join("failure-signature.json"))?)?;
+            FailureSignature::from_json(&read_file(artifact_root.join("failure-signature.json"))?)?;
         let actual_signature = match &result {
             Err(failure) => Some(FailureSignature::from_runner_error(
                 &failure.error,
@@ -652,9 +653,9 @@ fn execute_minimize(
         .parent()
         .ok_or(CliError::ManifestHasNoParent)?;
     verify_failure_artifacts(artifact_root)?;
-    let manifest = RunManifest::from_json(&fs::read(&manifest_path)?)?;
+    let manifest = RunManifest::from_json(&read_file(&manifest_path)?)?;
     let workspace = workspace_root()?;
-    let scenario = Scenario::from_json(&fs::read(artifact_root.join("scenario.json"))?)?;
+    let scenario = Scenario::from_json(&read_file(artifact_root.join("scenario.json"))?)?;
     let identity = declarative_scenario_identity(&workspace, &scenario, Some(artifact_root))?;
     manifest.check_compatible(&ReplayIdentity {
         schema_version: MANIFEST_SCHEMA_VERSION,
@@ -666,7 +667,7 @@ fn execute_minimize(
         lockfile_digest: identity.lockfile_digest,
     })?;
     let expected =
-        FailureSignature::from_json(&fs::read(artifact_root.join("failure-signature.json"))?)?;
+        FailureSignature::from_json(&read_file(artifact_root.join("failure-signature.json"))?)?;
     let output = absolutize(
         output
             .map(Path::to_path_buf)
@@ -791,8 +792,8 @@ fn execute_parity_compare(
     actual_path: &Path,
     output: Option<&Path>,
 ) -> Result<(), CliError> {
-    let expected = ParityFixture::from_json(&fs::read(expected_path)?)?;
-    let actual = ParityFixture::from_json(&fs::read(actual_path)?)?;
+    let expected = ParityFixture::from_json(&read_file(expected_path)?)?;
+    let actual = ParityFixture::from_json(&read_file(actual_path)?)?;
     let now_unix_secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_err(|error| CliError::Identity(error.to_string()))?
@@ -819,7 +820,7 @@ fn execute_patchbay_import(
     observed_at_unix_secs: u64,
     output: &Path,
 ) -> Result<(), CliError> {
-    let receipt = PatchbayReceipt::from_json(&fs::read(receipt_path)?)?;
+    let receipt = PatchbayReceipt::from_json(&read_file(receipt_path)?)?;
     let case = canonical_patchbay_scenarios()?
         .into_iter()
         .find(|entry| entry.scenario.metadata.id == receipt.case_id)
@@ -942,7 +943,7 @@ fn execute_campaign(options: CampaignOptions<'_>) -> Result<(), CliError> {
     };
     let scenario = match (&swarm, scenario_path) {
         (Some(swarm), None) => swarm.base.clone(),
-        (None, Some(path)) => Scenario::from_versioned_json(&fs::read(path)?)?,
+        (None, Some(path)) => Scenario::from_versioned_json(&read_file(path)?)?,
         _ => {
             return Err(CliError::Usage(
                 "campaign requires exactly one scenario or --swarm".into(),
@@ -1084,7 +1085,7 @@ fn execute_campaign(options: CampaignOptions<'_>) -> Result<(), CliError> {
 }
 
 fn load_swarm_template(path: &Path, workspace: &Path) -> Result<(SwarmSpec, Vec<u8>), CliError> {
-    let template_bytes = fs::read(path)?;
+    let template_bytes = read_file(path)?;
     let template = SwarmTemplate::from_json(&template_bytes)?;
     let base_bytes = match template.base_path() {
         None => Vec::new(),
@@ -1099,7 +1100,7 @@ fn load_swarm_template(path: &Path, workspace: &Path) -> Result<(SwarmSpec, Vec<
                     "referenced swarm base resolves outside the workspace".into(),
                 ));
             }
-            fs::read(canonical_base)?
+            read_file(canonical_base)?
         }
     };
     Ok((template.resolve(&base_bytes)?, template_bytes))
@@ -1117,13 +1118,13 @@ fn execute_explain(artifact: &Path) -> Result<(), CliError> {
     };
     let manifest_path = root.join("manifest.json");
     let manifest = if manifest_path.is_file() {
-        Some(RunManifest::from_json(&fs::read(&manifest_path)?)?)
+        Some(RunManifest::from_json(&read_file(&manifest_path)?)?)
     } else {
         None
     };
     let signature_path = root.join("failure-signature.json");
     let signature = if signature_path.is_file() {
-        Some(FailureSignature::from_json(&fs::read(&signature_path)?)?)
+        Some(FailureSignature::from_json(&read_file(&signature_path)?)?)
     } else {
         None
     };
@@ -1185,7 +1186,7 @@ fn read_optional_json(path: &Path) -> Result<Option<serde_json::Value>, CliError
     if !path.is_file() {
         return Ok(None);
     }
-    serde_json::from_slice(&fs::read(path)?)
+    serde_json::from_slice(&read_file(path)?)
         .map(Some)
         .map_err(|error| CliError::Trace(error.to_string()))
 }
@@ -1279,7 +1280,7 @@ impl MinimizationProgress {
     fn resume_scenario(&self) -> Result<Option<Scenario>, CliError> {
         let path = self.root.join("best.scenario.json");
         if self.resume && path.is_file() {
-            return Scenario::from_json(&fs::read(path)?)
+            return Scenario::from_json(&read_file(path)?)
                 .map(Some)
                 .map_err(Into::into);
         }
@@ -1372,7 +1373,7 @@ fn write_json_artifact<T: serde::Serialize + ?Sized>(
 
 fn execute_replay(manifest_path: &Path) -> Result<(), CliError> {
     let manifest_path = fs::canonicalize(absolutize(manifest_path)?).map_err(CliError::Io)?;
-    let manifest = RunManifest::from_json(&fs::read(&manifest_path).map_err(CliError::Io)?)?;
+    let manifest = RunManifest::from_json(&read_file(&manifest_path).map_err(CliError::Io)?)?;
     let workspace = workspace_root()?;
     let artifact_root = manifest_path
         .parent()
@@ -1431,7 +1432,7 @@ fn execute_replay(manifest_path: &Path) -> Result<(), CliError> {
         crate::TraceComparisonMode::Raw => "trace.raw.jsonl",
         crate::TraceComparisonMode::Semantic => "trace.jsonl",
     });
-    let expected = fs::read(&expected_path).map_err(CliError::Io)?;
+    let expected = read_file(&expected_path).map_err(CliError::Io)?;
     if actual != expected {
         return Err(CliError::TraceDivergence {
             line: first_different_line(&expected, &actual),
@@ -1616,7 +1617,7 @@ fn scenario_schema_version(bytes: &[u8]) -> Result<u16, CliError> {
 }
 
 fn read_trace_jsonl(path: &Path) -> Result<Vec<TraceEvent>, CliError> {
-    let bytes = fs::read(path)?;
+    let bytes = read_file(path)?;
     if !bytes.is_empty() && bytes.last() != Some(&b'\n') {
         return Err(CliError::Trace("trace JSONL is truncated".to_owned()));
     }
@@ -1746,7 +1747,7 @@ fn workspace_root() -> Result<PathBuf, CliError> {
 }
 
 fn digest_file(path: &Path) -> Result<String, CliError> {
-    Ok(blake3::hash(&fs::read(path).map_err(CliError::Io)?)
+    Ok(blake3::hash(&read_file(path).map_err(CliError::Io)?)
         .to_hex()
         .to_string())
 }

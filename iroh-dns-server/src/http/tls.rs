@@ -16,10 +16,18 @@ use rustls::{
     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 };
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_rustls_acme::{AcmeConfig, axum::AxumAcceptor, caches::DirCache};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use tokio_rustls_acme::{AcmeConfig, axum::AxumAcceptor};
 use tokio_stream::StreamExt;
 use tracing::{Instrument, debug, error, info_span};
+
+use self::acme_cache::BoundedAcmeCache;
+
+mod acme_cache;
+
+/// Maximum size of a certificate, private key, or CA file.
+const MAX_TLS_FILE_BYTES: usize = 1024 * 1024;
+const MAX_TLS_FILE_READ_BYTES: u64 = 1024 * 1024 + 1;
 
 /// Strategy used to obtain TLS certificates for the HTTPS server.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, strum::Display)]
@@ -149,7 +157,7 @@ impl TlsAcceptor {
         let config = rustls::ServerConfig::builder().with_no_client_auth();
         let mut state = AcmeConfig::new(domains)
             .contact([format!("mailto:{contact}")])
-            .cache_option(Some(DirCache::new(dir)))
+            .cache_option(Some(BoundedAcmeCache::new(dir)))
             .directory_lets_encrypt(is_production)
             .state();
 
@@ -181,9 +189,7 @@ impl TlsAcceptor {
 
 async fn load_certs(filename: impl AsRef<Path>) -> Result<Vec<CertificateDer<'static>>> {
     let filename = filename.as_ref();
-    let certfile = tokio::fs::read(filename)
-        .await
-        .with_std_context(|_| format!("cannot open certificate file at {}", filename.display()))?;
+    let certfile = read_tls_file(filename).await?;
     CertificateDer::pem_slice_iter(&certfile)
         .collect::<Result<Vec<_>, _>>()
         .with_std_context(|_| format!("cannot parse certificates from {}", filename.display()))
@@ -191,11 +197,28 @@ async fn load_certs(filename: impl AsRef<Path>) -> Result<Vec<CertificateDer<'st
 
 async fn load_secret_key(filename: impl AsRef<Path>) -> Result<PrivateKeyDer<'static>> {
     let filename = filename.as_ref();
-    let keyfile = tokio::fs::read(filename)
-        .await
-        .with_std_context(|_| format!("cannot open secret key file at {}", filename.display()))?;
+    let keyfile = read_tls_file(filename).await?;
     PrivateKeyDer::from_pem_slice(&keyfile)
         .with_std_context(|_| format!("cannot parse secret key from {}", filename.display()))
+}
+
+async fn read_tls_file(filename: &Path) -> Result<Vec<u8>> {
+    let file = tokio::fs::File::open(filename)
+        .await
+        .with_std_context(|_| format!("cannot open TLS file at {}", filename.display()))?;
+    let mut reader = file.take(MAX_TLS_FILE_READ_BYTES);
+    let mut contents = Vec::with_capacity(MAX_TLS_FILE_BYTES.saturating_add(1));
+    reader
+        .read_to_end(&mut contents)
+        .await
+        .with_std_context(|_| format!("cannot read TLS file at {}", filename.display()))?;
+    if contents.len() > MAX_TLS_FILE_BYTES {
+        bail_any!(
+            "TLS file at {} exceeds {MAX_TLS_FILE_BYTES} bytes",
+            filename.display()
+        );
+    }
+    Ok(contents)
 }
 
 static UNSAFE_HOSTNAME_CHARACTERS: OnceLock<regex::Regex> = OnceLock::new();
@@ -204,4 +227,45 @@ fn escape_hostname(hostname: &str) -> Cow<'_, str> {
     let regex = UNSAFE_HOSTNAME_CHARACTERS
         .get_or_init(|| regex::Regex::new(r"[^a-zA-Z0-9-\.]").expect("valid regex"));
     regex.replace_all(hostname, "")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use tokio_rustls_acme::CertCache;
+
+    use super::*;
+    use crate::http::tls::acme_cache::MAX_ACME_CACHE_FILE_BYTES;
+
+    #[tokio::test]
+    async fn acme_cache_rejects_the_first_byte_over_the_limit() {
+        let directory = tempfile::tempdir().expect("temporary ACME cache");
+        let cache = BoundedAcmeCache::new(directory.path().to_path_buf());
+        let oversized = vec![0_u8; MAX_ACME_CACHE_FILE_BYTES + 1];
+
+        let error = cache
+            .store_cert(
+                &["example.com".to_owned()],
+                "https://acme.invalid",
+                &oversized,
+            )
+            .await
+            .expect_err("oversized certificate cache write must be rejected");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn tls_file_read_rejects_an_oversized_file() {
+        let mut file = tempfile::NamedTempFile::new().expect("temporary TLS file");
+        file.write_all(&vec![b' '; MAX_TLS_FILE_BYTES + 1])
+            .expect("write oversized TLS file");
+
+        let error = read_tls_file(file.path())
+            .await
+            .expect_err("oversized TLS input must be rejected before parsing");
+
+        assert!(error.to_string().contains("exceeds 1048576 bytes"));
+    }
 }

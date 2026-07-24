@@ -535,7 +535,9 @@ impl QuicTransportConfigBuilder {
     ///
     /// Note: this method will ignore values less than the recommended 8 and will log a warning.
     pub fn max_remote_nat_traversal_addresses(mut self, max_addresses: u8) -> Self {
-        if max_addresses < MAX_MULTIPATH_PATHS as u8 {
+        let minimum_addresses =
+            u8::try_from(MAX_MULTIPATH_PATHS).expect("Noq multipath limit fits in u8");
+        if max_addresses < minimum_addresses {
             warn!(
                 "QuicTransportConfig::max_remote_nat_traversal_addresses must be at least {}, ignoring user supplied value",
                 MAX_MULTIPATH_PATHS

@@ -52,8 +52,9 @@ impl DnsResponse {
             "Expected message type to be response"
         );
 
-        let status: u32 =
-            <u16 as From<proto::op::ResponseCode>>::from(message.metadata.response_code) as u32;
+        let status = u32::from(<u16 as From<proto::op::ResponseCode>>::from(
+            message.metadata.response_code,
+        ));
 
         let question: Vec<_> = message
             .queries

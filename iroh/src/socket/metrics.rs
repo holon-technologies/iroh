@@ -74,6 +74,20 @@ pub struct Metrics {
     pub num_conns_opened: Counter,
     /// Number of connections closed (only handshaked connections are counted).
     pub num_conns_closed: Counter,
+    /// Incoming or outgoing connections rejected by endpoint connection admission.
+    pub connection_capacity_rejections: Counter,
+    /// Incoming Router handlers rejected before task creation.
+    pub router_handler_capacity_rejections: Counter,
+    /// New remote-state actors rejected at their configured capacity.
+    pub remote_actor_capacity_rejections: Counter,
+    /// Remote-state actors rejected by the endpoint runtime backstop.
+    pub remote_actor_spawn_rejections: Counter,
+    /// New active-relay actors rejected at their configured capacity.
+    pub active_relay_capacity_rejections: Counter,
+    /// Active-relay actors rejected by the endpoint runtime backstop.
+    pub active_relay_spawn_rejections: Counter,
+    /// Relay datagram batches dropped because a new relay actor could not be admitted.
+    pub active_relay_datagrams_rejected: Counter,
 
     /// Number of IP transport paths opened.
     pub transport_ip_paths_added: Counter,

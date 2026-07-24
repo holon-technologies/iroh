@@ -1,14 +1,22 @@
 //! Strict versioned permanent regression corpus.
 
-use std::{collections::BTreeSet, fmt, fs, path::Path};
+use std::{
+    collections::BTreeSet,
+    ffi::OsString,
+    fmt, fs,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
+use crate::bounded_io::read_file;
 use crate::{
     FailureSignature, SCENARIO_SCHEMA_VERSION, SIMULATOR_VERSION, Scenario, ScenarioInventory,
 };
 
 pub const CORPUS_SCHEMA_VERSION: u16 = 1;
+const MAX_CORPUS_ENTRIES: usize = 4_096;
+const FILES_PER_CORPUS_ENTRY: usize = 2;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -57,32 +65,17 @@ pub struct Corpus {
 impl Corpus {
     /// Loads every immediate entry directory and rejects all unenumerated files.
     pub fn load(root: &Path) -> Result<Self, CorpusError> {
-        let mut directories = Vec::new();
-        for entry in fs::read_dir(root).map_err(CorpusError::Io)? {
-            let entry = entry.map_err(CorpusError::Io)?;
-            if !entry.file_type().map_err(CorpusError::Io)?.is_dir() {
-                return Err(CorpusError::Unenumerated(entry.path()));
-            }
-            directories.push(entry.path());
-        }
-        directories.sort();
+        let directories = collect_entry_directories(root, MAX_CORPUS_ENTRIES)?;
         let mut ids = BTreeSet::new();
         let mut entries = Vec::new();
         for directory in directories {
-            let files = fs::read_dir(&directory)
-                .map_err(CorpusError::Io)?
-                .map(|entry| {
-                    entry
-                        .map_err(CorpusError::Io)
-                        .map(|entry| entry.file_name())
-                })
-                .collect::<Result<BTreeSet<_>, _>>()?;
+            let files = collect_entry_files(&directory, FILES_PER_CORPUS_ENTRY)?;
             let expected = BTreeSet::from(["metadata.json".into(), "scenario.json".into()]);
             if files != expected {
                 return Err(CorpusError::Unenumerated(directory));
             }
             let metadata: CorpusMetadata = serde_json::from_slice(
-                &fs::read(directory.join("metadata.json")).map_err(CorpusError::Io)?,
+                &read_file(directory.join("metadata.json")).map_err(CorpusError::Io)?,
             )
             .map_err(|error| CorpusError::Json(error.to_string()))?;
             metadata.validate()?;
@@ -102,7 +95,7 @@ impl Corpus {
                 return Err(CorpusError::DuplicateId(metadata.id));
             }
             let scenario = Scenario::from_json(
-                &fs::read(directory.join(&metadata.scenario_file)).map_err(CorpusError::Io)?,
+                &read_file(directory.join(&metadata.scenario_file)).map_err(CorpusError::Io)?,
             )
             .map_err(|error| CorpusError::Scenario(error.to_string()))?;
             let actual_inventory = ScenarioInventory::from_scenario(&scenario);
@@ -156,6 +149,39 @@ impl Corpus {
         }
         Ok(reports)
     }
+}
+
+fn collect_entry_directories(root: &Path, maximum: usize) -> Result<Vec<PathBuf>, CorpusError> {
+    let mut directories = Vec::new();
+    for entry in fs::read_dir(root).map_err(CorpusError::Io)? {
+        let entry = entry.map_err(CorpusError::Io)?;
+        if !entry.file_type().map_err(CorpusError::Io)?.is_dir() {
+            return Err(CorpusError::Unenumerated(entry.path()));
+        }
+        if directories.len() >= maximum {
+            return Err(CorpusError::InvalidMetadata(format!(
+                "corpus exceeds {maximum} entries"
+            )));
+        }
+        directories.push(entry.path());
+    }
+    directories.sort();
+    Ok(directories)
+}
+
+fn collect_entry_files(
+    directory: &Path,
+    maximum: usize,
+) -> Result<BTreeSet<OsString>, CorpusError> {
+    let mut files = BTreeSet::new();
+    for entry in fs::read_dir(directory).map_err(CorpusError::Io)? {
+        let entry = entry.map_err(CorpusError::Io)?;
+        if files.len() >= maximum {
+            return Err(CorpusError::Unenumerated(directory.to_path_buf()));
+        }
+        files.insert(entry.file_name());
+    }
+    Ok(files)
 }
 
 impl CorpusMetadata {
@@ -237,3 +263,33 @@ impl fmt::Display for CorpusError {
 }
 
 impl std::error::Error for CorpusError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corpus_directory_scan_rejects_before_exceeding_the_limit() {
+        let root = tempfile::tempdir().expect("temporary corpus");
+        std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
+        std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
+
+        let error = collect_entry_directories(root.path(), 1)
+            .expect_err("the second entry must exceed the injected limit");
+
+        assert!(matches!(error, CorpusError::InvalidMetadata(_)));
+    }
+
+    #[test]
+    fn corpus_file_scan_rejects_the_first_unexpected_file() {
+        let root = tempfile::tempdir().expect("temporary corpus entry");
+        std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
+        std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
+        std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
+
+        let error = collect_entry_files(root.path(), 2)
+            .expect_err("the third file must exceed the injected limit");
+
+        assert!(matches!(error, CorpusError::Unenumerated(_)));
+    }
+}

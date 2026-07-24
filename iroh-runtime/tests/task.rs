@@ -2,6 +2,7 @@
 
 use std::{
     future::Future,
+    num::NonZeroUsize,
     pin::Pin,
     sync::{
         Arc, Mutex,
@@ -11,9 +12,9 @@ use std::{
 };
 
 use iroh_runtime::{
-    Executor, NoopTraceSink, OwnedTaskHandle, TaskControl, TaskGroup, TaskId, TaskKind,
-    TaskOutcome, TokioExecutor, TraceEvent, TraceEventKind, TraceRecorder, TraceSink,
-    TraceSinkError,
+    Executor, NoopTraceSink, OwnedTaskHandle, SpawnError, TaskControl, TaskGroup,
+    TaskGroupCapacitySnapshot, TaskGroupLimits, TaskId, TaskKind, TaskOutcome, TokioExecutor,
+    TraceEvent, TraceEventKind, TraceRecorder, TraceSink, TraceSinkError,
 };
 use tokio::sync::oneshot;
 
@@ -42,6 +43,164 @@ async fn task_group_assigns_parent_and_creation_ordinals() {
     group.close();
     group.join().await.unwrap();
     assert!(group.snapshot().tasks.is_empty());
+}
+
+#[tokio::test]
+async fn live_task_limit_rejects_before_polling_or_consuming_identity() {
+    let trace = Arc::new(TraceRecorder::new(Arc::new(NoopTraceSink)));
+    let limits = TaskGroupLimits::new(NonZeroUsize::new(2).unwrap());
+    let executor = TokioExecutor::with_limits(trace, limits);
+    let group = executor.new_group(None);
+    let first = group
+        .spawn_owned(
+            TaskKind::Protocol,
+            "first",
+            Box::pin(std::future::pending()),
+        )
+        .unwrap();
+    let second = group
+        .spawn_owned(
+            TaskKind::Protocol,
+            "second",
+            Box::pin(std::future::pending()),
+        )
+        .unwrap();
+    let polled = Arc::new(AtomicBool::new(false));
+    let dropped = Arc::new(AtomicBool::new(false));
+
+    let rejected = group.spawn_owned(
+        TaskKind::Protocol,
+        "rejected",
+        Box::pin(ProbeFuture {
+            polled: polled.clone(),
+            dropped: dropped.clone(),
+        }),
+    );
+
+    assert!(matches!(
+        rejected,
+        Err(SpawnError::ResourceLimit {
+            resource: "live_tasks",
+            limit: 2,
+        })
+    ));
+    assert!(!polled.load(Ordering::SeqCst));
+    assert!(dropped.load(Ordering::SeqCst));
+    assert_eq!(
+        group.capacity_snapshot(),
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: 2,
+            live_tasks: 2,
+            high_water_live_tasks: 2,
+            rejected_spawns: 1,
+        }
+    );
+
+    first.abort();
+    assert_eq!(first.join().await.unwrap(), TaskOutcome::Cancelled);
+    let replacement = group
+        .spawn_owned(
+            TaskKind::Protocol,
+            "replacement",
+            Box::pin(std::future::pending()),
+        )
+        .unwrap();
+    assert_eq!(replacement.id().get(), second.id().get() + 1);
+    assert_eq!(
+        group
+            .snapshot()
+            .tasks
+            .iter()
+            .find(|task| task.id == replacement.id())
+            .unwrap()
+            .child_ordinal,
+        2
+    );
+
+    drop(second);
+    drop(replacement);
+    group.close();
+    group.join().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_admission_never_exceeds_the_live_task_limit() {
+    let trace = Arc::new(TraceRecorder::new(Arc::new(NoopTraceSink)));
+    let limits = TaskGroupLimits::new(NonZeroUsize::new(2).unwrap());
+    let executor = TokioExecutor::with_limits(trace, limits);
+    let group = executor.new_group(None);
+    let start = Arc::new(tokio::sync::Barrier::new(17));
+    let mut attempts = Vec::new();
+    for ordinal in 0..16 {
+        let group = group.clone();
+        let start = start.clone();
+        attempts.push(tokio::spawn(async move {
+            start.wait().await;
+            group.spawn_owned(
+                TaskKind::Protocol,
+                &format!("candidate-{ordinal}"),
+                Box::pin(std::future::pending()),
+            )
+        }));
+    }
+    start.wait().await;
+
+    let mut accepted = Vec::new();
+    let mut rejected = 0;
+    for attempt in attempts {
+        match attempt.await.unwrap() {
+            Ok(handle) => accepted.push(handle),
+            Err(SpawnError::ResourceLimit {
+                resource: "live_tasks",
+                limit: 2,
+            }) => rejected += 1,
+            Err(error) => panic!("unexpected concurrent admission error: {error}"),
+        }
+    }
+
+    assert_eq!(accepted.len(), 2);
+    assert_eq!(rejected, 14);
+    assert_eq!(
+        group.capacity_snapshot(),
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: 2,
+            live_tasks: 2,
+            high_water_live_tasks: 2,
+            rejected_spawns: 14,
+        }
+    );
+
+    drop(accepted);
+    group.close();
+    group.join().await.unwrap();
+}
+
+#[tokio::test]
+async fn panicking_task_releases_live_task_capacity() {
+    let trace = Arc::new(TraceRecorder::new(Arc::new(NoopTraceSink)));
+    let limits = TaskGroupLimits::new(NonZeroUsize::new(1).unwrap());
+    let executor = TokioExecutor::with_limits(trace, limits);
+    let group = executor.new_group(None);
+    let panicking = group
+        .spawn_owned(
+            TaskKind::Protocol,
+            "panicking",
+            Box::pin(async { panic!("expected capacity-conservation panic") }),
+        )
+        .unwrap();
+
+    assert_eq!(panicking.join().await.unwrap(), TaskOutcome::Panicked);
+    let replacement = group
+        .spawn_owned(
+            TaskKind::Protocol,
+            "replacement",
+            Box::pin(std::future::pending()),
+        )
+        .expect("panicking task must release its live-task slot");
+
+    drop(replacement);
+    group.close();
+    group.join().await.unwrap();
 }
 
 #[tokio::test]

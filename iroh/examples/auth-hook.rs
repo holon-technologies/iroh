@@ -268,11 +268,11 @@ mod auth {
             stream.finish().anyerr()?;
             let reason = conn.closed().await;
             if let ConnectionError::ApplicationClosed(code) = &reason
-                && code.error_code.into_inner() as u32 == CLOSE_ACCEPTED
+                && code.error_code.into_inner() == u64::from(CLOSE_ACCEPTED)
             {
                 Ok(())
             } else if let ConnectionError::ApplicationClosed(code) = &reason
-                && code.error_code.into_inner() as u32 == CLOSE_DENIED
+                && code.error_code.into_inner() == u64::from(CLOSE_DENIED)
             {
                 Err(anyerr!("authentication denied by remote"))
             } else {

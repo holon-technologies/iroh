@@ -56,6 +56,7 @@
 
 use std::sync::Arc;
 
+use bytes::{Bytes, BytesMut};
 use iroh_base::{EndpointId, RelayUrl, SecretKey};
 use iroh_dns::{
     EncodingError,
@@ -64,6 +65,7 @@ use iroh_dns::{
 };
 use n0_error::{AnyError, anyerr, e, stack_error};
 use n0_future::{
+    Stream, StreamExt,
     boxed::BoxStream,
     task::{self, AbortOnDropHandle},
     time::{self, Duration, Instant},
@@ -100,12 +102,19 @@ pub enum PkarrError {
     },
     #[error("Invalid relay URL")]
     InvalidRelayUrl { url: RelayUrl },
+    #[error("Failed to construct HTTP client")]
+    HttpClient {
+        #[error(std_err)]
+        source: reqwest::Error,
+    },
     #[error("Error sending http request")]
     HttpSend { source: AnyError },
     #[error("Error resolving http request")]
     HttpRequest { status: http::StatusCode },
     #[error("Http payload error")]
     HttpPayload { source: AnyError },
+    #[error("Http payload too large: {actual} bytes exceeds {maximum}")]
+    PayloadTooLarge { actual: usize, maximum: usize },
     #[error("EncodingError")]
     Encoding { source: EncodingError },
 }
@@ -144,6 +153,9 @@ pub const DEFAULT_PKARR_TTL: u32 = 30;
 
 /// Interval in which to republish the endpoint info even if unchanged: 5 minutes.
 pub const DEFAULT_REPUBLISH_INTERVAL: Duration = Duration::from_secs(60 * 5);
+
+/// Maximum delay between retries after a failed publish.
+const MAX_PUBLISH_RETRY_DELAY: Duration = Duration::from_secs(60 * 5);
 
 /// Builder for [`PkarrPublisher`].
 ///
@@ -222,7 +234,11 @@ impl PkarrPublisherBuilder {
     /// Builds the [`PkarrPublisher`] with the passed secret key for signing packets.
     ///
     /// This publisher will be able to publish [pkarr](https://pkarr.org) records for [`SecretKey`].
-    pub fn build(self, secret_key: SecretKey, tls_config: rustls::ClientConfig) -> PkarrPublisher {
+    pub fn build(
+        self,
+        secret_key: SecretKey,
+        tls_config: rustls::ClientConfig,
+    ) -> Result<PkarrPublisher, PkarrError> {
         PkarrPublisher::new(
             secret_key,
             self.pkarr_relay,
@@ -246,7 +262,8 @@ impl AddressLookupBuilder for PkarrPublisherBuilder {
             self.dns_resolver = Some(endpoint.dns_resolver()?.clone());
         }
         let tls_config = endpoint.tls_config().clone();
-        Ok(self.build(endpoint.secret_key().clone(), tls_config))
+        self.build(endpoint.secret_key().clone(), tls_config)
+            .map_err(|err| AddressLookupBuilderError::from_err("pkarr", err))
     }
 }
 
@@ -303,15 +320,15 @@ impl PkarrPublisher {
         #[cfg(not(wasm_browser))] dns_resolver: DnsResolver,
         tls_config: rustls::ClientConfig,
         addr_filter: AddrFilter,
-    ) -> Self {
+    ) -> Result<Self, PkarrError> {
         debug!("creating pkarr publisher that publishes to {pkarr_relay}");
         let endpoint_id = secret_key.public();
 
         #[cfg(wasm_browser)]
-        let pkarr_client = PkarrRelayClient::new(pkarr_relay);
+        let pkarr_client = PkarrRelayClient::new(pkarr_relay)?;
 
         #[cfg(not(wasm_browser))]
-        let pkarr_client = PkarrRelayClient::new(pkarr_relay, tls_config, dns_resolver);
+        let pkarr_client = PkarrRelayClient::new(pkarr_relay, tls_config, dns_resolver)?;
 
         let watchable = Watchable::default();
         let service = PublisherService {
@@ -322,12 +339,12 @@ impl PkarrPublisher {
             republish_interval,
         };
         let join_handle = task::spawn(service.run().instrument(info_span!("pkarr_publish")));
-        Self {
+        Ok(Self {
             watchable,
             endpoint_id,
             addr_filter,
             _drop_guard: Arc::new(AbortOnDropHandle::new(join_handle)),
-        }
+        })
     }
 
     /// Creates a pkarr publisher which uses the [number 0] pkarr relay server.
@@ -374,7 +391,7 @@ struct PublisherService {
 
 impl PublisherService {
     async fn run(mut self) {
-        let mut failed_attempts = 0;
+        let mut failed_attempts = 0u64;
         let republish = time::sleep(Duration::MAX);
         tokio::pin!(republish);
         loop {
@@ -384,10 +401,10 @@ impl PublisherService {
             if let Some(info) = self.watcher.get() {
                 match self.publish_current(info).await {
                     Err(err) => {
-                        failed_attempts += 1;
+                        failed_attempts = failed_attempts.saturating_add(1);
                         // Retry after increasing timeout
-                        let retry_after = Duration::from_secs(failed_attempts);
-                        republish.as_mut().reset(Instant::now() + retry_after);
+                        let retry_after = publish_retry_delay(failed_attempts);
+                        republish.as_mut().reset(publish_deadline(retry_after));
                         warn!(
                             err = %format!("{err:#}"),
                             url = %self.pkarr_client.pkarr_relay_url ,
@@ -401,7 +418,7 @@ impl PublisherService {
                         // Republish after fixed interval
                         republish
                             .as_mut()
-                            .reset(Instant::now() + self.republish_interval);
+                            .reset(publish_deadline(self.republish_interval));
                     }
                 }
             }
@@ -454,18 +471,18 @@ impl PkarrResolverBuilder {
     }
 
     /// Creates a [`PkarrResolver`] from this builder.
-    pub fn build(self, tls_config: rustls::ClientConfig) -> PkarrResolver {
+    pub fn build(self, tls_config: rustls::ClientConfig) -> Result<PkarrResolver, PkarrError> {
         #[cfg(wasm_browser)]
-        let pkarr_client = PkarrRelayClient::new(self.pkarr_relay);
+        let pkarr_client = PkarrRelayClient::new(self.pkarr_relay)?;
 
         #[cfg(not(wasm_browser))]
         let pkarr_client = PkarrRelayClient::new(
             self.pkarr_relay,
             tls_config,
             self.dns_resolver.unwrap_or_default(),
-        );
+        )?;
 
-        PkarrResolver { pkarr_client }
+        Ok(PkarrResolver { pkarr_client })
     }
 }
 
@@ -479,7 +496,8 @@ impl AddressLookupBuilder for PkarrResolverBuilder {
             self.dns_resolver = Some(endpoint.dns_resolver()?.clone());
         }
         let tls_config = endpoint.tls_config().clone();
-        Ok(self.build(tls_config))
+        self.build(tls_config)
+            .map_err(|err| AddressLookupBuilderError::from_err("pkarr", err))
     }
 }
 
@@ -572,18 +590,20 @@ pub struct PkarrRelayClientBuilder {
 
 impl PkarrRelayClientBuilder {
     /// Build a [`PkarrRelayClient`].
-    pub fn build(self) -> PkarrRelayClient {
+    pub fn build(self) -> Result<PkarrRelayClient, PkarrError> {
         #[cfg(not(wasm_browser))]
         let builder = reqwest_client_builder(self.tls_config, self.dns_resolver);
 
         #[cfg(wasm_browser)]
         let builder = reqwest_client_builder();
 
-        let http_client = builder.build().expect("failed to create reqwest client");
-        PkarrRelayClient {
+        let http_client = builder
+            .build()
+            .map_err(|err| e!(PkarrError::HttpClient, err))?;
+        Ok(PkarrRelayClient {
             http_client,
             pkarr_relay_url: self.pkarr_relay_url,
-        }
+        })
     }
 }
 
@@ -594,26 +614,26 @@ impl PkarrRelayClient {
         pkarr_relay_url: Url,
         tls_config: rustls::ClientConfig,
         dns_resolver: DnsResolver,
-    ) -> Self {
+    ) -> Result<Self, PkarrError> {
         let http_client = reqwest_client_builder(tls_config, dns_resolver)
             .build()
-            .expect("failed to create reqwest client");
-        Self {
+            .map_err(|err| e!(PkarrError::HttpClient, err))?;
+        Ok(Self {
             http_client,
             pkarr_relay_url,
-        }
+        })
     }
 
     /// Creates a [`PkarrRelayClient`].
     #[cfg(wasm_browser)]
-    pub fn new(pkarr_relay_url: Url) -> Self {
+    pub fn new(pkarr_relay_url: Url) -> Result<Self, PkarrError> {
         let http_client = reqwest_client_builder()
             .build()
-            .expect("failed to create reqwest client");
-        Self {
+            .map_err(|err| e!(PkarrError::HttpClient, err))?;
+        Ok(Self {
             http_client,
             pkarr_relay_url,
-        }
+        })
     }
 
     /// Resolves a [`SignedPacket`] for the given [`EndpointId`].
@@ -644,10 +664,17 @@ impl PkarrRelayClient {
             .into());
         }
 
-        let payload = response
-            .bytes()
-            .await
-            .map_err(|err| e!(PkarrError::HttpPayload, anyerr!(err)))?;
+        let maximum = SignedPacket::MAX_RELAY_PAYLOAD_BYTES;
+        if let Some(content_length) = response.content_length() {
+            let actual = usize::try_from(content_length).unwrap_or(usize::MAX);
+            if actual > maximum {
+                return Err(e!(PkarrError::PayloadTooLarge { actual, maximum }).into());
+            }
+        }
+        let chunks = response
+            .bytes_stream()
+            .map(|chunk| chunk.map_err(|err| e!(PkarrError::HttpPayload, anyerr!(err))));
+        let payload = collect_bounded_payload(chunks).await?;
         let packet = SignedPacket::from_relay_payload(&endpoint_id, &payload)
             .map_err(|err| e!(PkarrError::Verify, err))?;
         Ok(packet)
@@ -679,5 +706,90 @@ impl PkarrRelayClient {
         }
 
         Ok(())
+    }
+}
+
+async fn collect_bounded_payload<S>(chunks: S) -> Result<Bytes, PkarrError>
+where
+    S: Stream<Item = Result<Bytes, PkarrError>>,
+{
+    let maximum = SignedPacket::MAX_RELAY_PAYLOAD_BYTES;
+    let mut payload = BytesMut::with_capacity(maximum);
+    let mut chunks = Box::pin(chunks);
+    while let Some(chunk) = chunks.as_mut().next().await {
+        let chunk = chunk?;
+        let actual = payload.len().saturating_add(chunk.len());
+        if actual > maximum {
+            return Err(e!(PkarrError::PayloadTooLarge { actual, maximum }));
+        }
+        payload.extend_from_slice(&chunk);
+    }
+    Ok(payload.freeze())
+}
+
+fn publish_retry_delay(failed_attempts: u64) -> Duration {
+    Duration::from_secs(failed_attempts.min(MAX_PUBLISH_RETRY_DELAY.as_secs()))
+}
+
+fn publish_deadline(after: Duration) -> Instant {
+    Instant::now()
+        .checked_add(after)
+        .unwrap_or_else(|| time::sleep(Duration::MAX).deadline())
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use iroh_dns::pkarr::SignedPacket;
+    use n0_future::stream;
+    use n0_future::time::{Duration, Instant};
+
+    use super::{PkarrError, collect_bounded_payload, publish_deadline, publish_retry_delay};
+
+    #[test]
+    fn publish_retry_delay_is_bounded_and_saturating() {
+        assert_eq!(publish_retry_delay(1), Duration::from_secs(1));
+        assert_eq!(publish_retry_delay(300), Duration::from_secs(300));
+        assert_eq!(publish_retry_delay(301), Duration::from_secs(300));
+        assert_eq!(publish_retry_delay(u64::MAX), Duration::from_secs(300));
+    }
+
+    #[tokio::test]
+    async fn publish_deadline_accepts_the_largest_duration() {
+        assert!(publish_deadline(Duration::MAX) > Instant::now());
+    }
+
+    #[tokio::test]
+    async fn relay_payload_accepts_the_protocol_maximum() {
+        let maximum = SignedPacket::MAX_RELAY_PAYLOAD_BYTES;
+        let chunks = stream::iter([Ok::<_, PkarrError>(Bytes::from(vec![0; maximum]))]);
+
+        let payload = collect_bounded_payload(chunks)
+            .await
+            .expect("payload at the protocol limit must be accepted");
+
+        assert_eq!(payload.len(), maximum);
+    }
+
+    #[tokio::test]
+    async fn relay_payload_rejects_one_byte_over_the_protocol_maximum() {
+        let maximum = SignedPacket::MAX_RELAY_PAYLOAD_BYTES;
+        let chunks = stream::iter([
+            Ok::<_, PkarrError>(Bytes::from(vec![0; maximum])),
+            Ok(Bytes::from_static(&[0])),
+        ]);
+
+        let error = collect_bounded_payload(chunks)
+            .await
+            .expect_err("oversized relay payload must be rejected before buffering");
+
+        assert!(matches!(
+            error,
+            PkarrError::PayloadTooLarge {
+                actual,
+                maximum: limit,
+                ..
+            } if actual == maximum + 1 && limit == maximum
+        ));
     }
 }

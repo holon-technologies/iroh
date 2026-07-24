@@ -130,6 +130,12 @@ impl ClientState {
     }
 }
 
+fn sorted_endpoint_ids(endpoint_ids: impl IntoIterator<Item = EndpointId>) -> Vec<EndpointId> {
+    let mut endpoint_ids = endpoint_ids.into_iter().collect::<Vec<_>>();
+    endpoint_ids.sort_unstable();
+    endpoint_ids
+}
+
 impl Clients {
     pub(super) fn with_runtime(
         runtime: Arc<RuntimeContext>,
@@ -139,7 +145,9 @@ impl Clients {
             "iroh relay deterministic simulation authentication challenges v1",
         );
         hasher.update(runtime.root_seed().as_bytes());
-        hasher.update(&(decision_path.len() as u32).to_le_bytes());
+        let decision_path_len = u32::try_from(decision_path.len())
+            .map_err(|_| DecisionError::InvalidPath(decision_path.to_owned()))?;
+        hasher.update(&decision_path_len.to_le_bytes());
         hasher.update(decision_path.as_bytes());
         let challenge_entropy = ChallengeEntropy::Deterministic {
             key: *hasher.finalize().as_bytes(),
@@ -249,7 +257,7 @@ impl Clients {
     /// this registry. It will wait for all clients to complete their shutdown before
     /// returning.
     pub async fn shutdown(&self) {
-        let keys: Vec<_> = self.0.clients.iter().map(|x| *x.key()).collect();
+        let keys = sorted_endpoint_ids(self.0.clients.iter().map(|entry| *entry.key()));
         trace!("shutting down {} clients", keys.len());
         let clients = keys.into_iter().filter_map(|k| self.0.clients.remove(&k));
         n0_future::join_all(clients.map(|(_, state)| state.shutdown_all())).await;
@@ -355,7 +363,7 @@ impl Clients {
         // Inform peers that this endpoint is gone.
         // Done outside the remove_if_mut closure to avoid DashMap deadlocks.
         if let Some(peers) = notify_peers {
-            for peer_id in peers {
+            for peer_id in sorted_endpoint_ids(peers) {
                 if let Some(peer) = self.0.clients.get(&peer_id) {
                     match peer.active.try_send_peer_gone(endpoint_id) {
                         Ok(_) => {}
@@ -502,6 +510,24 @@ mod tests {
         let policy = super::super::AdmissionPolicy::try_from(&limits)
             .expect("test admission policy is valid");
         Clients::with_admission(Arc::new(AdmissionControl::new(policy)))
+    }
+
+    #[test]
+    fn order_sensitive_endpoint_fanout_is_canonical() {
+        let ids = [
+            SecretKey::from_bytes(&[3; 32]).public(),
+            SecretKey::from_bytes(&[1; 32]).public(),
+            SecretKey::from_bytes(&[2; 32]).public(),
+        ];
+        let mut expected = ids;
+        expected.sort_unstable();
+
+        assert_eq!(sorted_endpoint_ids(ids), expected);
+        assert_eq!(
+            sorted_endpoint_ids(ids.into_iter().rev()),
+            expected,
+            "input iteration order must not affect relay fanout order"
+        );
     }
 
     #[test]

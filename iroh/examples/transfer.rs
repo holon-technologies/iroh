@@ -226,7 +226,12 @@ impl Length {
     fn remaining(&self, start: Instant, size: usize) -> (Duration, usize) {
         match self {
             Length::Duration(limit) => (limit.saturating_sub(start.elapsed()), usize::MAX),
-            Length::Size(limit) => (Duration::MAX, (*limit as usize).saturating_sub(size)),
+            Length::Size(limit) => (
+                Duration::MAX,
+                usize::try_from(*limit)
+                    .unwrap_or(usize::MAX)
+                    .saturating_sub(size),
+            ),
         }
     }
 }
@@ -245,7 +250,8 @@ enum Request {
 
 impl Request {
     async fn read(recv: &mut RecvStream) -> Result<Self> {
-        let header_len = recv.read_u32().await.anyerr()? as usize;
+        let header_len = usize::try_from(recv.read_u32().await.anyerr()?)
+            .map_err(|_| anyerr!("request header length does not fit this platform"))?;
         ensure_any!(
             header_len <= Self::POSTCARD_MAX_SIZE,
             "received invalid header length"
@@ -260,7 +266,9 @@ impl Request {
     async fn write(&self, send: &mut SendStream) -> Result<()> {
         debug!("sending request {self:?}");
         let buf = postcard::to_stdvec(&self).unwrap();
-        send.write_u32(buf.len() as u32).await.anyerr()?;
+        let header_len =
+            u32::try_from(buf.len()).map_err(|_| anyerr!("request header exceeds u32 framing"))?;
+        send.write_u32(header_len).await.anyerr()?;
         send.write_all(&buf).await.anyerr()?;
         Ok(())
     }
@@ -1238,6 +1246,18 @@ struct ConnectionClosed {
     error: Option<String>,
 }
 
+fn transfer_rate(size: u64, duration: Duration) -> u64 {
+    let elapsed_nanos = duration.as_nanos();
+    if elapsed_nanos == 0 {
+        return if size == 0 { 0 } else { u64::MAX };
+    }
+    let bytes_per_second = u128::from(size)
+        .saturating_mul(1_000_000_000)
+        .checked_div(elapsed_nanos)
+        .expect("nonzero duration checked above");
+    u64::try_from(bytes_per_second).unwrap_or(u64::MAX)
+}
+
 impl fmt::Display for ConnectionClosed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let time = format!("(total time: {})", fmt_duration(self.duration));
@@ -1253,7 +1273,7 @@ impl fmt::Display for ConnectionClosed {
     "Downloaded: {:>10} in {}, {:>10}/s ({}{} chunks)",
     HumanBytes(self.size).to_string(),
     fmt_duration(self.duration),
-    HumanBytes((self.size as f64 / self.duration.as_secs_f64()) as u64),
+    HumanBytes(transfer_rate(self.size, self.duration)),
     self.time_to_first_byte
         .map(|t| format!("time to first byte {}, ", fmt_duration(t)))
         .unwrap_or_default(),
@@ -1276,7 +1296,7 @@ struct DownloadStats {
     "Uploaded:   {:>10} in {}, {:>10}/s",
     HumanBytes(self.size).to_string(),
     fmt_duration(self.duration),
-    HumanBytes((self.size as f64 / self.duration.as_secs_f64()) as u64)
+    HumanBytes(transfer_rate(self.size, self.duration))
 )]
 struct UploadStats {
     size: u64,
@@ -1325,7 +1345,8 @@ fn duration_micros_opt<S: Serializer>(
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     match value {
-        Some(d) => serializer.serialize_u64(d.as_micros() as u64),
+        Some(d) => serializer
+            .serialize_u64(u64::try_from(d.as_micros()).map_err(serde::ser::Error::custom)?),
         None => serializer.serialize_none(),
     }
 }
@@ -1336,7 +1357,8 @@ mod duration_micros {
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_u64(duration.as_micros() as u64)
+        serializer
+            .serialize_u64(u64::try_from(duration.as_micros()).map_err(serde::ser::Error::custom)?)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {

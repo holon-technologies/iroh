@@ -1,6 +1,6 @@
 # Iroh Determinism and Testability Audit
 
-Status: Living audit reviewed through deterministic closure (`v1.0.4`), 2026-07-21
+Status: Living audit reviewed through deterministic closure and TigerStyle lifecycle hardening, 2026-07-24
 
 ## Scope
 
@@ -52,7 +52,7 @@ The revision baseline contains the following raw search matches. Counts intentio
 
 These counts are an audit baseline, not a permanent allowlist. Stage 0 converts the searches into a checked occurrence manifest so additions require an explicit classification in review.
 
-The executable occurrence manifest is `scripts/determinism-boundaries.txt` (824 normalized rows; SHA-256 `e6b86212493156a13720faf19a550cd6b85d26d3949769cd370c9c69a8c68f6c`). `scripts/check-determinism-boundaries.sh --check` fails CI on any addition, removal, line movement, or matched-source change. It scans the production crates plus `iroh-runtime` and `iroh-sim`, so new capability and simulator code cannot sit outside the gate. After reviewing and documenting drift, maintainers regenerate it explicitly with `--update`.
+The executable occurrence manifest is `scripts/determinism-boundaries.txt` (936 normalized rows; SHA-256 `805dcba485a80e85c41c6130357bc9711030b86e226fb0040eda85f64af1ab44`). `scripts/check-determinism-boundaries.sh --check` fails CI on any addition, removal, line movement, or matched-source change. It scans the production crates plus `iroh-runtime` and `iroh-sim`, so new capability and simulator code cannot sit outside the gate. After reviewing and documenting drift, maintainers regenerate it explicitly with `--update`.
 
 The 2026-07-21 Stage 1 review added the `iroh-runtime` production adapters and moved existing Iroh occurrences as context plumbing and tests were introduced. `TokioClock` and `SystemWallClock` are classified as production implementations behind injectable clock traits; `RootSeed::random` is the single production behavioral-seed boundary; and `EndpointConfig::rng_seed` is now supplied from the explicit per-endpoint `endpoint/<id>/noq` decision stream. Endpoint identities, TLS token keys, and QUIC reset keys continue to use cryptographic entropy and were not routed through behavioral decisions.
 
@@ -66,6 +66,82 @@ The final closure audit moved seven existing `Command::new`/`temp_dir` matches i
 `iroh-sim/tests/cli.rs` while bounding and asserting the seeded zero-time-livelock regression.
 They remain **Acceptable nondeterminism** in child-test orchestration; the simulated scenario,
 seed, virtual clock, and scheduler are explicit and unaffected.
+
+The 2026-07-23 TigerStyle lifecycle review classifies the DNS-server drift before refreshing the
+manifest. HTTP admission and rate limiting sample `Instant` only in the real-server adapter; the
+token-bucket transition still receives that value explicitly. TLS handshake and top-level cleanup
+timeouts are finite production-runtime bounds owned by the HTTP/server supervisors. They are
+**Acceptable nondeterminism in the real-server backend** and remain outside the deterministic DNS
+simulation boundary. Persistent-store batching, eviction, and row timestamps still use the
+documented ambient production clock and remain an **Architectural problem** only for future
+full-server simulation. The store's two native workers now have cancellation, typed completion,
+explicit join, and nonblocking fallback drop; their production thread-construction match is an
+owned real-server boundary. New timeouts, wall-clock measurements, entropy, loopback binds, and the
+release helper thread below `#[cfg(test)]` are **Acceptable nondeterminism in regression-test
+orchestration**. The remaining Iroh address-lookup and path-state changes are reviewed line moves or
+bounded production-clock transitions with deterministic-runtime coverage described below; adding
+the crate-root unsafe prohibition only moves the existing `portmapper` match. Extending the same
+unsafe prohibition to the benchmark library/binary and `cargo-sim` binary moves only existing
+benchmark timer/thread/task orchestration and CLI argument-reading matches; it does not introduce
+a new behavioral nondeterminism boundary.
+
+The 2026-07-24 relay arithmetic review replaces unchecked duration narrowing in the production
+token bucket with explicit wide arithmetic, saturation at the bucket boundary, and a
+constructor-validated timer horizon. The matched clock/timer lines remain the existing
+real-server rate-limit boundary; regression tests use paused time and exercise maximum refill
+rates, long elapsed intervals, and refill periods beyond 32-bit millisecond range.
+
+The same arithmetic pass makes possible truncation, sign loss, and signed wrapping hard workspace
+Clippy errors for every target. Production timestamp, metric, framing, deterministic-seed,
+duration, path-limit, and simulator conversions now use fallible, infallible, or explicitly
+saturating boundaries. Relay GSO segment sizes return `InvalidInput` instead of truncating their
+wire value; negative Mainline sequences return a typed timestamp error; pkarr monotonic timestamp
+exhaustion is explicit and tested. Benchmark/example presentation uses bounded conversion helpers
+and does not affect protocol behavior. Occurrence-manifest changes from this pass are reviewed line
+movement in already-classified clocks, entropy streams, unordered collections, and test
+orchestration; no new ambient input or scheduling source was added.
+
+The 2026-07-24 TigerStyle allocation and retry pass adds no new behavioral input. Pkarr publish
+retry delay is now saturating and capped at five minutes; `publish_deadline` samples the same
+production Tokio clock already owned by that publisher and converts an otherwise overflowing
+duration to the runtime's far-future timer. Its additional matched lines are therefore an existing
+**Behavioral randomness / production-runtime timer** plus regression-test orchestration. DNS and
+relay configuration loading, manual and periodically reloaded TLS certificate/private-key
+loading, the relay's extra ACME CA loading, and DNS/relay ACME account and certificate cache
+loading now open and read explicit operator-selected files through a 1 MiB bounded reader. The
+ACME adapters also reject oversized cache writes while preserving the dependency's existing cache
+filenames. These filesystem occurrences replace unbounded reads and remain **Acceptable
+nondeterminism in executable startup and certificate maintenance**, outside the simulated
+protocol. The manual certificate path retains its existing startup-owned `spawn_blocking`
+boundary, while the supervised reload task retains its existing production timer/task boundary.
+ACME cache fixtures and compatibility tests are **Acceptable nondeterminism in regression-test
+orchestration**. The other manifest changes are line movement caused by bounded HTTP response
+collectors and their tests; they introduce no clock, entropy, scheduling, or external-state
+dependency.
+
+The DNS jitter regression test now checks the deterministic sampler's exact inclusive ±20%
+endpoints instead of drawing ambient randomness 100 times. The resulting manifest drift is only
+line movement in the adjacent custom-resolver test; it removes probabilistic test behavior and
+does not change the production jitter source or network boundary.
+
+The simulator CLI, corpus, replay verifier, and failure-artifact reader now route operator-selected
+files through one 64 MiB bounded reader. Corpus enumeration rejects the first entry above 4,096
+and the first per-entry file above its exact two-file schema; replay validates that the declared
+chunk count equals the finite indexed chunk set before iterating. These are **Acceptable
+nondeterminism in simulator process orchestration** and cannot affect a simulated protocol
+decision. The occurrence checker now recognizes imported `File::open` and `OpenOptions` spellings
+as external-state boundaries, closing a prior manifest blind spot. New fixture writes are
+**Acceptable nondeterminism in regression-test orchestration**; other changed rows are line
+movement from routing reads through the bounded helper.
+
+The production-capacity pass bounds endpoint, router, remote-state, active-relay, QUIC accept,
+captive-portal, and runtime task ownership before work is spawned or protocol state is allocated.
+New matched task and timeout lines are either capacity-accounted production supervisors or
+**Acceptable nondeterminism in regression-test orchestration** exercising exact saturation and
+recovery. The simulator kernel mirrors the runtime task-group ceiling; its `Instant` construction
+is the already classified injected runtime-clock boundary. Fallible DNS, Pkarr, and QUIC
+construction adds no behavioral input. The remaining manifest differences are reviewed line
+movement from admission plumbing, bounded DNS collection, and constructor-error propagation.
 
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
@@ -328,12 +404,12 @@ Unordered collection use is not automatically a defect. It is **Behavioral rando
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/socket/biased_rtt_path_selector.rs` connection/path iteration | **Behavioral randomness** | Equal sort keys retain the first item seen. Add a stable connection/path tie key rather than relying on `FxHashMap` iteration. |
-| `iroh/src/socket/remote_map/remote_state/path_state.rs` failed-path collection and truncation | **Behavioral randomness** | Sort by a stable address key before truncation, or use a named decision stream if varying the survivor is intended. |
-| `iroh/src/socket/remote_map/remote_state.rs` connection/path scans | **Acceptable nondeterminism** for membership/counts; **Behavioral randomness** for side-effecting loops | Loops that issue pings, publish status, open/close paths, or schedule work must use stable keys or recorded choices. |
-| `iroh/src/socket/remote_map.rs:256` `ConcurrentReadMap::values` broadcast | **Behavioral randomness** | Stable-order recipient actors before sending network-change notifications, or trace each recipient choice. |
-| `iroh-relay/src/server/clients.rs:49-52` DashMap shutdown collection | **Behavioral randomness** | Sort endpoint IDs before starting concurrent shutdowns. |
-| `iroh-relay/src/server/clients.rs:130-149` `HashSet` peer-gone notifications | **Behavioral randomness** | Sort endpoint IDs before enqueueing notifications; queue pressure can otherwise make iteration order observable. |
+| `iroh/src/socket/biased_rtt_path_selector.rs` connection/path iteration | **Deterministic boundary** | `PathTieBreak` provides a total address identity key after tier and biased RTT, with reversal-tested exact ties. |
+| `iroh/src/socket/remote_map/remote_state/path_state.rs` failed-path collection and truncation | **Deterministic boundary** | Failed addresses sort before truncation, inactive ties use addresses, production retention uses stable sequence/address keys, and reversed insertion order is tested. |
+| `iroh/src/socket/remote_map/remote_state.rs` connection/path scans | **Deterministic boundary** for side effects; **Acceptable nondeterminism** for membership/counts | `sorted_map_keys` orders connection and path effects by stable IDs; remote address snapshots sort by canonical address. Tests cover both canonicalizers. |
+| `iroh/src/socket/remote_map.rs::RemoteMap::on_network_change` broadcast | **Deterministic boundary** | `ReadOnlyMap::snapshot_sorted_by_key` snapshots and sorts endpoint/sender pairs before capacity-sensitive delivery. |
+| `iroh-relay/src/server/clients.rs::Clients::shutdown` DashMap collection | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before concurrent shutdown futures start. |
+| `iroh-relay/src/server/clients.rs::Clients::unregister` `HashSet` peer-gone notifications | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before capacity-sensitive notification attempts. |
 | `iroh-relay/src/server/client.rs` daily-client `HashSet` | **Acceptable nondeterminism** | Only membership and insertion-result semantics are used. |
 | `iroh-dns/src/endpoint_info.rs` address `HashSet` | **Acceptable nondeterminism** | The set is used only for membership while a separate `Vec` retains public address order. |
 | `iroh-relay/src/server/http_server.rs` handler `HashMap` | **Acceptable nondeterminism** | Runtime dispatch is keyed lookup. Sort only if stable debug/trace output becomes an artifact requirement. |
@@ -342,6 +418,15 @@ Unordered collection use is not automatically a defect. It is **Behavioral rando
 | Hash maps/sets below `#[cfg(test)]`, in `tests/`, examples, or benchmarks | **Acceptable nondeterminism** unless imported by a scenario | Stable-sort output in simulator-facing test helpers. |
 
 `BTreeMap`/`BTreeSet` use in published addresses, relay maps, and test-network registration already supplies stable key order and should be preserved.
+
+The 2026-07-24 relay ordering hardening routes both order-sensitive collection paths through one
+tested canonicalizer. Remote-map network-change fanout now likewise uses a tested sorted snapshot
+instead of unordered map values. Remote-state actor effects use sorted connection/path key
+snapshots, while initial datagram fan-out and published remote-address lists use canonical address
+order. Exact path-selection ties now use a canonical network-path key instead of retaining the
+first hash-map iteration item. The associated manifest drift is line movement in existing
+production entropy/map boundaries, explicit saturating duration arithmetic, and timeout-based test
+orchestration; it adds no ambient effect source.
 
 ## Dependency Assessment
 

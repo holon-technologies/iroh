@@ -27,7 +27,8 @@ fn benchmark_dns_server(c: &mut Criterion) {
                 .client_config(default_provider())
                 .expect("infallible");
             let pkarr_relay = LOCALHOST_PKARR.parse().expect("valid url");
-            let pkarr = PkarrRelayClient::new(pkarr_relay, tls_config, DnsResolver::default());
+            let pkarr = PkarrRelayClient::new(pkarr_relay, tls_config, DnsResolver::default())
+                .expect("fixed benchmark HTTP client configuration");
             let relay_url: RelayUrl = "http://localhost:8080".parse().unwrap();
             let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
 

@@ -8,6 +8,8 @@ use noq::{VarInt, crypto::rustls::QuicClientConfig};
 
 /// ALPN for our quic addr discovery
 pub const ALPN_QUIC_ADDR_DISC: &[u8] = b"/iroh-qad/0";
+/// Default maximum number of active QUIC address-discovery connections.
+pub const DEFAULT_MAX_QAD_CONNECTIONS: usize = 1_024;
 /// Endpoint close error code
 pub const QUIC_ADDR_DISC_CLOSE_CODE: VarInt = VarInt::from_u32(1);
 /// Endpoint close reason
@@ -15,12 +17,14 @@ pub const QUIC_ADDR_DISC_CLOSE_REASON: &[u8] = b"finished";
 
 #[cfg(feature = "server")]
 pub(crate) mod server {
+    use std::num::NonZeroUsize;
+
     use n0_error::e;
     use noq::{
-        ApplicationClose, ConnectionError,
+        ApplicationClose, ConnectionError, ConnectionLifetimeToken, EventQueueLimits,
         crypto::rustls::{NoInitialCipherSuite, QuicServerConfig},
     };
-    use tokio::task::JoinSet;
+    use tokio::{sync::Semaphore, task::JoinSet};
     use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
     use tracing::{Instrument, debug, info, info_span};
 
@@ -31,6 +35,23 @@ pub(crate) mod server {
         bind_addr: SocketAddr,
         cancel: CancellationToken,
         handle: AbortOnDropHandle<()>,
+    }
+
+    #[derive(Clone, Debug)]
+    pub(super) struct QadAdmission {
+        slots: Arc<Semaphore>,
+    }
+
+    impl QadAdmission {
+        pub(super) fn new(capacity: NonZeroUsize) -> Self {
+            Self {
+                slots: Arc::new(Semaphore::new(capacity.get())),
+            }
+        }
+
+        pub(super) fn try_acquire(&self) -> Option<tokio::sync::OwnedSemaphorePermit> {
+            self.slots.clone().try_acquire_owned().ok()
+        }
     }
 
     /// Server spawn errors
@@ -55,6 +76,10 @@ pub(crate) mod server {
             #[error(std_err)]
             source: std::io::Error,
         },
+        #[error("max_connections must be greater than zero")]
+        ZeroMaxConnections {},
+        #[error("max_connections {value} exceeds supported maximum {maximum}")]
+        MaxConnectionsTooLarge { value: usize, maximum: usize },
     }
 
     impl QuicServer {
@@ -97,8 +122,17 @@ pub(crate) mod server {
         pub(crate) fn spawn(
             bind_addr: SocketAddr,
             mut server_config: rustls::ServerConfig,
+            max_connections: usize,
             metrics: Arc<Metrics>,
         ) -> Result<Self, QuicSpawnError> {
+            let max_connections = NonZeroUsize::new(max_connections)
+                .ok_or_else(|| e!(QuicSpawnError::ZeroMaxConnections))?;
+            if max_connections.get() > Semaphore::MAX_PERMITS {
+                return Err(e!(QuicSpawnError::MaxConnectionsTooLarge {
+                    value: max_connections.get(),
+                    maximum: Semaphore::MAX_PERMITS,
+                }));
+            }
             server_config.alpn_protocols = vec![crate::quic::ALPN_QUIC_ADDR_DISC.to_vec()];
             let server_config = QuicServerConfig::try_from(server_config)?;
             let mut server_config = noq::ServerConfig::with_crypto(Arc::new(server_config));
@@ -110,8 +144,26 @@ pub(crate) mod server {
                 // enable sending quic address discovery frames
                 .send_observed_address_reports(true);
 
-            let endpoint = noq::Endpoint::server(server_config, bind_addr)
+            let socket = std::net::UdpSocket::bind(bind_addr)
                 .map_err(|err| e!(QuicSpawnError::EndpointServer, err))?;
+            socket
+                .set_nonblocking(true)
+                .map_err(|err| e!(QuicSpawnError::EndpointServer, err))?;
+            let defaults = EventQueueLimits::default();
+            let event_limits = EventQueueLimits::new(
+                max_connections,
+                defaults.max_packet_events_per_connection(),
+                defaults.max_packet_bytes_per_endpoint(),
+                defaults.max_control_events_per_endpoint(),
+            );
+            let endpoint = noq::Endpoint::new_with_limits(
+                noq::EndpointConfig::default(),
+                Some(server_config),
+                socket,
+                Arc::new(noq::TokioRuntime),
+                event_limits,
+            )
+            .map_err(|err| e!(QuicSpawnError::EndpointServer, err))?;
             let bind_addr = endpoint
                 .local_addr()
                 .map_err(|err| e!(QuicSpawnError::LocalAddr, err))?;
@@ -120,6 +172,7 @@ pub(crate) mod server {
 
             let cancel = CancellationToken::new();
             let cancel_accept_loop = cancel.clone();
+            let admission = QadAdmission::new(max_connections);
 
             let task = tokio::task::spawn(
                 async move {
@@ -142,9 +195,18 @@ pub(crate) mod server {
                             }
                             res = endpoint.accept() => match res {
                                 Some(incoming) => {
+                                     let permit = match admission.try_acquire() {
+                                         Some(permit) => permit,
+                                         None => {
+                                             metrics.qad_admission_full.inc();
+                                             incoming.refuse();
+                                             continue;
+                                         }
+                                     };
                                      let remote_addr = incoming.remote_address();
                                      set.spawn(
-                                         handle_connection(incoming, metrics.clone()).instrument(info_span!("qad-conn", %remote_addr))
+                                         handle_connection(incoming, permit, metrics.clone())
+                                             .instrument(info_span!("qad-conn", %remote_addr))
                                      );                                }
                                 None => {
                                     debug!("endpoint closed");
@@ -206,11 +268,19 @@ pub(crate) mod server {
     /// Handle the connection from the client.
     async fn handle_connection(
         incoming: noq::Incoming,
+        permit: tokio::sync::OwnedSemaphorePermit,
         metrics: Arc<Metrics>,
     ) -> Result<(), ConnectionError> {
         metrics.qad_incoming.inc();
         debug!("incoming");
-        let connection = match incoming.await {
+        let connecting = match incoming.accept_with_lifetime(ConnectionLifetimeToken::new(permit)) {
+            Ok(connecting) => connecting,
+            Err(err) => {
+                metrics.qad_incoming_error.inc();
+                return Err(err);
+            }
+        };
+        let connection = match connecting.await {
             Ok(conn) => conn,
             Err(e) => {
                 debug!("establishing failed: {e:#}");
@@ -257,6 +327,19 @@ pub enum Error {
     NoObservedAddr,
 }
 
+/// Error constructing a QUIC address-discovery client.
+#[stack_error(derive, add_meta, from_sources, std_sources)]
+#[non_exhaustive]
+pub enum QuicClientBuildError {
+    /// The Rustls provider has no cipher suite usable for QUIC Initial packets.
+    #[error("Rustls configuration has no QUIC Initial cipher suite")]
+    NoInitialCipherSuite {
+        /// The invalid Rustls cipher-suite selection.
+        #[error(std_err)]
+        source: noq::crypto::rustls::NoInitialCipherSuite,
+    },
+}
+
 /// Handles the client side of QUIC address discovery.
 #[derive(Debug, Clone)]
 pub struct QuicClient {
@@ -269,14 +352,16 @@ pub struct QuicClient {
 impl QuicClient {
     /// Create a new QuicClient to handle the client side of QUIC
     /// address discovery.
-    pub fn new(ep: noq::Endpoint, mut client_config: rustls::ClientConfig) -> Self {
+    pub fn new(
+        ep: noq::Endpoint,
+        mut client_config: rustls::ClientConfig,
+    ) -> Result<Self, QuicClientBuildError> {
         // add QAD alpn
         client_config.alpn_protocols = vec![ALPN_QUIC_ADDR_DISC.into()];
         // go from rustls client config to rustls QUIC specific client config to
         // a noq client config
-        let mut client_config = noq::ClientConfig::new(Arc::new(
-            QuicClientConfig::try_from(client_config).expect("known ciphersuite"),
-        ));
+        let mut client_config =
+            noq::ClientConfig::new(Arc::new(QuicClientConfig::try_from(client_config)?));
 
         // enable the receive side of address discovery
         let mut transport = noq_proto::TransportConfig::default();
@@ -300,7 +385,7 @@ impl QuicClient {
         ));
         client_config.transport_config(Arc::new(transport));
 
-        Self { ep, client_config }
+        Ok(Self { ep, client_config })
     }
 
     /// Client side of QUIC address discovery.
@@ -361,6 +446,21 @@ impl QuicClient {
         let conn = connecting?.await?;
         Ok(conn)
     }
+
+    /// Creates a QAD connection while retaining an embedder-owned lifetime token.
+    pub async fn create_conn_with_lifetime(
+        &self,
+        server_addr: SocketAddr,
+        host: &str,
+        lifetime: noq::ConnectionLifetimeToken,
+    ) -> Result<noq::Connection, Error> {
+        let config = self.client_config.clone();
+        let connecting =
+            self.ep
+                .connect_with_config_and_lifetime(config, server_addr, host, lifetime);
+        let conn = connecting?.await?;
+        Ok(conn)
+    }
 }
 
 #[cfg(all(test, feature = "server", with_crypto_provider))]
@@ -379,6 +479,60 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn qad_admission_limit_is_exact_and_recovers() {
+        let capacity = std::num::NonZeroUsize::new(2).unwrap();
+        let admission = server::QadAdmission::new(capacity);
+
+        let first = admission.try_acquire().expect("first slot");
+        let _second = admission.try_acquire().expect("second slot");
+        assert!(admission.try_acquire().is_none(), "third slot must reject");
+
+        drop(first);
+        assert!(
+            admission.try_acquire().is_some(),
+            "released capacity must be reusable"
+        );
+    }
+
+    #[tokio::test]
+    async fn qad_client_rejects_provider_without_initial_cipher_suite() -> Result {
+        let endpoint = noq::Endpoint::client((Ipv4Addr::LOCALHOST, 0).into())
+            .std_context("client endpoint")?;
+        let mut provider = rustls::crypto::ring::default_provider();
+        provider
+            .cipher_suites
+            .retain(|suite| suite.suite() != rustls::CipherSuite::TLS13_AES_128_GCM_SHA256);
+        assert!(!provider.cipher_suites.is_empty());
+        let client_config = rustls::ClientConfig::builder_with_provider(Arc::new(provider))
+            .with_protocol_versions(&[&rustls::version::TLS13])
+            .std_context("TLS 1.3 provider")?
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth();
+
+        let error = QuicClient::new(endpoint, client_config)
+            .expect_err("QAD requires TLS13_AES_128_GCM_SHA256 for Initial packets");
+        assert!(matches!(
+            error,
+            QuicClientBuildError::NoInitialCipherSuite { .. }
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "test-utils")]
+    async fn zero_qad_connection_capacity_is_rejected() {
+        let host = Ipv4Addr::LOCALHOST;
+        let (_, server_config) = super::super::server::testing::self_signed_tls_certs_and_config();
+        let result =
+            server::QuicServer::spawn((host, 0).into(), server_config, 0, Default::default());
+
+        assert!(matches!(
+            result,
+            Err(server::QuicSpawnError::ZeroMaxConnections { .. })
+        ));
+    }
+
     #[tokio::test]
     #[traced_test]
     #[cfg(feature = "test-utils")]
@@ -389,7 +543,12 @@ mod tests {
         // create a server config with self signed certificates
         let (_, server_config) = super::super::server::testing::self_signed_tls_certs_and_config();
         let bind_addr = SocketAddr::new(host.into(), 0);
-        let quic_server = QuicServer::spawn(bind_addr, server_config, Default::default())?;
+        let quic_server = QuicServer::spawn(
+            bind_addr,
+            server_config,
+            DEFAULT_MAX_QAD_CONNECTIONS,
+            Default::default(),
+        )?;
 
         // create a client-side endpoint
         let client_endpoint =
@@ -399,7 +558,7 @@ mod tests {
         // create the client configuration used for the client endpoint when they
         // initiate a connection with the server
         let client_config = crate::tls::make_dangerous_client_config();
-        let quic_client = QuicClient::new(client_endpoint.clone(), client_config);
+        let quic_client = QuicClient::new(client_endpoint.clone(), client_config)?;
 
         let (addr, _latency) = quic_client
             .get_addr_and_latency(quic_server.bind_addr(), &host.to_string())
@@ -431,7 +590,7 @@ mod tests {
         // create the client configuration used for the client endpoint when they
         // initiate a connection with the server
         let client_config = crate::tls::make_dangerous_client_config();
-        let quic_client = QuicClient::new(client_endpoint.clone(), client_config);
+        let quic_client = QuicClient::new(client_endpoint.clone(), client_config)?;
 
         // Start a connection attempt with nirvana - this will fail
         let task = AbortOnDropHandle::new(tokio::spawn({
@@ -534,7 +693,7 @@ mod tests {
         // create the client configuration used for the client endpoint when they
         // initiate a connection with the server
         let client_config = crate::tls::make_dangerous_client_config();
-        let quic_client = QuicClient::new(client_endpoint.clone(), client_config);
+        let quic_client = QuicClient::new(client_endpoint.clone(), client_config)?;
 
         // Now we should still connect, but it should take more than 1s.
         info!("making QAD request");

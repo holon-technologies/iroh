@@ -138,7 +138,7 @@ impl DnsServer {
     }
 
     /// Shutdown the server an wait for all tasks to complete.
-    pub(crate) async fn shutdown(mut self) -> Result<()> {
+    pub(crate) async fn shutdown(&mut self) -> Result<()> {
         self.server.shutdown_gracefully().await.anyerr()?;
         Ok(())
     }
@@ -146,7 +146,7 @@ impl DnsServer {
     /// Wait for all tasks to complete.
     ///
     /// Runs forever unless tasks fail.
-    pub(crate) async fn run_until_done(mut self) -> Result<()> {
+    pub(crate) async fn run_until_done(&mut self) -> Result<()> {
         self.server.block_until_done().await.anyerr()?;
         Ok(())
     }
@@ -261,7 +261,9 @@ impl ResponseHandler for Handle {
             let mut encoder = proto::serialize::binary::BinEncoder::new(&mut bytes);
             response.destructive_emit(&mut encoder)?
         };
-        self.0.send(Bytes::from(bytes)).unwrap();
+        self.0
+            .send(Bytes::from(bytes))
+            .map_err(|_| NetError::Message("DNS response receiver closed"))?;
         Ok(info)
     }
 }
@@ -318,4 +320,36 @@ fn push_record(records: &mut BTreeMap<RrKey, RecordSet>, serial: u32, record: Re
     let mut record_set = RecordSet::new(record.name.clone(), record.record_type(), serial);
     record_set.insert(record, serial);
     records.insert(key, record_set);
+}
+
+#[cfg(test)]
+mod tests {
+    use hickory_server::{
+        proto::{
+            op::{MessageType, Metadata, OpCode},
+            serialize::binary::BinDecoder,
+        },
+        server::ResponseHandler,
+        zone_handler::{MessageResponseBuilder, Queries},
+    };
+
+    use super::Handle;
+
+    #[tokio::test]
+    async fn response_delivery_reports_a_dropped_receiver() {
+        let (sender, receiver) = tokio::sync::broadcast::channel(1);
+        drop(receiver);
+        let mut handle = Handle(sender);
+
+        let mut decoder = BinDecoder::new(&[]);
+        let queries = Queries::read(&mut decoder, 0).expect("empty query set decodes");
+        let metadata = Metadata::new(0, MessageType::Response, OpCode::Query);
+        let response = MessageResponseBuilder::new(&queries, None).build_no_records(metadata);
+
+        let error = handle
+            .send_response(response)
+            .await
+            .expect_err("dropped response receiver must be reported");
+        assert_eq!(error.to_string(), "DNS response receiver closed");
+    }
 }

@@ -135,10 +135,13 @@ mod tests {
 
         // Encode and sign manually (same as pkarr format)
         let encoded = packet.build_bytes_vec_compressed().anyerr()?;
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
+        let timestamp = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros(),
+        )
+        .expect("test system time fits in pkarr timestamp");
         let signable = {
             let mut s = format!("3:seqi{}e1:v{}:", timestamp, encoded.len()).into_bytes();
             s.extend(&encoded);
@@ -157,7 +160,7 @@ mod tests {
             .client_config(default_provider())
             .expect("infallible");
         let pkarr_client =
-            PkarrRelayClient::new(pkarr_relay_url, tls_config, DnsResolver::default());
+            PkarrRelayClient::new(pkarr_relay_url, tls_config, DnsResolver::default())?;
         pkarr_client.publish(&signed_packet).await?;
 
         use hickory_server::proto::rr::Name;
@@ -225,7 +228,7 @@ mod tests {
         let tls_config = CaTlsConfig::default()
             .client_config(default_provider())
             .expect("infallible");
-        let pkarr = PkarrRelayClient::new(pkarr_relay, tls_config, DnsResolver::default());
+        let pkarr = PkarrRelayClient::new(pkarr_relay, tls_config, DnsResolver::default())?;
         let relay_url: RelayUrl = "https://relay.example.".parse()?;
         let endpoint_info = EndpointInfo::new(endpoint_id).with_relay_url(relay_url.clone());
         let signed_packet = endpoint_info.to_pkarr_signed_packet(&secret_key, 30)?;
@@ -314,7 +317,8 @@ mod tests {
             *secret_key.public().as_bytes(),
             signed_packet.signature().to_bytes(),
             signed_packet.encoded_packet(),
-            signed_packet.timestamp().as_micros() as i64,
+            i64::try_from(signed_packet.timestamp().as_micros())
+                .expect("current pkarr timestamp fits in mainline sequence"),
             None,
         );
         dht.clone()

@@ -88,14 +88,24 @@ impl ProxyStream {
     pub(super) fn local_addr(&self) -> std::io::Result<SocketAddr> {
         match self {
             Self::Raw(s) => s.local_addr(),
-            Self::Proxied(s) => s.get_ref().1.as_ref().local_addr(),
+            Self::Proxied(s) => s
+                .get_ref()
+                .1
+                .underlying_io()
+                .ok_or_else(MaybeTlsStream::<TcpStream>::missing_underlying_io)?
+                .local_addr(),
         }
     }
 
     pub(super) fn peer_addr(&self) -> std::io::Result<SocketAddr> {
         match self {
             Self::Raw(s) => s.peer_addr(),
-            Self::Proxied(s) => s.get_ref().1.as_ref().peer_addr(),
+            Self::Proxied(s) => s
+                .get_ref()
+                .1
+                .underlying_io()
+                .ok_or_else(MaybeTlsStream::<TcpStream>::missing_underlying_io)?
+                .peer_addr(),
         }
     }
 }
@@ -107,6 +117,24 @@ pub(crate) enum MaybeTlsStream<IO> {
     Tls(tokio_rustls::client::TlsStream<IO>),
     #[cfg(any(all(test, feature = "server"), feature = "test-utils"))]
     Test(tokio::io::DuplexStream),
+}
+
+impl<IO> MaybeTlsStream<IO> {
+    pub(super) fn underlying_io(&self) -> Option<&IO> {
+        match self {
+            Self::Raw(stream) => Some(stream),
+            Self::Tls(stream) => Some(stream.get_ref().0),
+            #[cfg(any(all(test, feature = "server"), feature = "test-utils"))]
+            Self::Test(_) => None,
+        }
+    }
+
+    fn missing_underlying_io() -> std::io::Error {
+        std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "in-memory relay stream has no socket address",
+        )
+    }
 }
 
 impl<IO> ExportKeyingMaterial for MaybeTlsStream<IO> {
@@ -202,13 +230,30 @@ impl<IO: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MaybeTlsStream<IO> {
     }
 }
 
-impl<IO> AsRef<IO> for MaybeTlsStream<IO> {
-    fn as_ref(&self) -> &IO {
-        match self {
-            Self::Raw(s) => s,
-            Self::Tls(s) => s.get_ref().0,
-            #[cfg(any(all(test, feature = "server"), feature = "test-utils"))]
-            Self::Test(_) => unimplemented!("can't grab underlying IO in MaybeTlsStream::Test"),
-        }
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use std::io;
+
+    use bytes::Bytes;
+    use tokio::net::TcpStream;
+
+    use super::{MaybeTlsStream, ProxyStream};
+    use crate::client::util;
+
+    #[tokio::test]
+    async fn proxied_test_stream_has_no_socket_addresses() {
+        let (_peer, stream) = tokio::io::duplex(1);
+        let stream = MaybeTlsStream::<TcpStream>::Test(stream);
+        let stream = ProxyStream::Proxied(util::chain(std::io::Cursor::new(Bytes::new()), stream));
+
+        let local_error = stream
+            .local_addr()
+            .expect_err("in-memory streams have no local socket address");
+        assert_eq!(local_error.kind(), io::ErrorKind::Unsupported);
+
+        let peer_error = stream
+            .peer_addr()
+            .expect_err("in-memory streams have no peer socket address");
+        assert_eq!(peer_error.kind(), io::ErrorKind::Unsupported);
     }
 }

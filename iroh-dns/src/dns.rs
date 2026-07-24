@@ -40,6 +40,8 @@ use crate::{attrs::ParseError, endpoint_info::EndpointInfo};
 
 /// Default DNS query timeout.
 pub const DNS_TIMEOUT: Duration = Duration::from_secs(3);
+/// Maximum number of returned address records for one IP family and lookup.
+pub const MAX_ADDRESS_RECORDS_PER_FAMILY: usize = 64;
 
 /// The n0 address lookup DNS origin, for production.
 pub const N0_DNS_ENDPOINT_ORIGIN_PROD: &str = "dns.iroh.link.";
@@ -124,6 +126,18 @@ pub enum DnsError {
     Resolve { source: AnyError },
     #[error("Invalid DNS response: not a query for _iroh.z32encodedpubkey")]
     InvalidResponse {},
+}
+
+/// Error constructing a DNS resolver from caller-supplied configuration.
+#[allow(missing_docs)]
+#[stack_error(derive, add_meta, from_sources, std_sources)]
+#[non_exhaustive]
+pub enum BuildError {
+    #[error("Failed to build the Hickory DNS resolver")]
+    Hickory {
+        #[error(std_err)]
+        source: hickory_resolver::net::NetError,
+    },
 }
 
 /// Potential errors related to DNS endpoint address lookups.
@@ -244,8 +258,8 @@ impl Builder {
     }
 
     /// Builds the DNS resolver.
-    pub fn build(self) -> DnsResolver {
-        DnsResolver::custom(HickoryResolver::new(self))
+    pub fn build(self) -> Result<DnsResolver, BuildError> {
+        Ok(DnsResolver::custom(HickoryResolver::new(self)?))
     }
 }
 
@@ -376,19 +390,32 @@ impl DnsResolver {
     /// This does not work at least on some Androids, therefore we fallback
     /// to the default `ResolverConfig` which uses e.g. Google's `8.8.8.8` or `8.8.4.4`.
     pub fn new() -> Self {
-        Builder::default().with_system_defaults().build()
+        Self::from_fixed_builder(Builder::default().with_system_defaults())
     }
 
     /// Creates a new DNS resolver configured with a single UDP DNS nameserver.
     pub fn with_nameserver(nameserver: SocketAddr) -> Self {
-        Builder::default()
-            .with_nameserver(nameserver, DnsProtocol::Udp)
-            .build()
+        Self::from_fixed_builder(Builder::default().with_nameserver(nameserver, DnsProtocol::Udp))
     }
 
     /// Creates a builder to construct a DNS resolver with custom options.
     pub fn builder() -> Builder {
         Builder::default()
+    }
+
+    /// Builds one of the fixed, non-TLS public convenience configurations.
+    ///
+    /// These configurations contain no caller-supplied crypto. If the runtime cannot create its
+    /// own TLS defaults, retain an error-backed resolver instead of panicking in an infallible
+    /// convenience constructor.
+    fn from_fixed_builder(builder: Builder) -> Self {
+        match builder.build() {
+            Ok(resolver) => resolver,
+            Err(err) => {
+                warn!(%err, "fixed DNS resolver configuration could not be constructed");
+                Self::custom(UnavailableResolver::new(err.to_string()))
+            }
+        }
     }
 
     /// Creates a new [`DnsResolver`] from a struct that implements [`Resolver`].
@@ -451,7 +478,10 @@ impl DnsResolver {
             .inner
             .op(timeout, move |resolver| resolver.lookup_ipv4(host.clone()))
             .await?;
-        Ok(addrs.into_iter().map(IpAddr::V4))
+        Ok(addrs
+            .into_iter()
+            .take(MAX_ADDRESS_RECORDS_PER_FAMILY)
+            .map(IpAddr::V4))
     }
 
     /// Performs an IPv6 lookup with a timeout.
@@ -465,7 +495,10 @@ impl DnsResolver {
             .inner
             .op(timeout, move |resolver| resolver.lookup_ipv6(host.clone()))
             .await?;
-        Ok(addrs.into_iter().map(IpAddr::V6))
+        Ok(addrs
+            .into_iter()
+            .take(MAX_ADDRESS_RECORDS_PER_FAMILY)
+            .map(IpAddr::V6))
     }
 
     /// Resolves IPv4 and IPv6 in parallel with a timeout.
@@ -621,13 +654,21 @@ impl DnsResolver {
                     biased;
                     res = &mut state.v4_fut => {
                         match res {
-                            Ok(items) => state.queue.extend(items.map(IpAddr::V4)),
+                            Ok(items) => state.queue.extend(
+                                items
+                                    .take(MAX_ADDRESS_RECORDS_PER_FAMILY)
+                                    .map(IpAddr::V4),
+                            ),
                             Err(err) => state.v4_err = Some(err),
                         }
                     }
                     res = &mut state.v6_fut => {
                         match res {
-                            Ok(items) => state.queue.extend(items.map(IpAddr::V6)),
+                            Ok(items) => state.queue.extend(
+                                items
+                                    .take(MAX_ADDRESS_RECORDS_PER_FAMILY)
+                                    .map(IpAddr::V6),
+                            ),
                             Err(err) => state.v6_err = Some(err),
                         }
                     }
@@ -756,19 +797,19 @@ impl Default for DnsResolver {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct HickoryResolver {
     resolver: TokioResolver,
     builder: Builder,
 }
 
 impl HickoryResolver {
-    fn new(builder: Builder) -> Self {
-        let resolver = Self::build_resolver(&builder);
-        Self { resolver, builder }
+    fn new(builder: Builder) -> Result<Self, BuildError> {
+        let resolver = Self::build_resolver(&builder)?;
+        Ok(Self { resolver, builder })
     }
 
-    fn build_resolver(builder: &Builder) -> TokioResolver {
+    fn build_resolver(builder: &Builder) -> Result<TokioResolver, BuildError> {
         let (mut config, mut options) = if builder.use_system_defaults {
             match Self::system_config() {
                 Ok((config, options)) => (config, options),
@@ -806,7 +847,9 @@ impl HickoryResolver {
             hickory_builder = hickory_builder.with_tls_config(client_config);
         }
 
-        hickory_builder.build().expect("config works")
+        hickory_builder
+            .build()
+            .map_err(|err| e!(BuildError::Hickory, err))
     }
 
     fn system_config() -> Result<(ResolverConfig, ResolverOpts), hickory_resolver::net::NetError> {
@@ -889,11 +932,56 @@ impl Resolver for HickoryResolver {
     }
 
     fn reset(&self) -> Box<dyn Resolver> {
-        let resolver = Self::build_resolver(&self.builder);
-        Box::new(Self {
-            resolver,
-            builder: self.builder.clone(),
-        })
+        match Self::new(self.builder.clone()) {
+            Ok(resolver) => Box::new(resolver),
+            Err(err) => {
+                warn!(%err, "failed to rebuild DNS resolver; retaining the previous resolver");
+                Box::new(self.clone())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct UnavailableResolver {
+    reason: Arc<str>,
+}
+
+impl UnavailableResolver {
+    fn new(reason: String) -> Self {
+        Self {
+            reason: Arc::from(reason),
+        }
+    }
+
+    fn error<T>(&self) -> Result<T, DnsError> {
+        Err(e!(
+            DnsError::Resolve,
+            AnyError::from_string(self.reason.to_string())
+        ))
+    }
+}
+
+impl Resolver for UnavailableResolver {
+    fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+        let this = self.clone();
+        Box::pin(async move { this.error() })
+    }
+
+    fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+        let this = self.clone();
+        Box::pin(async move { this.error() })
+    }
+
+    fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+        let this = self.clone();
+        Box::pin(async move { this.error() })
+    }
+
+    fn clear_cache(&self) {}
+
+    fn reset(&self) -> Box<dyn Resolver> {
+        Box::new(self.clone())
     }
 }
 
@@ -1082,23 +1170,11 @@ pub(crate) mod tests {
         }
     }
 
-    //Sanity checks that I did the math right
     #[test]
-    #[traced_test]
-    fn jitter_test_nonzero_lower_bound() {
+    fn jitter_includes_exact_twenty_percent_bounds() {
         let delay: u64 = 300;
-        for _ in 0..100 {
-            assert!(add_jitter(&delay) >= Duration::from_millis(delay * 8 / 10));
-        }
-    }
-
-    #[test]
-    #[traced_test]
-    fn jitter_test_nonzero_upper_bound() {
-        let delay: u64 = 300;
-        for _ in 0..100 {
-            assert!(add_jitter(&delay) < Duration::from_millis(delay * 12 / 10));
-        }
+        assert_eq!(jittered_delay(delay, 0), Duration::from_millis(240));
+        assert_eq!(jittered_delay(delay, 120), Duration::from_millis(360));
     }
 
     #[tokio::test]
@@ -1151,5 +1227,65 @@ pub(crate) mod tests {
             .lookup_ipv4("bar.example", Duration::from_secs(1))
             .await;
         assert!(matches!(res, Err(DnsError::NoResponse { .. })))
+    }
+
+    #[tokio::test]
+    async fn address_results_are_limited_per_family() {
+        #[derive(Debug, Clone)]
+        struct ManyAddresses;
+
+        impl Resolver for ManyAddresses {
+            fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+                let addresses = (0..70).map(|value| Ipv4Addr::new(192, 0, 2, value));
+                Box::pin(async move { Ok(Box::new(addresses) as BoxIter<Ipv4Addr>) })
+            }
+
+            fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+                let addresses =
+                    (0..70).map(|value| Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, value));
+                Box::pin(async move { Ok(Box::new(addresses) as BoxIter<Ipv6Addr>) })
+            }
+
+            fn lookup_txt(
+                &self,
+                _host: String,
+            ) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+                Box::pin(async { Ok(Box::new(std::iter::empty()) as BoxIter<TxtRecordData>) })
+            }
+
+            fn clear_cache(&self) {}
+
+            fn reset(&self) -> Box<dyn Resolver> {
+                Box::new(self.clone())
+            }
+        }
+
+        let resolver = DnsResolver::custom(ManyAddresses);
+        let ipv4 = resolver
+            .lookup_ipv4("example.test", DNS_TIMEOUT)
+            .await
+            .unwrap()
+            .count();
+        let ipv6 = resolver
+            .lookup_ipv6("example.test", DNS_TIMEOUT)
+            .await
+            .unwrap()
+            .count();
+        assert_eq!(ipv4, MAX_ADDRESS_RECORDS_PER_FAMILY);
+        assert_eq!(ipv6, MAX_ADDRESS_RECORDS_PER_FAMILY);
+
+        let url = Url::parse("https://example.test").unwrap();
+        let all = resolver.resolve_host_all(&url, DNS_TIMEOUT);
+        tokio::pin!(all);
+        let mut ipv4 = 0;
+        let mut ipv6 = 0;
+        while let Some(address) = all.next().await {
+            match address.unwrap() {
+                IpAddr::V4(_) => ipv4 += 1,
+                IpAddr::V6(_) => ipv6 += 1,
+            }
+        }
+        assert_eq!(ipv4, MAX_ADDRESS_RECORDS_PER_FAMILY);
+        assert_eq!(ipv6, MAX_ADDRESS_RECORDS_PER_FAMILY);
     }
 }

@@ -205,9 +205,7 @@ impl CaTlsConfig {
         let verifier = self.server_cert_verifier(crypto_provider.clone())?;
         let config = ClientConfig::builder_with_provider(crypto_provider)
             .with_safe_default_protocol_versions()
-            .expect(
-                "configured crypto provider is missing support for required TLS protocol versions",
-            )
+            .map_err(io::Error::other)?
             .dangerous()
             .with_custom_certificate_verifier(verifier)
             .with_no_client_auth();
@@ -299,5 +297,28 @@ mod no_cert_verifier {
                 .signature_verification_algorithms
                 .supported_schemes()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::{CaTlsConfig, default_provider};
+
+    #[test]
+    fn client_config_reports_an_unusable_crypto_provider() {
+        let mut provider = default_provider().as_ref().clone();
+        provider.cipher_suites.clear();
+
+        let error = CaTlsConfig::insecure_skip_verify()
+            .client_config(Arc::new(provider))
+            .expect_err("unusable caller-provided crypto configuration must be returned");
+
+        assert!(
+            error
+                .to_string()
+                .contains("no usable cipher suites configured")
+        );
     }
 }

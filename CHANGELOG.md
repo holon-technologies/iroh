@@ -2,6 +2,22 @@
 
 All notable changes to iroh will be documented in this file.
 
+## Unreleased
+
+### Breaking changes
+
+- `PkarrRelayClient::new`, `PkarrRelayClientBuilder::build`,
+  `PkarrPublisherBuilder::build`, and `PkarrResolverBuilder::build` now return
+  `Result`. Add `?` (or explicitly handle `PkarrError::HttpClient`) at direct
+  construction sites.
+
+### Safety
+
+- Added validated endpoint task, connection, remote-state actor, and active-relay
+  limits with saturation diagnostics and recoverable admission.
+- Bounded Noq packet/control event storage, relay QAD and captive-portal handlers,
+  and DNS address results.
+
 ## [1.0.3](https://github.com/n0-computer/iroh/compare/v1.0.2..1.0.3) - 2026-07-20
 
 ### 🐛 Bug Fixes
@@ -3102,5 +3118,4 @@ All notable changes to iroh will be documented in this file.
 - On_collection doesn't need to be FnMut ([#136](https://github.com/n0-computer/iroh/issues/136)) - ([eac7b65](https://github.com/n0-computer/iroh/commit/eac7b65a6760c0cf55d455ca5a7e9e523698c7a1))
 - Allow older rust version ([#142](https://github.com/n0-computer/iroh/issues/142)) - ([f3086a9](https://github.com/n0-computer/iroh/commit/f3086a9576fdc0cdfbd6b0646745bec9e91f7d60))
 - Use our own bao crate - ([659d2d2](https://github.com/n0-computer/iroh/commit/659d2d22254ea1d3f185ec0d4c8be4e7bf4374df))
-
 

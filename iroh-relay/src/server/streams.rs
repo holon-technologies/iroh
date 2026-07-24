@@ -396,9 +396,20 @@ impl Bucket {
         refill_period: time::Duration,
     ) -> Result<Self, InvalidBucketConfig> {
         // milliseconds is the tokio timer resolution
-        let refill = bytes_per_second.saturating_mul(refill_period.as_millis() as i64) / 1000;
+        let refill_period_millis = i128::try_from(refill_period.as_millis())
+            .expect("std::time::Duration milliseconds always fit in i128");
+        let refill = i128::from(bytes_per_second).saturating_mul(refill_period_millis) / 1000;
+        let refill = i64::try_from(refill).unwrap_or(i64::MAX);
+        let last_fill = time::Instant::now();
+        let maximum_refill_deadline = refill_period
+            .checked_mul(u32::MAX)
+            .and_then(|duration| last_fill.checked_add(duration));
         ensure!(
-            max > 0 && bytes_per_second > 0 && refill_period.as_millis() as u32 > 0 && refill > 0,
+            max > 0
+                && bytes_per_second > 0
+                && refill_period_millis > 0
+                && refill > 0
+                && maximum_refill_deadline.is_some(),
             InvalidBucketConfig {
                 max,
                 bytes_per_second,
@@ -408,7 +419,7 @@ impl Bucket {
         Ok(Self {
             fill: max,
             max,
-            last_fill: time::Instant::now(),
+            last_fill,
             refill_period,
             refill,
         })
@@ -420,8 +431,8 @@ impl Bucket {
                 let bytes_per_second = u32::from(cfg.bytes_per_second);
                 let max_burst_bytes = cfg.max_burst_bytes.map_or(bytes_per_second / 10, u32::from);
                 Ok(Some(Bucket::new(
-                    max_burst_bytes as i64,
-                    bytes_per_second as i64,
+                    i64::from(max_burst_bytes),
+                    i64::from(bytes_per_second),
                     time::Duration::from_millis(100),
                 )?))
             }
@@ -431,19 +442,28 @@ impl Bucket {
 
     fn update_state(&mut self) {
         let now = time::Instant::now();
-        // div safety: self.refill_period.as_millis() is checked to be non-null in constructor
-        let refill_periods = now.saturating_duration_since(self.last_fill).as_millis() as u32
-            / self.refill_period.as_millis() as u32;
+        let elapsed = now.saturating_duration_since(self.last_fill);
+        let refill_periods = elapsed.as_nanos() / self.refill_period.as_nanos();
+        let refill_periods = u32::try_from(refill_periods).unwrap_or(u32::MAX);
         if refill_periods == 0 {
             // Nothing to do - we won't refill yet
             return;
         }
 
-        self.fill = self
-            .fill
-            .saturating_add(refill_periods as i64 * self.refill);
-        self.fill = std::cmp::min(self.fill, self.max);
-        self.last_fill += self.refill_period * refill_periods;
+        let refill = i128::from(refill_periods).saturating_mul(i128::from(self.refill));
+        let fill = i128::from(self.fill)
+            .saturating_add(refill)
+            .min(i128::from(self.max));
+        self.fill = i64::try_from(fill).expect("positive refill capped at i64 bucket maximum");
+
+        let elapsed_refill_periods = self
+            .refill_period
+            .checked_mul(refill_periods)
+            .expect("constructor validates the maximum refill horizon");
+        self.last_fill = self
+            .last_fill
+            .checked_add(elapsed_refill_periods)
+            .expect("constructor validates the maximum refill deadline");
     }
 
     /// Attempts to consume `bytes` tokens from the bucket.
@@ -466,10 +486,18 @@ impl Bucket {
 
         let missing = self.fill.saturating_neg();
 
-        let periods_needed = (missing / self.refill) + 1;
+        let periods_needed = (missing / self.refill).saturating_add(1);
         let periods_needed = u32::try_from(periods_needed).unwrap_or(u32::MAX);
 
-        Err(self.last_fill + periods_needed * self.refill_period)
+        let refill_wait = self
+            .refill_period
+            .checked_mul(periods_needed)
+            .expect("constructor validates the maximum refill horizon");
+        let refill_deadline = self
+            .last_fill
+            .checked_add(refill_wait)
+            .expect("constructor validates the maximum refill deadline");
+        Err(refill_deadline)
     }
 }
 
@@ -505,8 +533,8 @@ impl<S> RateLimited<S> {
         Ok(Self {
             inner,
             bucket: Some(Bucket::new(
-                max_burst_bytes as i64,
-                bytes_per_second as i64,
+                i64::from(max_burst_bytes),
+                i64::from(bytes_per_second),
                 time::Duration::from_millis(100),
             )?),
             bucket_refilled: None,
@@ -531,7 +559,9 @@ impl<S> RateLimited<S> {
     /// Records metrics about being rate-limited.
     fn record_rate_limited(&mut self, bytes: usize) {
         // TODO: add a label for the frame type.
-        self.metrics.bytes_rx_ratelimited_total.inc_by(bytes as u64);
+        self.metrics
+            .bytes_rx_ratelimited_total
+            .inc_by(u64::try_from(bytes).unwrap_or(u64::MAX));
         if !self.limited_once {
             self.metrics.conns_rx_ratelimited_total.inc();
             self.limited_once = true;
@@ -681,7 +711,7 @@ mod tests {
 
         let actual_bytes_per_second = send_total as f64 / duration.as_secs_f64();
         println!("{actual_bytes_per_second}");
-        assert_eq!(actual_bytes_per_second.round() as u32, bytes_per_second);
+        assert_eq!(actual_bytes_per_second.round(), f64::from(bytes_per_second));
 
         Ok(())
     }
@@ -759,8 +789,8 @@ mod tests {
 
         let actual_bytes_per_second = limited_total as f64 / limited_duration.as_secs_f64();
         assert_eq!(
-            actual_bytes_per_second.round() as u32,
-            bytes_per_second,
+            actual_bytes_per_second.round(),
+            f64::from(bytes_per_second),
             "the live-installed limit governs throughput once applied mid-connection",
         );
 
@@ -771,12 +801,31 @@ mod tests {
     async fn test_bucket_high_refill() -> Result {
         let bytes_per_second = i64::MAX;
         let mut bucket = Bucket::new(i64::MAX, bytes_per_second, time::Duration::from_millis(100))?;
+        assert_eq!(bucket.refill, i64::MAX / 10);
         for _ in 0..100 {
             time::sleep(time::Duration::from_millis(100)).await;
             assert!(bucket.consume(1_000_000).is_ok());
         }
 
         Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn bucket_refill_arithmetic_saturates_without_wrapping() -> Result {
+        let mut bucket = Bucket::new(i64::MAX, i64::MAX, time::Duration::from_millis(100))?;
+        bucket.fill = i64::MIN;
+
+        time::sleep(time::Duration::from_secs(200)).await;
+        bucket.update_state();
+
+        assert_eq!(bucket.fill, bucket.max);
+        Ok(())
+    }
+
+    #[test]
+    fn bucket_accepts_refill_periods_beyond_u32_milliseconds() {
+        let period = time::Duration::from_millis(u64::from(u32::MAX) + 1);
+        assert!(Bucket::new(1, 1, period).is_ok());
     }
 
     #[tokio::test(start_paused = true)]

@@ -28,6 +28,7 @@ use crate::{
 pub struct Server {
     http_server: HttpServer,
     dns_server: DnsServer,
+    store: ZoneStore,
     metrics_server: Option<iroh_metrics::service::MetricsServer>,
     metrics: Arc<Metrics>,
     shutdown_timeout: std::time::Duration,
@@ -53,7 +54,7 @@ impl Server {
         )?;
         if let Some(bootstrap) = config.mainline_enabled() {
             info!("mainline fallback enabled");
-            store = store.with_mainline_fallback(bootstrap);
+            store = store.with_mainline_fallback(bootstrap)?;
         };
         Self::bind_with_store_validated(config, ingress, store, metrics).await
     }
@@ -118,6 +119,7 @@ impl Server {
         Ok(Self {
             http_server,
             dns_server,
+            store: state.store,
             metrics_server,
             metrics,
             shutdown_timeout,
@@ -128,13 +130,15 @@ impl Server {
     pub async fn shutdown(mut self) -> Result<()> {
         let shutdown_timeout = self.shutdown_timeout;
         let shutdown = async move {
+            let (dns, http) =
+                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown(),);
+            let store = self.store.shutdown().await;
             if let Some(server) = self.metrics_server.take() {
                 server.shutdown().await;
             }
-            let (dns, http) =
-                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown(),);
             dns?;
             http?;
+            store.anyerr()?;
             Ok(())
         };
         tokio::time::timeout(shutdown_timeout, shutdown)
@@ -146,14 +150,28 @@ impl Server {
     ///
     /// Returns when a listener task finishes, either with success or an error.
     pub async fn join(mut self) -> Result<()> {
-        tokio::select! {
-            res = self.dns_server.run_until_done() => res?,
-            res = self.http_server.run_until_done() => res?,
-        }
-        if let Some(server) = self.metrics_server.take() {
-            server.shutdown().await;
-        }
-
+        let run_result = tokio::select! {
+            res = self.dns_server.run_until_done() => res,
+            res = self.http_server.run_until_done() => res,
+        };
+        let shutdown_timeout = self.shutdown_timeout;
+        let cleanup = async {
+            let (dns_result, http_result) =
+                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown());
+            let store_result = self.store.shutdown().await;
+            if let Some(server) = self.metrics_server.take() {
+                server.shutdown().await;
+            }
+            dns_result?;
+            http_result?;
+            store_result.anyerr()?;
+            Ok::<(), n0_error::AnyError>(())
+        };
+        let cleanup_result = tokio::time::timeout(shutdown_timeout, cleanup)
+            .await
+            .map_err(|_| anyerr!("server cleanup exceeded {shutdown_timeout:?}"))?;
+        run_result?;
+        cleanup_result?;
         Ok(())
     }
 
@@ -198,7 +216,7 @@ impl Server {
         let mut store = ZoneStore::in_memory(options.unwrap_or_default(), Default::default())?;
         if let Some(bootstrap) = mainline {
             info!("mainline fallback enabled");
-            store = store.with_mainline_fallback(bootstrap);
+            store = store.with_mainline_fallback(bootstrap)?;
         }
         let server = Self::bind_with_store(config, store, Default::default()).await?;
         Ok(server)

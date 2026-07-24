@@ -37,9 +37,11 @@ pub use self::{
     path_watcher::{Path, PathEvent, PathEventStream, PathList, PathListIter, PathListStream},
     remote_info::{RemoteInfo, TransportAddrInfo, TransportAddrUsage},
 };
+use super::RemoteStateAdmissionError;
 #[cfg(not(wasm_browser))]
 use super::RemoteStateCompletion;
 use super::Source;
+use crate::endpoint::limits::AdmissionPermit;
 #[cfg(not(wasm_browser))]
 use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep};
 use crate::{
@@ -268,12 +270,17 @@ impl RemoteStateActor {
     pub(super) fn start(
         self,
         initial_msgs: Vec<RemoteStateMessage>,
-        #[cfg(wasm_browser)] tasks: &mut JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+        #[cfg(wasm_browser)] tasks: &mut JoinSet<(
+            EndpointId,
+            Vec<RemoteStateMessage>,
+            AdmissionPermit,
+        )>,
         #[cfg(not(wasm_browser))] runtime: Arc<crate::runtime::Runtime>,
-        #[cfg(not(wasm_browser))] completions: mpsc::UnboundedSender<RemoteStateCompletion>,
+        #[cfg(not(wasm_browser))] completions: mpsc::Sender<RemoteStateCompletion>,
         shutdown_token: CancellationToken,
         parent_span: Span,
-    ) -> mpsc::Sender<RemoteStateMessage> {
+        permit: AdmissionPermit,
+    ) -> Result<mpsc::Sender<RemoteStateMessage>, super::RemoteStateAdmissionError> {
         let (tx, rx) = mpsc::channel(16);
         let endpoint_id = self.state.endpoint_id;
 
@@ -290,37 +297,40 @@ impl RemoteStateActor {
                 remote = %endpoint_id.fmt_short(),
             ));
         #[cfg(wasm_browser)]
-        tasks.spawn(actor);
+        tasks.spawn(async move {
+            let (remote_id, leftover_messages) = actor.await;
+            (remote_id, leftover_messages, permit)
+        });
         #[cfg(not(wasm_browser))]
         {
-            let completion_on_reject = completions.clone();
             let future = async move {
                 match AssertUnwindSafe(actor).catch_unwind().await {
                     Ok((remote_id, leftover_messages)) => {
-                        let _ = completions.send(RemoteStateCompletion::Finished(
-                            remote_id,
-                            leftover_messages,
-                        ));
+                        let _ = completions
+                            .send(RemoteStateCompletion::Finished(
+                                remote_id,
+                                leftover_messages,
+                                permit,
+                            ))
+                            .await;
                     }
                     Err(panic) => {
-                        let _ = completions.send(RemoteStateCompletion::Panicked);
+                        let _ = completions
+                            .send(RemoteStateCompletion::Panicked(permit))
+                            .await;
                         std::panic::resume_unwind(panic);
                     }
                 }
             };
-            if runtime
+            runtime
                 .spawn(
                     iroh_runtime::TaskKind::Other("remote-state-actor".to_owned()),
                     "remote-state-actor",
                     Box::pin(future),
                 )
-                .is_err()
-            {
-                let _ = completion_on_reject
-                    .send(RemoteStateCompletion::Finished(endpoint_id, Vec::new()));
-            }
+                .map_err(|_| n0_error::e!(super::RemoteStateAdmissionError::SpawnRejected))?;
         }
-        tx
+        Ok(tx)
     }
 
     /// Runs the main loop of the actor.
@@ -589,7 +599,7 @@ impl RemoteStateActor {
     fn handle_msg_add_connection(
         &mut self,
         conn: noq::Connection,
-        tx: oneshot::Sender<PathStateReceiver>,
+        tx: oneshot::Sender<Result<PathStateReceiver, RemoteStateAdmissionError>>,
     ) {
         let (path_state_sender, path_state_receiver) = PathStateSender::new();
         self.state.metrics.num_conns_opened.inc();
@@ -650,16 +660,24 @@ impl RemoteStateActor {
         }
         self.trigger_holepunching();
         self.select_path();
-        tx.send(path_state_receiver).ok();
+        tx.send(Ok(path_state_receiver)).ok();
     }
 
     /// Handles [`RemoteStateMessage::NetworkChange`].
     fn handle_msg_network_change(&mut self, is_major: bool) {
         // Ping all the paths so loss-detection starts ASAP.
-        for conn in self.connections.values() {
+        for conn_id in sorted_map_keys(&self.connections) {
+            let conn = self
+                .connections
+                .get(&conn_id)
+                .expect("connection key snapshots only contain keys from this map");
             if let Some(noq_conn) = conn.handle.upgrade() {
-                for (path_id, addr) in &conn.paths {
-                    if let Some(path) = noq_conn.path(*path_id) {
+                for path_id in sorted_map_keys(&conn.paths) {
+                    let addr = conn
+                        .paths
+                        .get(&path_id)
+                        .expect("path key snapshots only contain keys from this map");
+                    if let Some(path) = noq_conn.path(path_id) {
                         // Ping the current path
                         if let Err(err) = path.ping() {
                             warn!(%err, %path_id, ?addr, "failed to ping path");
@@ -699,8 +717,14 @@ impl RemoteStateActor {
     /// candidates.
     fn update_local_direct_address(&mut self) {
         let local_addrs = self.state.local_candidates();
-        for conn in self.connections.values().filter_map(|s| s.handle.upgrade()) {
-            update_qnt_candidates(&conn, &local_addrs);
+        for conn_id in sorted_map_keys(&self.connections) {
+            let conn_state = self
+                .connections
+                .get(&conn_id)
+                .expect("connection key snapshots only contain keys from this map");
+            if let Some(conn) = conn_state.handle.upgrade() {
+                update_qnt_candidates(&conn, &local_addrs);
+            }
         }
         // todo: trace
     }
@@ -891,17 +915,25 @@ impl RemoteStateActor {
             return;
         };
 
-        for (conn_id, conn_state) in self.connections.iter() {
+        for conn_id in sorted_map_keys(&self.connections) {
+            let conn_state = self
+                .connections
+                .get(&conn_id)
+                .expect("connection key snapshots only contain keys from this map");
             let Some(conn) = conn_state.handle.upgrade() else {
                 continue;
             };
 
             // Open path if it doesn't exist yet.
             self.state
-                .open_path_on_conn(*conn_id, conn_state, &conn, &selected);
+                .open_path_on_conn(conn_id, conn_state, &conn, &selected);
 
-            for (path_id, path_remote) in conn_state.paths.iter() {
-                let Some(path) = conn.path(*path_id) else {
+            for path_id in sorted_map_keys(&conn_state.paths) {
+                let path_remote = conn_state
+                    .paths
+                    .get(&path_id)
+                    .expect("path key snapshots only contain keys from this map");
+                let Some(path) = conn.path(path_id) else {
                     continue;
                 };
 
@@ -932,7 +964,7 @@ impl RemoteStateActor {
                 }
 
                 // Set path status: The selected path becomes Available, all other paths become Backup.
-                self.state.set_path_status(*conn_id, &path, path_remote);
+                self.state.set_path_status(conn_id, &path, path_remote);
             }
 
             // Record the new selected path in the path watcher.
@@ -941,12 +973,16 @@ impl RemoteStateActor {
     }
 
     fn open_path_on_all_conns(&mut self, open_addr: &transports::FourTuple) {
-        for (conn_id, conn_state) in self.connections.iter() {
+        for conn_id in sorted_map_keys(&self.connections) {
+            let conn_state = self
+                .connections
+                .get(&conn_id)
+                .expect("connection key snapshots only contain keys from this map");
             let Some(conn) = conn_state.handle.upgrade() else {
                 continue;
             };
             self.state
-                .open_path_on_conn(*conn_id, conn_state, &conn, open_addr);
+                .open_path_on_conn(conn_id, conn_state, &conn, open_addr);
         }
     }
 
@@ -1425,7 +1461,10 @@ pub(crate) enum RemoteStateMessage {
     ///
     /// The actor will actively manage paths on the connection and start holepunching as needed.
     #[debug("AddConnection({})", _0.stable_id())]
-    AddConnection(noq::Connection, oneshot::Sender<PathStateReceiver>),
+    AddConnection(
+        noq::Connection,
+        oneshot::Sender<Result<PathStateReceiver, RemoteStateAdmissionError>>,
+    ),
     /// Asks if there is any possible path that could be used.
     ///
     /// This adds the provided transport addresses to the list of potential paths for this
@@ -1475,6 +1514,16 @@ struct HolepunchAttempt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::Display)]
 #[display("{_0}")]
 struct ConnId(usize);
+
+fn sorted_map_keys<K, V, S>(map: &std::collections::HashMap<K, V, S>) -> Vec<K>
+where
+    K: Copy + Ord,
+    S: std::hash::BuildHasher,
+{
+    let mut keys = map.keys().copied().collect::<Vec<_>>();
+    keys.sort_unstable();
+    keys
+}
 
 /// State about one connection.
 #[derive(Debug)]
@@ -1589,16 +1638,30 @@ impl<'a> PathSelectionContext<'a> {
     /// connections to the remote.  Selectors that care should aggregate as appropriate.
     pub fn paths(&self) -> Box<dyn Iterator<Item = PathSelectionData<'a>> + '_> {
         match &self.source {
-            PathsSource::Live(connections) => Box::new(
-                connections
-                    .values()
-                    .filter_map(|state| state.handle.upgrade().map(|conn| (state, conn)))
-                    .flat_map(|(state, conn)| {
-                        state.paths.iter().map(move |(path_id, addr)| {
-                            PathSelectionData::live(addr, *path_id, conn.clone())
-                        })
-                    }),
-            ),
+            PathsSource::Live(connections) => {
+                let paths = sorted_map_keys(connections)
+                    .into_iter()
+                    .flat_map(|conn_id| {
+                        let state = connections
+                            .get(&conn_id)
+                            .expect("connection key snapshots only contain keys from this map");
+                        let Some(conn) = state.handle.upgrade() else {
+                            return Vec::new();
+                        };
+                        sorted_map_keys(&state.paths)
+                            .into_iter()
+                            .map(|path_id| {
+                                let addr = state
+                                    .paths
+                                    .get(&path_id)
+                                    .expect("path key snapshots only contain keys from this map");
+                                PathSelectionData::live(addr, path_id, conn.clone())
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+                Box::new(paths.into_iter())
+            }
             #[cfg(test)]
             PathsSource::Test(paths) => Box::new(paths.iter().cloned()),
         }
@@ -1793,6 +1856,19 @@ async fn maybe_next<S: Stream + Unpin>(maybe_stream: Option<&mut S>) -> Option<O
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sorted_map_keys_canonicalizes_fx_hash_map_iteration() {
+        let mut map = FxHashMap::default();
+        for id in [ConnId(7), ConnId(1), ConnId(4), ConnId(2)] {
+            map.insert(id, ());
+        }
+
+        assert_eq!(
+            sorted_map_keys(&map),
+            [ConnId(1), ConnId(2), ConnId(4), ConnId(7)]
+        );
+    }
 
     #[test]
     fn address_lookup_budget_counts_every_emitted_item() {

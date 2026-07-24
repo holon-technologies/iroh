@@ -112,19 +112,22 @@ impl RemotePathState {
     }
 
     pub(super) fn to_remote_addrs(&self) -> Vec<TransportAddrInfo> {
-        self.paths
-            .iter()
-            .flat_map(|(addr, state)| {
+        self.addrs()
+            .map(|addr| {
+                let state = self
+                    .paths
+                    .get(addr)
+                    .expect("address snapshots only contain keys from this path map");
                 let usage = match state.status {
                     PathStatus::Open => TransportAddrUsage::Active,
                     PathStatus::Inactive(_) | PathStatus::Unusable | PathStatus::Unknown => {
                         TransportAddrUsage::Inactive
                     }
                 };
-                Some(TransportAddrInfo {
+                TransportAddrInfo {
                     addr: addr.clone().into(),
                     usage,
-                })
+                }
             })
             .collect()
     }
@@ -246,9 +249,11 @@ impl RemotePathState {
         self.emit_pending_resolve_requests(result.err());
     }
 
-    /// Returns an iterator over the addresses of all paths.
+    /// Returns an iterator over all path addresses in canonical address order.
     pub(super) fn addrs(&self) -> impl Iterator<Item = &transports::Addr> {
-        self.paths.keys()
+        let mut addrs = self.paths.keys().collect::<Vec<_>>();
+        addrs.sort_unstable();
+        addrs.into_iter()
     }
 
     /// Returns whether this stores any addresses.
@@ -700,6 +705,20 @@ mod tests {
     }
 
     #[test]
+    fn addrs_are_in_canonical_order() {
+        let mut state = RemotePathState::new(Default::default());
+        for port in [9, 3, 7, 1, 5, 8, 2, 6, 4, 0] {
+            state.paths.insert(ip_addr(port), PathState::default());
+        }
+
+        let observed = state.addrs().cloned().collect::<Vec<_>>();
+        let mut expected = observed.clone();
+        expected.sort_unstable();
+
+        assert_eq!(observed, expected);
+    }
+
+    #[test]
     fn test_prune_under_max_paths() {
         let mut paths = FxHashMap::default();
         for i in 0..20 {
@@ -719,7 +738,8 @@ mod tests {
         let mut paths = FxHashMap::default();
         // All paths are active (never abandoned), so none should be pruned
         for i in 0..MAX_NON_RELAY_PATHS {
-            paths.insert(ip_addr(i as u16), PathState::default());
+            let port = u16::try_from(i).expect("test path limit fits in u16");
+            paths.insert(ip_addr(port), PathState::default());
         }
 
         prune_non_relay_paths(&mut paths);
@@ -768,9 +788,9 @@ mod tests {
 
         // Add 20 inactive paths with different abandon times
         // Ports 15-34, with port 34 being most recently abandoned
-        for i in 0..20 {
-            let abandoned_time = now - Duration::from_secs((20 - i) as u64);
-            paths.insert(ip_addr(15 + i as u16), path_state_inactive(abandoned_time));
+        for i in 0_u16..20 {
+            let abandoned_time = now - Duration::from_secs(u64::from(20 - i));
+            paths.insert(ip_addr(15 + i), path_state_inactive(abandoned_time));
         }
 
         assert_eq!(35, paths.len());
@@ -815,9 +835,9 @@ mod tests {
         }
 
         // Add 15 usable but abandoned paths
-        for i in 0..15 {
-            let abandoned_time = now - Duration::from_secs((15 - i) as u64);
-            paths.insert(ip_addr(20 + i as u16), path_state_inactive(abandoned_time));
+        for i in 0_u16..15 {
+            let abandoned_time = now - Duration::from_secs(u64::from(15 - i));
+            paths.insert(ip_addr(20 + i), path_state_inactive(abandoned_time));
         }
 
         assert_eq!(35, paths.len());
@@ -885,8 +905,8 @@ mod tests {
         );
         assert!(state.paths.len() <= MAX_NON_RELAY_PATHS);
 
-        let custom = (0..20).map(|id| {
-            transports::Addr::Custom(CustomAddr::try_from_parts(id, &[id as u8]).unwrap())
+        let custom = (0_u8..20).map(|id| {
+            transports::Addr::Custom(CustomAddr::try_from_parts(u64::from(id), &[id]).unwrap())
         });
         state.insert_multiple(custom, Source::App, Instant::now());
         assert!(
@@ -903,7 +923,8 @@ mod tests {
     #[test]
     fn protected_open_paths_reject_the_new_candidate() {
         let mut state = RemotePathState::new(Default::default());
-        for port in 0..MAX_NON_RELAY_PATHS as u16 {
+        let maximum = u16::try_from(MAX_NON_RELAY_PATHS).expect("test path limit fits in u16");
+        for port in 0..maximum {
             assert!(matches!(
                 state.insert_open_path(ip_addr(port), Source::Connection, Instant::now()),
                 PathAdmissionOutcome::Inserted
@@ -956,8 +977,9 @@ mod tests {
     #[test]
     fn explicit_application_path_evicts_lookup_path_deterministically() {
         let mut state = RemotePathState::new(Default::default());
+        let maximum = u16::try_from(MAX_NON_RELAY_PATHS).expect("test path limit fits in u16");
         state.insert_multiple(
-            (0..MAX_NON_RELAY_PATHS as u16).map(ip_addr),
+            (0..maximum).map(ip_addr),
             Source::AddressLookup {
                 name: "lookup".to_string(),
             },
@@ -980,10 +1002,10 @@ mod tests {
     fn duplicate_updates_cannot_bypass_candidates_per_source() {
         let mut state = RemotePathState::new(Default::default());
         let now = Instant::now();
-        let mut addrs = (0..MAX_NON_RELAY_PATHS as u16)
-            .map(ip_addr)
-            .collect::<Vec<_>>();
-        addrs.extend((1..=MAX_RELAY_PATHS as u8).map(relay_addr));
+        let maximum = u16::try_from(MAX_NON_RELAY_PATHS).expect("test path limit fits in u16");
+        let mut addrs = (0..maximum).map(ip_addr).collect::<Vec<_>>();
+        let maximum_relays = u8::try_from(MAX_RELAY_PATHS).expect("test relay limit fits in u8");
+        addrs.extend((1..=maximum_relays).map(relay_addr));
         for addr in &addrs {
             state.insert_open_path(addr.clone(), Source::Connection, now);
         }
@@ -1013,9 +1035,8 @@ mod tests {
     fn duplicate_updates_cannot_bypass_distinct_source_limit() {
         let mut state = RemotePathState::new(Default::default());
         let now = Instant::now();
-        let addrs = (0..MAX_NON_RELAY_PATHS as u16)
-            .map(ip_addr)
-            .collect::<Vec<_>>();
+        let maximum = u16::try_from(MAX_NON_RELAY_PATHS).expect("test path limit fits in u16");
+        let addrs = (0..maximum).map(ip_addr).collect::<Vec<_>>();
         state.insert_multiple(addrs.iter().cloned(), Source::App, now);
 
         for (index, addr) in addrs.iter().enumerate().take(MAX_DISTINCT_SOURCES - 1) {
@@ -1117,22 +1138,37 @@ mod tests {
 
     #[test]
     fn test_prune_all_paths_failed() {
-        let mut paths = FxHashMap::default();
+        let mut forward = FxHashMap::default();
+        let mut reverse = FxHashMap::default();
 
         // Add 40 failed holepunch paths (all paths have failed)
         for i in 0..40 {
-            paths.insert(ip_addr(i), path_state_unusable());
+            forward.insert(ip_addr(i), path_state_unusable());
+        }
+        for i in (0..40).rev() {
+            reverse.insert(ip_addr(i), path_state_unusable());
         }
 
-        assert_eq!(40, paths.len());
-        prune_non_relay_paths(&mut paths);
+        assert_eq!(40, forward.len());
+        assert_eq!(40, reverse.len());
+        prune_non_relay_paths(&mut forward);
+        prune_non_relay_paths(&mut reverse);
 
         // Should keep MAX_NON_RELAY_PATHS instead of pruning everything
         // This prevents catastrophic loss of all path information
         assert_eq!(
             MAX_NON_RELAY_PATHS,
-            paths.len(),
+            forward.len(),
             "should keep MAX_NON_RELAY_PATHS when all paths failed"
+        );
+        assert_eq!(forward.len(), reverse.len());
+        let mut forward_addrs = forward.keys().cloned().collect::<Vec<_>>();
+        let mut reverse_addrs = reverse.keys().cloned().collect::<Vec<_>>();
+        forward_addrs.sort();
+        reverse_addrs.sort();
+        assert_eq!(
+            forward_addrs, reverse_addrs,
+            "failed-path insertion order must not affect retained paths"
         );
     }
 

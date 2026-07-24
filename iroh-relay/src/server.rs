@@ -47,10 +47,7 @@ use tokio::{
     net::TcpListener,
     task::{JoinError, JoinSet},
 };
-use tokio_rustls_acme::{
-    acme::{LETS_ENCRYPT_PRODUCTION_DIRECTORY, LETS_ENCRYPT_STAGING_DIRECTORY},
-    caches::DirCache,
-};
+use tokio_rustls_acme::acme::{LETS_ENCRYPT_PRODUCTION_DIRECTORY, LETS_ENCRYPT_STAGING_DIRECTORY};
 use tracing::{Instrument, debug, error, info, info_span, instrument};
 
 use self::http_server::{BytesBody, HyperError, HyperResult};
@@ -61,6 +58,7 @@ use crate::{
     tls::CaTlsConfig,
 };
 
+mod acme_cache;
 mod admission;
 pub mod client;
 pub mod clients;
@@ -72,6 +70,7 @@ pub mod streams;
 pub mod testing;
 
 pub use self::{
+    acme_cache::BoundedAcmeCache,
     http_server::{Handlers, RelayService},
     metrics::{Metrics, RelayMetrics},
     resolver::{DEFAULT_CERT_RELOAD_INTERVAL, reloading_resolver},
@@ -441,6 +440,8 @@ pub struct QuicConfig {
     /// Will use the TLS config from [`RelayConfig::tls`] if unset. If neither is set the QUIC
     /// server will fail to spawn.
     pub server_config: Option<rustls::ServerConfig>,
+    /// Maximum number of active QUIC address-discovery connections.
+    pub max_connections: usize,
 }
 
 impl QuicConfig {
@@ -451,6 +452,7 @@ impl QuicConfig {
         Self {
             bind_addr: bind_addr.into(),
             server_config: None,
+            max_connections: crate::quic::DEFAULT_MAX_QAD_CONNECTIONS,
         }
     }
 }
@@ -861,6 +863,7 @@ impl Server {
         let (relay_server, http_addr, tls_config) = match relay_config {
             Some((relay_config, admission_policy)) => {
                 debug!("Starting Relay server");
+                let captive_portal_capacity = admission_policy.max_pending_establishments;
                 let mut headers = HeaderMap::new();
                 for (name, value) in TLS_HEADERS.iter() {
                     headers.insert(
@@ -898,7 +901,7 @@ impl Server {
                                 acme_config,
                                 server_config_builder,
                             } => {
-                                let cache = acme_config.cache_path.map(DirCache::new);
+                                let cache = acme_config.cache_path.map(BoundedAcmeCache::new);
                                 let crypto_provider =
                                     server_config_builder.crypto_provider().clone();
                                 let client_tls_config = acme_config
@@ -957,9 +960,15 @@ impl Server {
                         let http_addr = http_listener
                             .local_addr()
                             .map_err(|err| e!(SpawnError::NoLocalAddr, err))?;
+                        let captive_metrics = metrics.server.clone();
                         tasks.spawn(
                             async move {
-                                run_captive_portal_service(http_listener).await;
+                                run_captive_portal_service(
+                                    http_listener,
+                                    captive_portal_capacity,
+                                    captive_metrics,
+                                )
+                                .await;
                                 Ok(())
                             }
                             .instrument(info_span!("http-service", addr = %http_addr)),
@@ -998,8 +1007,13 @@ impl Server {
                         e!(SpawnError::QuicSpawn, e!(QuicSpawnError::TlsNotConfigured))
                     })?;
                 Some(
-                    QuicServer::spawn(quic_config.bind_addr, server_config, metrics.server.clone())
-                        .map_err(|err| e!(SpawnError::QuicSpawn, err))?,
+                    QuicServer::spawn(
+                        quic_config.bind_addr,
+                        server_config,
+                        quic_config.max_connections,
+                        metrics.server.clone(),
+                    )
+                    .map_err(|err| e!(SpawnError::QuicSpawn, err))?,
                 )
             }
             None => None,
@@ -1260,11 +1274,33 @@ fn healthz_handler(
 }
 
 /// This is a future that never returns, drop it to cancel/abort.
-async fn run_captive_portal_service(http_listener: TcpListener) {
+#[derive(Clone, Debug)]
+struct CaptivePortalAdmission {
+    slots: Arc<tokio::sync::Semaphore>,
+}
+
+impl CaptivePortalAdmission {
+    fn new(capacity: NonZeroUsize) -> Self {
+        Self {
+            slots: Arc::new(tokio::sync::Semaphore::new(capacity.get())),
+        }
+    }
+
+    fn try_acquire(&self) -> Option<tokio::sync::OwnedSemaphorePermit> {
+        self.slots.clone().try_acquire_owned().ok()
+    }
+}
+
+async fn run_captive_portal_service(
+    http_listener: TcpListener,
+    capacity: NonZeroUsize,
+    metrics: Arc<Metrics>,
+) {
     info!("serving");
 
     // If this future is cancelled, this is dropped and all tasks are aborted.
     let mut tasks = JoinSet::new();
+    let admission = CaptivePortalAdmission::new(capacity);
 
     loop {
         tokio::select! {
@@ -1281,10 +1317,16 @@ async fn run_captive_portal_service(http_listener: TcpListener) {
             res = http_listener.accept() => {
                 match res {
                     Ok((stream, peer_addr)) => {
+                        let Some(permit) = admission.try_acquire() else {
+                            metrics.captive_portal_admission_full.inc();
+                            debug!(%peer_addr, "rejecting captive-portal connection: capacity full");
+                            continue;
+                        };
                         debug!(%peer_addr, "Connection opened",);
                         let handler = CaptivePortalService;
 
                         tasks.spawn(async move {
+                            let _permit = permit;
                             let stream = crate::server::streams::MaybeTlsStream::Plain(stream);
                             let stream = hyper_util::rt::TokioIo::new(stream);
                             if let Err(err) = hyper::server::conn::http1::Builder::new()
@@ -1337,7 +1379,7 @@ impl hyper::service::Service<Request<Incoming>> for CaptivePortalService {
 
 #[cfg(test)]
 mod tests {
-    use std::{net::Ipv4Addr, sync::Arc, time::Duration};
+    use std::{net::Ipv4Addr, num::NonZeroUsize, sync::Arc, time::Duration};
 
     use http::StatusCode;
     use iroh_base::{EndpointId, RelayUrl, SecretKey};
@@ -1350,7 +1392,7 @@ mod tests {
     use url::Url;
 
     use super::{
-        Access, AccessControl, ClientRequest, NO_CONTENT_CHALLENGE_HEADER,
+        Access, AccessControl, CaptivePortalAdmission, ClientRequest, NO_CONTENT_CHALLENGE_HEADER,
         NO_CONTENT_RESPONSE_HEADER, RelayConfig, Server, ServerConfig, SpawnError,
     };
     use crate::{
@@ -1574,6 +1616,22 @@ mod tests {
         assert_eq!(header.to_str().unwrap(), format!("response {challenge}"));
         let body = response.text().await.unwrap();
         assert!(body.is_empty());
+    }
+
+    #[test]
+    fn captive_portal_admission_limit_is_exact_and_recovers() {
+        let capacity = NonZeroUsize::new(2).unwrap();
+        let admission = CaptivePortalAdmission::new(capacity);
+
+        let first = admission.try_acquire().expect("first slot");
+        let _second = admission.try_acquire().expect("second slot");
+        assert!(admission.try_acquire().is_none(), "third slot must reject");
+
+        drop(first);
+        assert!(
+            admission.try_acquire().is_some(),
+            "released capacity must be reusable"
+        );
     }
 
     #[tokio::test]

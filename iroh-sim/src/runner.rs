@@ -748,8 +748,9 @@ impl ReferenceModel {
                 {
                     return model_mismatch(action, "two byte-identical delivery observations", observations);
                 }
-                let expected =
-                    PayloadDigest::from_bytes(&vec![payload.fill; payload.bytes as usize]);
+                let payload_len = usize::try_from(payload.bytes)
+                    .expect("validated scenario payload size fits in usize");
+                let expected = PayloadDigest::from_bytes(&vec![payload.fill; payload_len]);
                 if deliveries.iter().any(|observation| {
                     !matches!(observation, ObservationKind::Delivery { expected: observed, .. } if observed == &expected)
                 }) {

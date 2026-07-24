@@ -14,4 +14,6 @@ pub struct Metrics {
     pub portmap_attempts: Counter,
     /// Number of times an external address was obtained via port mapping.
     pub portmap_external_address_updated: Counter,
+    /// QAD probes rejected by the endpoint-wide connection capacity.
+    pub qad_connection_capacity_rejections: Counter,
 }

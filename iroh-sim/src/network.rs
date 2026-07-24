@@ -23,7 +23,7 @@ use crate::{
     ResourceKind, ResourceToken,
 };
 
-const PROBABILITY_DENOMINATOR: u64 = 1_000_000;
+const PROBABILITY_DENOMINATOR: u32 = 1_000_000;
 
 /// Global bounds and deterministic ephemeral-port policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1561,7 +1561,9 @@ impl NetworkInner {
         }
         drop(state);
 
-        let mut resources = Vec::with_capacity(copies as usize);
+        let mut resources = Vec::with_capacity(
+            usize::try_from(copies).expect("one packet produces at most two copies"),
+        );
         for _ in 0..copies {
             match self
                 .kernel
@@ -2264,7 +2266,7 @@ fn allocate_packet_id(state: &mut NetworkState) -> Result<u64, NetworkError> {
 }
 
 fn fault_boolean(stream: &mut dyn DecisionStream, probability: u32) -> Result<bool, NetworkError> {
-    Ok(stream.boolean(u64::from(probability), PROBABILITY_DENOMINATOR)?)
+    Ok(stream.boolean(u64::from(probability), u64::from(PROBABILITY_DENOMINATOR))?)
 }
 
 fn serialization_nanos(length: usize, bits_per_second: u64) -> Result<u64, NetworkError> {
@@ -2311,9 +2313,9 @@ fn validate_link_config(config: LinkConfig) -> Result<(), NetworkError> {
     if config.bits_per_second == 0
         || config.mtu == 0
         || config.queue_packets == 0
-        || config.loss_per_million > PROBABILITY_DENOMINATOR as u32
-        || config.duplicate_per_million > PROBABILITY_DENOMINATOR as u32
-        || config.corrupt_per_million > PROBABILITY_DENOMINATOR as u32
+        || config.loss_per_million > PROBABILITY_DENOMINATOR
+        || config.duplicate_per_million > PROBABILITY_DENOMINATOR
+        || config.corrupt_per_million > PROBABILITY_DENOMINATOR
     {
         Err(NetworkError::InvalidLinkConfig)
     } else {

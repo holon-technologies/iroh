@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 #[cfg(feature = "metrics")]
 use std::collections::BTreeMap;
 
@@ -165,9 +167,9 @@ pub fn run_s2n(_opt: s2n::Opt) -> Result<()> {
 fn collect_and_print(category: &'static str, metrics: &dyn MetricsGroup) {
     let mut map = BTreeMap::new();
     for item in metrics.iter() {
-        let value: i64 = match item.value() {
-            MetricValue::Counter(v) => v as i64,
-            MetricValue::Gauge(v) => v,
+        let value: i128 = match item.value() {
+            MetricValue::Counter(v) => i128::from(v),
+            MetricValue::Gauge(v) => i128::from(v),
             _ => continue,
         };
         map.insert(item.name().to_string(), value);

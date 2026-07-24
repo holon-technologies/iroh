@@ -77,6 +77,8 @@ enum QadProbeError {
     Quic { source: iroh_relay::quic::Error },
     #[error("Receiver dropped")]
     ReceiverDropped,
+    #[error("Endpoint connection capacity is full")]
+    ConnectionCapacityFull,
 }
 
 /// Configuration for the net report component.
@@ -258,23 +260,29 @@ impl Client {
     pub(crate) fn new(
         #[cfg(not(wasm_browser))] dns_resolver: DnsResolver,
         relay_map: RelayMap,
-        opts: Options,
+        mut opts: Options,
         metrics: Arc<Metrics>,
-    ) -> Self {
+    ) -> Result<Self, iroh_relay::quic::QuicClientBuildError> {
         let probes = opts.as_protocols();
 
         #[cfg(not(wasm_browser))]
-        let quic_client = opts
+        let quic = opts
             .quic_config
-            .map(|c| iroh_relay::quic::QuicClient::new(c.ep, c.client_config));
+            .take()
+            .map(|config| {
+                iroh_relay::quic::QuicClient::new(config.ep, config.client_config)
+                    .map(|client| (client, config.connection_admission))
+            })
+            .transpose()?;
 
         #[cfg(not(wasm_browser))]
         let socket_state = SocketState {
-            quic_client,
+            quic_client: quic.as_ref().map(|(client, _admission)| client.clone()),
+            connection_admission: quic.map(|(_client, admission)| admission),
             dns_resolver,
         };
 
-        Client {
+        Ok(Client {
             #[cfg(not(wasm_browser))]
             socket_state,
             metrics,
@@ -286,7 +294,7 @@ impl Client {
             #[cfg(not(wasm_browser))]
             tls_config: opts.tls_config,
             captive_portal_check: opts.user_config.captive_portal_check,
-        }
+        })
     }
 
     /// Generates a [`Report`].
@@ -451,6 +459,11 @@ impl Client {
         let Some(ref quic_client) = self.socket_state.quic_client else {
             return Vec::new();
         };
+        let connection_admission = self
+            .socket_state
+            .connection_admission
+            .as_ref()
+            .expect("QAD client must retain endpoint connection admission");
 
         if do_full {
             // clear out existing connections if we are doing a full reset
@@ -507,6 +520,8 @@ impl Client {
                 let relay = relay.clone();
                 let dns_resolver = self.socket_state.dns_resolver.clone();
                 let quic_client = quic_client.clone();
+                let connection_admission = connection_admission.clone();
+                let metrics = self.metrics.clone();
                 let relay_url = relay.url.clone();
                 let inner_token = cancel_v4.child_token();
                 v4_buf.spawn(
@@ -514,7 +529,14 @@ impl Client {
                         .child_token()
                         .run_until_cancelled_owned(time::timeout(
                             PROBES_TIMEOUT,
-                            run_probe_v4(relay, quic_client, dns_resolver, inner_token),
+                            run_probe_v4(
+                                relay,
+                                quic_client,
+                                dns_resolver,
+                                connection_admission,
+                                metrics,
+                                inner_token,
+                            ),
                         ))
                         .instrument(info_span!("QADv4", %relay_url)),
                 );
@@ -524,6 +546,8 @@ impl Client {
                 let relay = relay.clone();
                 let dns_resolver = self.socket_state.dns_resolver.clone();
                 let quic_client = quic_client.clone();
+                let connection_admission = connection_admission.clone();
+                let metrics = self.metrics.clone();
                 let relay_url = relay.url.clone();
                 let inner_token = cancel_v6.child_token();
                 v6_buf.spawn(
@@ -531,7 +555,14 @@ impl Client {
                         .child_token()
                         .run_until_cancelled_owned(time::timeout(
                             PROBES_TIMEOUT,
-                            run_probe_v6(relay, quic_client, dns_resolver, inner_token),
+                            run_probe_v6(
+                                relay,
+                                quic_client,
+                                dns_resolver,
+                                connection_admission,
+                                metrics,
+                                inner_token,
+                            ),
                         ))
                         .instrument(info_span!("QADv6", %relay_url)),
                 );
@@ -826,6 +857,8 @@ async fn run_probe_v4(
     relay: Arc<RelayConfig>,
     quic_client: QuicClient,
     dns_resolver: DnsResolver,
+    connection_admission: Arc<crate::endpoint::limits::AdmissionLedger>,
+    metrics: Arc<Metrics>,
     shutdown_token: CancellationToken,
 ) -> n0_error::Result<(QadProbeReport, QadConn), QadProbeError> {
     use noq_proto::PathId;
@@ -839,8 +872,13 @@ async fn run_probe_v4(
         .url
         .host_str()
         .ok_or_else(|| e!(QadProbeError::MissingHost))?;
+    let permit = connection_admission.try_acquire().map_err(|_| {
+        metrics.qad_connection_capacity_rejections.inc();
+        e!(QadProbeError::ConnectionCapacityFull)
+    })?;
+    let lifetime = noq::ConnectionLifetimeToken::new(permit);
     let conn = quic_client
-        .create_conn(relay_addr.into(), host)
+        .create_conn_with_lifetime(relay_addr.into(), host, lifetime)
         .await
         .map_err(|source| e!(QadProbeError::Quic { source }))?;
 
@@ -895,6 +933,8 @@ async fn run_probe_v6(
     relay: Arc<RelayConfig>,
     quic_client: QuicClient,
     dns_resolver: DnsResolver,
+    connection_admission: Arc<crate::endpoint::limits::AdmissionLedger>,
+    metrics: Arc<Metrics>,
     shutdown_token: CancellationToken,
 ) -> n0_error::Result<(QadProbeReport, QadConn), QadProbeError> {
     use noq_proto::PathId;
@@ -908,8 +948,13 @@ async fn run_probe_v6(
         .url
         .host_str()
         .ok_or_else(|| e!(QadProbeError::MissingHost))?;
+    let permit = connection_admission.try_acquire().map_err(|_| {
+        metrics.qad_connection_capacity_rejections.inc();
+        e!(QadProbeError::ConnectionCapacityFull)
+    })?;
+    let lifetime = noq::ConnectionLifetimeToken::new(permit);
     let conn = quic_client
-        .create_conn(relay_addr.into(), host)
+        .create_conn_with_lifetime(relay_addr.into(), host, lifetime)
         .await
         .map_err(|source| e!(QadProbeError::Quic { source }))?;
 
@@ -1019,6 +1064,9 @@ mod tests {
             client_config,
             ipv4: true,
             ipv6: true,
+            connection_admission: crate::endpoint::limits::AdmissionLedger::new(
+                crate::endpoint::EndpointLimits::default().max_connections(),
+            ),
         };
         let relay_map = RelayMap::from(relay);
 
@@ -1032,7 +1080,7 @@ mod tests {
             relay_map.clone(),
             opts.clone(),
             Default::default(),
-        );
+        )?;
         let if_state = IfStateDetails::fake();
 
         // Note that the ProbePlan will change with each iteration.
@@ -1234,7 +1282,8 @@ mod tests {
             println!("test: {}", tt.name);
             let relay_map = RelayMap::empty();
             let opts = Options::new(tls_config.clone());
-            let mut client = Client::new(resolver.clone(), relay_map, opts, Default::default());
+            let mut client =
+                Client::new(resolver.clone(), relay_map, opts, Default::default()).unwrap();
             for s in &mut tt.steps {
                 // trigger the timer
                 tokio::time::advance(Duration::from_secs(s.after)).await;

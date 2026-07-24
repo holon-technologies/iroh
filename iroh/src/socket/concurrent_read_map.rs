@@ -25,12 +25,11 @@ impl<K: Hash + Eq, V> Default for ConcurrentReadMap<K, V> {
 }
 
 impl<K: Hash + Eq, V> ConcurrentReadMap<K, V> {
-    pub(crate) fn get_or_insert_with<F>(&mut self, key: K, f: F) -> V
+    pub(crate) fn get(&self, key: &K) -> Option<V>
     where
-        F: FnOnce() -> V,
         V: Clone,
     {
-        self.0.get_or_insert_with(key, f, &self.0.guard()).clone()
+        self.0.get(key, &self.0.guard()).cloned()
     }
 
     pub(crate) fn insert(&mut self, key: K, value: V) {
@@ -60,11 +59,36 @@ impl<K: Hash + Eq, V> ReadOnlyMap<K, V> {
         self.0.get(key, &self.0.guard()).cloned()
     }
 
-    pub(crate) fn guard(&self) -> papaya::LocalGuard<'_> {
-        self.0.guard()
+    pub(crate) fn snapshot_sorted_by_key(&self) -> Vec<(K, V)>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let guard = self.0.guard();
+        let mut entries = self
+            .0
+            .iter(&guard)
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect::<Vec<_>>();
+        entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        entries
     }
+}
 
-    pub(crate) fn values<'g, G: papaya::Guard>(&self, guard: &'g G) -> papaya::Values<'g, K, V, G> {
-        self.0.values(guard)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sorted_snapshot_is_independent_of_insertion_order() {
+        let mut map = ConcurrentReadMap::default();
+        map.insert(3_u8, "three");
+        map.insert(1, "one");
+        map.insert(2, "two");
+
+        assert_eq!(
+            map.read_only().snapshot_sorted_by_key(),
+            vec![(1, "one"), (2, "two"), (3, "three")]
+        );
     }
 }

@@ -111,7 +111,7 @@ collect spawn-task 'tokio::spawn|tokio::task::spawn|n0_future::task::spawn|task:
 collect clock-timer 'tokio::time|n0_future::time|Instant::now|SystemTime::now|OffsetDateTime::now_utc|Timestamp::now'
 collect entropy-random 'rand::random|rand::rng\(\)|thread_rng|OsRng|getrandom|with_jitter|SecretKey::generate|rng_seed'
 collect network-environment 'UdpSocket|TcpListener::bind|resolve_host|lookup_|netmon::|interfaces::|portmapper'
-collect external-state 'std::fs|tokio::fs|std::env|env::var|Command::new|thread::spawn|spawn_blocking'
+collect external-state 'std::fs|tokio::fs|File::open|OpenOptions|std::env|env::var|Command::new|thread::spawn|spawn_blocking'
 collect unordered-collection 'HashMap|HashSet|FxHashMap|FxHashSet|DashMap'
 
 LC_ALL=C sort -u "$collected" > "$sorted"

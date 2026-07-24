@@ -1,3 +1,5 @@
+#[cfg(wasm_browser)]
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::{pin::Pin, sync::Arc};
 
 use iroh_base::EndpointId;
@@ -32,14 +34,34 @@ pub(crate) struct Runtime {
     tasks: Arc<dyn TaskGroup>,
     #[cfg(not(wasm_browser))]
     failure: Arc<std::sync::Mutex<Option<String>>>,
+    #[cfg(wasm_browser)]
+    max_tasks: usize,
+    #[cfg(wasm_browser)]
+    live_tasks: Arc<AtomicUsize>,
+    #[cfg(wasm_browser)]
+    task_rejections: Arc<AtomicU64>,
+    #[cfg(wasm_browser)]
+    failed: Arc<AtomicBool>,
 }
 
 impl Runtime {
     /// Create a new [`Runtime`] that manages shutting down tasks properly,
     /// whether gracefully or un-gracefully.
-    #[cfg(not(wasm_browser))]
+    #[cfg(all(test, not(wasm_browser)))]
     pub(crate) fn new(id: EndpointId, context: Arc<RuntimeContext>) -> Self {
-        let tasks = context.executor().new_group(None);
+        Self::new_with_limits(id, context, crate::endpoint::EndpointLimits::default())
+    }
+
+    #[cfg(not(wasm_browser))]
+    pub(crate) fn new_with_limits(
+        id: EndpointId,
+        context: Arc<RuntimeContext>,
+        limits: crate::endpoint::EndpointLimits,
+    ) -> Self {
+        let tasks = context.executor().new_group_with_limits(
+            None,
+            iroh_runtime::TaskGroupLimits::new(limits.max_live_tasks()),
+        );
         Self {
             id,
             context,
@@ -48,9 +70,20 @@ impl Runtime {
         }
     }
 
-    #[cfg(wasm_browser)]
+    #[cfg(all(test, wasm_browser))]
     pub(crate) fn new(id: EndpointId) -> Self {
-        Self { id }
+        Self::new_with_limits(id, crate::endpoint::EndpointLimits::default())
+    }
+
+    #[cfg(wasm_browser)]
+    pub(crate) fn new_with_limits(id: EndpointId, limits: crate::endpoint::EndpointLimits) -> Self {
+        Self {
+            id,
+            max_tasks: limits.max_live_tasks().get(),
+            live_tasks: Arc::new(AtomicUsize::new(0)),
+            task_rejections: Arc::new(AtomicU64::new(0)),
+            failed: Arc::new(AtomicBool::new(false)),
+        }
     }
 
     /// Shutdown the runtime gracefully.
@@ -179,7 +212,41 @@ impl noq::Runtime for Runtime {
 
     #[cfg(wasm_browser)]
     fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        wasm_bindgen_futures::spawn_local(future);
+        if self.failed.load(Ordering::Acquire) {
+            return;
+        }
+        let admitted =
+            self.live_tasks
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                    if current < self.max_tasks {
+                        current.checked_add(1)
+                    } else {
+                        None
+                    }
+                });
+        if admitted.is_err() {
+            if self
+                .task_rejections
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                    current.checked_add(1)
+                })
+                .is_err()
+            {
+                self.failed.store(true, Ordering::Release);
+            }
+            self.failed.store(true, Ordering::Release);
+            tracing::error!(
+                me = %self.id.fmt_short(),
+                max_tasks = self.max_tasks,
+                "browser Noq task capacity exhausted; endpoint runtime failed closed"
+            );
+            return;
+        }
+        let live_tasks = self.live_tasks.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let _guard = BrowserTaskPermit { live_tasks };
+            future.await;
+        });
     }
 
     // We're not actually using this function in iroh
@@ -194,6 +261,27 @@ impl noq::Runtime for Runtime {
     #[cfg(not(wasm_browser))]
     fn now(&self) -> std::time::Instant {
         self.context.clock().now()
+    }
+}
+
+#[cfg(wasm_browser)]
+#[derive(Debug)]
+struct BrowserTaskPermit {
+    live_tasks: Arc<AtomicUsize>,
+}
+
+#[cfg(wasm_browser)]
+impl Drop for BrowserTaskPermit {
+    fn drop(&mut self) {
+        let result = self
+            .live_tasks
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                current.checked_sub(1)
+            });
+        assert!(
+            result.is_ok(),
+            "browser endpoint task ledger must not underflow"
+        );
     }
 }
 

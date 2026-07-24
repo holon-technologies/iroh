@@ -113,6 +113,6 @@ impl FrameType {
 
 impl From<FrameType> for VarInt {
     fn from(value: FrameType) -> Self {
-        (value as u32).into()
+        u32::from(value).into()
     }
 }

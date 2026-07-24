@@ -4,8 +4,13 @@
 //! stickiness against flapping" behaviour and is what's installed when no custom
 //! selector is provided.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
+use iroh_base::{CustomAddr, EndpointId, RelayUrl};
 use rustc_hash::FxHashMap;
 use tracing::trace;
 
@@ -22,6 +27,10 @@ const IPV6_RTT_ADVANTAGE: Duration = Duration::from_millis(3);
 /// happens when its biased RTT is at least this much better than the current path's.
 const RTT_SWITCHING_MIN: Duration = Duration::from_millis(5);
 
+fn duration_nanos_i128(duration: Duration) -> i128 {
+    i128::try_from(duration.as_nanos()).expect("std::time::Duration nanoseconds always fit in i128")
+}
+
 /// Whether a transport is a primary path or a backup.
 ///
 /// Primary paths are used preferentially.  Backup paths are only used when no primary
@@ -34,6 +43,44 @@ enum TransportType {
     /// A backup path: only used when no primary path is available.
     Backup,
 }
+
+/// Canonical identity key used only when preference tier and biased RTT are equal.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum PathTieBreak {
+    Ip {
+        remote: SocketAddr,
+        local: Option<IpAddr>,
+    },
+    Relay {
+        url: RelayUrl,
+        endpoint_id: EndpointId,
+    },
+    Custom {
+        remote: CustomAddr,
+        local: Option<CustomAddr>,
+    },
+}
+
+impl From<&FourTuple> for PathTieBreak {
+    fn from(path: &FourTuple) -> Self {
+        match path {
+            FourTuple::Ip { remote, local } => Self::Ip {
+                remote: *remote,
+                local: *local,
+            },
+            FourTuple::Relay { url, endpoint_id } => Self::Relay {
+                url: url.clone(),
+                endpoint_id: *endpoint_id,
+            },
+            FourTuple::Custom { remote, local } => Self::Custom {
+                remote: remote.clone(),
+                local: local.clone(),
+            },
+        }
+    }
+}
+
+type PathSortKey = (TransportType, i128, PathTieBreak);
 
 /// Bias configuration for a single transport kind.
 ///
@@ -64,14 +111,16 @@ impl TransportBias {
 
     /// Adds an RTT advantage to this transport, making it more preferred.
     pub(crate) fn with_rtt_advantage(mut self, advantage: Duration) -> Self {
-        self.rtt_bias -= advantage.as_nanos() as i128;
+        self.rtt_bias = self.rtt_bias.saturating_sub(duration_nanos_i128(advantage));
         self
     }
 
     /// Adds an RTT disadvantage to this transport, making it less preferred.
     #[cfg(all(test, feature = "unstable-custom-transports"))]
     pub(crate) fn with_rtt_disadvantage(mut self, disadvantage: Duration) -> Self {
-        self.rtt_bias += disadvantage.as_nanos() as i128;
+        self.rtt_bias = self
+            .rtt_bias
+            .saturating_add(duration_nanos_i128(disadvantage));
         self
     }
 }
@@ -126,10 +175,10 @@ impl BiasedRttPathSelector {
     }
 
     /// Computes the sort key for a path: lower is better.
-    fn sort_key(&self, addr: &FourTuple, rtt: Duration) -> (TransportType, i128) {
+    fn sort_key(&self, addr: &FourTuple, rtt: Duration) -> PathSortKey {
         let bias = self.bias_for(addr);
-        let biased_rtt = (rtt.as_nanos() as i128).saturating_add(bias.rtt_bias);
-        (bias.transport_type, biased_rtt)
+        let biased_rtt = duration_nanos_i128(rtt).saturating_add(bias.rtt_bias);
+        (bias.transport_type, biased_rtt, PathTieBreak::from(addr))
     }
 }
 
@@ -140,8 +189,8 @@ impl PathSelector for BiasedRttPathSelector {
         // appears multiple times (one path per connection), `min` over `sort_key`
         // naturally picks the lowest-RTT instance — no separate aggregation needed.
         let current = ctx.current();
-        let mut best: Option<(PathSelectionData<'_>, (TransportType, i128))> = None;
-        let mut current_key: Option<(TransportType, i128)> = None;
+        let mut best: Option<(PathSelectionData<'_>, PathSortKey)> = None;
+        let mut current_key: Option<PathSortKey> = None;
 
         trace!("dumping path RTTs");
         for psd in ctx.paths() {
@@ -154,21 +203,23 @@ impl PathSelector for BiasedRttPathSelector {
             trace!(%network_path, ?rtt);
             let key = self.sort_key(network_path, rtt);
 
-            if Some(network_path) == current && current_key.is_none_or(|c| key < c) {
-                current_key = Some(key);
+            if Some(network_path) == current
+                && current_key.as_ref().is_none_or(|current| &key < current)
+            {
+                current_key = Some(key.clone());
             }
-            if best.as_ref().is_none_or(|(_, b)| key < *b) {
+            if best.as_ref().is_none_or(|(_, candidate)| &key < candidate) {
                 best = Some((psd, key));
             }
         }
 
         let mut selection = PathSelection::none();
-        let Some((best_psd, (best_tier, best_biased))) = best else {
+        let Some((best_psd, (best_tier, best_biased, _))) = best else {
             return selection;
         };
 
         // If we have no current path or no data for it, switch to the best.
-        let Some((current_tier, current_biased)) = current_key else {
+        let Some((current_tier, current_biased, _)) = current_key else {
             selection.set(&best_psd);
             return selection;
         };
@@ -176,7 +227,9 @@ impl PathSelector for BiasedRttPathSelector {
         if current_tier != best_tier {
             // Always switch across tiers (e.g. relay -> primary).
             selection.set(&best_psd);
-        } else if best_biased + RTT_SWITCHING_MIN.as_nanos() as i128 <= current_biased {
+        } else if best_biased.saturating_add(duration_nanos_i128(RTT_SWITCHING_MIN))
+            <= current_biased
+        {
             // For the same tier, only switch when biased RTT is meaningfully better.
             selection.set(&best_psd);
         }
@@ -309,6 +362,39 @@ mod tests {
         let v4_2 = v4(2);
         let chosen = select_with_default(None, vec![psd(&v4_1, 20), psd(&v4_2, 10)]);
         assert_eq!(chosen.as_ref(), Some(&v4_2));
+    }
+
+    #[test]
+    fn exact_ties_use_a_stable_network_path_key() {
+        let v4_1 = v4(1);
+        let v4_2 = v4(2);
+
+        let forward = select_with_default(None, vec![psd(&v4_2, 10), psd(&v4_1, 10)]);
+        let reverse = select_with_default(None, vec![psd(&v4_1, 10), psd(&v4_2, 10)]);
+
+        assert_eq!(
+            forward, reverse,
+            "path iteration order must not choose a winner"
+        );
+        assert_eq!(forward.as_ref(), Some(&v4_1));
+    }
+
+    #[test]
+    #[cfg(feature = "unstable-custom-transports")]
+    fn transport_bias_arithmetic_saturates_at_i128_limits() {
+        let advantage = TransportBias {
+            transport_type: TransportType::Primary,
+            rtt_bias: i128::MIN + 1,
+        }
+        .with_rtt_advantage(Duration::MAX);
+        assert_eq!(advantage.rtt_bias, i128::MIN);
+
+        let disadvantage = TransportBias {
+            transport_type: TransportType::Primary,
+            rtt_bias: i128::MAX - 1,
+        }
+        .with_rtt_disadvantage(Duration::MAX);
+        assert_eq!(disadvantage.rtt_bias, i128::MAX);
     }
 
     #[test]

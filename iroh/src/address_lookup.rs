@@ -281,6 +281,8 @@ pub enum AddressLookupFailed {
     NoResults { errors: Vec<Error> },
     #[error("Pending remote resolve capacity is full (maximum {maximum})")]
     ResolveCapacityFull { maximum: usize },
+    #[error("Remote-state actor capacity is full (maximum {maximum})")]
+    ActorCapacityFull { maximum: usize },
     #[error("Address lookup emitted more than {maximum} items")]
     ItemCapacityFull { maximum: usize },
     #[error("Address lookup exceeded its {duration:?} deadline")]
@@ -1318,10 +1320,13 @@ mod tests {
     }
 
     fn system_time_now() -> u64 {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("time drift")
-            .as_micros() as u64
+        u64::try_from(
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("time drift")
+                .as_micros(),
+        )
+        .expect("test system time fits in microseconds")
     }
 }
 
@@ -1398,7 +1403,7 @@ mod test_dns_pkarr {
             .expect("infallible");
         let resolver = dns_pkarr_server.dns_resolver();
         let publisher = PkarrPublisher::builder(dns_pkarr_server.pkarr_url().clone())
-            .build(secret_key, tls_config);
+            .build(secret_key, tls_config)?;
         let user_data: UserData = "foobar".parse().unwrap();
         let data = EndpointData::from_iter(relay_url.clone()).with_user_data(user_data.clone());
         // does not block, update happens in background task

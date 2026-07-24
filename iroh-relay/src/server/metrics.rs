@@ -76,6 +76,8 @@ pub struct Metrics {
     pub admission_rate_limited: Counter,
     /// Accepted sockets rejected because all pending-establishment slots are occupied.
     pub admission_pending_full: Counter,
+    /// Captive-portal sockets rejected because all handler slots are occupied.
+    pub captive_portal_admission_full: Counter,
     /// Authenticated sessions rejected because global session capacity is full.
     pub admission_global_session_full: Counter,
     /// Authenticated sessions rejected because endpoint session capacity is full.
@@ -127,6 +129,9 @@ pub struct Metrics {
 
     /// Number of QAD QUIC connections that aborted before completing the handshake.
     pub qad_incoming_error: Counter,
+
+    /// Incoming QAD connections refused because all connection slots are occupied.
+    pub qad_admission_full: Counter,
 
     /// Number of accepted QAD QUIC connections.
     ///

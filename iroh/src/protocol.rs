@@ -57,7 +57,7 @@ use tracing::{Instrument, debug, error, field::Empty, info_span, trace, warn};
 
 use crate::{
     Endpoint,
-    endpoint::{Accepting, Connection, RemoteEndpointIdError, quic},
+    endpoint::{Accepting, Connection, RemoteEndpointIdError, limits::AdmissionLedger, quic},
 };
 
 /// The built router.
@@ -512,6 +512,7 @@ impl RouterBuilder {
 
         let mut join_set = JoinSet::new();
         let endpoint = self.endpoint.clone();
+        let handler_admission = AdmissionLedger::new(endpoint.limits().max_connections());
 
         // Our own shutdown works with a cancellation token.
         let cancel = CancellationToken::new();
@@ -559,6 +560,19 @@ impl RouterBuilder {
                             break; // Endpoint is closed.
                         };
 
+                        let handler_permit = match handler_admission.try_acquire() {
+                            Ok(permit) => permit,
+                            Err(_) => {
+                                endpoint
+                                    .internal_metrics()
+                                    .socket
+                                    .router_handler_capacity_rejections
+                                    .inc();
+                                incoming.refuse();
+                                continue;
+                            }
+                        };
+
                         if let Some(filter) = &incoming_filter {
                             match filter(&incoming) {
                                 IncomingFilterOutcome::Accept => {}
@@ -588,6 +602,7 @@ impl RouterBuilder {
                         let token = handler_cancel_token.child_token();
                         let span = info_span!("router.accept", me=%endpoint.id().fmt_short(), remote=Empty, alpn=Empty);
                         join_set.spawn(async move {
+                            let _handler_permit = handler_permit;
                             token.run_until_cancelled(handle_connection(incoming, protocols)).await
                         }.instrument(span));
                     },

@@ -19,6 +19,7 @@ crate-type = ["lib", "cdylib"]
 workspace = true
 
 [dependencies]
+async-trait = { version = "0.1.77", optional = true }
 blake3 = "1.8.2"
 bytes = "1.11"
 data-encoding = "2.6.0"
@@ -50,7 +51,7 @@ postcard = { version = "1", default-features = false, features = [
 noq = { version = "1.1.0", default-features = false, features = ["rustls"] }
 noq-proto = { version = "1.1.0", default-features = false }
 rand = "0.10"
-reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream"] }
 rustls = { version = "0.23.33", default-features = false }
 rustls-platform-verifier = { version = "0.7.0", optional = true }
 serde = { version = "1", features = ["derive", "rc"] }
@@ -81,6 +82,7 @@ tokio-rustls-acme = { version = "0.9", optional = true }
 tokio-websockets = { version = "0.13", features = ["rustls-bring-your-own-connector", "getrandom", "rand", "server", "sha1_smol"], optional = true } # server-side websocket implementation
 simdutf8 = { version = "0.1.5", optional = true } # minimal version fix
 sha1 = { version = "0.11.0", optional = true }
+sha2 = { version = "0.10.8", optional = true }
 toml = { version = "1.0", optional = true }
 serde_json = { version = "1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
@@ -124,6 +126,7 @@ serde_json = "1"
 n0-tracing-test = "0.3"
 # Used by the embedding integration tests.
 axum = { version = "0.8", features = ["ws"] }
+tempfile = "3.23.0"
 
 [build-dependencies]
 cfg_aliases = "0.2.2"
@@ -135,6 +138,7 @@ platform-verifier = ["dep:rustls-platform-verifier"]
 server = [
     "metrics",
     "tokio/signal",
+    "dep:async-trait",
     "dep:clap",
     "dep:dashmap",
     "dep:rcgen",
@@ -146,6 +150,7 @@ server = [
     "dep:tokio-websockets",
     "dep:simdutf8",
     "dep:sha1",
+    "dep:sha2",
     "dep:toml",
     "dep:serde_json",
     "dep:tracing-subscriber",

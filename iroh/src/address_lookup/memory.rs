@@ -227,7 +227,8 @@ impl AddressLookup for MemoryLookup {
                     .last_updated
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .expect("time drift")
-                    .as_micros() as u64;
+                    .as_micros();
+                let last_updated = u64::try_from(last_updated).unwrap_or(u64::MAX);
                 let item = Item::new(
                     EndpointInfo::from_parts(endpoint_id, endpoint_info.data.clone()),
                     self.provenance,

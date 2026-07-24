@@ -19,8 +19,9 @@ pub use decision::{
 pub use id::{DecisionId, IdAllocator, IdExhausted, TaskId, TimerId, TraceSequence};
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 pub use task::{
-    BoxedTask, Executor, OwnedTaskHandle, SpawnError, TaskCompletion, TaskControl, TaskGroup,
-    TaskGroupError, TaskGroupSnapshot, TaskHandleError, TaskOutcome, TokioExecutor,
+    BoxedTask, DEFAULT_MAX_LIVE_TASKS_PER_GROUP, Executor, OwnedTaskHandle, SpawnError,
+    TaskCompletion, TaskControl, TaskGroup, TaskGroupCapacitySnapshot, TaskGroupError,
+    TaskGroupLimits, TaskGroupSnapshot, TaskHandleError, TaskOutcome, TokioExecutor,
 };
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 pub use time::TokioClock;

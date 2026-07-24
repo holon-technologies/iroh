@@ -69,6 +69,7 @@ pub fn quic_config() -> QuicConfig {
     QuicConfig {
         bind_addr: (Ipv4Addr::UNSPECIFIED, 0).into(),
         server_config: Some(server_config),
+        max_connections: crate::quic::DEFAULT_MAX_QAD_CONNECTIONS,
     }
 }
 

@@ -1,5 +1,6 @@
 use std::{
     future::{Future, poll_fn},
+    num::NonZeroUsize,
     pin::Pin,
     sync::{
         Arc, Mutex,
@@ -9,7 +10,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use iroh_runtime::{RootSeed, TaskKind, Timer, TraceEventKind};
+use iroh_runtime::{
+    RootSeed, SpawnError, TaskGroupCapacitySnapshot, TaskGroupLimits, TaskKind, Timer,
+    TraceEventKind,
+};
 use iroh_sim::{
     EventClass, Kernel, KernelConfig, KernelError, Quiescence, ResourceKind, TraceBuffer,
     normalized_trace_json,
@@ -73,6 +77,64 @@ fn seeded_ready_tasks_are_selected_without_duplicate_wakes() {
         &event.event,
         TraceEventKind::Decision { path, .. } if path == "kernel/ready-task"
     )));
+}
+
+#[test]
+fn kernel_task_group_enforces_the_requested_group_limit_before_polling() {
+    let kernel = kernel();
+    let context = kernel.runtime_context(RootSeed::new([8; 32]), SystemTime::UNIX_EPOCH);
+    let limits = TaskGroupLimits::new(NonZeroUsize::new(2).unwrap());
+    let group = context.executor().new_group_with_limits(None, limits);
+    group
+        .spawn(
+            TaskKind::Protocol,
+            "first",
+            Box::pin(std::future::pending()),
+        )
+        .unwrap();
+    group
+        .spawn(
+            TaskKind::Protocol,
+            "second",
+            Box::pin(std::future::pending()),
+        )
+        .unwrap();
+    let dropped = Arc::new(AtomicBool::new(false));
+    let rejected_guard = DropFlag(dropped.clone());
+
+    let rejected = group.spawn(
+        TaskKind::Protocol,
+        "rejected",
+        Box::pin(async move {
+            let _guard = rejected_guard;
+            std::future::pending::<()>().await;
+        }),
+    );
+
+    assert!(matches!(
+        rejected,
+        Err(SpawnError::ResourceLimit {
+            resource: "live_tasks",
+            limit: 2,
+        })
+    ));
+    assert!(dropped.load(Ordering::SeqCst));
+    assert_eq!(
+        group.capacity_snapshot(),
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: 2,
+            live_tasks: 2,
+            high_water_live_tasks: 2,
+            rejected_spawns: 1,
+        }
+    );
+
+    group.cancel();
+    group.close();
+    assert_eq!(
+        kernel.run_until_idle().unwrap().quiescence,
+        Quiescence::Complete
+    );
 }
 
 #[test]
@@ -300,7 +362,10 @@ fn virtual_timer_and_wall_clock_advance_without_sleeping() {
 
     assert_eq!(
         *observed.lock().unwrap(),
-        Some(Duration::from_secs(7 * 24 * 60 * 60).as_nanos() as u64)
+        Some(
+            u64::try_from(Duration::from_secs(7 * 24 * 60 * 60).as_nanos())
+                .expect("seven days in nanoseconds fits in u64"),
+        )
     );
     assert_eq!(
         wall_clock.now_system(),

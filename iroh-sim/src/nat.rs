@@ -756,7 +756,13 @@ impl NatTable {
         let offset = self.port_decisions.range_u64(0..slots)?;
         for attempt in 0..slots {
             let ordinal = (offset + attempt) % slots;
-            let port = self.config.port_start + ordinal as u16;
+            let ordinal =
+                u16::try_from(ordinal).expect("NAT port ordinal is bounded by the u16 port range");
+            let port = self
+                .config
+                .port_start
+                .checked_add(ordinal)
+                .expect("NAT port ordinal is bounded by the configured inclusive range");
             let candidate = SocketAddr::new(IpAddr::V4(self.config.public_ip), port);
             if !self.by_external.contains_key(&candidate) {
                 return Ok(candidate);

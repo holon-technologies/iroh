@@ -293,9 +293,13 @@ impl RelaySender {
         dest_endpoint: EndpointId,
         transmit: &Transmit<'_>,
     ) -> Poll<io::Result<()>> {
+        let segment_size = match relay_segment_size(transmit.segment_size) {
+            Ok(segment_size) => segment_size,
+            Err(error) => return Poll::Ready(Err(error)),
+        };
         match ready!(self.sender.poll_reserve(cx)) {
             Ok(()) => {
-                let contents = datagrams_from_transmit(transmit);
+                let contents = datagrams_from_transmit(transmit, segment_size);
                 let item = RelaySendItem {
                     remote_endpoint: dest_endpoint,
                     url: dest_url.clone(),
@@ -317,18 +321,31 @@ impl RelaySender {
     }
 }
 
+fn relay_segment_size(segment_size: Option<usize>) -> io::Result<Option<NonZeroU16>> {
+    segment_size
+        .map(|segment_size| {
+            u16::try_from(segment_size)
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "relay datagram segment size exceeds the u16 wire format",
+                    )
+                })
+                .map(NonZeroU16::new)
+        })
+        .transpose()
+        .map(Option::flatten)
+}
+
 /// Translate a UDP transmit to the `Datagrams` type for sending over the relay.
-fn datagrams_from_transmit(transmit: &Transmit<'_>) -> Datagrams {
+fn datagrams_from_transmit(transmit: &Transmit<'_>, segment_size: Option<NonZeroU16>) -> Datagrams {
     Datagrams {
         ecn: transmit.ecn.map(|ecn| match ecn {
             noq_udp::EcnCodepoint::Ect0 => noq_proto::EcnCodepoint::Ect0,
             noq_udp::EcnCodepoint::Ect1 => noq_proto::EcnCodepoint::Ect1,
             noq_udp::EcnCodepoint::Ce => noq_proto::EcnCodepoint::Ce,
         }),
-        segment_size: transmit
-            .segment_size
-            .map(|ss| ss as u16)
-            .and_then(NonZeroU16::new),
+        segment_size,
         contents: Bytes::copy_from_slice(transmit.contents),
     }
 }
@@ -343,6 +360,14 @@ mod tests {
 
     use super::*;
     use crate::defaults::staging;
+
+    #[test]
+    fn relay_segment_size_rejects_values_outside_the_wire_format() {
+        let too_large = usize::from(u16::MAX) + 1;
+        assert!(relay_segment_size(Some(too_large)).is_err());
+        assert_eq!(relay_segment_size(Some(1)).unwrap(), NonZeroU16::new(1));
+        assert_eq!(relay_segment_size(None).unwrap(), None);
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_relay_datagram_queue() {

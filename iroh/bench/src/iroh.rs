@@ -207,9 +207,11 @@ async fn drain_stream(
 async fn send_data_on_stream(stream: &mut SendStream, stream_size: u64) -> Result<()> {
     const DATA: &[u8] = &[0xAB; 1024 * 1024];
     let bytes_data = Bytes::from_static(DATA);
+    let data_len = u64::try_from(DATA.len()).expect("benchmark chunk length fits in u64");
 
-    let full_chunks = stream_size / (DATA.len() as u64);
-    let remaining = (stream_size % (DATA.len() as u64)) as usize;
+    let full_chunks = stream_size / data_len;
+    let remaining = usize::try_from(stream_size % data_len)
+        .expect("remainder is smaller than the in-memory benchmark chunk");
 
     for _ in 0..full_chunks {
         stream

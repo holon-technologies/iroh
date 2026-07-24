@@ -17,9 +17,10 @@ use std::{
 use iroh_runtime::{
     BoxedTask, Clock, ClockDomain, ClockError, DecisionError, DecisionSource, DecisionStream,
     Executor, IdAllocator, OwnedTaskHandle, RootSeed, RuntimeContext, SeededDecisionSource,
-    SpawnError, TaskCompletion, TaskControl, TaskGroup, TaskGroupError, TaskGroupSnapshot,
-    TaskHandleError, TaskId, TaskKind, TaskMetadata, TaskOutcome, Timer, TimerId, TraceContext,
-    TraceDecisionObserver, TraceEventKind, TraceRecordError, TraceRecorder, TraceSink, WallClock,
+    SpawnError, TaskCompletion, TaskControl, TaskGroup, TaskGroupCapacitySnapshot, TaskGroupError,
+    TaskGroupLimits, TaskGroupSnapshot, TaskHandleError, TaskId, TaskKind, TaskMetadata,
+    TaskOutcome, Timer, TimerId, TraceContext, TraceDecisionObserver, TraceEventKind,
+    TraceRecordError, TraceRecorder, TraceSink, WallClock,
 };
 
 use crate::{LedgerError, ResourceKind, ResourceLedger, ResourceLedgerSnapshot, ResourceToken};
@@ -914,12 +915,21 @@ impl Executor for KernelExecutor {
     }
 
     fn new_group(&self, parent: Option<TaskId>) -> Arc<dyn TaskGroup> {
+        self.new_group_with_limits(parent, TaskGroupLimits::default())
+    }
+
+    fn new_group_with_limits(
+        &self,
+        parent: Option<TaskId>,
+        limits: TaskGroupLimits,
+    ) -> Arc<dyn TaskGroup> {
         let group: Arc<KernelTaskGroup> = Arc::new_cyclic(|self_ref| KernelTaskGroup {
             parent,
             task_ids: self.task_ids.clone(),
             kernel: self.inner.clone(),
             self_ref: self_ref.clone(),
             state: Mutex::new(GroupState::default()),
+            limits,
         });
         group
     }
@@ -933,6 +943,8 @@ struct GroupState {
     tasks: BTreeMap<TaskId, TaskMetadata>,
     join_wakers: Vec<Waker>,
     failure: Option<TaskGroupError>,
+    high_water_live_tasks: usize,
+    rejected_spawns: u64,
 }
 
 #[derive(Debug)]
@@ -942,6 +954,7 @@ struct KernelTaskGroup {
     kernel: Weak<KernelInner>,
     self_ref: Weak<KernelTaskGroup>,
     state: Mutex<GroupState>,
+    limits: TaskGroupLimits,
 }
 
 impl KernelTaskGroup {
@@ -971,11 +984,28 @@ impl TaskGroup for KernelTaskGroup {
         let kernel = self
             .inner_kernel()
             .map_err(|_| SpawnError::BackendUnavailable)?;
+        let mut state = self.state.lock().expect("task group state lock poisoned");
+        let max_live_tasks = self.limits.max_live_tasks().get();
+        if !state.closed && state.tasks.len() >= max_live_tasks {
+            let Some(rejected_spawns) = state.rejected_spawns.checked_add(1) else {
+                state.closed = true;
+                state.failure = Some(TaskGroupError::CapacityCounterExhausted {
+                    resource: "live_tasks",
+                });
+                return Err(SpawnError::CapacityCounterExhausted {
+                    resource: "live_tasks",
+                });
+            };
+            state.rejected_spawns = rejected_spawns;
+            return Err(SpawnError::ResourceLimit {
+                resource: "live_tasks",
+                limit: u64::try_from(max_live_tasks).unwrap_or(u64::MAX),
+            });
+        }
         let id = self
             .task_ids
             .allocate()
             .map_err(|_| SpawnError::IdExhausted)?;
-        let mut state = self.state.lock().expect("task group state lock poisoned");
         let child_ordinal = state.next_ordinal;
         state.next_ordinal = state
             .next_ordinal
@@ -1032,6 +1062,7 @@ impl TaskGroup for KernelTaskGroup {
             )
             .map_err(SpawnError::Trace)?;
         state.tasks.insert(id, metadata.clone());
+        state.high_water_live_tasks = state.high_water_live_tasks.max(state.tasks.len());
         let completion = Arc::new(CompletionState {
             state: Mutex::new(CompletionInner::default()),
         });
@@ -1095,6 +1126,16 @@ impl TaskGroup for KernelTaskGroup {
             closed: state.closed,
             cancelled: state.cancelled,
             tasks: state.tasks.values().cloned().collect(),
+        }
+    }
+
+    fn capacity_snapshot(&self) -> TaskGroupCapacitySnapshot {
+        let state = self.state.lock().expect("task group state lock poisoned");
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: self.limits.max_live_tasks().get(),
+            live_tasks: state.tasks.len(),
+            high_water_live_tasks: state.high_water_live_tasks,
+            rejected_spawns: state.rejected_spawns,
         }
     }
 

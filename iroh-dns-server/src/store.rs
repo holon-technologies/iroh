@@ -10,7 +10,7 @@ use iroh_dns::pkarr::{SignedPacket, SignedPacketVerifyError, Timestamp};
 use lru::LruCache;
 use mainline::{Dht, DhtBuilder, MutableItem};
 use n0_error::{Result, StdResultExt};
-pub(crate) use signed_packets::{NonZeroDuration, Options};
+pub(crate) use signed_packets::{NonZeroDuration, Options, StoreShutdownError};
 use tokio::sync::Mutex;
 use tracing::{debug, trace, warn};
 use ttl_cache::TtlCache;
@@ -53,6 +53,11 @@ impl ZoneStore {
         self.store.is_ready()
     }
 
+    /// Cancels and joins both persistent-store workers.
+    pub(crate) async fn shutdown(&self) -> std::result::Result<(), StoreShutdownError> {
+        self.store.shutdown().await
+    }
+
     /// Create a persistent store
     pub(crate) fn persistent(
         path: impl AsRef<Path>,
@@ -76,16 +81,16 @@ impl ZoneStore {
     ///
     /// Optionally set custom bootstrap nodes. If `bootstrap` is empty it will use the default
     /// mainline bootstrap nodes.
-    pub(crate) fn with_mainline_fallback(self, bootstrap: BootstrapOption) -> Self {
+    pub(crate) fn with_mainline_fallback(self, bootstrap: BootstrapOption) -> Result<Self> {
         let mut builder = DhtBuilder::default();
         if let BootstrapOption::Custom(ref nodes) = bootstrap {
             builder.bootstrap(nodes);
         }
-        let dht = builder.build().expect("failed to build DHT node");
-        Self {
+        let dht = finish_mainline_build(builder.build())?;
+        Ok(Self {
             dht: Some(dht),
             ..self
-        }
+        })
     }
 
     /// Create a new zone store.
@@ -200,14 +205,23 @@ impl ZoneStore {
     }
 }
 
+fn finish_mainline_build(result: std::io::Result<Dht>) -> Result<Dht> {
+    result.anyerr()
+}
+
 /// Convert a mainline [`MutableItem`] to a [`SignedPacket`].
 fn mutable_item_to_signed_packet(
     item: &MutableItem,
 ) -> Result<SignedPacket, SignedPacketVerifyError> {
+    let timestamp = u64::try_from(item.seq()).map_err(|_| {
+        n0_error::e!(SignedPacketVerifyError::InvalidTimestamp {
+            timestamp: item.seq(),
+        })
+    })?;
     SignedPacket::from_parts_unchecked(
         item.key(),
         item.signature(),
-        Timestamp::from_micros(item.seq() as u64),
+        Timestamp::from_micros(timestamp),
         item.value(),
     )
 }
@@ -275,7 +289,7 @@ impl ZoneCache {
         self.dht_cache.insert(pubkey, zone, DHT_CACHE_TTL);
         self.metrics
             .cache_zones_dht
-            .set(self.dht_cache.iter().count() as i64);
+            .set(i64::try_from(self.dht_cache.iter().count()).unwrap_or(i64::MAX));
         Ok(res)
     }
 
@@ -294,7 +308,9 @@ impl ZoneCache {
                 pubkey,
                 CachedZone::from_signed_packet(signed_packet).anyerr()?,
             );
-            self.metrics.cache_zones.set(self.cache.len() as i64);
+            self.metrics
+                .cache_zones
+                .set(i64::try_from(self.cache.len()).unwrap_or(i64::MAX));
             trace!("inserted into cache");
             Ok(())
         }
@@ -303,10 +319,12 @@ impl ZoneCache {
     fn remove(&mut self, pubkey: &PublicKeyBytes) {
         self.cache.pop(pubkey);
         self.dht_cache.remove(pubkey);
-        self.metrics.cache_zones.set(self.cache.len() as i64);
+        self.metrics
+            .cache_zones
+            .set(i64::try_from(self.cache.len()).unwrap_or(i64::MAX));
         self.metrics
             .cache_zones_dht
-            .set(self.dht_cache.iter().count() as i64);
+            .set(i64::try_from(self.dht_cache.iter().count()).unwrap_or(i64::MAX));
     }
 }
 
@@ -334,5 +352,37 @@ impl CachedZone {
         trace!(name=%name, typ=%record_type, "resolve in zone");
         let key = RrKey::new(name.into(), record_type);
         self.records.get(&key).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mainline_construction_failure_is_reported() {
+        let error = finish_mainline_build(Err(std::io::Error::other(
+            "synthetic DHT thread spawn failure",
+        )))
+        .expect_err("DHT construction failure must remain an operating error");
+
+        assert!(
+            error
+                .to_string()
+                .contains("synthetic DHT thread spawn failure")
+        );
+    }
+
+    #[test]
+    fn negative_mainline_sequence_is_rejected() {
+        let item = MutableItem::new_signed_unchecked([0; 32], [0; 64], &[], -1, None);
+
+        let error = mutable_item_to_signed_packet(&item)
+            .expect_err("negative mainline sequence must not wrap into a timestamp");
+
+        assert!(matches!(
+            error,
+            SignedPacketVerifyError::InvalidTimestamp { timestamp: -1, .. }
+        ));
     }
 }

@@ -30,6 +30,7 @@ tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
 criterion = "0.8.0"
 n0-error = "1.0.0"
 proptest = "1.11.0"
+tempfile = "3.23.0"
 
 [[bench]]
 name = "stage4_environment"

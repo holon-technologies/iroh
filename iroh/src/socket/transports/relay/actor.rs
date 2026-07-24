@@ -70,7 +70,14 @@ use url::Url;
 use crate::dns::DnsResolver;
 #[cfg(not(wasm_browser))]
 use crate::runtime::{Runtime, RuntimeInterval, RuntimeSleep, RuntimeTimeout};
-use crate::{endpoint::RelayStatus, net_report::Report, socket::Metrics as SocketMetrics};
+use crate::{
+    endpoint::{
+        EndpointLimits, RelayStatus,
+        limits::{AdmissionError, AdmissionLedger, AdmissionPermit},
+    },
+    net_report::Report,
+    socket::Metrics as SocketMetrics,
+};
 
 /// How long a non-home relay connection needs to be idle (last written to) before we close it.
 const RELAY_INACTIVE_CLEANUP_TIME: Duration = Duration::from_secs(60);
@@ -1201,24 +1208,47 @@ pub(super) struct RelayActor {
     active_relays: BTreeMap<RelayUrl, ActiveRelayHandle>,
     /// The tasks for the [`ActiveRelayActor`]s in `active_relays` above.
     #[cfg(wasm_browser)]
-    active_relay_tasks: JoinSet<()>,
+    active_relay_tasks: JoinSet<AdmissionPermit>,
     /// Native task execution is owned by the endpoint runtime; this channel retains the relay
     /// actor's completion/reap protocol.
     #[cfg(not(wasm_browser))]
-    active_relay_completions_tx: mpsc::UnboundedSender<ActiveRelayCompletion>,
+    active_relay_completions_tx: mpsc::Sender<ActiveRelayCompletion>,
     #[cfg(not(wasm_browser))]
-    active_relay_completions_rx: mpsc::UnboundedReceiver<ActiveRelayCompletion>,
+    active_relay_completions_rx: mpsc::Receiver<ActiveRelayCompletion>,
     #[cfg(not(wasm_browser))]
     active_relay_task_count: usize,
     #[cfg(not(wasm_browser))]
     runtime: Arc<Runtime>,
+    admission: Arc<AdmissionLedger>,
     cancel_token: CancellationToken,
 }
 
 #[cfg(not(wasm_browser))]
 enum ActiveRelayCompletion {
-    Finished,
-    Panicked,
+    Finished(AdmissionPermit),
+    Panicked(AdmissionPermit),
+}
+
+#[stack_error(derive, add_meta)]
+#[derive(Clone)]
+enum ActiveRelayAdmissionError {
+    #[error("active-relay actor capacity is full")]
+    CapacityFull,
+    #[error("active-relay actor accounting exhausted")]
+    CounterExhausted,
+    #[error("active-relay actor task spawn was rejected")]
+    SpawnRejected,
+    #[error("active-relay actor construction failed")]
+    ConstructionFailed,
+}
+
+impl From<AdmissionError> for ActiveRelayAdmissionError {
+    fn from(error: AdmissionError) -> Self {
+        match error {
+            AdmissionError::CapacityFull => e!(Self::CapacityFull),
+            AdmissionError::CounterExhausted => e!(Self::CounterExhausted),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1240,6 +1270,7 @@ pub(crate) struct Config {
     pub relay_connector: Option<Arc<dyn crate::simulation::RelayConnector>>,
     #[cfg(not(wasm_browser))]
     pub initial_relay: Option<RelayUrl>,
+    pub limits: EndpointLimits,
 }
 
 /// Connection state of the home relay.
@@ -1364,7 +1395,9 @@ impl RelayActor {
         #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
     ) -> Self {
         #[cfg(not(wasm_browser))]
-        let (active_relay_completions_tx, active_relay_completions_rx) = mpsc::unbounded_channel();
+        let (active_relay_completions_tx, active_relay_completions_rx) =
+            mpsc::channel(config.limits.max_active_relay_actors().get());
+        let admission = AdmissionLedger::new(config.limits.max_active_relay_actors());
         Self {
             config,
             relay_datagram_recv_queue,
@@ -1379,6 +1412,7 @@ impl RelayActor {
             active_relay_task_count: 0,
             #[cfg(not(wasm_browser))]
             runtime,
+            admission,
             cancel_token,
         }
     }
@@ -1420,7 +1454,7 @@ impl RelayActor {
                     #[cfg(wasm_browser)]
                     if let Some(res) = completion {
                         match res {
-                            Ok(()) => (),
+                            Ok(permit) => drop(permit),
                             Err(err) if err.is_panic() => {
                                 error!("ActiveRelayActor task panicked: {err:#?}");
                             }
@@ -1432,9 +1466,16 @@ impl RelayActor {
                     }
                     #[cfg(not(wasm_browser))]
                     if let Some(completion) = completion {
-                        self.active_relay_task_count -= 1;
-                        if matches!(completion, ActiveRelayCompletion::Panicked) {
-                            error!("ActiveRelayActor task panicked");
+                        self.active_relay_task_count = self
+                            .active_relay_task_count
+                            .checked_sub(1)
+                            .expect("active-relay task count must not underflow");
+                        match completion {
+                            ActiveRelayCompletion::Finished(permit) => drop(permit),
+                            ActiveRelayCompletion::Panicked(permit) => {
+                                drop(permit);
+                                error!("ActiveRelayActor task panicked");
+                            }
                         }
                     }
                     self.reap_active_relays();
@@ -1522,9 +1563,17 @@ impl RelayActor {
         item: RelaySendItem,
     ) -> Option<impl Future<Output = ()> + use<>> {
         let url = item.url.clone();
-        let handle = self
+        let handle = match self
             .active_relay_handle_for_endpoint(&item.url, &item.remote_endpoint)
-            .await;
+            .await
+        {
+            Ok(handle) => handle,
+            Err(error) => {
+                self.config.metrics.active_relay_datagrams_rejected.inc();
+                warn!(?url, %error, "Dropped datagram(s): active-relay capacity unavailable");
+                return None;
+            }
+        };
         match handle.datagrams_send_queue.try_send(item) {
             Ok(()) => None,
             Err(mpsc::error::TrySendError::Closed(_)) => {
@@ -1582,7 +1631,14 @@ impl RelayActor {
         }))
         .await;
         // Ensure we have an ActiveRelayActor for the current home relay.
-        self.active_relay_handle(home_url);
+        if let Err(error) = self.active_relay_handle(home_url.clone()) {
+            self.config.my_relay.set_status(
+                &home_url,
+                RelayConnectionState::Disconnected {
+                    last_error: Some(Arc::new(AnyError::from(error))),
+                },
+            );
+        }
     }
 
     /// Returns the handle for the [`ActiveRelayActor`] to reach `remote_endpoint`.
@@ -1594,9 +1650,9 @@ impl RelayActor {
         &mut self,
         url: &RelayUrl,
         remote_endpoint: &EndpointId,
-    ) -> ActiveRelayHandle {
+    ) -> Result<ActiveRelayHandle, ActiveRelayAdmissionError> {
         if let Some(handle) = self.active_relays.get(url) {
-            return handle.clone();
+            return Ok(handle.clone());
         }
 
         let mut found_relay: Option<RelayUrl> = None;
@@ -1633,11 +1689,14 @@ impl RelayActor {
     }
 
     /// Returns the handle of the [`ActiveRelayActor`].
-    fn active_relay_handle(&mut self, url: RelayUrl) -> ActiveRelayHandle {
+    fn active_relay_handle(
+        &mut self,
+        url: RelayUrl,
+    ) -> Result<ActiveRelayHandle, ActiveRelayAdmissionError> {
         match self.active_relays.get(&url) {
-            Some(e) => e.clone(),
+            Some(e) => Ok(e.clone()),
             None => {
-                let handle = self.start_active_relay(url.clone());
+                let handle = self.start_active_relay(url.clone())?;
                 if Some(&url) == self.config.my_relay.get().as_ref().map(RelayStatus::url)
                     && let Err(err) = handle
                         .inbox_addr
@@ -1647,12 +1706,19 @@ impl RelayActor {
                 }
                 self.active_relays.insert(url, handle.clone());
                 self.log_active_relay();
-                handle
+                Ok(handle)
             }
         }
     }
 
-    fn start_active_relay(&mut self, url: RelayUrl) -> ActiveRelayHandle {
+    fn start_active_relay(
+        &mut self,
+        url: RelayUrl,
+    ) -> Result<ActiveRelayHandle, ActiveRelayAdmissionError> {
+        let permit = self.admission.try_acquire().map_err(|error| {
+            self.config.metrics.active_relay_capacity_rejections.inc();
+            ActiveRelayAdmissionError::from(error)
+        })?;
         debug!(?url, "Adding relay connection");
 
         let auth_token = self
@@ -1702,13 +1768,14 @@ impl RelayActor {
             Ok(actor) => actor,
             Err(error) => {
                 self.runtime.latch_failure(error);
-                return handle;
+                return Err(e!(ActiveRelayAdmissionError::ConstructionFailed));
             }
         };
         #[cfg(wasm_browser)]
         self.active_relay_tasks.spawn(
             async move {
                 actor.run().await;
+                permit
             }
             .instrument(span),
         );
@@ -1719,10 +1786,14 @@ impl RelayActor {
                 let actor = actor.run().instrument(span);
                 match AssertUnwindSafe(actor).catch_unwind().await {
                     Ok(()) => {
-                        let _ = completions.send(ActiveRelayCompletion::Finished);
+                        let _ = completions
+                            .send(ActiveRelayCompletion::Finished(permit))
+                            .await;
                     }
                     Err(panic) => {
-                        let _ = completions.send(ActiveRelayCompletion::Panicked);
+                        let _ = completions
+                            .send(ActiveRelayCompletion::Panicked(permit))
+                            .await;
                         std::panic::resume_unwind(panic);
                     }
                 }
@@ -1736,11 +1807,17 @@ impl RelayActor {
                 )
                 .is_ok()
             {
-                self.active_relay_task_count += 1;
+                self.active_relay_task_count = self
+                    .active_relay_task_count
+                    .checked_add(1)
+                    .expect("active-relay task count must not overflow");
+            } else {
+                self.config.metrics.active_relay_spawn_rejections.inc();
+                return Err(e!(ActiveRelayAdmissionError::SpawnRejected));
             }
         }
         self.log_active_relay();
-        handle
+        Ok(handle)
     }
 
     /// Triggers an immediate health check on all relay connections after a network change.
@@ -1794,7 +1871,15 @@ impl RelayActor {
 
         // Make sure home relay exists
         if let Some(status) = self.config.my_relay.get() {
-            self.active_relay_handle(status.url().clone());
+            let url = status.url().clone();
+            if let Err(error) = self.active_relay_handle(url.clone()) {
+                self.config.my_relay.set_status(
+                    &url,
+                    RelayConnectionState::Disconnected {
+                        last_error: Some(Arc::new(AnyError::from(error))),
+                    },
+                );
+            }
         }
         self.log_active_relay();
     }
@@ -1810,7 +1895,13 @@ impl RelayActor {
         #[cfg(not(wasm_browser))]
         while self.active_relay_task_count > 0 {
             match self.active_relay_completions_rx.recv().await {
-                Some(_) => self.active_relay_task_count -= 1,
+                Some(completion) => {
+                    drop(completion);
+                    self.active_relay_task_count = self
+                        .active_relay_task_count
+                        .checked_sub(1)
+                        .expect("active-relay shutdown task count must not underflow");
+                }
                 None => break,
             }
         }
@@ -1878,12 +1969,13 @@ mod tests {
     use tracing::{Instrument, info, info_span};
 
     use super::{
-        ActiveRelayActor, ActiveRelayActorOptions, ActiveRelayMessage, ActiveRelayPrioMessage,
-        RELAY_INACTIVE_CLEANUP_TIME, RelayConnectionOptions, RelayRecvDatagram, RelaySendItem,
-        UNDELIVERABLE_DATAGRAM_TIMEOUT,
+        ActiveRelayActor, ActiveRelayActorOptions, ActiveRelayCompletion, ActiveRelayMessage,
+        ActiveRelayPrioMessage, Config, RELAY_INACTIVE_CLEANUP_TIME, RelayActor,
+        RelayConnectionOptions, RelayRecvDatagram, RelaySendItem, UNDELIVERABLE_DATAGRAM_TIMEOUT,
     };
     use crate::{
         dns::DnsResolver,
+        endpoint::EndpointLimits,
         runtime::Runtime,
         simulation::{RelayConnectError, RelayConnectRequest, RelayConnector},
         test_utils,
@@ -1943,6 +2035,68 @@ mod tests {
             self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Box::pin(async { Err(RelayConnectError::new("injected dial failure")) })
         }
+    }
+
+    #[tokio::test]
+    async fn active_relay_admission_limit_is_exact_and_recovers() {
+        let connector = Arc::new(PendingRelayConnector::default());
+        let secret_key = SecretKey::from_bytes(&[79; 32]);
+        let runtime = test_runtime(&secret_key);
+        let (recv_tx, _recv_rx) = mpsc::channel(8);
+        let limits = EndpointLimits::default().with_max_active_relay_actors(
+            std::num::NonZeroUsize::new(2).expect("nonzero test capacity"),
+        );
+        let config = Config {
+            my_relay: Default::default(),
+            secret_key,
+            dns_resolver: DnsResolver::new(),
+            proxy_url: None,
+            ipv6_reported: Arc::new(AtomicBool::new(false)),
+            tls_config: CaTlsConfig::insecure_skip_verify()
+                .client_config(default_provider())
+                .expect("infallible"),
+            metrics: Default::default(),
+            relay_map: iroh_relay::RelayMap::empty(),
+            relay_connector: Some(connector),
+            initial_relay: None,
+            limits,
+        };
+        let mut actor = RelayActor::new(config, recv_tx, CancellationToken::new(), runtime);
+        let first_url: RelayUrl = "https://first-relay.invalid".parse().unwrap();
+        let second_url: RelayUrl = "https://second-relay.invalid".parse().unwrap();
+        let third_url: RelayUrl = "https://third-relay.invalid".parse().unwrap();
+
+        let first = actor.active_relay_handle(first_url.clone()).unwrap();
+        let _second = actor.active_relay_handle(second_url).unwrap();
+        assert!(
+            actor.active_relay_handle(third_url.clone()).is_err(),
+            "the third distinct relay must be rejected at capacity"
+        );
+
+        actor.active_relays.remove(&first_url);
+        drop(first);
+        let completion = tokio::time::timeout(
+            Duration::from_secs(2),
+            actor.active_relay_completions_rx.recv(),
+        )
+        .await
+        .expect("removed actor must finish")
+        .expect("completion channel must remain open");
+        actor.active_relay_task_count = actor
+            .active_relay_task_count
+            .checked_sub(1)
+            .expect("one active relay task");
+        match completion {
+            ActiveRelayCompletion::Finished(permit) | ActiveRelayCompletion::Panicked(permit) => {
+                drop(permit)
+            }
+        }
+
+        assert!(
+            actor.active_relay_handle(third_url).is_ok(),
+            "released active-relay capacity must be reusable"
+        );
+        actor.close_all_active_relays().await;
     }
 
     #[tokio::test]

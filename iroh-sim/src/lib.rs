@@ -3,6 +3,7 @@
 
 mod artifact;
 mod backend;
+mod bounded_io;
 mod campaign;
 pub mod cli;
 mod corpus;

@@ -61,7 +61,7 @@ use transports::{LocalAddrsWatch, Transport, TransportConfig};
 use url::Url;
 
 use self::{
-    remote_map::{RemoteMap, RemoteStateMessage},
+    remote_map::{RemoteMap, RemoteStateAdmissionError, RemoteStateMessage},
     transports::{RelayActorConfig, Transports},
 };
 #[cfg(not(wasm_browser))]
@@ -228,6 +228,18 @@ impl noq::ConnectionIdGenerator for DeterministicSimulationConnectionIdGenerator
 #[derive(Clone)]
 pub(crate) struct RemoteStateActorStoppedError;
 
+#[stack_error(derive, add_meta, from_sources)]
+#[derive(Clone)]
+pub(crate) enum RemoteStateRegistrationError {
+    #[error("endpoint state actor stopped")]
+    ActorStopped,
+    #[error("remote-state actor admission failed")]
+    Admission {
+        #[error(from)]
+        source: RemoteStateAdmissionError,
+    },
+}
+
 impl From<mpsc::error::SendError<RemoteStateMessage>> for RemoteStateActorStoppedError {
     #[track_caller]
     fn from(_value: mpsc::error::SendError<RemoteStateMessage>) -> Self {
@@ -290,6 +302,9 @@ pub(crate) struct Options {
 
     /// Explicitly configured external addresses to advertise.
     pub(crate) configured_addrs: BTreeSet<SocketAddr>,
+
+    /// Finite task, connection, and actor capacities for this endpoint.
+    pub(crate) limits: crate::endpoint::EndpointLimits,
 }
 
 /// Inner state for an iroh [`crate::Endpoint`].
@@ -311,6 +326,7 @@ pub(crate) struct EndpointInner {
     endpoint: noq::Endpoint,
     // Runtime used by noq
     runtime: Arc<Runtime>,
+    pub(crate) connection_admission: Arc<crate::endpoint::limits::AdmissionLedger>,
     /// Static configuration for the endpoint.
     pub(crate) static_config: StaticConfig,
 }
@@ -340,6 +356,7 @@ pub(crate) struct StaticConfig {
     #[debug("Arc<dyn TokenStore>")]
     pub(crate) token_store: Arc<dyn TokenStore>,
     pub(crate) transport_config: QuicTransportConfig,
+    pub(crate) limits: crate::endpoint::EndpointLimits,
     #[cfg(not(wasm_browser))]
     pub(crate) runtime_context: Arc<iroh_runtime::RuntimeContext>,
     #[cfg(not(wasm_browser))]
@@ -359,6 +376,7 @@ impl StaticConfig {
         let mut inner =
             noq::ServerConfig::new(Arc::new(quic_server_config), self.token_key.clone());
         inner.transport_config(self.transport_config.to_inner_arc());
+        inner.max_incoming(self.limits.max_connections().get());
         #[cfg(not(wasm_browser))]
         inner.time_source(Arc::new(crate::runtime::NoqWallClock::new(
             self.runtime_context.wall_clock(),
@@ -1004,6 +1022,10 @@ pub enum BindError {
     Sockets { source: io::Error },
     #[error("Failed to create internal QUIC endpoint")]
     CreateQuicEndpoint { source: io::Error },
+    #[error("Failed to create QUIC address-discovery client")]
+    CreateQuicClient {
+        source: iroh_relay::quic::QuicClientBuildError,
+    },
     #[error("Failed to create netmon monitor")]
     CreateNetmonMonitor { source: AnyError },
     #[error("Invalid transport configuration")]
@@ -1024,6 +1046,8 @@ pub enum BindError {
     },
     #[error("Invalid deterministic runtime context")]
     RuntimeContext { source: AnyError },
+    #[error("Endpoint task capacity cannot cover its configured connection and actor limits")]
+    InvalidEndpointLimits,
 }
 
 impl EndpointInner {
@@ -1074,12 +1098,19 @@ impl EndpointInner {
             net_report_config,
             static_config,
             configured_addrs,
+            limits,
         } = opts;
 
         #[cfg(not(wasm_browser))]
-        let runtime = Arc::new(Runtime::new(secret_key.public(), runtime_context.clone()));
+        let runtime = Arc::new(Runtime::new_with_limits(
+            secret_key.public(),
+            runtime_context.clone(),
+            limits,
+        ));
         #[cfg(wasm_browser)]
-        let runtime = Arc::new(Runtime::new(secret_key.public()));
+        let runtime = Arc::new(Runtime::new_with_limits(secret_key.public(), limits));
+        let connection_admission =
+            crate::endpoint::limits::AdmissionLedger::new(limits.max_connections());
 
         let address_lookup = address_lookup::AddressLookupServices::default();
         #[cfg(not(wasm_browser))]
@@ -1128,6 +1159,7 @@ impl EndpointInner {
             relay_connector: simulation_relay_connector,
             #[cfg(not(wasm_browser))]
             initial_relay: simulation_preferred_relay,
+            limits,
         };
 
         let shutdown_state = ShutdownState::default();
@@ -1182,6 +1214,7 @@ impl EndpointInner {
                 shutdown_token.child_token(),
                 path_selector,
                 span.clone(),
+                limits,
                 #[cfg(not(wasm_browser))]
                 runtime.clone(),
             )
@@ -1241,11 +1274,12 @@ impl EndpointInner {
         let local_addrs_watch = transports.local_addrs_watch();
         let transports_network_change = transports.create_network_change_sender();
 
-        let endpoint = noq::Endpoint::new_with_abstract_socket(
+        let endpoint = noq::Endpoint::new_with_abstract_socket_and_limits(
             endpoint_config,
             Some(server_config),
             Box::new(Transport::new(sock.clone(), transports)),
             runtime.clone(),
+            limits.noq_event_limits(),
         )
         .map_err(|err| e!(BindError::CreateQuicEndpoint, err))?;
 
@@ -1277,6 +1311,7 @@ impl EndpointInner {
                     client_config: tls_config.clone(),
                     ipv4: true,
                     ipv6: has_ipv6_transport,
+                    connection_admission: connection_admission.clone(),
                 });
             net_report::Options::new(tls_config.clone())
                 .quic_config(qad_config)
@@ -1304,7 +1339,8 @@ impl EndpointInner {
             net_report_relay_map,
             net_report_config,
             metrics.net_report.clone(),
-        );
+        )
+        .map_err(|source| e!(BindError::CreateQuicClient, source))?;
 
         let (direct_addr_done_tx, direct_addr_done_rx) = mpsc::channel(8);
         let direct_addr_update_state = DirectAddrUpdateState::new(
@@ -1380,6 +1416,7 @@ impl EndpointInner {
             actor_task,
             endpoint,
             runtime,
+            connection_admission,
             static_config,
         })
     }
@@ -1650,7 +1687,7 @@ impl EndpointInner {
         &self,
         remote: EndpointId,
         conn: noq::Connection,
-    ) -> impl Future<Output = Result<PathStateReceiver, RemoteStateActorStoppedError>> + Send + 'static
+    ) -> impl Future<Output = Result<PathStateReceiver, RemoteStateRegistrationError>> + Send + 'static
     {
         let (tx, rx) = oneshot::channel();
         let sender = self.actor_sender.clone();
@@ -1658,8 +1695,10 @@ impl EndpointInner {
             sender
                 .send(ActorMessage::AddConnection(remote, conn, tx))
                 .await
-                .map_err(|_| RemoteStateActorStoppedError::new())?;
-            rx.await.map_err(|_| RemoteStateActorStoppedError::new())
+                .map_err(|_| e!(RemoteStateRegistrationError::ActorStopped))?;
+            rx.await
+                .map_err(|_| e!(RemoteStateRegistrationError::ActorStopped))?
+                .map_err(|source| e!(RemoteStateRegistrationError::Admission, source))
         }
     }
 }
@@ -1678,7 +1717,7 @@ enum ActorMessage {
     AddConnection(
         EndpointId,
         noq::Connection,
-        oneshot::Sender<PathStateReceiver>,
+        oneshot::Sender<Result<PathStateReceiver, RemoteStateAdmissionError>>,
     ),
     /// Re-evaluate direct addresses, e.g. after configured external addresses changed.
     DirectAddrRefresh,
@@ -1732,12 +1771,13 @@ impl PendingNetworkChangeNotify {
 struct Actor {
     /// A clone of the quinn Endpoint.
     ///
-    /// The task of this actor is currently owned by the [`crate::Endpoint`] and wrapped in
-    /// an [`AbortOnDropHandle`]. When [`crate::Endpoint::close`] is called various
-    /// subsystems are being stopped. Then, when [`ShutdownState::at_endpoint_closed`] is
-    /// called by [`crate::Endpoint::close`], this actor itself is stopped via it's
-    /// [`CancellationToken`] and we will drop this clone of the endpoint. The endpoint is
-    /// then finally dropped when the [`crate::Endpoint`] itself is dropped.
+    /// The task of this actor is owned by the [`crate::Endpoint`]. Native endpoints use an
+    /// [`iroh_runtime::OwnedTaskHandle`], while browser endpoints use an
+    /// [`n0_future::task::AbortOnDropHandle`]. When [`crate::Endpoint::close`] is called,
+    /// various subsystems are stopped. Then, when [`ShutdownState::at_endpoint_closed`] is
+    /// called by [`crate::Endpoint::close`], this actor itself is stopped via its
+    /// [`CancellationToken`] and we drop this clone of the endpoint. The endpoint is
+    /// finally dropped when the [`crate::Endpoint`] itself is dropped.
     ///
     /// All of this to say: keeping the quinn endpoint alive here does not impact the
     /// lifetime of it since it's lifetime is shorter than that one that's stored in the
@@ -2544,6 +2584,7 @@ mod tests {
             transport_config: QuicTransportConfig::default(),
             runtime_context: runtime_context.clone(),
             simulation_initial_dst_cid_provider: None,
+            limits: crate::endpoint::EndpointLimits::default(),
         };
         let server_config = static_config.create_server_config(vec![]);
         Options {
@@ -2574,6 +2615,7 @@ mod tests {
             net_report_config: Default::default(),
             static_config,
             configured_addrs: Default::default(),
+            limits: crate::endpoint::EndpointLimits::default(),
         }
     }
 
@@ -2971,6 +3013,7 @@ mod tests {
             transport_config: QuicTransportConfig::default(),
             runtime_context: runtime_context.clone(),
             simulation_initial_dst_cid_provider: None,
+            limits: crate::endpoint::EndpointLimits::default(),
         };
         let server_config = static_config.create_server_config(vec![ALPN.to_vec()]);
 
@@ -3002,6 +3045,7 @@ mod tests {
             net_report_config: Default::default(),
             static_config,
             configured_addrs: Default::default(),
+            limits: crate::endpoint::EndpointLimits::default(),
         };
         let sock = EndpointInner::bind(opts).await?;
         Ok(sock)

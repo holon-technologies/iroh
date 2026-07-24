@@ -63,7 +63,8 @@ impl DeterministicEntropy {
             .map_err(|_| ())?;
         let mut hasher = blake3::Hasher::new_derive_key(ENTROPY_CONTEXT);
         hasher.update(&self.seed);
-        hasher.update(&(self.scope.len() as u32).to_le_bytes());
+        let scope_len = u32::try_from(self.scope.len()).map_err(|_| ())?;
+        hasher.update(&scope_len.to_le_bytes());
         hasher.update(self.scope.as_bytes());
         hasher.update(&counter.to_le_bytes());
         hasher.finalize_xof().fill(destination);

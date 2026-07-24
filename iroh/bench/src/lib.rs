@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::{
     num::ParseIntError,
     str::FromStr,
@@ -224,6 +226,11 @@ pub async fn client_handler(
     connection: ConnectionSelector,
     opt: Opt,
 ) -> Result<ClientStats> {
+    if opt.max_streams == 0 {
+        return Err(n0_error::anyerr!("max_streams must be greater than zero"));
+    }
+    let max_streams = u32::try_from(opt.max_streams)
+        .map_err(|_| n0_error::anyerr!("max_streams exceeds the u32 semaphore limit"))?;
     let start = Instant::now();
 
     let connection = Arc::new(connection);
@@ -260,7 +267,7 @@ pub async fn client_handler(
     }
 
     // Wait for remaining streams to finish
-    let _ = sem.acquire_many(opt.max_streams as u32).await.unwrap();
+    let _ = sem.acquire_many(max_streams).await.unwrap();
 
     stats.upload_stats.total_duration = start.elapsed();
     stats.download_stats.total_duration = start.elapsed();

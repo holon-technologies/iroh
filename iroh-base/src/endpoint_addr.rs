@@ -629,14 +629,14 @@ impl From<(u64, &[u8])> for CustomAddr {
 impl CustomAddrBytes {
     fn len(&self) -> usize {
         match self {
-            Self::Inline { size, .. } => *size as usize,
+            Self::Inline { size, .. } => usize::from(*size),
             Self::Heap(data) => data.len(),
         }
     }
 
     fn as_bytes(&self) -> &[u8] {
         match self {
-            Self::Inline { size, data } => &data[..*size as usize],
+            Self::Inline { size, data } => &data[..usize::from(*size)],
             Self::Heap(data) => data,
         }
     }
@@ -646,7 +646,8 @@ impl CustomAddrBytes {
             let mut inline = [0u8; 30];
             inline[..data.len()].copy_from_slice(data);
             Self::Inline {
-                size: data.len() as u8,
+                size: u8::try_from(data.len())
+                    .expect("inline custom addresses contain at most 30 bytes"),
                 data: inline,
             }
         } else {
@@ -884,9 +885,10 @@ mod tests {
         let key = crate::SecretKey::generate().public();
         let mut addr = EndpointAddr::new(key);
         for port in 0..=MAX_ENDPOINT_ADDRS {
+            let port = u16::try_from(port).expect("test address count fits in u16");
             addr.addrs.insert(TransportAddr::Ip(SocketAddr::from((
                 [127, 0, 0, 1],
-                40_000 + port as u16,
+                40_000 + port,
             ))));
         }
         assert!(matches!(
@@ -902,11 +904,13 @@ mod tests {
 
         let key = crate::SecretKey::generate().public();
         let maximum_count = (0..MAX_ENDPOINT_ADDRS).map(|port| {
-            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 20_000 + port as u16)))
+            let port = u16::try_from(port).expect("test address count fits in u16");
+            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 20_000 + port)))
         });
         assert!(EndpointAddr::try_from_parts(key, maximum_count).is_ok());
         let excessive_count = (0..=MAX_ENDPOINT_ADDRS).map(|port| {
-            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 30_000 + port as u16)))
+            let port = u16::try_from(port).expect("test address count fits in u16");
+            TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 30_000 + port)))
         });
         assert!(EndpointAddr::try_from_parts(key, excessive_count).is_err());
 
@@ -919,7 +923,8 @@ mod tests {
         );
 
         let byte_heavy = (0..MAX_ENDPOINT_ADDRS - 1).map(|id| {
-            TransportAddr::Custom(CustomAddr::try_from_parts(id as u64, &[0; 512]).unwrap())
+            let id = u64::try_from(id).expect("test address count fits in u64");
+            TransportAddr::Custom(CustomAddr::try_from_parts(id, &[0; 512]).unwrap())
         });
         assert!(
             EndpointAddr::try_from_parts(key, byte_heavy).is_err(),

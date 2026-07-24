@@ -39,6 +39,7 @@ use crate::{
     Endpoint,
     endpoint::{
         AfterHandshakeOutcome,
+        limits::AdmissionPermit,
         quic::{
             AcceptBi, AcceptUni, Closed, ConnectionError, ConnectionStats, Controller,
             ExportKeyingMaterialError, OpenBi, OpenUni, PathId, ReadDatagram, SendDatagram,
@@ -46,7 +47,7 @@ use crate::{
         },
     },
     socket::{
-        RemoteStateActorStoppedError,
+        RemoteStateActorStoppedError, RemoteStateRegistrationError,
         remote_map::{PathEventStream, PathList, PathListStream, PathStateReceiver},
         transports::{self, LocalTransportAddr},
     },
@@ -106,23 +107,43 @@ impl Future for Accept<'_> {
     type Output = Option<Incoming>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        match this.inner.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Ready(Some(inner)) => {
-                let incoming = Incoming {
-                    inner,
-                    ep: this.ep.clone(),
-                };
-                event!(
-                    target: "iroh::_events::conn::incoming",
-                    tracing::Level::DEBUG,
-                    remote_addr = ?incoming.remote_addr(),
-                );
-                Poll::Ready(Some(incoming))
+        const MAX_CAPACITY_REFUSALS_PER_POLL: usize = 32;
+
+        let mut this = self.project();
+        for _ in 0..MAX_CAPACITY_REFUSALS_PER_POLL {
+            match this.inner.as_mut().poll(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Ready(Some(inner)) => {
+                    let permit = match this.ep.inner.connection_admission.try_acquire() {
+                        Ok(permit) => permit,
+                        Err(_) => {
+                            this.ep
+                                .inner
+                                .metrics
+                                .socket
+                                .connection_capacity_rejections
+                                .inc();
+                            inner.refuse();
+                            continue;
+                        }
+                    };
+                    let incoming = Incoming {
+                        inner,
+                        ep: this.ep.clone(),
+                        permit: Some(permit),
+                    };
+                    event!(
+                        target: "iroh::_events::conn::incoming",
+                        tracing::Level::DEBUG,
+                        remote_addr = ?incoming.remote_addr(),
+                    );
+                    return Poll::Ready(Some(incoming));
+                }
             }
         }
+        cx.waker().wake_by_ref();
+        Poll::Pending
     }
 }
 
@@ -132,6 +153,7 @@ impl Future for Accept<'_> {
 pub struct Incoming {
     inner: noq::Incoming,
     ep: Endpoint,
+    permit: Option<AdmissionPermit>,
 }
 
 impl Incoming {
@@ -145,9 +167,19 @@ impl Incoming {
     /// Thus it is common to simply log the errors here and accept them as something which
     /// can happen.
     pub fn accept(self) -> Result<Accepting, ConnectionError> {
-        self.inner
-            .accept()
-            .map(|conn| Accepting::new(conn, self.ep))
+        let Self {
+            inner,
+            ep,
+            mut permit,
+        } = self;
+        let lifetime = noq::ConnectionLifetimeToken::new(
+            permit
+                .take()
+                .expect("incoming connection must retain its admission permit"),
+        );
+        inner
+            .accept_with_lifetime(lifetime)
+            .map(|conn| Accepting::new(conn, ep))
     }
 
     /// Accepts this incoming connection using a custom configuration.
@@ -165,9 +197,19 @@ impl Incoming {
         self,
         server_config: Arc<ServerConfig>,
     ) -> Result<Accepting, ConnectionError> {
-        self.inner
-            .accept_with(server_config.to_inner_arc())
-            .map(|conn| Accepting::new(conn, self.ep))
+        let Self {
+            inner,
+            ep,
+            mut permit,
+        } = self;
+        let lifetime = noq::ConnectionLifetimeToken::new(
+            permit
+                .take()
+                .expect("incoming connection must retain its admission permit"),
+        );
+        inner
+            .accept_with_config_and_lifetime(server_config.to_inner_arc(), lifetime)
+            .map(|conn| Accepting::new(conn, ep))
     }
 
     /// Rejects this incoming connection attempt.
@@ -182,9 +224,10 @@ impl Incoming {
     /// Errors if `remote_address_validated()` is true.
     #[allow(clippy::result_large_err)]
     pub fn retry(self) -> Result<(), RetryError> {
-        self.inner
+        let Self { inner, ep, permit } = self;
+        inner
             .retry()
-            .map_err(|err| e!(RetryError { err, ep: self.ep }))
+            .map_err(|err| e!(RetryError { err, ep, permit }))
     }
 
     /// Ignores this incoming connection attempt, not sending any packet in response.
@@ -229,9 +272,8 @@ impl IntoFuture for Incoming {
 
     fn into_future(self) -> Self::IntoFuture {
         IncomingFuture(Box::pin(async move {
-            let noq_conn = self.inner.into_future().await?;
-            let conn = conn_from_noq_conn(noq_conn, &self.ep)?.await?;
-            Ok(conn)
+            let accepting = self.accept()?;
+            accepting.await
         }))
     }
 }
@@ -242,6 +284,7 @@ impl IntoFuture for Incoming {
 pub struct RetryError {
     err: noq::RetryError,
     ep: Endpoint,
+    permit: Option<AdmissionPermit>,
 }
 
 impl RetryError {
@@ -250,6 +293,7 @@ impl RetryError {
         Incoming {
             inner: self.err.into_incoming(),
             ep: self.ep,
+            permit: self.permit,
         }
     }
 }
@@ -470,6 +514,11 @@ pub enum ConnectingError {
     InternalConsistencyError {
         /// Private source type, cannot be created publicly.
         source: RemoteStateActorStoppedError,
+    },
+    #[error("Remote-state actor admission failed")]
+    RemoteStateAdmission {
+        /// Private source type, cannot be created publicly.
+        source: RemoteStateRegistrationError,
     },
     #[error("Connection was rejected locally")]
     LocallyRejected,

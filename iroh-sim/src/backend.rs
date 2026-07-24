@@ -316,7 +316,8 @@ impl DeterministicBackend {
 fn derive_crypto_seed(root: RootSeed, host: &str) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new_derive_key("iroh-sim deterministic TLS endpoint seed v1");
     hasher.update(root.as_bytes());
-    hasher.update(&(host.len() as u32).to_le_bytes());
+    let host_len = u32::try_from(host.len()).expect("validated simulator host names fit in u32");
+    hasher.update(&host_len.to_le_bytes());
     hasher.update(host.as_bytes());
     *hasher.finalize().as_bytes()
 }

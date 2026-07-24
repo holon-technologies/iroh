@@ -1,6 +1,25 @@
 use hdrhistogram::Histogram;
 use n0_future::time::Duration;
 
+fn saturating_u64(value: u128) -> u64 {
+    u64::try_from(value).unwrap_or(u64::MAX)
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the range and finiteness checks define an explicit saturating float-to-counter conversion"
+)]
+fn saturating_nonnegative_f64(value: f64) -> u64 {
+    if !value.is_finite() || value >= u64::MAX as f64 {
+        u64::MAX
+    } else if value <= 0.0 {
+        0
+    } else {
+        value.trunc() as u64
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Stats {
     pub total_size: u64,
@@ -11,28 +30,32 @@ pub struct Stats {
 
 impl Stats {
     pub fn stream_finished(&mut self, stream_result: TransferResult) {
-        self.total_size += stream_result.size;
-        self.streams += 1;
+        self.total_size = self.total_size.saturating_add(stream_result.size);
+        self.streams = self.streams.saturating_add(1);
 
         self.stream_stats
             .duration_hist
-            .record(stream_result.duration.as_millis() as u64)
+            .record(saturating_u64(stream_result.duration.as_millis()))
             .unwrap();
         self.stream_stats
             .throughput_hist
-            .record(stream_result.throughput as u64)
+            .record(saturating_nonnegative_f64(stream_result.throughput))
             .unwrap();
         self.stream_stats
             .ttfb_hist
-            .record(stream_result.ttfb.as_nanos() as u64)
+            .record(saturating_u64(stream_result.ttfb.as_nanos()))
             .unwrap();
         self.stream_stats
             .chunk_time
             .record(
-                stream_result.duration.as_nanos() as u64 / std::cmp::max(stream_result.chunks, 1),
+                saturating_u64(stream_result.duration.as_nanos())
+                    / std::cmp::max(stream_result.chunks, 1),
             )
             .unwrap();
-        self.stream_stats.chunks += stream_result.chunks;
+        self.stream_stats.chunks = self
+            .stream_stats
+            .chunks
+            .saturating_add(stream_result.chunks);
         self.stream_stats
             .chunk_size
             .record(stream_result.avg_chunk_size)
@@ -73,7 +96,7 @@ impl Stats {
             );
         };
 
-        print_metric("AVG ", |hist| hist.mean() as u64);
+        print_metric("AVG ", |hist| saturating_nonnegative_f64(hist.mean()));
         print_metric("P0  ", |hist| hist.value_at_quantile(0.00));
         print_metric("P10 ", |hist| hist.value_at_quantile(0.10));
         print_metric("P50 ", |hist| hist.value_at_quantile(0.50));

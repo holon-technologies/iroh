@@ -15,6 +15,7 @@ use std::{
 use ipnet::IpNet;
 use n0_error::{Result, StdResultExt};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
 use tracing::info;
 
 use crate::store::{NonZeroDuration, Options};
@@ -24,6 +25,7 @@ pub use crate::{
 };
 
 const DEFAULT_METRICS_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9117);
+const MAX_CONFIG_FILE_BYTES: usize = 1024 * 1024;
 
 /// Top-level configuration for the server.
 ///
@@ -584,9 +586,27 @@ impl Config {
             "loading config file from {}",
             path.as_ref().to_string_lossy()
         );
-        let s = tokio::fs::read_to_string(path.as_ref())
+        let path = path.as_ref();
+        let file = tokio::fs::File::open(path)
             .await
-            .with_std_context(|_| format!("failed to read {}", path.as_ref().to_string_lossy()))?;
+            .with_std_context(|_| format!("failed to open {}", path.to_string_lossy()))?;
+        let read_limit = u64::try_from(MAX_CONFIG_FILE_BYTES)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        let mut bytes = Vec::with_capacity(MAX_CONFIG_FILE_BYTES.saturating_add(1));
+        file.take(read_limit)
+            .read_to_end(&mut bytes)
+            .await
+            .with_std_context(|_| format!("failed to read {}", path.to_string_lossy()))?;
+        if bytes.len() > MAX_CONFIG_FILE_BYTES {
+            n0_error::bail_any!(
+                "config file {} exceeds {} bytes",
+                path.to_string_lossy(),
+                MAX_CONFIG_FILE_BYTES
+            );
+        }
+        let s = String::from_utf8(bytes)
+            .with_std_context(|_| format!("config file {} is not UTF-8", path.to_string_lossy()))?;
         let config: Config = toml::from_str(&s).anyerr()?;
         Ok(config)
     }
@@ -691,6 +711,8 @@ mod tests {
         reason = "validation tests mutate one invalid field at a time"
     )]
 
+    use std::io::Write;
+
     use super::*;
 
     #[test]
@@ -711,6 +733,19 @@ mod tests {
             assert_eq!(policy.max_http_body_bytes.get(), 65_535);
             assert_eq!(policy.shutdown_timeout, Duration::from_secs(20));
         }
+    }
+
+    #[tokio::test]
+    async fn config_load_rejects_an_oversized_file() {
+        let mut file = tempfile::NamedTempFile::new().expect("temporary config file");
+        file.write_all(&vec![b' '; MAX_CONFIG_FILE_BYTES + 1])
+            .expect("write oversized config");
+
+        let error = Config::load(file.path())
+            .await
+            .expect_err("oversized config must be rejected before parsing");
+
+        assert!(error.to_string().contains("exceeds 1048576 bytes"));
     }
 
     #[test]

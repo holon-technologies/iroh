@@ -10,6 +10,7 @@ use std::{
 use std::task::{Waker, ready};
 
 use iroh_base::{CustomAddr, EndpointAddr, EndpointId, RelayUrl};
+use n0_error::{e, stack_error};
 #[cfg(wasm_browser)]
 use n0_future::task::JoinSet;
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,7 @@ use super::{
 use crate::runtime::Runtime;
 use crate::{
     address_lookup::{self, AddressLookupFailed},
+    endpoint::limits::{AdmissionError, AdmissionLedger, AdmissionPermit},
     socket::concurrent_read_map::{ConcurrentReadMap, ReadOnlyMap},
 };
 
@@ -149,16 +151,17 @@ struct Tasks {
     /// These tasks return their endpoint ID and the list of messages they didn't get to handle
     /// when they shut down.
     #[cfg(wasm_browser)]
-    tasks: JoinSet<(EndpointId, Vec<RemoteStateMessage>)>,
+    tasks: JoinSet<(EndpointId, Vec<RemoteStateMessage>, AdmissionPermit)>,
     /// Runtime which owns native remote-state actor tasks.
     #[cfg(not(wasm_browser))]
     runtime: Arc<Runtime>,
     /// Completion queue used to preserve the actor restart/reap protocol while the runtime owns
     /// native task execution.
     #[cfg(not(wasm_browser))]
-    completions_tx: mpsc::UnboundedSender<RemoteStateCompletion>,
+    completions_tx: mpsc::Sender<RemoteStateCompletion>,
     #[cfg(not(wasm_browser))]
-    completions_rx: mpsc::UnboundedReceiver<RemoteStateCompletion>,
+    completions_rx: mpsc::Receiver<RemoteStateCompletion>,
+    admission: Arc<AdmissionLedger>,
     /// The waker that notifies `poll_cleanup` when the join set is populated with another task.
     #[cfg(wasm_browser)]
     poll_cleanup_waker: Option<Waker>,
@@ -168,8 +171,32 @@ struct Tasks {
     span: Span,
 }
 
+#[stack_error(derive, add_meta)]
+#[derive(Clone)]
+pub(crate) enum RemoteStateAdmissionError {
+    #[error("remote-state actor capacity is full")]
+    CapacityFull,
+    #[error("remote-state actor accounting exhausted")]
+    CounterExhausted,
+    #[error("remote-state actor task spawn was rejected")]
+    SpawnRejected,
+}
+
+impl From<AdmissionError> for RemoteStateAdmissionError {
+    fn from(error: AdmissionError) -> Self {
+        match error {
+            AdmissionError::CapacityFull => e!(Self::CapacityFull),
+            AdmissionError::CounterExhausted => e!(Self::CounterExhausted),
+        }
+    }
+}
+
 impl RemoteMap {
     /// Creates a new [`RemoteMap`].
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "constructor wires distinct endpoint-owned services and one shared limits policy"
+    )]
     pub(super) fn new(
         metrics: Arc<SocketMetrics>,
         local_direct_addrs: n0_watcher::Direct<BTreeSet<DirectAddr>>,
@@ -177,10 +204,12 @@ impl RemoteMap {
         shutdown_token: CancellationToken,
         path_selector: Arc<dyn PathSelector>,
         span: Span,
+        limits: crate::endpoint::EndpointLimits,
         #[cfg(not(wasm_browser))] runtime: Arc<Runtime>,
     ) -> Self {
         #[cfg(not(wasm_browser))]
-        let (completions_tx, completions_rx) = mpsc::unbounded_channel();
+        let (completions_tx, completions_rx) =
+            mpsc::channel(limits.max_remote_state_actors().get());
         Self {
             mapped_addrs: Default::default(),
             senders: Default::default(),
@@ -197,6 +226,7 @@ impl RemoteMap {
                 completions_tx,
                 #[cfg(not(wasm_browser))]
                 completions_rx,
+                admission: AdmissionLedger::new(limits.max_remote_state_actors()),
                 #[cfg(wasm_browser)]
                 poll_cleanup_waker: None,
                 path_selector,
@@ -220,8 +250,9 @@ impl RemoteMap {
     /// Only one task is allowed to poll this function concurrently.
     pub(super) async fn cleanup(&mut self) -> EndpointId {
         loop {
-            let (remote_id, leftover_messages) = poll_fn(|cx| self.poll_join_next(cx)).await;
-            if self.remove_or_restart_actor(remote_id, leftover_messages) {
+            let (remote_id, leftover_messages, permit) =
+                poll_fn(|cx| self.poll_join_next(cx)).await;
+            if self.remove_or_restart_actor(remote_id, leftover_messages, permit) {
                 return remote_id;
             }
         }
@@ -233,14 +264,16 @@ impl RemoteMap {
     fn poll_join_next(
         &mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<(EndpointId, Vec<RemoteStateMessage>)> {
+    ) -> Poll<(EndpointId, Vec<RemoteStateMessage>, AdmissionPermit)> {
         #[cfg(not(wasm_browser))]
         {
             match self.tasks.completions_rx.poll_recv(cx) {
-                Poll::Ready(Some(RemoteStateCompletion::Finished(remote_id, leftover_msgs))) => {
-                    Poll::Ready((remote_id, leftover_msgs))
-                }
-                Poll::Ready(Some(RemoteStateCompletion::Panicked)) => {
+                Poll::Ready(Some(RemoteStateCompletion::Finished(
+                    remote_id,
+                    leftover_msgs,
+                    permit,
+                ))) => Poll::Ready((remote_id, leftover_msgs, permit)),
+                Poll::Ready(Some(RemoteStateCompletion::Panicked(_permit))) => {
                     panic!("RemoteStateActor panicked")
                 }
                 Poll::Ready(None) | Poll::Pending => Poll::Pending,
@@ -251,8 +284,8 @@ impl RemoteMap {
         {
             while let Some(result) = ready!(self.tasks.tasks.poll_join_next(cx)) {
                 match result {
-                    Ok((remote_id, leftover_msgs)) => {
-                        return Poll::Ready((remote_id, leftover_msgs));
+                    Ok((remote_id, leftover_msgs, permit)) => {
+                        return Poll::Ready((remote_id, leftover_msgs, permit));
                     }
                     Err(err) => {
                         if let Ok(panic) = err.try_into_panic() {
@@ -274,28 +307,40 @@ impl RemoteMap {
         &mut self,
         remote_id: iroh_base::PublicKey,
         leftover_msgs: Vec<RemoteStateMessage>,
+        permit: AdmissionPermit,
     ) -> bool {
         if leftover_msgs.is_empty() {
             // the actor shut down cleanly
             self.senders.remove(&remote_id);
+            drop(permit);
             trace!(%remote_id, "cleaned up RemoteStateActor");
             true
         } else {
             // The remote actor got messages while it was closing, so we're restarting
             trace!(%remote_id, "restarting terminated RemoteStateActor: messages received during shutdown");
-            let sender =
-                self.tasks
-                    .start_remote_state_actor(remote_id, leftover_msgs, &self.mapped_addrs);
-            // We don't have to be careful about guards - only one thread is modifying this hashmap at a time.
-            self.senders.insert(remote_id, sender);
-            false
+            match self.tasks.start_remote_state_actor(
+                remote_id,
+                leftover_msgs,
+                &self.mapped_addrs,
+                permit,
+            ) {
+                Ok(sender) => {
+                    // Only the socket actor mutates this map.
+                    self.senders.insert(remote_id, sender);
+                    false
+                }
+                Err(error) => {
+                    self.senders.remove(&remote_id);
+                    error!(?error, %remote_id, "failed to restart RemoteStateActor");
+                    true
+                }
+            }
         }
     }
 
     pub(super) fn on_network_change(&mut self, is_major: bool) {
         let read = self.senders.read_only();
-        let guard = read.guard();
-        for sender in read.values(&guard) {
+        for (_endpoint_id, sender) in read.snapshot_sorted_by_key() {
             sender
                 .try_send(RemoteStateMessage::NetworkChange { is_major })
                 .ok();
@@ -314,29 +359,62 @@ impl RemoteMap {
                 .ok();
             return;
         };
-        self.send_to_actor(id, RemoteStateMessage::ResolveRemote(addrs, tx))
-            .await
+        let message = RemoteStateMessage::ResolveRemote(addrs, tx);
+        if let Err((_error, RemoteStateMessage::ResolveRemote(_addrs, tx))) =
+            self.send_to_actor(id, message).await
+        {
+            tx.send(Err(n0_error::e!(AddressLookupFailed::ActorCapacityFull {
+                maximum: self.tasks.admission.snapshot().maximum,
+            })))
+            .ok();
+        }
     }
 
     pub(super) async fn add_connection(
         &mut self,
         remote: EndpointId,
         conn: noq::Connection,
-        tx: oneshot::Sender<PathStateReceiver>,
+        tx: oneshot::Sender<Result<PathStateReceiver, RemoteStateAdmissionError>>,
     ) {
-        self.send_to_actor(remote, RemoteStateMessage::AddConnection(conn, tx))
-            .await
+        let message = RemoteStateMessage::AddConnection(conn, tx);
+        if let Err((error, RemoteStateMessage::AddConnection(_conn, tx))) =
+            self.send_to_actor(remote, message).await
+        {
+            tx.send(Err(error)).ok();
+        }
     }
 
     /// Sends a message to a `RemoteStateActor`, starting it if not running already.
     ///
     /// When sending fails, the actor must be terminating, in which case we wait for its task to
     /// join and then restart the sender.
-    async fn send_to_actor(&mut self, remote_id: EndpointId, message: RemoteStateMessage) {
-        let sender = self.senders.get_or_insert_with(remote_id, || {
-            self.tasks
-                .start_remote_state_actor(remote_id, vec![], &self.mapped_addrs)
-        });
+    async fn send_to_actor(
+        &mut self,
+        remote_id: EndpointId,
+        message: RemoteStateMessage,
+    ) -> Result<(), (RemoteStateAdmissionError, RemoteStateMessage)> {
+        let sender = if let Some(sender) = self.senders.get(&remote_id) {
+            sender
+        } else {
+            let permit = match self.tasks.admission.try_acquire() {
+                Ok(permit) => permit,
+                Err(error) => {
+                    self.tasks.metrics.remote_actor_capacity_rejections.inc();
+                    return Err((RemoteStateAdmissionError::from(error), message));
+                }
+            };
+            let sender = match self.tasks.start_remote_state_actor(
+                remote_id,
+                Vec::new(),
+                &self.mapped_addrs,
+                permit,
+            ) {
+                Ok(sender) => sender,
+                Err(error) => return Err((error, message)),
+            };
+            self.senders.insert(remote_id, sender.clone());
+            sender
+        };
 
         if let Err(mpsc::error::SendError(message)) = sender.send(message).await {
             // The send failed, which means the RemoteStateActor is terminating. We call the cleanup
@@ -345,17 +423,18 @@ impl RemoteMap {
             // created sender again.  We can be sure that the task has not been cleaned up yet
             // because we take a `&mut self` reference.
             loop {
-                let (id, leftover_messages) = poll_fn(|cx| self.poll_join_next(cx)).await;
+                let (id, leftover_messages, permit) = poll_fn(|cx| self.poll_join_next(cx)).await;
                 if id != remote_id {
-                    self.remove_or_restart_actor(id, leftover_messages);
+                    self.remove_or_restart_actor(id, leftover_messages, permit);
                 } else {
                     let mut messages = leftover_messages;
                     messages.push(message);
-                    self.remove_or_restart_actor(id, messages);
+                    self.remove_or_restart_actor(id, messages, permit);
                     break;
                 }
             }
         }
+        Ok(())
     }
 
     pub(super) fn senders(&self) -> ReadOnlyMap<EndpointId, mpsc::Sender<RemoteStateMessage>> {
@@ -372,7 +451,8 @@ impl Tasks {
         eid: EndpointId,
         initial_msgs: Vec<RemoteStateMessage>,
         mapped_addrs: &MappedAddrs,
-    ) -> mpsc::Sender<RemoteStateMessage> {
+        permit: AdmissionPermit,
+    ) -> Result<mpsc::Sender<RemoteStateMessage>, RemoteStateAdmissionError> {
         // Ensure there is a RemoteMappedAddr for this EndpointId.
         mapped_addrs.endpoint_addrs.get(&eid);
         let sender = RemoteStateActor::new(
@@ -396,20 +476,24 @@ impl Tasks {
             self.completions_tx.clone(),
             self.shutdown_token.clone(),
             self.span.clone(),
-        );
+            permit,
+        )
+        .inspect_err(|_| {
+            self.metrics.remote_actor_spawn_rejections.inc();
+        })?;
         #[cfg(wasm_browser)]
         if let Some(waker) = self.poll_cleanup_waker.take() {
             // Notify something waiting for changes to tasks when there's a new task.
             waker.wake();
         }
-        sender
+        Ok(sender)
     }
 }
 
 #[cfg(not(wasm_browser))]
 pub(super) enum RemoteStateCompletion {
-    Finished(EndpointId, Vec<RemoteStateMessage>),
-    Panicked,
+    Finished(EndpointId, Vec<RemoteStateMessage>, AdmissionPermit),
+    Panicked(AdmissionPermit),
 }
 
 /// The origin or *source* through which an address associated with a remote endpoint
@@ -453,6 +537,12 @@ mod tests {
     use crate::socket::biased_rtt_path_selector::BiasedRttPathSelector;
 
     fn make_remote_map() -> (RemoteMap, CancellationToken, impl Sized) {
+        make_remote_map_with_limits(crate::endpoint::EndpointLimits::default())
+    }
+
+    fn make_remote_map_with_limits(
+        limits: crate::endpoint::EndpointLimits,
+    ) -> (RemoteMap, CancellationToken, impl Sized) {
         let metrics = Arc::new(SocketMetrics::default());
         let watchable: Watchable<BTreeSet<DirectAddr>> = Watchable::new(BTreeSet::new());
         let local_direct_addrs = watchable.watch();
@@ -464,6 +554,7 @@ mod tests {
             shutdown_token.clone(),
             Arc::new(BiasedRttPathSelector::default()),
             Span::none(),
+            limits,
             #[cfg(not(wasm_browser))]
             Arc::new(crate::runtime::Runtime::new(
                 SecretKey::from_bytes(&[42; 32]).public(),
@@ -474,6 +565,47 @@ mod tests {
         );
         let guards = (watchable, shutdown_token.clone().drop_guard());
         (remote_map, shutdown_token, guards)
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn remote_actor_limit_rejects_first_over_limit_and_recovers_after_cleanup() {
+        let limits = crate::endpoint::EndpointLimits::default()
+            .with_max_remote_state_actors(std::num::NonZeroUsize::new(2).unwrap());
+        let (mut remote_map, _shutdown_token, _guards) = make_remote_map_with_limits(limits);
+        let ids = [
+            SecretKey::from_bytes(&[1; 32]).public(),
+            SecretKey::from_bytes(&[2; 32]).public(),
+            SecretKey::from_bytes(&[3; 32]).public(),
+        ];
+
+        for id in &ids[..2] {
+            let (tx, rx) = oneshot::channel();
+            remote_map
+                .send_to_actor(*id, RemoteStateMessage::RemoteInfo(tx))
+                .await
+                .unwrap();
+            rx.await.unwrap();
+        }
+        let (tx, _rx) = oneshot::channel();
+        let (error, _message) = remote_map
+            .send_to_actor(ids[2], RemoteStateMessage::RemoteInfo(tx))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            RemoteStateAdmissionError::CapacityFull { .. }
+        ));
+        assert_eq!(remote_map.tasks.admission.snapshot().current, 2);
+
+        tokio::time::sleep(Duration::from_secs(65)).await;
+        remote_map.cleanup().await;
+        let (tx, rx) = oneshot::channel();
+        remote_map
+            .send_to_actor(ids[2], RemoteStateMessage::RemoteInfo(tx))
+            .await
+            .unwrap();
+        rx.await.unwrap();
+        assert_eq!(remote_map.tasks.admission.snapshot().current, 2);
     }
 
     /// Regression test: No new RemoteStateActors may be started before

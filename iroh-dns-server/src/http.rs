@@ -201,7 +201,7 @@ impl HttpServer {
     }
 
     /// Shutdown the server and wait for all tasks to complete.
-    pub(crate) async fn shutdown(mut self) -> Result<()> {
+    pub(crate) async fn shutdown(&mut self) -> Result<()> {
         self.cancel.cancel();
         match tokio::time::timeout(self.shutdown_timeout, self.run_tasks_until_done()).await {
             Ok(result) => result,
@@ -219,7 +219,7 @@ impl HttpServer {
     /// Wait for all tasks to complete.
     ///
     /// Runs forever unless tasks fail.
-    pub(crate) async fn run_until_done(mut self) -> Result<()> {
+    pub(crate) async fn run_until_done(&mut self) -> Result<()> {
         self.run_tasks_until_done().await
     }
 
@@ -388,7 +388,7 @@ async fn metrics_middleware(
     state
         .metrics
         .http_requests_duration_ms
-        .inc_by(latency as u64);
+        .inc_by(u64::try_from(latency).unwrap_or(u64::MAX));
     state.metrics.http_requests.inc();
     if status.is_success() {
         state.metrics.http_requests_success.inc();
@@ -516,7 +516,7 @@ mod tests {
             format!("{http_url}pkarr").parse().anyerr()?,
             tls_config,
             DnsResolver::default(),
-        );
+        )?;
         pkarr.publish(&signed_packet).await?;
 
         // Create a reqwest client that does not verify certificates.

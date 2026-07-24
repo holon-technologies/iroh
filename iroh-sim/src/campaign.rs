@@ -76,13 +76,17 @@ impl CampaignRunner {
                 maximum: config.max_runs,
             });
         }
-        let jobs = config.jobs.min(runs as usize);
-        let mut results = Vec::with_capacity(runs as usize);
+        let runs = usize::try_from(runs).map_err(|_| CampaignError::RunBudget {
+            requested: runs,
+            maximum: u64::try_from(usize::MAX).unwrap_or(u64::MAX),
+        })?;
+        let jobs = config.jobs.min(runs);
+        let mut results = Vec::with_capacity(runs);
         let mut next = config.seed_start;
         let mut stopped_early = false;
         while next < config.seed_end_exclusive {
             let end = next
-                .saturating_add(jobs as u64)
+                .saturating_add(u64::try_from(jobs).unwrap_or(u64::MAX))
                 .min(config.seed_end_exclusive);
             let batch = thread::scope(|scope| {
                 let handles = (next..end)

@@ -4,6 +4,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     future::Future,
+    num::NonZeroUsize,
     panic::AssertUnwindSafe,
     pin::Pin,
     sync::{Arc, Mutex},
@@ -21,6 +22,36 @@ use crate::{
 /// Owned task accepted by an [`Executor`].
 pub type BoxedTask = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
+/// Default maximum number of simultaneously live tasks in one production task group.
+pub const DEFAULT_MAX_LIVE_TASKS_PER_GROUP: usize = 4_096;
+
+/// Validated limits for one structured task group.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TaskGroupLimits {
+    max_live_tasks: NonZeroUsize,
+}
+
+impl TaskGroupLimits {
+    /// Creates task-group limits with an explicit nonzero live-task maximum.
+    pub const fn new(max_live_tasks: NonZeroUsize) -> Self {
+        Self { max_live_tasks }
+    }
+
+    /// Returns the maximum number of simultaneously live tasks.
+    pub const fn max_live_tasks(self) -> NonZeroUsize {
+        self.max_live_tasks
+    }
+}
+
+impl Default for TaskGroupLimits {
+    fn default() -> Self {
+        Self::new(
+            NonZeroUsize::new(DEFAULT_MAX_LIVE_TASKS_PER_GROUP)
+                .expect("default live-task limit is nonzero"),
+        )
+    }
+}
+
 /// Creates structured task groups sharing one executor identity space.
 pub trait Executor: fmt::Debug + Send + Sync + 'static {
     /// Returns the monotonic clock domain used for task observations.
@@ -28,6 +59,19 @@ pub trait Executor: fmt::Debug + Send + Sync + 'static {
 
     /// Creates a task group whose tasks have `parent` as their causal owner.
     fn new_group(&self, parent: Option<TaskId>) -> Arc<dyn TaskGroup>;
+
+    /// Creates a task group with explicit limits.
+    ///
+    /// External executors that do not implement per-group capacity retain their existing
+    /// behavior. Built-in production and simulation executors enforce `limits`.
+    fn new_group_with_limits(
+        &self,
+        parent: Option<TaskId>,
+        limits: TaskGroupLimits,
+    ) -> Arc<dyn TaskGroup> {
+        let _ = limits;
+        self.new_group(parent)
+    }
 }
 
 /// Owns a set of cancellable runtime tasks.
@@ -57,6 +101,11 @@ pub trait TaskGroup: fmt::Debug + Send + Sync + 'static {
 
     /// Returns stable metadata for currently live tasks.
     fn snapshot(&self) -> TaskGroupSnapshot;
+
+    /// Returns capacity diagnostics without changing the stable [`TaskGroupSnapshot`] shape.
+    fn capacity_snapshot(&self) -> TaskGroupCapacitySnapshot {
+        TaskGroupCapacitySnapshot::Unreported
+    }
 
     /// Waits until a closed group has no remaining tasks.
     fn join(&self) -> Pin<Box<dyn Future<Output = Result<(), TaskGroupError>> + Send + '_>>;
@@ -193,12 +242,31 @@ pub struct TaskGroupSnapshot {
     pub tasks: Vec<TaskMetadata>,
 }
 
+/// Live-task capacity diagnostics for a task group.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TaskGroupCapacitySnapshot {
+    /// The executor does not expose capacity diagnostics.
+    Unreported,
+    /// The executor enforces and reports a finite live-task capacity.
+    Reported {
+        /// Configured simultaneous live-task maximum.
+        max_live_tasks: usize,
+        /// Current number of live tasks.
+        live_tasks: usize,
+        /// Largest observed number of simultaneously live tasks.
+        high_water_live_tasks: usize,
+        /// Total task admission rejections at the live-task limit.
+        rejected_spawns: u64,
+    },
+}
+
 /// Production executor backed by Tokio.
 #[derive(Clone, Debug)]
 pub struct TokioExecutor {
     ids: Arc<IdAllocator<TaskId>>,
     clock: Arc<dyn Clock>,
     trace: Arc<TraceRecorder>,
+    default_limits: TaskGroupLimits,
 }
 
 impl Default for TokioExecutor {
@@ -212,15 +280,31 @@ impl TokioExecutor {
     /// Creates a Tokio executor using the shared trace recorder.
     pub fn new(trace: Arc<TraceRecorder>) -> Self {
         let clock = Arc::new(TokioClock::with_recorder(trace.clone()));
-        Self::with_clock(clock, trace)
+        Self::with_clock_and_limits(clock, trace, TaskGroupLimits::default())
+    }
+
+    /// Creates a Tokio executor with explicit default limits for new task groups.
+    pub fn with_limits(trace: Arc<TraceRecorder>, limits: TaskGroupLimits) -> Self {
+        let clock = Arc::new(TokioClock::with_recorder(trace.clone()));
+        Self::with_clock_and_limits(clock, trace, limits)
     }
 
     /// Creates a Tokio executor with an explicit clock and trace recorder.
     pub fn with_clock(clock: Arc<dyn Clock>, trace: Arc<TraceRecorder>) -> Self {
+        Self::with_clock_and_limits(clock, trace, TaskGroupLimits::default())
+    }
+
+    /// Creates a Tokio executor with an explicit clock, trace recorder, and default limits.
+    pub fn with_clock_and_limits(
+        clock: Arc<dyn Clock>,
+        trace: Arc<TraceRecorder>,
+        limits: TaskGroupLimits,
+    ) -> Self {
         Self {
             ids: Arc::new(IdAllocator::default()),
             clock,
             trace,
+            default_limits: limits,
         }
     }
 }
@@ -231,6 +315,14 @@ impl Executor for TokioExecutor {
     }
 
     fn new_group(&self, parent: Option<TaskId>) -> Arc<dyn TaskGroup> {
+        self.new_group_with_limits(parent, self.default_limits)
+    }
+
+    fn new_group_with_limits(
+        &self,
+        parent: Option<TaskId>,
+        limits: TaskGroupLimits,
+    ) -> Arc<dyn TaskGroup> {
         Arc::new(TokioTaskGroup {
             parent,
             ids: self.ids.clone(),
@@ -240,6 +332,7 @@ impl Executor for TokioExecutor {
             cancel: CancellationToken::new(),
             state: Arc::new(Mutex::new(GroupState::default())),
             failure: Arc::new(Mutex::new(None)),
+            limits,
         })
     }
 }
@@ -249,6 +342,8 @@ struct GroupState {
     closed: bool,
     next_ordinal: u64,
     tasks: BTreeMap<TaskId, TaskMetadata>,
+    high_water_live_tasks: usize,
+    rejected_spawns: u64,
 }
 
 #[derive(Debug)]
@@ -261,6 +356,7 @@ struct TokioTaskGroup {
     cancel: CancellationToken,
     state: Arc<Mutex<GroupState>>,
     failure: Arc<Mutex<Option<TaskGroupError>>>,
+    limits: TaskGroupLimits,
 }
 
 impl TaskGroup for TokioTaskGroup {
@@ -270,8 +366,31 @@ impl TaskGroup for TokioTaskGroup {
         name: &str,
         future: BoxedTask,
     ) -> Result<OwnedTaskHandle, SpawnError> {
-        let id = self.ids.allocate().map_err(|_| SpawnError::IdExhausted)?;
         let mut state = self.state.lock().expect("task group state lock poisoned");
+        let max_live_tasks = self.limits.max_live_tasks().get();
+        if !state.closed && state.tasks.len() >= max_live_tasks {
+            let Some(rejected_spawns) = state.rejected_spawns.checked_add(1) else {
+                state.closed = true;
+                drop(state);
+                self.tracker.close();
+                latch_failure(
+                    &self.failure,
+                    TaskGroupError::CapacityCounterExhausted {
+                        resource: "live_tasks",
+                    },
+                );
+                return Err(SpawnError::CapacityCounterExhausted {
+                    resource: "live_tasks",
+                });
+            };
+            state.rejected_spawns = rejected_spawns;
+            return Err(SpawnError::ResourceLimit {
+                resource: "live_tasks",
+                limit: u64::try_from(max_live_tasks).unwrap_or(u64::MAX),
+            });
+        }
+
+        let id = self.ids.allocate().map_err(|_| SpawnError::IdExhausted)?;
         let child_ordinal = state.next_ordinal;
         state.next_ordinal = state
             .next_ordinal
@@ -300,6 +419,7 @@ impl TaskGroup for TokioTaskGroup {
         }
 
         state.tasks.insert(id, metadata.clone());
+        state.high_water_live_tasks = state.high_water_live_tasks.max(state.tasks.len());
         if let Err(error) = self.observe(
             TraceContext {
                 task: Some(id),
@@ -383,6 +503,16 @@ impl TaskGroup for TokioTaskGroup {
         }
     }
 
+    fn capacity_snapshot(&self) -> TaskGroupCapacitySnapshot {
+        let state = self.state.lock().expect("task group state lock poisoned");
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: self.limits.max_live_tasks().get(),
+            live_tasks: state.tasks.len(),
+            high_water_live_tasks: state.high_water_live_tasks,
+            rejected_spawns: state.rejected_spawns,
+        }
+    }
+
     fn join(&self) -> Pin<Box<dyn Future<Output = Result<(), TaskGroupError>> + Send + '_>> {
         Box::pin(async move {
             self.tracker.wait().await;
@@ -457,6 +587,11 @@ pub enum SpawnError {
         /// Configured maximum.
         limit: u64,
     },
+    /// A capacity-rejection counter was exhausted and the group failed closed.
+    CapacityCounterExhausted {
+        /// Stable resource family name.
+        resource: &'static str,
+    },
     /// The runtime clock failed while observing the spawn.
     Clock(ClockError),
     /// The trace recorder rejected the spawn observation.
@@ -473,6 +608,9 @@ impl fmt::Display for SpawnError {
             Self::ResourceLimit { resource, limit } => {
                 write!(f, "task executor {resource} limit {limit} exceeded")
             }
+            Self::CapacityCounterExhausted { resource } => {
+                write!(f, "task executor {resource} rejection counter exhausted")
+            }
             Self::Clock(err) => write!(f, "task spawn clock failed: {err}"),
             Self::Trace(err) => write!(f, "task spawn trace failed: {err}"),
         }
@@ -488,6 +626,11 @@ pub enum TaskGroupError {
     Clock(ClockError),
     /// The trace recorder rejected a completion observation.
     Trace(TraceRecordError),
+    /// A capacity-rejection counter exhausted its integer domain.
+    CapacityCounterExhausted {
+        /// Stable resource family name.
+        resource: &'static str,
+    },
 }
 
 impl fmt::Display for TaskGroupError {
@@ -495,6 +638,9 @@ impl fmt::Display for TaskGroupError {
         match self {
             Self::Clock(err) => write!(f, "task group clock failed: {err}"),
             Self::Trace(err) => write!(f, "task group trace failed: {err}"),
+            Self::CapacityCounterExhausted { resource } => {
+                write!(f, "task group {resource} rejection counter exhausted")
+            }
         }
     }
 }

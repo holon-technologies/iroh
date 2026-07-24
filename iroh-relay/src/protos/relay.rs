@@ -455,8 +455,8 @@ impl RelayToClientMsg {
                         .try_into()
                         .map_err(|_| e!(Error::InvalidFrame))?,
                 );
-                let reconnect_in = Duration::from_millis(reconnect_in as u64);
-                let try_for = Duration::from_millis(try_for as u64);
+                let reconnect_in = Duration::from_millis(u64::from(reconnect_in));
+                let try_for = Duration::from_millis(u64::from(try_for));
                 Self::Restarting {
                     reconnect_in,
                     try_for,
@@ -839,7 +839,10 @@ mod proptests {
             .prop_map(|(ecn, segment_size, data)| Datagrams {
                 ecn,
                 segment_size: segment_size
-                    .map(|ss| std::cmp::min(data.len(), ss) as u16)
+                    .map(|ss| {
+                        u16::try_from(std::cmp::min(data.len(), ss))
+                            .expect("generated relay payload length fits in u16")
+                    })
                     .and_then(NonZeroU16::new),
                 contents: Bytes::from(data),
             })

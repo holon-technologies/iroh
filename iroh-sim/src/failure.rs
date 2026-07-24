@@ -1,10 +1,11 @@
 //! Stable failure identities, immutable diagnostic bundles, and replay comparison.
 
-use std::{collections::BTreeMap, fmt, fs, path::Path};
+use std::{collections::BTreeMap, fmt, path::Path};
 
 use iroh_runtime::{TraceEvent, TraceEventKind, TraceSequence};
 use serde::{Deserialize, Serialize};
 
+use crate::bounded_io::read_file;
 use crate::{
     ArtifactError, ArtifactStore, InvariantClass, InvariantName, InvariantSnapshot,
     KernelSchedulerSnapshot, KernelTaskSnapshot, Observation, ReferenceModelSnapshot,
@@ -382,7 +383,7 @@ fn write_indexed(
 ) -> Result<(), FailureError> {
     let destination = store.root().join(name);
     if destination.exists() {
-        let existing = fs::read(&destination)
+        let existing = read_file(&destination)
             .map_err(|error| FailureError::Artifact(ArtifactError::Io(error)))?;
         if existing != bytes {
             return Err(FailureError::Artifact(ArtifactError::AlreadyExists(
@@ -400,18 +401,14 @@ fn write_indexed(
 pub fn verify_failure_artifacts(root: &Path) -> Result<FailureArtifactIndex, FailureReplayError> {
     let index_path = root.join("failure-artifacts.json");
     let index: FailureArtifactIndex = serde_json::from_slice(
-        &fs::read(&index_path).map_err(|_| FailureReplayError::MissingIndex)?,
+        &read_file(&index_path).map_err(|_| FailureReplayError::MissingIndex)?,
     )
     .map_err(|error| FailureReplayError::InvalidIndex(error.to_string()))?;
-    if index.schema_version != FAILURE_ARTIFACT_SCHEMA_VERSION || index.events_per_chunk == 0 {
-        return Err(FailureReplayError::InvalidIndex(
-            "unsupported schema or zero chunk size".to_owned(),
-        ));
-    }
+    validate_artifact_index(&index)?;
     for ordinal in 0..index.trace_chunks {
         let name = format!("trace.chunk.{ordinal:08}.jsonl");
-        let bytes =
-            fs::read(root.join(&name)).map_err(|_| FailureReplayError::MissingChunk { ordinal })?;
+        let bytes = read_file(root.join(&name))
+            .map_err(|_| FailureReplayError::MissingChunk { ordinal })?;
         if bytes.last() != Some(&b'\n') {
             return Err(FailureReplayError::TruncatedChunk { ordinal });
         }
@@ -421,7 +418,7 @@ pub fn verify_failure_artifacts(root: &Path) -> Result<FailureArtifactIndex, Fai
         if name.starts_with("trace.chunk.") {
             continue;
         }
-        let bytes = fs::read(root.join(name))
+        let bytes = read_file(root.join(name))
             .map_err(|_| FailureReplayError::MissingArtifact { name: name.clone() })?;
         let actual = blake3::hash(&bytes).to_hex().to_string();
         if &actual != expected {
@@ -433,6 +430,28 @@ pub fn verify_failure_artifacts(root: &Path) -> Result<FailureArtifactIndex, Fai
         }
     }
     Ok(index)
+}
+
+fn validate_artifact_index(index: &FailureArtifactIndex) -> Result<(), FailureReplayError> {
+    if index.schema_version != FAILURE_ARTIFACT_SCHEMA_VERSION || index.events_per_chunk == 0 {
+        return Err(FailureReplayError::InvalidIndex(
+            "unsupported schema or zero chunk size".to_owned(),
+        ));
+    }
+    let indexed_chunks = index
+        .files
+        .keys()
+        .filter(|name| name.starts_with("trace.chunk."))
+        .count();
+    let declared_chunks = usize::try_from(index.trace_chunks).map_err(|_| {
+        FailureReplayError::InvalidIndex("trace chunk count does not fit usize".to_owned())
+    })?;
+    if declared_chunks != indexed_chunks {
+        return Err(FailureReplayError::InvalidIndex(format!(
+            "declared {declared_chunks} trace chunks but indexed {indexed_chunks}"
+        )));
+    }
+    Ok(())
 }
 
 fn verify_digest(
@@ -602,3 +621,23 @@ impl fmt::Display for FailureReplayError {
 }
 
 impl std::error::Error for FailureReplayError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn artifact_index_rejects_an_unconserved_chunk_count() {
+        let index = FailureArtifactIndex {
+            schema_version: FAILURE_ARTIFACT_SCHEMA_VERSION,
+            files: BTreeMap::new(),
+            trace_chunks: u64::MAX,
+            events_per_chunk: 64,
+        };
+
+        let error = validate_artifact_index(&index)
+            .expect_err("the declared count must match finite indexed chunks");
+
+        assert!(matches!(error, FailureReplayError::InvalidIndex(_)));
+    }
+}

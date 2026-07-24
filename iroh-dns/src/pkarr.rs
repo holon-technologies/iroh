@@ -336,6 +336,10 @@ pub struct Timestamp(u64);
 /// Tracks the last timestamp returned by [`Timestamp::now`] to ensure monotonicity.
 static LAST_TIMESTAMP: AtomicU64 = AtomicU64::new(0);
 
+fn next_timestamp(micros: u64, last: u64) -> Option<u64> {
+    last.checked_add(1).map(|minimum| micros.max(minimum))
+}
+
 impl Timestamp {
     /// Returns a strictly monotonic timestamp.
     ///
@@ -346,12 +350,14 @@ impl Timestamp {
         let micros = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("system time before UNIX epoch")
-            .as_micros() as u64;
+            .as_micros();
+        let micros =
+            u64::try_from(micros).expect("system time microseconds exceed pkarr timestamp range");
         // Ensure strictly monotonic: if the clock went backward or two calls
         // land in the same microsecond, we increment from the last value.
         let mut last = LAST_TIMESTAMP.load(Ordering::Relaxed);
         loop {
-            let next = micros.max(last + 1);
+            let next = next_timestamp(micros, last).expect("pkarr timestamp sequence exhausted");
             match LAST_TIMESTAMP.compare_exchange_weak(
                 last,
                 next,
@@ -414,11 +420,20 @@ pub enum SignedPacketVerifyError {
     DnsError { source: AnyError },
     #[error("Invalid public key")]
     InvalidKey { source: iroh_base::KeyParsingError },
+    #[error("Invalid signed-packet timestamp: {timestamp}")]
+    InvalidTimestamp { timestamp: i64 },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timestamp_successor_is_monotonic_and_detects_exhaustion() {
+        assert_eq!(next_timestamp(12, 10), Some(12));
+        assert_eq!(next_timestamp(10, 10), Some(11));
+        assert_eq!(next_timestamp(0, u64::MAX), None);
+    }
 
     #[test]
     fn relay_payload_limit_excludes_public_key() {

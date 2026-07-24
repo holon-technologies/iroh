@@ -149,8 +149,8 @@ impl Scenario {
             validate_id("tag", tag)?;
         }
         self.budgets.validate()?;
-        if self.actions.len() > self.budgets.max_actions as usize || self.actions.len() > MAX_ITEMS
-        {
+        let action_count = u64::try_from(self.actions.len()).unwrap_or(u64::MAX);
+        if action_count > self.budgets.max_actions || self.actions.len() > MAX_ITEMS {
             return Err(ScenarioModelError::TooManyActions);
         }
         if self.topology.hosts.len() > MAX_ITEMS
@@ -507,7 +507,8 @@ impl ScenarioBudgets {
             || self.max_obligations == 0
             || self.max_actions == 0
             || self.max_payload_bytes == 0
-            || self.max_actions as usize > MAX_ITEMS
+            || usize::try_from(self.max_payload_bytes).is_err()
+            || self.max_actions > u64::try_from(MAX_ITEMS).expect("MAX_ITEMS fits in u64")
             || self.max_trace_events > 10_000_000
         {
             return Err(ScenarioModelError::InvalidBudgets);
@@ -1575,8 +1576,9 @@ impl ScenarioGenerator {
 
     pub fn generate(&self, id: &str) -> Result<Scenario, ScenarioModelError> {
         if self.config.max_actions < 7
-            || self.config.max_actions as usize > MAX_ITEMS
+            || self.config.max_actions > u64::try_from(MAX_ITEMS).expect("MAX_ITEMS fits in u64")
             || self.config.max_payload_bytes == 0
+            || usize::try_from(self.config.max_payload_bytes).is_err()
             || self.config.max_virtual_time.is_zero()
         {
             return Err(ScenarioModelError::InvalidGeneratorConfig);
@@ -1623,10 +1625,12 @@ impl ScenarioGenerator {
         | ScenarioAction::DatagramRoundTrip { payload, .. } = &mut scenario.actions[3].action
         {
             payload.bytes = payload_bytes;
-            payload.fill = stream
-                .range_u64(0..256)
-                .map_err(|error| ScenarioModelError::Generation(error.to_string()))?
-                as u8;
+            payload.fill = u8::try_from(
+                stream
+                    .range_u64(0..256)
+                    .map_err(|error| ScenarioModelError::Generation(error.to_string()))?,
+            )
+            .expect("the generated fill byte is drawn from the u8 range");
         }
         let fault = stream
             .range_u64(0..3)

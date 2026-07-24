@@ -84,12 +84,17 @@ use crate::{
 mod bind;
 mod connection;
 pub(crate) mod hooks;
+pub(crate) mod limits;
 pub mod presets;
 pub(crate) mod quic;
 
 #[cfg(not(wasm_browser))]
 pub use bind::{BindOpts, InvalidSocketAddr, ToSocketAddr};
 pub use hooks::{AfterHandshakeOutcome, BeforeConnectOutcome, EndpointHooks};
+pub use limits::{
+    CapacitySnapshot, DEFAULT_MAX_ACTIVE_RELAY_ACTORS, DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_LIVE_TASKS, DEFAULT_MAX_REMOTE_STATE_ACTORS, EndpointLimits,
+};
 
 #[cfg(feature = "qlog")]
 pub use self::quic::{QlogConfig, QlogFactory, QlogFileFactory};
@@ -162,6 +167,7 @@ pub struct Builder {
     simulation_preferred_relay: Option<iroh_base::RelayUrl>,
     #[cfg(not(wasm_browser))]
     simulation_crypto: Option<crate::simulation::SimulationCryptoMaterial>,
+    limits: EndpointLimits,
 }
 
 impl From<RelayMode> for Option<TransportConfig> {
@@ -244,6 +250,7 @@ impl Builder {
             simulation_preferred_relay: None,
             #[cfg(not(wasm_browser))]
             simulation_crypto: None,
+            limits: EndpointLimits::default(),
         }
     }
 
@@ -251,6 +258,10 @@ impl Builder {
 
     /// Binds the endpoint.
     pub async fn bind(self) -> Result<Endpoint, BindError> {
+        if let Err(error) = self.limits.validate() {
+            tracing::warn!(?error, "invalid endpoint capacity limits");
+            return Err(e!(BindError::InvalidEndpointLimits));
+        }
         let secret_key = self.secret_key.unwrap_or_else(SecretKey::generate);
 
         #[cfg(not(wasm_browser))]
@@ -300,6 +311,7 @@ impl Builder {
             simulation_initial_dst_cid_provider: simulation_crypto.map(|material| {
                 socket::deterministic_simulation_initial_dst_cid_provider(material.reset_key())
             }),
+            limits: self.limits,
         };
         let server_config = static_config.create_server_config(self.alpn_protocols);
 
@@ -346,6 +358,7 @@ impl Builder {
             net_report_config: self.net_report_config,
             static_config,
             configured_addrs: self.configured_addrs,
+            limits: self.limits,
         };
 
         let inner = socket::EndpointInner::bind(sock_opts)
@@ -676,6 +689,15 @@ impl Builder {
     /// [ALPN]: https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation
     pub fn alpns(mut self, alpn_protocols: Vec<Vec<u8>>) -> Self {
         self.alpn_protocols = alpn_protocols;
+        self
+    }
+
+    /// Sets finite task, connection, and actor capacities for this endpoint.
+    ///
+    /// [`Builder::bind`] returns an error if the task limit cannot cover the configured
+    /// connection and actor limits plus fixed endpoint supervision tasks.
+    pub fn limits(mut self, limits: EndpointLimits) -> Self {
+        self.limits = limits;
         self
     }
 
@@ -1066,6 +1088,8 @@ pub enum ConnectWithOptsError {
     EndpointClosed,
     #[error("Invalid ALPN")]
     InvalidAlpn,
+    #[error("Endpoint connection capacity is full")]
+    ConnectionCapacityFull,
 }
 
 #[allow(missing_docs)]
@@ -1255,6 +1279,14 @@ impl Endpoint {
         // Connecting to ourselves is not supported.
         ensure!(endpoint_id != self.id(), ConnectWithOptsError::SelfConnect);
         ensure!(!alpn.is_empty(), ConnectWithOptsError::InvalidAlpn);
+        let connection_permit = self.inner.connection_admission.try_acquire().map_err(|_| {
+            self.inner
+                .metrics
+                .socket
+                .connection_capacity_rejections
+                .inc();
+            e!(ConnectWithOptsError::ConnectionCapacityFull)
+        })?;
 
         event!(
             target: "iroh::_events::conn::connecting",
@@ -1288,10 +1320,13 @@ impl Endpoint {
 
         let dest_addr = mapped_addr.private_socket_addr();
         let server_name = &tls::name::encode(endpoint_id);
-        let connect =
-            self.inner
-                .noq_endpoint()
-                .connect_with(client_config, dest_addr, server_name)?;
+        let lifetime = noq::ConnectionLifetimeToken::new(connection_permit);
+        let connect = self.inner.noq_endpoint().connect_with_config_and_lifetime(
+            client_config,
+            dest_addr,
+            server_name,
+            lifetime,
+        )?;
 
         Ok(Connecting::new(connect, self.clone(), endpoint_id))
     }
@@ -1324,6 +1359,11 @@ impl Endpoint {
     /// it to be able to connect to this endpoint.
     pub fn id(&self) -> EndpointId {
         self.inner.static_config.tls_config.secret_key.public()
+    }
+
+    /// Returns this endpoint's finite task, connection, and actor capacities.
+    pub fn limits(&self) -> EndpointLimits {
+        self.inner.static_config.limits
     }
 
     /// Returns the current [`EndpointAddr`].
@@ -1753,7 +1793,21 @@ impl Endpoint {
     /// [`MetricsGroupSet`]: iroh_metrics::MetricsGroupSet
     #[cfg(feature = "metrics")]
     pub fn metrics(&self) -> &EndpointMetrics {
+        self.internal_metrics()
+    }
+
+    pub(crate) fn internal_metrics(&self) -> &EndpointMetrics {
         &self.inner.metrics
+    }
+
+    /// Returns active-connection capacity utilization and rejection counters.
+    pub fn connection_capacity_snapshot(&self) -> CapacitySnapshot {
+        self.inner.connection_admission.snapshot()
+    }
+
+    /// Returns Noq's bounded internal connection and event-queue diagnostics.
+    pub fn noq_event_queue_stats(&self) -> noq::EventQueueStats {
+        self.inner.noq_endpoint().event_queue_stats()
     }
 
     /// Returns addressing information about a recently used remote endpoint.
@@ -2170,7 +2224,8 @@ mod tests {
         address_lookup::memory::MemoryLookup,
         endpoint::{
             ApplicationClose, BindError, BindOpts, ConnectError, ConnectOptions,
-            ConnectWithOptsError, Connection, ConnectionError, PathEvent, PathEventStream, presets,
+            ConnectWithOptsError, Connection, ConnectionError, EndpointLimits, PathEvent,
+            PathEventStream, presets,
         },
         protocol::{AcceptError, ProtocolHandler, Router},
         test_utils::{
@@ -2355,6 +2410,72 @@ mod tests {
             }
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn connection_capacity_is_exact_and_recovers_after_noq_drains() -> Result {
+        let limits = EndpointLimits::default()
+            .with_max_connections(std::num::NonZeroUsize::new(2).expect("nonzero test capacity"));
+        let server = Endpoint::builder(presets::Minimal)
+            .alpns(vec![TEST_ALPN.to_vec()])
+            .bind()
+            .await?;
+        let server_addr = server.addr();
+        let client = Endpoint::builder(presets::Minimal)
+            .limits(limits)
+            .bind()
+            .await?;
+
+        async fn connect_pair(
+            client: &Endpoint,
+            server: &Endpoint,
+            server_addr: EndpointAddr,
+        ) -> Result<(Connection, Connection)> {
+            let outgoing = async { client.connect(server_addr, TEST_ALPN).await.anyerr() };
+            let incoming = async { server.accept().await.anyerr()?.await.anyerr() };
+            tokio::try_join!(outgoing, incoming)
+        }
+
+        let (client_first, server_first) =
+            connect_pair(&client, &server, server_addr.clone()).await?;
+        let (client_second, server_second) =
+            connect_pair(&client, &server, server_addr.clone()).await?;
+        let saturated = client.connection_capacity_snapshot();
+        assert_eq!(saturated.maximum, 2);
+        assert_eq!(saturated.current, 2);
+        assert_eq!(saturated.high_water, 2);
+
+        let third = client
+            .connect_with_opts(server_addr.clone(), TEST_ALPN, ConnectOptions::default())
+            .await;
+        assert_matches!(
+            third,
+            Err(ConnectWithOptsError::ConnectionCapacityFull { .. })
+        );
+        assert_eq!(client.connection_capacity_snapshot().rejections, 1);
+
+        client_first.close(0u8.into(), b"test capacity release");
+        drop(client_first);
+        drop(server_first);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while client.connection_capacity_snapshot().current == 2 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .anyerr()?;
+        assert_eq!(client.connection_capacity_snapshot().current, 1);
+
+        let (client_third, server_third) = connect_pair(&client, &server, server_addr).await?;
+        assert_eq!(client.connection_capacity_snapshot().current, 2);
+
+        drop(client_second);
+        drop(server_second);
+        drop(client_third);
+        drop(server_third);
+        client.close().await;
+        server.close().await;
         Ok(())
     }
 

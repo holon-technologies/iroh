@@ -9,7 +9,11 @@ members = [
   "iroh-runtime",
   "iroh-sim",
 ]
-exclude = ["vendor/hickory-server-0.26.1", "vendor/rustls-0.23.41"]
+exclude = [
+  "vendor/hickory-server-0.26.1",
+  "vendor/noq-1.1.0",
+  "vendor/rustls-0.23.41",
+]
 resolver = "2"
 
 [profile.release]
@@ -30,6 +34,7 @@ incremental = false
 
 [workspace.lints.rust]
 missing_debug_implementations = "warn"
+unsafe_code = "deny"
 unsafe_op_in_unsafe_fn = "deny"
 unused_must_use = "deny"
 
@@ -47,6 +52,9 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)", "cfg(iroh_l
 [workspace.lints.clippy]
 correctness = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
 unused-async = "warn"
 
 [workspace.metadata.cargo-semver-checks.lints]
@@ -69,5 +77,7 @@ type_method_marked_deprecated = { required-update = "minor" }
 [patch.crates-io]
 # Narrow ownership fork: bounds UDP request and TCP connection tasks before spawn.
 hickory-server = { path = "vendor/hickory-server-0.26.1" }
+# Narrow ownership fork: bounds connection lifetime and internal protocol event queues.
+noq = { path = "vendor/noq-1.1.0" }
 # Narrow ownership fork: permits run-scoped simulator entropy and key-exchange components.
 rustls = { path = "vendor/rustls-0.23.41" }

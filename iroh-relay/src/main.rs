@@ -5,12 +5,14 @@
 //! [`iroh::relay::server`].
 
 use std::{
+    io::Read,
     net::{Ipv6Addr, SocketAddr},
     num::NonZeroU32,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
+use bytes::{Bytes, BytesMut};
 use clap::Parser;
 use http::StatusCode;
 use iroh_base::EndpointId;
@@ -25,7 +27,9 @@ use iroh_relay::{
     tls::CaTlsConfig,
 };
 use n0_error::{AnyError, Result, StdResultExt, bail_any};
+use n0_future::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncReadExt;
 use tracing::{debug, warn};
 use tracing_subscriber::{EnvFilter, prelude::*};
 use url::Url;
@@ -35,6 +39,8 @@ use webpki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 const DEV_MODE_HTTP_PORT: u16 = 3340;
 /// The header name for setting the endpoint id in HTTP auth requests.
 const X_IROH_ENDPOINT_ID: &str = "X-Iroh-NodeId";
+/// Maximum response body accepted from the HTTP access service.
+const MAX_HTTP_ACCESS_RESPONSE_BYTES: usize = 4;
 /// Environment variable to read a bearer token for HTTP auth requests from.
 const ENV_HTTP_BEARER_TOKEN: &str = "IROH_RELAY_HTTP_BEARER_TOKEN";
 /// Environment variable to verify relay access (without an external auth service)
@@ -43,6 +49,10 @@ const ENV_RELAY_ACCESS_TOKEN: &str = "IROH_RELAY_ACCESS_TOKEN";
 const ENV_ACME_URL: &str = "IROH_RELAY_ACME_URL";
 /// Environment variable to trust an additional CA for the ACME server's TLS certificate.
 const ENV_ACME_CA: &str = "IROH_RELAY_ACME_CA";
+const MAX_CONFIG_FILE_BYTES: usize = 1024 * 1024;
+/// Maximum size of a certificate, private key, or CA file.
+const MAX_TLS_FILE_BYTES: usize = 1024 * 1024;
+const MAX_TLS_FILE_READ_BYTES: u64 = 1024 * 1024 + 1;
 
 /// A relay server for iroh.
 #[derive(Parser, Debug, Clone)]
@@ -72,8 +82,8 @@ fn load_certs(
     filename: impl AsRef<Path>,
 ) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
     let filename = filename.as_ref();
-    CertificateDer::pem_file_iter(filename)
-        .with_std_context(|_| format!("failed to open certificate file at {}", filename.display()))?
+    let certfile = read_tls_file(filename)?;
+    CertificateDer::pem_slice_iter(&certfile)
         .collect::<Result<Vec<_>, _>>()
         .with_std_context(|_| format!("failed to read certificates from {}", filename.display()))
 }
@@ -82,8 +92,26 @@ fn load_secret_key(
     filename: impl AsRef<Path>,
 ) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
     let filename = filename.as_ref();
-    PrivateKeyDer::from_pem_file(filename)
+    let keyfile = read_tls_file(filename)?;
+    PrivateKeyDer::from_pem_slice(&keyfile)
         .with_std_context(|_| format!("failed to read secret key from {}", filename.display()))
+}
+
+fn read_tls_file(filename: &Path) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(filename)
+        .with_std_context(|_| format!("failed to open TLS file at {}", filename.display()))?;
+    let mut reader = file.take(MAX_TLS_FILE_READ_BYTES);
+    let mut contents = Vec::with_capacity(MAX_TLS_FILE_BYTES.saturating_add(1));
+    reader
+        .read_to_end(&mut contents)
+        .with_std_context(|_| format!("failed to read TLS file at {}", filename.display()))?;
+    if contents.len() > MAX_TLS_FILE_BYTES {
+        bail_any!(
+            "TLS file at {} exceeds {MAX_TLS_FILE_BYTES} bytes",
+            filename.display()
+        );
+    }
+    Ok(contents)
 }
 
 /// Configuration for the relay-server.
@@ -222,7 +250,7 @@ impl TryFrom<AccessConfig> for Arc<dyn iroh_relay::server::DynAccessControl> {
                 let client = reqwest::Client::builder()
                     .use_rustls_tls()
                     .build()
-                    .expect("request client builder");
+                    .std_context("failed to build HTTP access client")?;
                 // Allow to set bearer token via environment variable as well.
                 if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
                     config.bearer_token = Some(token);
@@ -327,12 +355,43 @@ async fn http_access_check_inner(
             warn!("Failed to retrieve response for HTTP access check: {err:#}");
             Err(err).std_context("Failed to fetch response")
         }
-        Ok(res) if res.status() == StatusCode::OK => match res.text().await {
-            Ok(text) if text == "true" => Ok(()),
-            Ok(_) => bail_any!("Invalid response text (must be 'true')"),
-            Err(err) => Err(err).std_context("Failed to read response"),
-        },
+        Ok(res) if res.status() == StatusCode::OK => {
+            if let Some(content_length) = res.content_length() {
+                let actual = usize::try_from(content_length).unwrap_or(usize::MAX);
+                if actual > MAX_HTTP_ACCESS_RESPONSE_BYTES {
+                    bail_any!(
+                        "HTTP access response body of {actual} bytes exceeds {} bytes",
+                        MAX_HTTP_ACCESS_RESPONSE_BYTES
+                    );
+                }
+            }
+            validate_http_access_body(res.bytes_stream()).await
+        }
         Ok(res) => bail_any!("Received invalid status code ({})", res.status()),
+    }
+}
+
+async fn validate_http_access_body<S>(chunks: S) -> Result<()>
+where
+    S: Stream<Item = reqwest::Result<Bytes>>,
+{
+    let mut body = BytesMut::with_capacity(MAX_HTTP_ACCESS_RESPONSE_BYTES);
+    let mut chunks = Box::pin(chunks);
+    while let Some(chunk) = chunks.as_mut().next().await {
+        let chunk = chunk.std_context("Failed to read response")?;
+        let actual = body.len().saturating_add(chunk.len());
+        if actual > MAX_HTTP_ACCESS_RESPONSE_BYTES {
+            bail_any!(
+                "HTTP access response body of {actual} bytes exceeds {} bytes",
+                MAX_HTTP_ACCESS_RESPONSE_BYTES
+            );
+        }
+        body.extend_from_slice(&chunk);
+    }
+    if body.as_ref() == b"true" {
+        Ok(())
+    } else {
+        bail_any!("Invalid response text (must be 'true')")
     }
 }
 
@@ -560,12 +619,29 @@ impl Config {
     }
 
     async fn read_from_file(path: impl AsRef<Path>) -> Result<Self> {
-        if !path.as_ref().is_file() {
+        let path = path.as_ref();
+        if !path.is_file() {
             bail_any!("config-path must be a file");
         }
-        let config_ser = tokio::fs::read_to_string(&path)
+        let file = tokio::fs::File::open(path)
+            .await
+            .std_context("unable to open config")?;
+        let read_limit = u64::try_from(MAX_CONFIG_FILE_BYTES)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        let mut bytes = Vec::with_capacity(MAX_CONFIG_FILE_BYTES.saturating_add(1));
+        file.take(read_limit)
+            .read_to_end(&mut bytes)
             .await
             .std_context("unable to read config")?;
+        if bytes.len() > MAX_CONFIG_FILE_BYTES {
+            bail_any!(
+                "config file {} exceeds {} bytes",
+                path.display(),
+                MAX_CONFIG_FILE_BYTES
+            );
+        }
+        let config_ser = String::from_utf8(bytes).std_context("config must be valid UTF-8")?;
         Self::from_str(&config_ser)
     }
 }
@@ -665,10 +741,8 @@ async fn load_cert_config(tls: &TlsConfig) -> Result<relay::CertConfig> {
             // against a local ACME server such as pebble, whose certificate is not signed by a
             // publicly trusted CA.
             if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
-                let extra_roots = CertificateDer::pem_file_iter(&ca_path)
-                    .std_context("failed to read IROH_RELAY_ACME_CA")?
-                    .collect::<Result<Vec<_>, _>>()
-                    .std_context("failed to parse IROH_RELAY_ACME_CA")?;
+                let extra_roots =
+                    load_certs(&ca_path).std_context("failed to read IROH_RELAY_ACME_CA")?;
                 acme_config =
                     acme_config.tls_config(CaTlsConfig::default().with_extra_roots(extra_roots));
             }
@@ -798,14 +872,66 @@ async fn build_relay_config(cfg: Config) -> Result<relay::ServerConfig> {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::{io::Write, num::NonZeroU32};
 
+    use bytes::Bytes;
     use iroh_base::SecretKey;
     use n0_error::Result;
+    use n0_future::stream;
     use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 
     use super::*;
+
+    #[tokio::test]
+    async fn http_access_body_accepts_exact_true_across_chunks() {
+        let chunks = stream::iter([
+            Ok::<_, reqwest::Error>(Bytes::from_static(b"tr")),
+            Ok(Bytes::from_static(b"ue")),
+        ]);
+
+        validate_http_access_body(chunks)
+            .await
+            .expect("the exact authorization token must be accepted");
+    }
+
+    #[tokio::test]
+    async fn http_access_body_rejects_one_byte_over_the_limit() {
+        let chunks = stream::iter([
+            Ok::<_, reqwest::Error>(Bytes::from_static(b"true")),
+            Ok(Bytes::from_static(b"!")),
+        ]);
+
+        let error = validate_http_access_body(chunks)
+            .await
+            .expect_err("authorization response must have a hard body bound");
+        assert!(error.to_string().contains("exceeds 4 bytes"));
+    }
+
+    #[tokio::test]
+    async fn config_load_rejects_an_oversized_file() {
+        let mut file = tempfile::NamedTempFile::new().expect("temporary config file");
+        file.write_all(&vec![b' '; MAX_CONFIG_FILE_BYTES + 1])
+            .expect("write oversized config");
+
+        let error = Config::read_from_file(file.path())
+            .await
+            .expect_err("oversized config must be rejected before parsing");
+
+        assert!(error.to_string().contains("exceeds 1048576 bytes"));
+    }
+
+    #[test]
+    fn tls_file_read_rejects_an_oversized_file() {
+        let mut file = tempfile::NamedTempFile::new().expect("temporary TLS file");
+        file.write_all(&vec![b' '; MAX_TLS_FILE_BYTES + 1])
+            .expect("write oversized TLS file");
+
+        let error = read_tls_file(file.path())
+            .expect_err("oversized TLS input must be rejected before parsing");
+
+        assert!(error.to_string().contains("exceeds 1048576 bytes"));
+    }
 
     #[tokio::test]
     async fn test_rate_limit_config() -> Result {

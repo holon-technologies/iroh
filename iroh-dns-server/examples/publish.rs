@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
     let tls_config = CaTlsConfig::default()
         .client_config(default_provider())
         .expect("infallible");
-    let pkarr = PkarrRelayClient::new(pkarr_relay_url, tls_config, DnsResolver::default());
+    let pkarr = PkarrRelayClient::new(pkarr_relay_url, tls_config, DnsResolver::default())?;
 
     let mut endpoint_info = EndpointInfo::new(endpoint_id);
     if let Some(relay_url) = relay_url {

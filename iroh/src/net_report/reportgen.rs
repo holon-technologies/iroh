@@ -105,6 +105,8 @@ impl From<netwatch::netmon::State> for IfStateDetails {
 pub(super) struct SocketState {
     /// QUIC client to do QUIC address Discovery
     pub(super) quic_client: Option<QuicClient>,
+    /// Shared endpoint-wide connection admission for QAD probes.
+    pub(super) connection_admission: Option<Arc<crate::endpoint::limits::AdmissionLedger>>,
     /// The DNS resolver to use for probes that need to resolve DNS records.
     pub(super) dns_resolver: DnsResolver,
 }
@@ -497,6 +499,8 @@ pub(crate) struct QuicConfig {
     pub(crate) ipv4: bool,
     /// Enable ipv6 QUIC address discovery probes
     pub(crate) ipv6: bool,
+    /// Shared endpoint connection admission used by internal QAD probes.
+    pub(crate) connection_admission: Arc<crate::endpoint::limits::AdmissionLedger>,
 }
 
 impl Probe {
@@ -922,13 +926,22 @@ mod tests {
         let ep = noq::Endpoint::client(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0)).anyerr()?;
         let client_addr = ep.local_addr().anyerr()?;
 
-        let quic_client = iroh_relay::quic::QuicClient::new(ep.clone(), client_config);
+        let quic_client = iroh_relay::quic::QuicClient::new(ep.clone(), client_config)?;
         let dns_resolver = DnsResolver::default();
+        let connection_admission = crate::endpoint::limits::AdmissionLedger::new(
+            crate::endpoint::EndpointLimits::default().max_connections(),
+        );
 
-        let (report, conn) =
-            super::super::run_probe_v4(relay, quic_client, dns_resolver, CancellationToken::new())
-                .await
-                .unwrap();
+        let (report, conn) = super::super::run_probe_v4(
+            relay,
+            quic_client,
+            dns_resolver,
+            connection_admission,
+            Arc::new(crate::net_report::Metrics::default()),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(report.addr, client_addr);
         drop(conn);
