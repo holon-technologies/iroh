@@ -1,0 +1,32 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        clang \
+        cmake \
+        curl \
+        git \
+        iproute2 \
+        iptables \
+        iputils-ping \
+        libclang-dev \
+        libssl-dev \
+        lld \
+        nftables \
+        ninja-build \
+        perl \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 --silent --show-error --fail \
+        https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain stable
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+ENV CARGO_TARGET_DIR=/cargo-target
+
+WORKDIR /workspace

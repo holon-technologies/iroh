@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly overlay_root=/overlay
+readonly workspace=/workspace
+
+mkdir -p \
+    "$workspace" \
+    "$overlay_root/upper" \
+    "$overlay_root/work"
+
+mount -t overlay overlay \
+    -o "lowerdir=/source,upperdir=$overlay_root/upper,workdir=$overlay_root/work" \
+    "$workspace"
+
+cd "$workspace"
+exec "$@"

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+readonly script_dir="$(dirname "$script_path")"
+readonly default_repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
+readonly repo_root="${IROH_REPO_ROOT:-$default_repo_root}"
+readonly dockerfile="${IROH_TEST_DOCKERFILE:-$repo_root/docker/Dockerfile.test-env}"
+readonly entrypoint="${IROH_TEST_ENTRYPOINT:-$repo_root/docker/test-env-entrypoint}"
+readonly build_jobs="${IROH_TEST_BUILD_JOBS:-2}"
+
+if [[ -n "${IROH_TEST_IMAGE:-}" ]]; then
+    readonly image="$IROH_TEST_IMAGE"
+else
+    readonly dockerfile_hash="$(sha256sum "$dockerfile" | cut -d ' ' -f 1)"
+    readonly image="iroh-test-env:ubuntu-24.04-${dockerfile_hash:0:12}"
+fi
+
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+    docker build \
+        --tag "$image" \
+        --file "$dockerfile" \
+        "$(dirname "$dockerfile")"
+fi
+
+if [[ $# -eq 0 ]]; then
+    # Patchbay's checked-in Nextest profile is single-threaded because each
+    # case creates a complete network lab. Preserve that isolation when the
+    # full workspace is run through plain Cargo.
+    set -- cargo test --workspace --all-features --tests -- --test-threads=1
+fi
+
+exec docker run --rm \
+    --privileged \
+    --security-opt apparmor=unconfined \
+    --mount "type=bind,src=$repo_root,dst=/source,readonly" \
+    --mount "type=bind,src=$entrypoint,dst=/usr/local/bin/iroh-test-entrypoint,readonly" \
+    --mount "type=volume,src=iroh-test-cargo-registry,dst=/root/.cargo/registry" \
+    --mount "type=volume,src=iroh-test-cargo-git,dst=/root/.cargo/git" \
+    --mount "type=volume,src=iroh-test-target,dst=/cargo-target" \
+    --tmpfs /overlay:exec,mode=755,size=4294967296 \
+    --env "CARGO_BUILD_JOBS=$build_jobs" \
+    --env CARGO_TARGET_DIR=/cargo-target \
+    --env GIT_CONFIG_COUNT=1 \
+    --env GIT_CONFIG_KEY_0=safe.directory \
+    --env GIT_CONFIG_VALUE_0=/workspace \
+    --workdir /workspace \
+    --entrypoint /usr/local/bin/iroh-test-entrypoint \
+    "$image" \
+    "$@"
