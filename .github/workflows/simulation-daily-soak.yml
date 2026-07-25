@@ -1,0 +1,59 @@
+name: Daily Deterministic Simulation Soak
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iroh-daily-simulation-soak
+  cancel-in-progress: false
+
+env:
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  daily_soak:
+    name: Four-hour deterministic simulation service
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the fresh-process simulator
+        run: cargo build --release -p iroh-sim --bin cargo-sim
+      - name: Execute eight bounded epochs
+        id: soak
+        shell: bash
+        run: |
+          set +e
+          scripts/run-daily-simulation-soak.sh \
+            --seed-window "${{ github.run_number }}" \
+            --artifacts "$RUNNER_TEMP/daily-soak" \
+            --sim-bin target/release/cargo-sim
+          soak_status=$?
+          set -e
+          echo "status=$soak_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload daily soak report and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-daily-soak-${{ github.run_id }}
+          path: ${{ runner.temp }}/daily-soak
+          if-no-files-found: error
+          retention-days: 14
+      - name: Propagate simulation result
+        if: always()
+        shell: bash
+        run: |
+          soak_status="${{ steps.soak.outputs.status }}"
+          if [[ ! "$soak_status" =~ ^[0-9]+$ ]]; then
+            echo "daily soak did not publish a valid exit status" >&2
+            exit 2
+          fi
+          exit "$soak_status"

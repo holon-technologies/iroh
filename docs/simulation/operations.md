@@ -8,9 +8,10 @@ must update that file, its validation tests, workflows, and this document togeth
 
 The Iroh connectivity and simulation maintainers own deterministic failures, fixture schemas, and
 campaign health. A new unique failure must receive an initial classification within 24 hours.
-Pull-request, main, and nightly run artifacts are retained for 14 days. Weekly soak, parity, and
-performance evidence is retained for 30 days. Exact-source replay is required throughout that
-window; cross-version replay is never inferred from matching schema numbers alone.
+Pull-request, main, nightly, and daily deterministic-soak artifacts are retained for 14 days.
+Weekly soak, parity, and performance evidence is retained for 30 days. Exact-source replay is
+required throughout that window; cross-version replay is never inferred from matching schema
+numbers alone.
 
 The service reports four distinct classes:
 
@@ -44,10 +45,12 @@ immutable and indexed. Copy it before exploratory analysis.
 ## Failure triage
 
 1. Preserve the complete artifact directory and source revision. Run `cargo sim explain` on its
-   manifest and record the terminal class, invariant, entities, scheduler snapshot, task graph,
-   resource ledger, and first divergence.
-2. At the recorded checkout, run `cargo sim replay <manifest>`. A replay mismatch is a simulator or
-   source-identity incident before it is evidence of a product failure.
+   manifest or failure directory and record the terminal class, invariant, entities, scheduler
+   snapshot, task graph, resource ledger, and first divergence.
+2. At the recorded checkout, run `cargo sim replay <manifest>` for a manifest-backed run. For a
+   daily-soak failure, stay in the exact source checkout and run the retained `replay.sh` as shown
+   in `replay-command.txt`. A replay mismatch is a simulator or source-identity incident before it
+   is evidence of a product failure.
 3. For a replaying failure, run `cargo sim minimize <manifest> --output <new-directory>`. Review the
    journal; minimization must preserve the exact normalized failure signature. The original root
    seed remains fixed.
@@ -138,10 +141,58 @@ evidence, not thresholds. Simulator component speed does not replace Iroh endpoi
 interoperability, or internet-canary measurements. Treat a statistically meaningful regression in
 either layer as its own issue; do not tune correctness budgets to conceal it.
 
+## Daily deterministic soak operation
+
+`.github/workflows/simulation-daily-soak.yml` is the free-capacity simulation service. Once per
+day, or on manual dispatch, one standard `ubuntu-latest` job runs with workflow concurrency one.
+It builds `cargo-sim` once, then `scripts/run-daily-simulation-soak.sh` starts eight sequential,
+fresh 30-minute processes. Each process uses four workers and fixed 64-run batches while rotating
+twelve pinned direct, NAT, discovery, mobility, ready-order, and relay lanes across both crypto
+modes. The workflow run number, epoch ordinal, lane ordinal, and lane-local ordinal reserve a
+non-overlapping deterministic seed identity.
+
+The daily hard limits are four simulation hours, one million completed runs, sixteen retained
+failure directories, 256 MiB of retained failure data, and 14-day upload retention. Successful
+runs retain counters only. Every completed batch atomically replaces `soak-summary.json`; every
+epoch updates `daily-soak-summary.json`. A product failure does not stop later epochs. The workflow
+uploads reports and retained failures before it propagates the final simulation or infrastructure
+status.
+
+Use `daily-soak-summary.json` first. `infrastructure_failure` means an epoch failed to publish a
+summary or failure retention failed; do not classify it as a product result.
+`simulation_failure` means at least one valid run failed or errored. Each retained failure
+directory contains the exact lane, seed ordinal, behavioral seed, selected swarm choices,
+canonical materialized scenario, normalized signature, bounded diagnostic bundle, and
+`replay.sh` plus `replay-command.txt`. `omitted_failure_artifacts` records failures beyond the
+count or byte budget; the deduplicated signature and first seed remain in the epoch summary.
+
+For a seconds-long local contract—not production evidence—build the binary and reduce the bounded
+process counts:
+
+```bash
+cargo build -p iroh-sim --bin cargo-sim
+soak_root="$(mktemp -d /tmp/iroh-daily-soak.XXXXXX)"
+scripts/run-daily-simulation-soak.sh \
+  --seed-window 1 \
+  --artifacts "$soak_root/run" \
+  --sim-bin target/debug/cargo-sim \
+  --epochs 2 \
+  --epoch-seconds 1 \
+  --jobs 1 \
+  --batch-runs 1 \
+  --max-runs-per-epoch 1
+```
+
+This validates orchestration, plan digests, reporting, and process freshness. It does not claim
+that the checked four-hour GitHub service ran, does not exercise real networking, and does not
+replace Patchbay, interoperability, production capacity, or resource-canary evidence.
+
 ## Recurring gates
 
 - PR: boundary policy, runtime/simulator tests, corpus, bounded campaigns, minimal build, Clippy.
 - Nightly: 256-seed direct/NAT/discovery/mobility/relay/ready-order swarm shards and component benchmarks.
+- Daily soak: one four-hour GitHub-hosted job with eight fresh deterministic epochs and bounded
+  failure-only retention.
 - Weekly: 1024-seed direct/relay schedule soaks under both crypto lanes, strict parity export/compare, and correlated
   component benchmarks.
 - Patchbay: privileged namespace tests, fresh receipt import, and same-revision semantic comparison,

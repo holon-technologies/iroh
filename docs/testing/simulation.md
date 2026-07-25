@@ -85,9 +85,9 @@ Build or inspect the command with:
 cargo run -p iroh-sim --bin cargo-sim -- --help
 ```
 
-The stable command surface is `run`, `campaign`, `replay`, `minimize`, `corpus`, and `explain`.
-Stage 5 activates all six commands for direct IP, NAT/firewall, discovery, mobility, relay
-lifecycle, and relay/direct path scenarios.
+The stable command surface is `run`, `campaign`, `soak`, `replay`, `minimize`, `corpus`, `explain`,
+and `parity`. Stage 6 activates deterministic execution across direct IP, NAT/firewall, discovery,
+mobility, relay lifecycle, relay/direct paths, and seeded production-task ready ordering.
 
 Run either checked-in Stage 2 scenario with an explicit behavioral seed:
 
@@ -141,6 +141,25 @@ cargo run -p iroh-sim --bin cargo-sim -- campaign \
   --seeds 0..100 --jobs 4 --continue-on-failure --max-runs 100 \
   --artifacts /tmp/iroh-sim-swarm-campaign
 ```
+
+The strict daily plan at `iroh-sim/soaks/daily.json` pins twelve domain/crypto lanes and each swarm
+template digest. `cargo sim soak` executes one bounded epoch, checks wall time only between
+fixed-size batches, atomically checkpoints aggregate and per-lane counters, and retains no
+successful trace. The daily shell runner starts eight fresh processes so process-global leakage
+cannot accumulate across the full four-hour service:
+
+```bash
+cargo build --release -p iroh-sim --bin cargo-sim
+scripts/run-daily-simulation-soak.sh \
+  --seed-window 1 \
+  --artifacts /tmp/iroh-daily-soak \
+  --sim-bin target/release/cargo-sim
+```
+
+The production defaults are eight 30-minute epochs, four workers, 64 scenarios per deadline
+boundary, at most one million total runs, sixteen retained failures, and 256 MiB of failure data.
+The consolidated report distinguishes product/simulation failures from missing-summary or
+artifact infrastructure failures and is uploaded before CI propagates failure.
 
 Scenario JSON is strict and currently supports `direct-ip/ipv4-stream`, `direct-ip/ipv4-stream-loss`, `direct-ip/ipv4-stream-corruption`, `direct-ip/ipv6-stream`, and `direct-ip/ipv6-datagram`. The checked-in loss fixture and seed demonstrate QUIC recovery after real packet loss. The corruption fixture requires the injected corruption to occur and treats the resulting authenticated-transport failure as its expected terminal result. Unknown fields, schemas, and scenario IDs fail closed. `run` writes the manifest before endpoint execution and prints one replay command. `replay` verifies source revision, dirty-tree digest, dependency lockfile, simulator/schema version, scenario digest, normalized configuration, features, backend identity, crypto/grade/comparison matrix, budgets, and seed before comparing the manifest-selected raw or semantic trace.
 
@@ -198,6 +217,13 @@ Each directory below `iroh-sim/corpus` must contain exactly `metadata.json` and 
 
 Campaigns execute half-open seed ranges in deterministic worker batches. Results are sorted by seed, failure signatures are deduplicated independent of completion order, fail-fast stops only at a stable batch boundary, and every run gets its own artifact directory. Campaign summaries retain the template inventory. PR CI runs the corpus, generated production-QUIC smoke, and bounded environment/relay campaigns. Nightly CI shards 256 seeds independently across the Stage 4 environment domains and both Stage 5 relay domains, retaining artifacts and unique-failure summaries.
 
+The daily soak uses the same deterministic batch semantics without retaining successful per-seed
+directories. It rotates all twelve pinned lanes round-robin, checkpoints after every batch, and
+deduplicates normalized failures across batches. One standard GitHub-hosted runner supplies four
+internal workers; workflow concurrency one prevents overlapping daily/manual services.
+The checked workflow and its seconds-long contract are definitions, not evidence that a four-hour
+hosted run completed.
+
 For a compact terminal, obligation, resource, causal-suffix, and command summary:
 
 ```bash
@@ -218,6 +244,8 @@ scripts/tests/check-determinism-semantic.sh
 scripts/check-determinism-boundaries.sh --check
 scripts/check-determinism-semantic.sh --check
 scripts/tests/check-determinism-docs.sh
+scripts/tests/check-daily-simulation-soak.sh
+scripts/tests/check-daily-simulation-workflow.sh
 cargo test -p iroh-runtime
 cargo test -p iroh-dns --lib
 cargo test -p iroh-relay --all-features

@@ -99,6 +99,7 @@ clock-timer	iroh-runtime/src/time.rs	tokio_clock::impl<TokioClock>::with_recorde
 clock-timer	iroh-runtime/tests/time.rs	system_wall_clock_delegates_to_system_time	std::time::SystemTime::now	1
 clock-timer	iroh-runtime/tests/time.rs	system_wall_clock_delegates_to_system_time	std::time::SystemTime::now	2
 clock-timer	iroh-sim/src/cli.rs	execute_parity_compare	std::time::SystemTime::now	1
+clock-timer	iroh-sim/src/cli.rs	execute_soak	std::time::Instant::now	1
 clock-timer	iroh-sim/src/kernel.rs	impl<Kernel>::new	iroh_runtime::Instant::now	1
 clock-timer	iroh-sim/tests/relay.rs	deterministic_connection_impairment_delays_and_rejects_selected_attempts	tokio::time::Instant::now	1
 clock-timer	iroh-sim/tests/relay.rs	production_relay_rate_limit_applies_deterministically_to_client_frames	tokio::time::Instant::now	1
@@ -406,6 +407,7 @@ external-state	iroh-sim/src/cli.rs	git_output_bytes	std::process::Command::new	1
 external-state	iroh-sim/src/cli.rs	git_status_output_bytes	std::process::Command::new	1
 external-state	iroh-sim/src/cli.rs	impl<MinimizationProgress>::atomic_replace	std::fs::OpenOptions::new	1
 external-state	iroh-sim/src/cli.rs	impl<MinimizationProgress>::open	std::fs::OpenOptions::new	1
+external-state	iroh-sim/src/cli.rs	impl<SoakReportPublisher>::publish	std::fs::OpenOptions::new	1
 external-state	iroh-sim/src/cli.rs	write_immutable	std::fs::OpenOptions::new	1
 external-state	iroh-sim/tests/cli.rs	campaign_collects_artifacts_but_exits_nonzero_when_product_failures_exist	std::process::Command::new	1
 external-state	iroh-sim/tests/cli.rs	campaign_supports_and_records_the_production_crypto_soak_lane	std::process::Command::new	1
@@ -434,6 +436,9 @@ external-state	iroh-sim/tests/cli.rs	pre_manifest_usage_failures_do_not_print_re
 external-state	iroh-sim/tests/cli.rs	production_crypto_run_records_semantic_contract_and_replays	std::process::Command::new	1
 external-state	iroh-sim/tests/cli.rs	production_crypto_run_records_semantic_contract_and_replays	std::process::Command::new	2
 external-state	iroh-sim/tests/cli.rs	referenced_swarm_campaign_resolves_workspace_base_and_records_source_identity	std::process::Command::new	1
+external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	1
+external-state	iroh-sim/tests/cli.rs	soak_retains_a_bounded_replayable_failure_bundle	std::process::Command::new	1
+external-state	iroh-sim/tests/cli.rs	soak_retains_a_bounded_replayable_failure_bundle	std::process::Command::new	2
 external-state	iroh-sim/tests/cli.rs	stage_two_run_writes_immutable_artifacts_and_replays_exactly	std::process::Command::new	1
 external-state	iroh-sim/tests/cli.rs	stage_two_run_writes_immutable_artifacts_and_replays_exactly	std::process::Command::new	2
 external-state	iroh-sim/tests/cli.rs	stage_two_run_writes_immutable_artifacts_and_replays_exactly	std::process::Command::new	3

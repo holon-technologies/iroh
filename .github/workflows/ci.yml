@@ -95,6 +95,10 @@ jobs:
         run: scripts/check-determinism-boundaries.sh --check
       - name: Check stable syntax-aware boundary inventory
         run: scripts/check-determinism-semantic.sh --check
+      - name: Check daily simulation soak runner
+        run: scripts/tests/check-daily-simulation-soak.sh
+      - name: Check daily simulation soak workflow
+        run: scripts/tests/check-daily-simulation-workflow.sh
       - name: Test runtime capability contracts
         run: cargo test -p iroh-runtime
       - name: Test manifest, trace, and replay contracts

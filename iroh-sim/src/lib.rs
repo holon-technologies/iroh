@@ -29,6 +29,7 @@ mod relay;
 mod runner;
 mod scenario;
 mod scenario_model;
+mod soak;
 mod swarm;
 mod trace;
 
@@ -88,8 +89,9 @@ pub use observation::{
     StreamId,
 };
 pub use operations::{
-    CorpusPolicy, OPERATIONS_POLICY_SCHEMA_VERSION, OperationsPolicy, OperationsPolicyError,
-    ParityPolicy, ReplayPolicy, SimulationTier, SimulationTierPolicy, SwarmPolicy,
+    CorpusPolicy, DailySoakPolicy, OPERATIONS_POLICY_SCHEMA_VERSION, OperationsPolicy,
+    OperationsPolicyError, ParityPolicy, ReplayPolicy, SimulationTier, SimulationTierPolicy,
+    SwarmPolicy,
 };
 pub use parity::{
     PARITY_FIXTURE_SCHEMA_VERSION, PATCHBAY_RECEIPT_SCHEMA_VERSION, ParityBackend,
@@ -122,6 +124,12 @@ pub use scenario_model::{
     RelayProtocolVersion, RelaySpec, SCENARIO_SCHEMA_VERSION, Scenario, ScenarioAction,
     ScenarioBudgets, ScenarioBuilder, ScenarioGenerator, ScenarioMetadata, ScenarioModelError,
     ScenarioOperation, ScenarioRequirements, ScenarioTopology,
+};
+pub use soak::{
+    MAX_SOAK_BATCH_RUNS, MAX_SOAK_JOBS, MAX_SOAK_LANES, MAX_SOAK_RUNS, MAX_SOAK_WALL_MILLIS,
+    SOAK_EPOCHS_PER_WINDOW, SOAK_SCHEMA_VERSION, SoakConfig, SoakCryptoLane, SoakError, SoakLane,
+    SoakLaneSummary, SoakPlan, SoakPlanError, SoakPlanLane, SoakRunner, SoakStopReason,
+    SoakSummary, UniqueSoakFailure, derive_soak_seed_start,
 };
 pub use swarm::{
     ReferencedSwarmSpec, SWARM_SCHEMA_VERSION, SafetyLivenessPhases, SwarmChoice, SwarmError,

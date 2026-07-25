@@ -9,7 +9,7 @@ use crate::{
     TraceComparisonMode,
 };
 
-pub const OPERATIONS_POLICY_SCHEMA_VERSION: u16 = 2;
+pub const OPERATIONS_POLICY_SCHEMA_VERSION: u16 = 3;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -18,6 +18,7 @@ pub struct OperationsPolicy {
     pub owner: String,
     pub failure_triage_slo_hours: u16,
     pub tiers: Vec<SimulationTierPolicy>,
+    pub daily_soak: DailySoakPolicy,
     pub replay: ReplayPolicy,
     pub corpus: CorpusPolicy,
     pub swarm: SwarmPolicy,
@@ -41,6 +42,25 @@ pub struct SimulationTierPolicy {
     pub maximum_wall_minutes: u16,
     pub workers: usize,
     pub artifact_retention_days: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DailySoakPolicy {
+    pub runner: String,
+    pub workflow_concurrency: u8,
+    pub epochs: u8,
+    pub epoch_wall_minutes: u16,
+    pub maximum_total_wall_minutes: u16,
+    pub fresh_process_per_epoch: bool,
+    pub lanes: usize,
+    pub workers: usize,
+    pub batch_runs: u64,
+    pub maximum_total_runs: u64,
+    pub maximum_failure_artifacts: u16,
+    pub maximum_artifact_bytes: u64,
+    pub artifact_retention_days: u16,
+    pub retain_success_traces: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -134,6 +154,23 @@ impl OperationsPolicy {
             }
             previous_runs = tier.maximum_campaign_runs;
         }
+        if self.daily_soak.runner != "ubuntu-latest"
+            || self.daily_soak.workflow_concurrency != 1
+            || self.daily_soak.epochs != 8
+            || self.daily_soak.epoch_wall_minutes != 30
+            || self.daily_soak.maximum_total_wall_minutes != 240
+            || !self.daily_soak.fresh_process_per_epoch
+            || self.daily_soak.lanes != 12
+            || self.daily_soak.workers != 4
+            || self.daily_soak.batch_runs != 64
+            || self.daily_soak.maximum_total_runs != 1_000_000
+            || self.daily_soak.maximum_failure_artifacts != 16
+            || self.daily_soak.maximum_artifact_bytes != 256 * 1_024 * 1_024
+            || self.daily_soak.artifact_retention_days != 14
+            || self.daily_soak.retain_success_traces
+        {
+            return Err(OperationsPolicyError::UnsafeDailySoakPolicy);
+        }
         if !self.replay.exact_source_required
             || self.replay.manifest_schema != MANIFEST_SCHEMA_VERSION
             || self.replay.scenario_schema != SCENARIO_SCHEMA_VERSION
@@ -193,6 +230,7 @@ pub enum OperationsPolicyError {
     UnsafeCorpusPolicy,
     UnsafeSwarmPolicy,
     UnsafeParityPolicy,
+    UnsafeDailySoakPolicy,
 }
 
 impl fmt::Display for OperationsPolicyError {

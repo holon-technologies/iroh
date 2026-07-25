@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "soak-failure-fixture",
+  "base_path": "iroh-sim/corpus/stage3-trigger-stall/scenario.json",
+  "base_blake3": "c4ae422326f3b37023ba80423fe7c42f1ebc0213868deeaeda917961836772ba",
+  "choices": [
+    {
+      "id": "schedule",
+      "options": [
+        {
+          "id": "immediate",
+          "weight": 1,
+          "mutation": {
+            "kind": "action_at_nanos",
+            "action": "cause",
+            "nanos": 0
+          }
+        }
+      ]
+    }
+  ]
+}

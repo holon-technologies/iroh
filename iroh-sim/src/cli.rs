@@ -7,8 +7,8 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::Command as ProcessCommand,
-    sync::Arc,
-    time::{Duration, SystemTime},
+    sync::{Arc, Mutex},
+    time::{Duration, Instant, SystemTime},
 };
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -23,15 +23,19 @@ use crate::{
     ParityComparisonStatus, ParityError, ParityEvidence, ParityFixture, ParityFixtureResult,
     PatchbayReceipt, ReplayIdentity, RunBudgets, RunManifest, SCENARIO_SCHEMA_VERSION,
     SIMULATOR_VERSION, Scenario, ScenarioError, ScenarioGenerator, ScenarioHarness,
-    ScenarioInventory, ScenarioModelError, ScenarioRunner, SourceIdentity, Stage2Scenario,
+    ScenarioInventory, ScenarioModelError, ScenarioRunner, SoakConfig, SoakCryptoLane, SoakError,
+    SoakLane, SoakPlan, SoakPlanError, SoakRunner, SoakSummary, SourceIdentity, Stage2Scenario,
     SwarmError, SwarmSpec, SwarmTemplate, TraceBuffer, bounded_io::read_file,
     canonical_patchbay_scenarios, compare_failure_replay, compare_parity_fixtures_at,
-    deterministic_semantic_outcome, normalized_trace_json, verify_failure_artifacts,
+    derive_soak_seed_start, deterministic_semantic_outcome, normalized_trace_json,
+    verify_failure_artifacts,
 };
 
 /// Exit code used when a requested later-stage backend is intentionally unavailable.
 pub const BACKEND_UNAVAILABLE_EXIT: u8 = 69;
 const DEFAULT_WALL_EPOCH_SECS: u64 = 1_700_000_000;
+const MAX_SOAK_FAILURE_ARTIFACTS: usize = 16;
+const MAX_SOAK_ARTIFACT_BYTES: u64 = 256 * 1_024 * 1_024;
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum CryptoLane {
@@ -108,6 +112,39 @@ enum Command {
         /// Cryptography lane used by every run in this campaign.
         #[arg(long, value_enum, default_value = "deterministic-test")]
         crypto: CryptoLane,
+    },
+    /// Execute one bounded epoch from a strict multi-lane soak plan.
+    Soak {
+        /// Strict versioned soak plan.
+        #[arg(long)]
+        plan: PathBuf,
+        /// Zero-based process ordinal in the daily seed window.
+        #[arg(long)]
+        epoch: u8,
+        /// Monotonic workflow run number used to reserve replay seed space.
+        #[arg(long)]
+        seed_window: u64,
+        /// Process wall budget in seconds.
+        #[arg(long)]
+        wall_seconds: u64,
+        /// Parallel simulation workers.
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+        /// Scenarios between deadline checks and atomic checkpoints.
+        #[arg(long, default_value_t = 64)]
+        batch_runs: u64,
+        /// Hard scenario count for this process.
+        #[arg(long, default_value_t = 125_000)]
+        max_runs: u64,
+        /// Maximum retained failing runs.
+        #[arg(long, default_value_t = MAX_SOAK_FAILURE_ARTIFACTS)]
+        max_failure_artifacts: usize,
+        /// Maximum retained failure-artifact bytes.
+        #[arg(long, default_value_t = MAX_SOAK_ARTIFACT_BYTES)]
+        max_artifact_bytes: u64,
+        /// Fresh artifact directory for checkpoints and failures.
+        #[arg(long)]
+        artifacts: PathBuf,
     },
     /// Replay an exact versioned run manifest.
     Replay { manifest: PathBuf },
@@ -219,6 +256,29 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
             generated,
             max_runs,
             crypto,
+        }),
+        Command::Soak {
+            plan,
+            epoch,
+            seed_window,
+            wall_seconds,
+            jobs,
+            batch_runs,
+            max_runs,
+            max_failure_artifacts,
+            max_artifact_bytes,
+            artifacts,
+        } => execute_soak(SoakOptions {
+            plan_path: &plan,
+            epoch,
+            seed_window,
+            wall_seconds,
+            jobs,
+            batch_runs,
+            max_runs,
+            max_failure_artifacts,
+            max_artifact_bytes,
+            artifact_root: &artifacts,
         }),
         Command::Minimize {
             manifest,
@@ -1083,6 +1143,563 @@ fn execute_campaign(options: CampaignOptions<'_>) -> Result<(), CliError> {
     Ok(())
 }
 
+const DAILY_SOAK_LANE_IDS: [&str; 12] = [
+    "direct/deterministic-test",
+    "direct/production-provider",
+    "discovery/deterministic-test",
+    "discovery/production-provider",
+    "mobility/deterministic-test",
+    "mobility/production-provider",
+    "nat/deterministic-test",
+    "nat/production-provider",
+    "ready-order/deterministic-test",
+    "ready-order/production-provider",
+    "relay/deterministic-test",
+    "relay/production-provider",
+];
+const MAX_DAILY_SOAK_WALL_SECONDS: u64 = 30 * 60;
+const MAX_DAILY_SOAK_JOBS: usize = 4;
+const MAX_DAILY_SOAK_BATCH_RUNS: u64 = 64;
+const MAX_DAILY_SOAK_RUNS_PER_EPOCH: u64 = 125_000;
+
+struct SoakOptions<'a> {
+    plan_path: &'a Path,
+    epoch: u8,
+    seed_window: u64,
+    wall_seconds: u64,
+    jobs: usize,
+    batch_runs: u64,
+    max_runs: u64,
+    max_failure_artifacts: usize,
+    max_artifact_bytes: u64,
+    artifact_root: &'a Path,
+}
+
+struct LoadedSoakLane {
+    swarm: SwarmSpec,
+    crypto: CryptoLane,
+}
+
+fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
+    validate_soak_options(&options)?;
+    let workspace = workspace_root()?;
+    let plan_bytes = read_file(options.plan_path)?;
+    let plan = SoakPlan::from_json(&plan_bytes)?;
+    validate_daily_soak_plan(&plan)?;
+
+    let mut lanes = Vec::with_capacity(plan.lanes.len());
+    let mut loaded = BTreeMap::new();
+    for (lane_index, plan_lane) in plan.lanes.iter().enumerate() {
+        let swarm_path = workspace.join(&plan_lane.swarm);
+        let canonical_workspace = workspace.canonicalize().map_err(CliError::Io)?;
+        let canonical_swarm = swarm_path.canonicalize().map_err(CliError::Io)?;
+        if !canonical_swarm.starts_with(&canonical_workspace) {
+            return Err(CliError::Usage(format!(
+                "soak swarm resolves outside the workspace: {}",
+                plan_lane.swarm.display()
+            )));
+        }
+        let swarm_bytes = read_file(&canonical_swarm)?;
+        let actual_digest = blake3::hash(&swarm_bytes).to_hex().to_string();
+        if actual_digest != plan_lane.swarm_blake3 {
+            return Err(CliError::SoakSwarmDigest {
+                lane: plan_lane.id.clone(),
+                expected: plan_lane.swarm_blake3.clone(),
+                actual: actual_digest,
+            });
+        }
+        let (swarm, _) = load_swarm_template(&canonical_swarm, &workspace)?;
+        let seed_start = derive_soak_seed_start(options.seed_window, options.epoch, lane_index)?;
+        lanes.push(SoakLane {
+            id: plan_lane.id.clone(),
+            scenario: swarm.base.clone(),
+            seed_start,
+        });
+        loaded.insert(
+            plan_lane.id.clone(),
+            LoadedSoakLane {
+                swarm,
+                crypto: match plan_lane.crypto {
+                    SoakCryptoLane::DeterministicTest => CryptoLane::DeterministicTest,
+                    SoakCryptoLane::ProductionProvider => CryptoLane::ProductionProvider,
+                },
+            },
+        );
+    }
+
+    let requested_root = absolutize(options.artifact_root)?;
+    if requested_root.exists() {
+        return Err(CliError::SoakOutputExists(requested_root));
+    }
+    let parent = requested_root
+        .parent()
+        .ok_or_else(|| CliError::Usage("soak artifact root has no parent".to_owned()))?;
+    fs::create_dir_all(parent)?;
+    fs::create_dir(&requested_root)?;
+    let artifact_store = ArtifactStore::new(&requested_root)?;
+    let artifact_root = artifact_store.root().to_path_buf();
+    artifact_store.write_atomic("plan.json", &plan_bytes)?;
+    artifact_store.write_atomic(
+        "plan.blake3",
+        format!("{}\n", blake3::hash(&plan_bytes).to_hex()).as_bytes(),
+    )?;
+
+    let retention = FailureRetention::new(
+        artifact_root.clone(),
+        options.max_failure_artifacts,
+        options.max_artifact_bytes,
+    );
+    let started = Instant::now();
+    let mut publisher = SoakReportPublisher::new(
+        artifact_root.clone(),
+        plan.id.clone(),
+        options.epoch,
+        options.seed_window,
+    );
+    let execute = |lane_id: &str, seed_ordinal: u64, _template: &Scenario| {
+        let lane = loaded
+            .get(lane_id)
+            .expect("validated soak lanes have matching loaded state");
+        let (seed, seed_hex) = campaign_seed(seed_ordinal);
+        let (candidate, selection) = lane
+            .swarm
+            .materialize(swarm_materialization_seed(seed))
+            .map_err(|error| error.to_string())?;
+        let trace = TraceBuffer::default();
+        let runner = ScenarioRunner::with_crypto_mode(
+            candidate.clone(),
+            seed,
+            SystemTime::UNIX_EPOCH + Duration::from_secs(DEFAULT_WALL_EPOCH_SECS),
+            Arc::new(trace.clone()),
+            lane.crypto.simulation_mode(),
+        )
+        .map_err(|error| error.to_string())?;
+        let result = simulation_runtime()
+            .map_err(|error| error.to_string())?
+            .block_on(runner.run_detailed());
+        match result {
+            Ok(_) => Ok(CampaignTerminal::Success),
+            Err(failure) => {
+                let events = trace.events();
+                let signature = FailureSignature::from_runner_error(&failure.error, &events, 64)
+                    .map_err(|error| error.to_string())?;
+                retention.retain(FailureRetentionInput {
+                    lane_id,
+                    seed_ordinal,
+                    seed_hex: &seed_hex,
+                    crypto: lane.crypto,
+                    selection: Some(&selection),
+                    scenario: &candidate,
+                    failure: &failure,
+                    signature: &signature,
+                    trace: &events,
+                });
+                Ok(CampaignTerminal::Failure(signature))
+            }
+        }
+    };
+    let elapsed_millis = || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let wall_budget_millis = options
+        .wall_seconds
+        .checked_mul(1_000)
+        .ok_or_else(|| CliError::Usage("soak wall budget overflows milliseconds".to_owned()))?;
+    let summary = SoakRunner::run(
+        SoakConfig {
+            wall_budget_millis,
+            jobs: options.jobs,
+            batch_runs: options.batch_runs,
+            max_runs: options.max_runs,
+        },
+        lanes,
+        elapsed_millis,
+        |summary| {
+            publisher
+                .publish(summary, retention.snapshot())
+                .map_err(|error| error.to_string())
+        },
+        execute,
+    )?;
+    let retention_summary = retention.snapshot();
+    publisher.publish(&summary, retention_summary.clone())?;
+
+    let infrastructure_error = retention_summary.infrastructure_error.clone();
+    if summary.failed_runs != 0 || summary.errored_runs != 0 || infrastructure_error.is_some() {
+        return Err(CliError::SoakRunFailures {
+            failed: summary.failed_runs,
+            errored: summary.errored_runs,
+            infrastructure_error,
+        });
+    }
+    println!(
+        "status=soak_ok runs={} elapsed_millis={} artifacts={}",
+        summary.completed_runs,
+        summary.elapsed_millis,
+        artifact_root.display()
+    );
+    Ok(())
+}
+
+fn validate_soak_options(options: &SoakOptions<'_>) -> Result<(), CliError> {
+    if options.wall_seconds == 0 || options.wall_seconds > MAX_DAILY_SOAK_WALL_SECONDS {
+        return Err(CliError::Usage(format!(
+            "soak --wall-seconds must be in 1..={MAX_DAILY_SOAK_WALL_SECONDS}"
+        )));
+    }
+    if options.jobs == 0 || options.jobs > MAX_DAILY_SOAK_JOBS {
+        return Err(CliError::Usage(format!(
+            "soak --jobs must be in 1..={MAX_DAILY_SOAK_JOBS}"
+        )));
+    }
+    if options.batch_runs == 0 || options.batch_runs > MAX_DAILY_SOAK_BATCH_RUNS {
+        return Err(CliError::Usage(format!(
+            "soak --batch-runs must be in 1..={MAX_DAILY_SOAK_BATCH_RUNS}"
+        )));
+    }
+    if options.max_runs == 0 || options.max_runs > MAX_DAILY_SOAK_RUNS_PER_EPOCH {
+        return Err(CliError::Usage(format!(
+            "soak --max-runs must be in 1..={MAX_DAILY_SOAK_RUNS_PER_EPOCH}"
+        )));
+    }
+    if options.max_failure_artifacts == 0
+        || options.max_failure_artifacts > MAX_SOAK_FAILURE_ARTIFACTS
+    {
+        return Err(CliError::Usage(format!(
+            "soak --max-failure-artifacts must be in 1..={MAX_SOAK_FAILURE_ARTIFACTS}"
+        )));
+    }
+    if options.max_artifact_bytes == 0 || options.max_artifact_bytes > MAX_SOAK_ARTIFACT_BYTES {
+        return Err(CliError::Usage(format!(
+            "soak --max-artifact-bytes must be in 1..={MAX_SOAK_ARTIFACT_BYTES}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_daily_soak_plan(plan: &SoakPlan) -> Result<(), CliError> {
+    if plan.id != "daily"
+        || plan
+            .lanes
+            .iter()
+            .map(|lane| lane.id.as_str())
+            .ne(DAILY_SOAK_LANE_IDS)
+    {
+        return Err(CliError::Usage(
+            "daily soak plan must contain the canonical twelve lanes".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct FailureRetentionSummary {
+    retained: u64,
+    omitted: u64,
+    retained_bytes: u64,
+    byte_budget: u64,
+    artifact_budget: usize,
+    infrastructure_error: Option<String>,
+}
+
+#[derive(Debug)]
+struct FailureRetentionState {
+    observed: u64,
+    retained: u64,
+    omitted: u64,
+    retained_bytes: u64,
+    infrastructure_error: Option<String>,
+}
+
+#[derive(Debug)]
+struct FailureRetention {
+    root: PathBuf,
+    max_artifacts: usize,
+    max_bytes: u64,
+    state: Mutex<FailureRetentionState>,
+}
+
+struct FailureRetentionInput<'a> {
+    lane_id: &'a str,
+    seed_ordinal: u64,
+    seed_hex: &'a str,
+    crypto: CryptoLane,
+    selection: Option<&'a crate::SwarmSelection>,
+    scenario: &'a Scenario,
+    failure: &'a crate::ScenarioFailureReport,
+    signature: &'a FailureSignature,
+    trace: &'a [TraceEvent],
+}
+
+impl FailureRetention {
+    fn new(root: PathBuf, max_artifacts: usize, max_bytes: u64) -> Self {
+        Self {
+            root,
+            max_artifacts,
+            max_bytes,
+            state: Mutex::new(FailureRetentionState {
+                observed: 0,
+                retained: 0,
+                omitted: 0,
+                retained_bytes: 0,
+                infrastructure_error: None,
+            }),
+        }
+    }
+
+    fn retain(&self, input: FailureRetentionInput<'_>) {
+        let mut state = self.state.lock().expect("failure retention lock poisoned");
+        let result = self.retain_locked(&mut state, input);
+        if let Err(error) = result {
+            state.infrastructure_error.get_or_insert(error);
+            match state.omitted.checked_add(1) {
+                Some(omitted) => state.omitted = omitted,
+                None => {
+                    state.infrastructure_error =
+                        Some("omitted failure counter overflow".to_owned());
+                }
+            }
+        }
+    }
+
+    fn retain_locked(
+        &self,
+        state: &mut FailureRetentionState,
+        input: FailureRetentionInput<'_>,
+    ) -> Result<(), String> {
+        state.observed = state
+            .observed
+            .checked_add(1)
+            .ok_or_else(|| "failure observation counter overflow".to_owned())?;
+        if state.infrastructure_error.is_some()
+            || usize::try_from(state.retained).unwrap_or(usize::MAX) >= self.max_artifacts
+        {
+            state.omitted = state
+                .omitted
+                .checked_add(1)
+                .ok_or_else(|| "omitted failure counter overflow".to_owned())?;
+            return Ok(());
+        }
+
+        let candidate = self.root.join(format!(
+            "failure-{:06}-seed-{:020}",
+            state.observed, input.seed_ordinal
+        ));
+        let write_result = (|| -> Result<u64, String> {
+            let store = ArtifactStore::new(&candidate).map_err(|error| error.to_string())?;
+            store
+                .write_atomic("lane-id.txt", format!("{}\n", input.lane_id).as_bytes())
+                .map_err(|error| error.to_string())?;
+            store
+                .write_atomic(
+                    "seed-ordinal.txt",
+                    format!("{}\n", input.seed_ordinal).as_bytes(),
+                )
+                .map_err(|error| error.to_string())?;
+            store
+                .write_atomic("seed.txt", format!("{}\n", input.seed_hex).as_bytes())
+                .map_err(|error| error.to_string())?;
+            store
+                .write_atomic(
+                    "crypto-mode.txt",
+                    format!("{}\n", input.crypto.as_str()).as_bytes(),
+                )
+                .map_err(|error| error.to_string())?;
+            if let Some(selection) = input.selection {
+                let mut bytes =
+                    serde_json::to_vec_pretty(selection).map_err(|error| error.to_string())?;
+                bytes.push(b'\n');
+                store
+                    .write_atomic("swarm-selection.json", &bytes)
+                    .map_err(|error| error.to_string())?;
+            }
+            FailureArtifactBundle {
+                scenario: input.scenario,
+                error: &input.failure.error,
+                signature: input.signature,
+                invariants: &input.failure.invariants,
+                resources: &input.failure.resources,
+                model: Some(&input.failure.model),
+                observations: Some(&input.failure.observations),
+                virtual_time_nanos: Some(input.failure.virtual_time_nanos),
+                scheduler: input.failure.scheduler.as_ref(),
+                tasks: Some(&input.failure.tasks),
+                trace: input.trace,
+                events_per_chunk: 64,
+            }
+            .write(&store)
+            .map_err(|error| error.to_string())?;
+            let replay_crypto = input.crypto.as_str().replace('_', "-");
+            store
+                .write_atomic(
+                    "replay.sh",
+                    format!(
+                        "#!/usr/bin/env bash\n\
+                         set -euo pipefail\n\
+                         failure_dir=$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\n\
+                         cargo sim run \"$failure_dir/scenario.json\" \
+                         --seed {} --crypto {} --artifacts \"$failure_dir/replay\"\n",
+                        input.seed_hex, replay_crypto
+                    )
+                    .as_bytes(),
+                )
+                .map_err(|error| error.to_string())?;
+            store
+                .write_atomic(
+                    "replay-command.txt",
+                    b"From the exact source checkout: bash <failure-directory>/replay.sh\n",
+                )
+                .map_err(|error| error.to_string())?;
+            directory_bytes(&candidate, self.max_bytes)
+        })();
+        let candidate_bytes = match write_result {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&candidate);
+                return Err(format!("failure artifact write failed: {error}"));
+            }
+        };
+        let next_bytes = state
+            .retained_bytes
+            .checked_add(candidate_bytes)
+            .ok_or_else(|| "failure artifact byte counter overflow".to_owned())?;
+        if next_bytes > self.max_bytes {
+            fs::remove_dir_all(&candidate).map_err(|error| {
+                format!(
+                    "failed to remove over-budget failure artifact {}: {error}",
+                    candidate.display()
+                )
+            })?;
+            state.omitted = state
+                .omitted
+                .checked_add(1)
+                .ok_or_else(|| "omitted failure counter overflow".to_owned())?;
+            return Ok(());
+        }
+        state.retained = state
+            .retained
+            .checked_add(1)
+            .ok_or_else(|| "retained failure counter overflow".to_owned())?;
+        state.retained_bytes = next_bytes;
+        Ok(())
+    }
+
+    fn snapshot(&self) -> FailureRetentionSummary {
+        let state = self.state.lock().expect("failure retention lock poisoned");
+        FailureRetentionSummary {
+            retained: state.retained,
+            omitted: state.omitted,
+            retained_bytes: state.retained_bytes,
+            byte_budget: self.max_bytes,
+            artifact_budget: self.max_artifacts,
+            infrastructure_error: state.infrastructure_error.clone(),
+        }
+    }
+}
+
+fn directory_bytes(root: &Path, maximum: u64) -> Result<u64, String> {
+    let mut total = 0_u64;
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let file_type = entry.file_type().map_err(|error| error.to_string())?;
+            if file_type.is_symlink() {
+                return Err(format!(
+                    "failure artifact contains a symlink: {}",
+                    entry.path().display()
+                ));
+            }
+            if file_type.is_dir() {
+                pending.push(entry.path());
+            } else if file_type.is_file() {
+                total = total
+                    .checked_add(entry.metadata().map_err(|error| error.to_string())?.len())
+                    .ok_or_else(|| "failure artifact byte counter overflow".to_owned())?;
+                if total > maximum {
+                    return Ok(total);
+                }
+            } else {
+                return Err(format!(
+                    "failure artifact contains an unsupported entry: {}",
+                    entry.path().display()
+                ));
+            }
+        }
+    }
+    Ok(total)
+}
+
+#[derive(serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct SoakEpochReport<'a> {
+    plan_id: &'a str,
+    epoch: u8,
+    seed_window: u64,
+    failure_artifacts: FailureRetentionSummary,
+    #[serde(flatten)]
+    summary: &'a SoakSummary,
+}
+
+struct SoakReportPublisher {
+    root: PathBuf,
+    plan_id: String,
+    epoch: u8,
+    seed_window: u64,
+    temporary_ordinal: u64,
+}
+
+impl SoakReportPublisher {
+    fn new(root: PathBuf, plan_id: String, epoch: u8, seed_window: u64) -> Self {
+        Self {
+            root,
+            plan_id,
+            epoch,
+            seed_window,
+            temporary_ordinal: 0,
+        }
+    }
+
+    fn publish(
+        &mut self,
+        summary: &SoakSummary,
+        failure_artifacts: FailureRetentionSummary,
+    ) -> Result<(), CliError> {
+        let report = SoakEpochReport {
+            plan_id: &self.plan_id,
+            epoch: self.epoch,
+            seed_window: self.seed_window,
+            failure_artifacts,
+            summary,
+        };
+        let mut bytes = serde_json::to_vec_pretty(&report)
+            .map_err(|error| CliError::Trace(error.to_string()))?;
+        bytes.push(b'\n');
+        self.temporary_ordinal = self
+            .temporary_ordinal
+            .checked_add(1)
+            .ok_or_else(|| CliError::Trace("soak checkpoint ordinal overflow".to_owned()))?;
+        let temporary = self.root.join(format!(
+            ".soak-summary.json.tmp.{}.{}",
+            std::process::id(),
+            self.temporary_ordinal
+        ));
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)?;
+        let write_result = (|| -> Result<(), std::io::Error> {
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            fs::rename(&temporary, self.root.join("soak-summary.json"))?;
+            Ok(())
+        })();
+        if write_result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        write_result.map_err(CliError::Io)
+    }
+}
+
 fn load_swarm_template(path: &Path, workspace: &Path) -> Result<(SwarmSpec, Vec<u8>), CliError> {
     let template_bytes = read_file(path)?;
     let template = SwarmTemplate::from_json(&template_bytes)?;
@@ -1863,6 +2480,19 @@ pub enum CliError {
     Corpus(CorpusError),
     Campaign(CampaignError),
     Swarm(SwarmError),
+    Soak(SoakError),
+    SoakPlan(SoakPlanError),
+    SoakOutputExists(PathBuf),
+    SoakSwarmDigest {
+        lane: String,
+        expected: String,
+        actual: String,
+    },
+    SoakRunFailures {
+        failed: u64,
+        errored: u64,
+        infrastructure_error: Option<String>,
+    },
     CampaignRunFailures(usize),
     Parity(ParityError),
     ParityDifference(Vec<String>),
@@ -1912,9 +2542,13 @@ impl CliError {
             | Self::Corpus(_)
             | Self::Campaign(_)
             | Self::Swarm(_)
+            | Self::Soak(_)
+            | Self::SoakPlan(_)
+            | Self::SoakSwarmDigest { .. }
+            | Self::SoakRunFailures { .. }
             | Self::CampaignRunFailures(_)
             | Self::Parity(_) => 74,
-            Self::MinimizationOutputExists(_) => 73,
+            Self::MinimizationOutputExists(_) | Self::SoakOutputExists(_) => 73,
             Self::Manifest(_)
             | Self::Trace(_)
             | Self::WallEpochOverflow
@@ -1966,6 +2600,31 @@ impl std::fmt::Display for CliError {
             Self::Corpus(error) => error.fmt(f),
             Self::Campaign(error) => error.fmt(f),
             Self::Swarm(error) => error.fmt(f),
+            Self::Soak(error) => error.fmt(f),
+            Self::SoakPlan(error) => error.fmt(f),
+            Self::SoakOutputExists(path) => {
+                write!(f, "soak artifact root already exists: {}", path.display())
+            }
+            Self::SoakSwarmDigest {
+                lane,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "soak swarm digest mismatch for {lane}: expected {expected}, actual {actual}"
+            ),
+            Self::SoakRunFailures {
+                failed,
+                errored,
+                infrastructure_error,
+            } => write!(
+                f,
+                "soak contained {failed} product failures and {errored} execution errors{}",
+                infrastructure_error
+                    .as_deref()
+                    .map(|error| format!("; artifact infrastructure failed: {error}"))
+                    .unwrap_or_default()
+            ),
             Self::CampaignRunFailures(count) => {
                 write!(f, "campaign contained {count} failed runs")
             }
@@ -2069,6 +2728,16 @@ impl From<CampaignError> for CliError {
 impl From<SwarmError> for CliError {
     fn from(value: SwarmError) -> Self {
         Self::Swarm(value)
+    }
+}
+impl From<SoakError> for CliError {
+    fn from(value: SoakError) -> Self {
+        Self::Soak(value)
+    }
+}
+impl From<SoakPlanError> for CliError {
+    fn from(value: SoakPlanError) -> Self {
+        Self::SoakPlan(value)
     }
 }
 impl From<ParityError> for CliError {

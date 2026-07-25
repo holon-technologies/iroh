@@ -14,6 +14,15 @@ fn checked_operations_policy_is_canonical_and_safe() {
         ]
     );
     assert_eq!(policy.tiers.last().unwrap().maximum_campaign_runs, 1024);
+    assert_eq!(policy.daily_soak.workflow_concurrency, 1);
+    assert_eq!(policy.daily_soak.epochs, 8);
+    assert_eq!(policy.daily_soak.epoch_wall_minutes, 30);
+    assert_eq!(policy.daily_soak.maximum_total_runs, 1_000_000);
+    assert_eq!(policy.daily_soak.maximum_failure_artifacts, 16);
+    assert_eq!(
+        policy.daily_soak.maximum_artifact_bytes,
+        256 * 1_024 * 1_024
+    );
 }
 
 #[test]
@@ -40,4 +49,37 @@ fn operations_policy_rejects_nonmonotonic_tiers_and_unsafe_replay() {
         legacy_grade.validate(),
         Err(OperationsPolicyError::UnsafeReplayPolicy)
     );
+}
+
+#[test]
+fn operations_policy_rejects_relaxed_daily_soak_bounds() {
+    let policy = OperationsPolicy::from_json(include_bytes!("../operations-policy.json")).unwrap();
+
+    for unsafe_policy in [
+        {
+            let mut candidate = policy.clone();
+            candidate.daily_soak.workflow_concurrency = 2;
+            candidate
+        },
+        {
+            let mut candidate = policy.clone();
+            candidate.daily_soak.workers = 8;
+            candidate
+        },
+        {
+            let mut candidate = policy.clone();
+            candidate.daily_soak.maximum_artifact_bytes += 1;
+            candidate
+        },
+        {
+            let mut candidate = policy.clone();
+            candidate.daily_soak.retain_success_traces = true;
+            candidate
+        },
+    ] {
+        assert_eq!(
+            unsafe_policy.validate(),
+            Err(OperationsPolicyError::UnsafeDailySoakPolicy)
+        );
+    }
 }

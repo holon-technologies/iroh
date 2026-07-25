@@ -27,10 +27,157 @@ fn cargo_sim_help_lists_the_stable_command_surface() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     for command in [
-        "run", "campaign", "replay", "minimize", "corpus", "explain", "parity",
+        "run", "campaign", "soak", "replay", "minimize", "corpus", "explain", "parity",
     ] {
         assert!(stdout.contains(command), "missing {command} in {stdout}");
     }
+}
+
+#[test]
+fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
+    let _guard = CLI_RUN_LOCK.lock().unwrap();
+    let root = temp_dir();
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let artifact_root = root.join("soak");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .args(["--plan", "iroh-sim/soaks/daily.json"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&artifact_root)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let summary: serde_json::Value =
+        serde_json::from_slice(&fs::read(artifact_root.join("soak-summary.json")).unwrap())
+            .unwrap();
+    assert_eq!(summary["schema_version"], 1);
+    assert_eq!(summary["completed_runs"], 1);
+    assert_eq!(summary["successful_runs"], 1);
+    assert_eq!(summary["failed_runs"], 0);
+    assert_eq!(
+        fs::read_dir(&artifact_root)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().unwrap().is_dir())
+            .count(),
+        0,
+        "successful soak runs must not retain per-seed artifacts"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn soak_retains_a_bounded_replayable_failure_bundle() {
+    let _guard = CLI_RUN_LOCK.lock().unwrap();
+    let root = temp_dir();
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let mut plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+            .unwrap();
+    plan["lanes"][0]["swarm"] =
+        serde_json::Value::String("iroh-sim/tests/fixtures/soak-failure-swarm.json".to_owned());
+    plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
+        "8b83cb4c2840557016f2d8bd67e04caf9d142c3dd66fde1d263abfdad6683e12".to_owned(),
+    );
+    let plan_path = root.join("failure-plan.json");
+    fs::write(&plan_path, serde_json::to_vec_pretty(&plan).unwrap()).unwrap();
+    let artifact_root = root.join("soak");
+    let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .arg("--plan")
+        .arg(&plan_path)
+        .args(["--epoch", "0", "--seed-window", "0"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "33554432",
+        ])
+        .arg("--artifacts")
+        .arg(&artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(74),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let summary: serde_json::Value =
+        serde_json::from_slice(&fs::read(artifact_root.join("soak-summary.json")).unwrap())
+            .unwrap();
+    assert_eq!(summary["failed_runs"], 1);
+    assert_eq!(summary["failure_artifacts"]["retained"], 1);
+    assert_eq!(summary["failure_artifacts"]["omitted"], 0);
+    let failure_root = fs::read_dir(&artifact_root)
+        .unwrap()
+        .filter_map(Result::ok)
+        .find(|entry| entry.file_type().unwrap().is_dir())
+        .unwrap()
+        .path();
+    for name in [
+        "scenario.json",
+        "failure-signature.json",
+        "failure-artifacts.json",
+        "seed.txt",
+        "seed-ordinal.txt",
+        "lane-id.txt",
+        "crypto-mode.txt",
+        "swarm-selection.json",
+        "replay.sh",
+        "replay-command.txt",
+    ] {
+        assert!(failure_root.join(name).is_file(), "missing {name}");
+    }
+
+    let replay_root = failure_root.join("replay");
+    let seed = fs::read_to_string(failure_root.join("seed.txt")).unwrap();
+    let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("run")
+        .arg(failure_root.join("scenario.json"))
+        .arg("--seed")
+        .arg(seed.trim())
+        .args(["--crypto", "deterministic-test", "--artifacts"])
+        .arg(&replay_root)
+        .output()
+        .unwrap();
+    assert!(
+        replay.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&replay.stdout),
+        String::from_utf8_lossy(&replay.stderr)
+    );
+    assert_eq!(
+        fs::read(failure_root.join("failure-signature.json")).unwrap(),
+        fs::read(replay_root.join("failure-signature.json")).unwrap()
+    );
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
