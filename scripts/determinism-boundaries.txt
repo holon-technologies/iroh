@@ -108,18 +108,18 @@ clock-timer	iroh-sim/src/kernel.rs:179	origin: iroh_runtime::Instant::now(),
 clock-timer	iroh-sim/tests/deterministic_runtime.rs:44	tokio::time::advance(Duration::from_secs(5)).await;
 clock-timer	iroh-sim/tests/relay.rs:193	let started = tokio::time::Instant::now();
 clock-timer	iroh-sim/tests/relay.rs:328	let started = tokio::time::Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1424	tokio::time::sleep(baseline).await;
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1775	Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1840	tokio::time::advance(Duration::from_secs(3)).await;
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1843	let before = tokio::time::Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1850	let started = tokio::time::Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1856	tokio::time::advance(Duration::from_millis(10)).await;
-clock-timer	iroh/bench/src/bin/resource_canary.rs:867	let started = Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:899	let started = Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:940	fn resource_sample_ticker(interval: Duration) -> Result<tokio::time::Interval, String> {
-clock-timer	iroh/bench/src/bin/resource_canary.rs:941	let first_sample = tokio::time::Instant::now()
-clock-timer	iroh/bench/src/bin/resource_canary.rs:944	let mut ticker = tokio::time::interval_at(first_sample, interval);
-clock-timer	iroh/bench/src/bin/resource_canary.rs:945	ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1013	fn resource_sample_ticker(interval: Duration) -> Result<tokio::time::Interval, String> {
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1014	let first_sample = tokio::time::Instant::now()
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1017	let mut ticker = tokio::time::interval_at(first_sample, interval);
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1018	ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1500	tokio::time::sleep(baseline).await;
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1850	Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1915	tokio::time::advance(Duration::from_secs(3)).await;
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1918	let before = tokio::time::Instant::now();
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1925	let started = tokio::time::Instant::now();
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1931	tokio::time::advance(Duration::from_millis(10)).await;
+clock-timer	iroh/bench/src/bin/resource_canary.rs:940	let started = Instant::now();
+clock-timer	iroh/bench/src/bin/resource_canary.rs:972	let started = Instant::now();
 clock-timer	iroh/bench/src/canary/workloads.rs:1010	StdInstant::now()
 clock-timer	iroh/bench/src/canary/workloads.rs:1016	let shutdown_result = tokio::time::timeout(remaining, server.shutdown())
 clock-timer	iroh/bench/src/canary/workloads.rs:1055	tokio::time::timeout(config.operation_timeout, TcpStream::connect(server_addr))
@@ -476,16 +476,16 @@ external-state	iroh/bench/src/bin/bulk.rs:126	let server_thread = std::thread::s
 external-state	iroh/bench/src/bin/bulk.rs:136	handles.push(std::thread::spawn(move || {
 external-state	iroh/bench/src/bin/bulk.rs:62	let server_thread = std::thread::spawn(move || {
 external-state	iroh/bench/src/bin/bulk.rs:73	handles.push(std::thread::spawn(move || {
-external-state	iroh/bench/src/bin/resource_canary.rs:1144	let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-external-state	iroh/bench/src/bin/resource_canary.rs:1492	let result = require_production_platform(std::env::consts::OS, std::env::consts::ARCH)
-external-state	iroh/bench/src/bin/resource_canary.rs:1502	operating_system: std::env::consts::OS,
-external-state	iroh/bench/src/bin/resource_canary.rs:1503	architecture: std::env::consts::ARCH,
-external-state	iroh/bench/src/bin/resource_canary.rs:1606	let output = ProcessCommand::new("df")
-external-state	iroh/bench/src/bin/resource_canary.rs:1618	let output = ProcessCommand::new("git")
-external-state	iroh/bench/src/bin/resource_canary.rs:1631	let output = ProcessCommand::new("git")
-external-state	iroh/bench/src/bin/resource_canary.rs:1653	let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-external-state	iroh/bench/src/bin/resource_canary.rs:1738	let mut digest_file = OpenOptions::new()
-external-state	iroh/bench/src/bin/resource_canary.rs:1757	let mut file = File::open(path)?;
+external-state	iroh/bench/src/bin/resource_canary.rs:1217	let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+external-state	iroh/bench/src/bin/resource_canary.rs:1568	let result = require_production_platform(std::env::consts::OS, std::env::consts::ARCH)
+external-state	iroh/bench/src/bin/resource_canary.rs:1577	operating_system: std::env::consts::OS,
+external-state	iroh/bench/src/bin/resource_canary.rs:1578	architecture: std::env::consts::ARCH,
+external-state	iroh/bench/src/bin/resource_canary.rs:1681	let output = ProcessCommand::new("df")
+external-state	iroh/bench/src/bin/resource_canary.rs:1693	let output = ProcessCommand::new("git")
+external-state	iroh/bench/src/bin/resource_canary.rs:1706	let output = ProcessCommand::new("git")
+external-state	iroh/bench/src/bin/resource_canary.rs:1728	let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+external-state	iroh/bench/src/bin/resource_canary.rs:1813	let mut digest_file = OpenOptions::new()
+external-state	iroh/bench/src/bin/resource_canary.rs:1832	let mut file = File::open(path)?;
 external-state	iroh/bench/src/bin/resource_canary.rs:6	fs::{self, File, OpenOptions},
 external-state	iroh/examples/0rtt.rs:30	if let Ok(secret) = env::var("IROH_SECRET") {
 external-state	iroh/examples/transfer.rs:137	std::fs::create_dir_all(&dir)
@@ -834,7 +834,7 @@ spawn-task	iroh/bench/src/bin/bulk.rs:126	let server_thread = std::thread::spawn
 spawn-task	iroh/bench/src/bin/bulk.rs:136	handles.push(std::thread::spawn(move || {
 spawn-task	iroh/bench/src/bin/bulk.rs:62	let server_thread = std::thread::spawn(move || {
 spawn-task	iroh/bench/src/bin/bulk.rs:73	handles.push(std::thread::spawn(move || {
-spawn-task	iroh/bench/src/bin/resource_canary.rs:870	let mut sampler = tokio::spawn(sample_resources(sample_interval, stop_rx, phase_receiver));
+spawn-task	iroh/bench/src/bin/resource_canary.rs:943	let mut sampler = tokio::spawn(sample_resources(sample_interval, stop_rx, phase_receiver));
 spawn-task	iroh/bench/src/canary/workloads.rs:1052	let mut pending_tasks = JoinSet::new();
 spawn-task	iroh/bench/src/canary/workloads.rs:1133	let mut client_drivers = JoinSet::new();
 spawn-task	iroh/bench/src/canary/workloads.rs:1198	let mut fill_tasks = JoinSet::new();

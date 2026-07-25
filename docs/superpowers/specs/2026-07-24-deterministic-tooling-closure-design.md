@@ -34,11 +34,13 @@ multi-minute virtual-time cadence regression.
 
 ### Realistic canary service
 
-Add a scheduled and manually dispatchable workflow for an explicitly labelled, dedicated Linux
-x86-64 runner. Preflight remains the authority for CPU, memory, descriptor, storage, and
-contamination requirements. The job builds the optimized release canary, runs the exact evidence
-profile, always uploads bounded artifacts, and never runs for pull requests. A missing or
-undersized dedicated runner is an operational failure, not permission to weaken preflight.
+Add a scheduled and manually dispatchable workflow on the free standard GitHub-hosted Linux
+x86-64 runner. Preflight selects an explicit `github-hosted-standard` qualification for CPU,
+memory, descriptors, storage, and contamination. The job builds the optimized release canary,
+runs the full timing profile at 50% workload scale, always uploads bounded artifacts, and never
+runs for pull requests. Its reports are permanently non-evidence. The exact production profile
+retains the stricter `production-minimum` qualification and is run separately when a conforming
+host is available.
 
 ### Failure artifacts
 
@@ -112,4 +114,4 @@ table. Tests reject contradictory active/retired boundary labels.
 - `cargo fmt`, strict Clippy for affected crates, affected crate tests, workflow/config validation,
   and documentation link/consistency checks.
 - The full production evidence profile is not rerun on an arbitrary shared host; the scheduled
-  dedicated-runner workflow owns recurring evidence.
+  GitHub-hosted workflow owns recurring observations and cannot emit production evidence.

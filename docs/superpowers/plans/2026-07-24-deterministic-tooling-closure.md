@@ -4,7 +4,7 @@
 into a bounded executable regression gate.
 
 **Success criteria:** exact reusable load conservation, production-horizon virtual-time coverage,
-structured canary failures, scheduled dedicated-host evidence, syntax-aware stable effect
+structured canary failures, scheduled GitHub-hosted observations, syntax-aware stable effect
 inventory, four bounded fuzz targets, and consistent current-state documentation all validate on
 the final tree.
 
@@ -58,14 +58,15 @@ itself fails; diagnostic serialization may not hide the original error.
 
 **Validation:** focused error injection tests plus reduced smoke runs for all lanes.
 
-### Task 3: Scheduled dedicated-host canary
+### Task 3: Scheduled GitHub-hosted canary observation
 
 **Resources:** new `.github/workflows/resource-canary.yml`, canary operator docs.
 
 **Depends on:** Task 2.
 
-**Interfaces and state:** weekly/manual workflow on the `iroh-resource-canary` self-hosted runner
-label; optimized release build; exact evidence arguments; bounded timeout and artifact retention.
+**Interfaces and state:** weekly/manual workflow on free `ubuntu-latest`; optimized release build;
+explicit `github-hosted-standard` qualification; 50% scale with exact timing; bounded timeout and
+artifact retention. Hosted reports are never production evidence.
 
 **Implementation:** add static workflow contract tests before the workflow, then add preflight,
 execution, digest verification, and unconditional artifact upload.
@@ -144,6 +145,6 @@ yet executed service evidence.
 checks, fuzz target compilation, workflow contracts, and final diff review.
 
 **Failure and operations:** report any unavailable platform/runner validation explicitly; never
-substitute a shared-host run for dedicated production evidence.
+substitute a GitHub-hosted observation for production evidence.
 
 **Validation:** all commands above on the final state, with exact failures retained if blocked.

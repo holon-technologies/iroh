@@ -30,8 +30,10 @@ not met. Historical swap occupancy is recorded but is not alone a failure; activ
 represented by available memory and sampled CPU.
 
 The host profile is an evidence qualification, not a universal support promise. Runs may reduce
-load or duration for smoke diagnosis, but they still require this host minimum and cannot be
-classified as production evidence.
+load or duration for smoke diagnosis. An explicit `github-hosted-standard` observation profile
+accepts the free public-repository runner floor of 4 online cores, 14 GiB visible memory, 8,192
+file descriptors, and 5 GiB free workspace storage. That profile is recorded in every report and
+can never be classified as production evidence.
 
 ## Workload Model
 
@@ -125,6 +127,12 @@ recover capacity is a failure.
 The first run is local and loopback-only. A retained passing report may close the operational audit
 follow-up but does not authorize a default increase. Any future increase must repeat the same
 profile at twice the proposed value.
+
+The recurring public-repository workflow uses a free standard GitHub-hosted Linux runner at 50%
+workload scale with the full 30/300/30 cadence. This proportional observation exercises bounded
+overload and long-duration lifecycle behavior on the smaller host while remaining
+`evidence: false`. Only an explicit `production-minimum` run can refresh the production-capacity
+evidence.
 
 The harness and DNS hold controls are isolated behind opt-in Cargo features and do not ship in
 normal library artifacts. Narrow read-only task-capacity snapshots and relay default constants are

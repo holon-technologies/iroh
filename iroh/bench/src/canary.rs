@@ -374,25 +374,35 @@ pub struct EvidencePrerequisites {
     all_lanes: bool,
     release_build: bool,
     source_clean: bool,
+    host_profile: HostProfile,
 }
 
 impl EvidencePrerequisites {
     /// Creates explicit evidence prerequisites.
-    pub const fn new(all_lanes: bool, release_build: bool, source_clean: bool) -> Self {
+    pub const fn new(
+        all_lanes: bool,
+        release_build: bool,
+        source_clean: bool,
+        host_profile: HostProfile,
+    ) -> Self {
         Self {
             all_lanes,
             release_build,
             source_clean,
+            host_profile,
         }
     }
 
     /// Prerequisites used to test only timing and scale classification.
     pub const fn ready() -> Self {
-        Self::new(true, true, true)
+        Self::new(true, true, true, HostProfile::ProductionMinimum)
     }
 
     const fn all_satisfied(self) -> bool {
-        self.all_lanes && self.release_build && self.source_clean
+        self.all_lanes
+            && self.release_build
+            && self.source_clean
+            && self.host_profile.permits_evidence()
     }
 }
 
@@ -654,7 +664,39 @@ fn integral_rate(field: &'static str, value: f64) -> Result<NonZeroUsize, Canary
     required_nonzero(field, parsed)
 }
 
-/// Static requirements for the documented minimum production host.
+/// Host qualification selected before any workload starts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HostProfile {
+    /// The documented minimum production-capacity evidence host.
+    ProductionMinimum,
+    /// The free standard GitHub-hosted Linux runner observation floor.
+    GithubHostedStandard,
+}
+
+impl HostProfile {
+    /// Returns the static requirements for this qualification profile.
+    pub const fn requirements(self) -> HostRequirements {
+        match self {
+            Self::ProductionMinimum => HostRequirements::production_minimum(),
+            Self::GithubHostedStandard => HostRequirements::github_hosted_standard(),
+        }
+    }
+
+    /// Returns the stable artifact label for this profile.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ProductionMinimum => "production-minimum",
+            Self::GithubHostedStandard => "github-hosted-standard",
+        }
+    }
+
+    /// Returns whether this profile may qualify a run as production evidence.
+    pub const fn permits_evidence(self) -> bool {
+        matches!(self, Self::ProductionMinimum)
+    }
+}
+
+/// Static requirements for one explicitly selected host profile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HostRequirements {
     cpu_cores: usize,
@@ -671,6 +713,16 @@ impl HostRequirements {
             memory_bytes: 30 * GIBIBYTE,
             file_descriptors: 8_192,
             free_storage_bytes: 20 * GIBIBYTE,
+        }
+    }
+
+    /// Returns the floor for free standard GitHub-hosted Linux observations.
+    pub const fn github_hosted_standard() -> Self {
+        Self {
+            cpu_cores: 4,
+            memory_bytes: 14 * GIBIBYTE,
+            file_descriptors: 8_192,
+            free_storage_bytes: 5 * GIBIBYTE,
         }
     }
 
@@ -1158,7 +1210,7 @@ mod tests {
 
     use super::{
         AcceptanceInput, AdmissionSample, CanaryMode, DurationProfile, EvidencePrerequisites,
-        HeadroomThreshold, HostObservation, HostRequirements, WorkloadConservation,
+        HeadroomThreshold, HostObservation, HostProfile, HostRequirements, WorkloadConservation,
         WorkloadProfile, cpu_usage_basis_points, evaluate_acceptance, evaluate_host_preflight,
         parse_cpu_ticks, parse_meminfo, parse_open_file_limit, parse_process_cpu_ticks,
         parse_process_status, parse_storage_available_bytes, require_loopback,
@@ -1238,9 +1290,10 @@ mod tests {
         )
         .expect("evidence duration profile");
         for prerequisites in [
-            EvidencePrerequisites::new(false, true, true),
-            EvidencePrerequisites::new(true, false, true),
-            EvidencePrerequisites::new(true, true, false),
+            EvidencePrerequisites::new(false, true, true, HostProfile::ProductionMinimum),
+            EvidencePrerequisites::new(true, false, true, HostProfile::ProductionMinimum),
+            EvidencePrerequisites::new(true, true, false, HostProfile::ProductionMinimum),
+            EvidencePrerequisites::new(true, true, true, HostProfile::GithubHostedStandard),
         ] {
             assert!(!CanaryMode::classify(&full, 100, prerequisites).is_evidence());
         }
@@ -1288,6 +1341,15 @@ mod tests {
         assert_eq!(requirements.memory_bytes(), 30 * 1024 * 1024 * 1024);
         assert_eq!(requirements.file_descriptors(), 8_192);
         assert_eq!(requirements.free_storage_bytes(), 20 * 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn github_hosted_profile_matches_free_standard_runner_floor() {
+        let requirements = HostRequirements::github_hosted_standard();
+        assert_eq!(requirements.cpu_cores(), 4);
+        assert_eq!(requirements.memory_bytes(), 14 * 1024 * 1024 * 1024);
+        assert_eq!(requirements.file_descriptors(), 8_192);
+        assert_eq!(requirements.free_storage_bytes(), 5 * 1024 * 1024 * 1024);
     }
 
     #[test]

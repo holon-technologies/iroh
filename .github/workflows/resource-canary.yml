@@ -1,4 +1,4 @@
-name: Production Resource Canary
+name: GitHub-hosted Resource Observation
 
 on:
   schedule:
@@ -13,9 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  production_resource_canary:
-    name: Dedicated-host 2x production resource evidence
-    runs-on: [self-hosted, linux, X64, iroh-resource-canary]
+  hosted_resource_observation:
+    name: GitHub-hosted 50%-scale resource observation
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
@@ -24,13 +24,15 @@ jobs:
         run: >-
           cargo build --profile optimized-release -p iroh-bench
           --features resource-canary --bin resource-canary
-      - name: Validate dedicated host without load
+      - name: Validate hosted runner without load
         run: >-
           target/optimized-release/resource-canary preflight
+          --host-profile github-hosted-standard
           --baseline-seconds 5 --output target/resource-canary-scheduled
-      - name: Run exact production evidence profile
+      - name: Run hosted resource observation
         run: >-
-          target/optimized-release/resource-canary run --lane all --scale-percent 100
+          target/optimized-release/resource-canary run --host-profile github-hosted-standard
+          --lane all --scale-percent 50
           --warmup-seconds 30 --measurement-seconds 300 --cooldown-seconds 30
           --sample-interval-seconds 1 --baseline-seconds 5
           --output target/resource-canary-scheduled
@@ -46,7 +48,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: production-resource-canary-${{ github.run_id }}
+          name: github-hosted-resource-observation-${{ github.run_id }}
           path: target/resource-canary-scheduled
           if-no-files-found: error
           retention-days: 30

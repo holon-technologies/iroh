@@ -13,12 +13,15 @@ fi
 required=(
   'schedule:'
   'workflow_dispatch:'
-  'runs-on: [self-hosted, linux, X64, iroh-resource-canary]'
+  'name: GitHub-hosted 50%-scale resource observation'
+  'runs-on: ubuntu-latest'
   'timeout-minutes: 90'
   'cargo build --profile optimized-release -p iroh-bench'
   '--features resource-canary --bin resource-canary'
   'target/optimized-release/resource-canary preflight'
-  'target/optimized-release/resource-canary run --lane all --scale-percent 100'
+  '--host-profile github-hosted-standard'
+  'target/optimized-release/resource-canary run --host-profile github-hosted-standard'
+  '--lane all --scale-percent 50'
   '--warmup-seconds 30 --measurement-seconds 300 --cooldown-seconds 30'
   '--sample-interval-seconds 1 --baseline-seconds 5'
   'if: always()'
@@ -37,4 +40,14 @@ if grep -Eq '^[[:space:]]+pull_request:' "$workflow"; then
   exit 1
 fi
 
-echo "production resource canary workflow contract passed"
+if grep -Fq -- 'self-hosted' "$workflow"; then
+  echo "scheduled resource observations must use free GitHub-hosted capacity" >&2
+  exit 1
+fi
+
+if grep -Fq -- '--scale-percent 100' "$workflow"; then
+  echo "the underqualified GitHub host must not claim the production evidence profile" >&2
+  exit 1
+fi
+
+echo "GitHub-hosted resource observation workflow contract passed"

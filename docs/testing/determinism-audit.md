@@ -173,6 +173,12 @@ line movement from that test. Its production change retains the same seeded deci
 deterministically bounding datagram payloads and limiting recovery fault generation to reliable
 streams. It adds no clock, entropy, scheduler, external-state, or network-environment input.
 
+The 2026-07-25 GitHub-hosted resource-observation profile makes host qualification an explicit
+canary input and permanently excludes the smaller hosted profile from production-evidence
+classification. The resulting lexical-manifest changes are line movement in existing benchmark
+clock, task, process, filesystem, and platform-observation boundaries. It adds no protocol input,
+ambient dependency, scheduling source, or simulator escape.
+
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
 The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Iroh `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.
@@ -489,9 +495,11 @@ orchestration; it adds no ambient effect source.
    still need stable realistic observations.
 4. Exact-source replay is guaranteed for the checked 30-day window; cross-schema conversion is
    intentionally unavailable until an explicit one-way migrator and fixture suite are added.
-5. The weekly production resource workflow and daily bounded fuzz workflow are checked service
-   definitions, not execution evidence. Their first retained runs still require the labelled
-   runner and GitHub service; a workflow definition must never be reported as a passed run.
+5. The weekly GitHub-hosted resource observation and daily bounded fuzz workflow are checked
+   service definitions, not execution evidence. Their first retained runs still require the
+   GitHub service; a workflow definition must never be reported as a passed run. The hosted
+   resource profile is explicitly non-evidence, so recurring production-capacity qualification
+   still requires an 8-core/30-GiB host outside that free service tier.
 
 ## Audit Exit Criteria
 
@@ -518,7 +526,7 @@ This audit remains current only when:
   `scripts/check-determinism-semantic.sh`; `scripts/determinism-boundaries.semantic.txt`.
 - Confirmed bounded parser/framing fuzzing: `fuzz/fuzz_targets`; `scripts/run-bounded-fuzz.sh`;
   `.github/workflows/fuzz.yml`.
-- Confirmed recurring production canary definition: `.github/workflows/resource-canary.yml`;
+- Confirmed recurring hosted resource-observation definition: `.github/workflows/resource-canary.yml`;
   `scripts/tests/check-resource-canary-workflow.sh`.
 
 ## Open Questions

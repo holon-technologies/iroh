@@ -31,19 +31,21 @@ The retained [run report](resource-canary/2026-07-24/run.json), [preflight repor
 and [manifest](resource-canary/2026-07-24/manifest.json) are byte-for-byte copies of the finalized
 artifact.
 
-## Recurring Evidence Service
+## Recurring Hosted Observation
 
 `.github/workflows/resource-canary.yml` defines a weekly and manually dispatched run on the
-dedicated `iroh-resource-canary` Linux x86-64 runner. It repeats the exact optimized evidence
-profile above, verifies finalized manifests, and retains success or failure artifacts for 30 days.
-The workflow is intentionally absent from pull-request triggers because host-performance evidence
-is meaningful only after the canary's uncontaminated-host preflight passes.
+free standard `ubuntu-latest` runner available to public repositories. It uses the explicit
+`github-hosted-standard` host profile and 50% workload scale while retaining the 30/300/30 timing
+and one-second sampling cadence. Reports record that host profile and remain `evidence: false`;
+the hosted job is a recurring regression observation, not a replacement for the 8-core/30-GiB
+production qualification above. The workflow verifies finalized manifests, retains success or
+failure artifacts for 30 days, and is intentionally absent from pull-request triggers.
 
 This checked workflow definition is not itself execution evidence. The dated results below remain
-the latest retained passed run until a scheduled artifact is reviewed and promoted. New reports
-also retain, for every lane, the final phase, elapsed time, stable error class, bounded progress
-counters, and latest resource sample. Every offered DNS, relay pending-establishment, relay
-session, and endpoint operation must conserve exactly into admitted, rejected, or transport-failed
+the latest retained production-capacity evidence until the exact profile passes again on a host
+meeting `production-minimum`. Hosted reports still retain, for every lane, the final phase,
+elapsed time, stable error class, bounded progress counters, and latest resource sample. Every
+offered DNS, relay pending-establishment, relay session, and endpoint operation must conserve exactly into admitted, rejected, or transport-failed
 terminal outcomes.
 
 ## Host

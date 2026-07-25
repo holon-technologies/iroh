@@ -15,7 +15,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use iroh_bench::canary::{
     AcceptanceInput, AdmissionSample, CanaryError, CanaryMode, DurationProfile,
-    EvidencePrerequisites, HeadroomThreshold, HostObservation, HostRequirements, WorkloadProfile,
+    EvidencePrerequisites, HeadroomThreshold, HostObservation, HostProfile, WorkloadProfile,
     cpu_usage_basis_points, evaluate_acceptance, evaluate_host_preflight, parse_cpu_ticks,
     parse_meminfo, parse_open_file_limit, parse_process_cpu_ticks, parse_process_status,
     parse_storage_available_bytes, require_production_platform,
@@ -48,6 +48,9 @@ struct Cli {
 enum Command {
     /// Validate the minimum host and clean idle baseline without starting listeners.
     Preflight {
+        /// Static host qualification applied before starting any workload.
+        #[arg(long, value_enum, default_value_t = HostProfileArg::ProductionMinimum)]
+        host_profile: HostProfileArg,
         /// Seconds over which idle CPU and competing process use are measured.
         #[arg(long, default_value = "5")]
         baseline_seconds: NonZeroU64,
@@ -57,6 +60,9 @@ enum Command {
     },
     /// Run one or all bounded loopback workload lanes after a clean-host preflight.
     Run {
+        /// Static host qualification applied before starting any workload.
+        #[arg(long, value_enum, default_value_t = HostProfileArg::ProductionMinimum)]
+        host_profile: HostProfileArg,
         /// Workload lane to execute.
         #[arg(long, value_enum, default_value_t = LaneSelection::All)]
         lane: LaneSelection,
@@ -92,6 +98,21 @@ enum LaneSelection {
     Endpoint,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum HostProfileArg {
+    ProductionMinimum,
+    GithubHostedStandard,
+}
+
+impl From<HostProfileArg> for HostProfile {
+    fn from(value: HostProfileArg) -> Self {
+        match value {
+            HostProfileArg::ProductionMinimum => Self::ProductionMinimum,
+            HostProfileArg::GithubHostedStandard => Self::GithubHostedStandard,
+        }
+    }
+}
+
 impl LaneSelection {
     const fn includes(self, lane: Self) -> bool {
         matches!(
@@ -124,6 +145,7 @@ struct PreflightReport {
     schema_version: u16,
     recorded_unix_seconds: u64,
     source_revision: Option<String>,
+    host_profile: &'static str,
     accepted: bool,
     failure: Option<String>,
     operating_system: &'static str,
@@ -205,6 +227,7 @@ struct RunReport {
     schema_version: u16,
     recorded_unix_seconds: u64,
     source_revision: Option<String>,
+    host_profile: &'static str,
     mode: &'static str,
     evidence: bool,
     build_profile: &'static str,
@@ -254,10 +277,12 @@ async fn main() -> ExitCode {
 async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
     match cli.command {
         Command::Preflight {
+            host_profile,
             baseline_seconds,
             output,
-        } => run_preflight(baseline_seconds.get(), &output).await,
+        } => run_preflight(host_profile.into(), baseline_seconds.get(), &output).await,
         Command::Run {
+            host_profile,
             lane,
             scale_percent,
             warmup_seconds,
@@ -268,6 +293,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             output,
         } => {
             run_canary(
+                host_profile.into(),
                 lane,
                 scale_percent.get(),
                 warmup_seconds.get(),
@@ -282,7 +308,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn run_preflight(baseline_seconds: u64, output: &Path) -> Result<(), Box<dyn Error>> {
+async fn run_preflight(
+    host_profile: HostProfile,
+    baseline_seconds: u64,
+    output: &Path,
+) -> Result<(), Box<dyn Error>> {
     if baseline_seconds > MAX_BASELINE_SECONDS {
         return Err(format!(
             "baseline_seconds {baseline_seconds} exceeds maximum {MAX_BASELINE_SECONDS}"
@@ -292,8 +322,12 @@ async fn run_preflight(baseline_seconds: u64, output: &Path) -> Result<(), Box<d
     let artifact_dir = create_artifact_dir(output, "preflight")?;
     println!("{}", artifact_dir.display());
     let result = async {
-        let (report, result) =
-            observe_preflight(Duration::from_secs(baseline_seconds), &artifact_dir).await?;
+        let (report, result) = observe_preflight(
+            host_profile,
+            Duration::from_secs(baseline_seconds),
+            &artifact_dir,
+        )
+        .await?;
         let report_path = artifact_dir.join("preflight.json");
         write_json_new(&report_path, &report)?;
         result.map_err(|error| Box::new(error) as Box<dyn Error>)
@@ -307,6 +341,7 @@ async fn run_preflight(baseline_seconds: u64, output: &Path) -> Result<(), Box<d
     reason = "CLI timing and scale remain explicit at the process boundary"
 )]
 async fn run_canary(
+    host_profile: HostProfile,
     lane: LaneSelection,
     scale_percent: u8,
     warmup_seconds: u64,
@@ -339,11 +374,13 @@ async fn run_canary(
     let mode = CanaryMode::classify(
         &timing,
         scale_percent,
-        EvidencePrerequisites::new(all_lanes, release_build, source_clean),
+        EvidencePrerequisites::new(all_lanes, release_build, source_clean, host_profile),
     );
     if requested_evidence && !mode.is_evidence() {
         return Err(format!(
-            "evidence prerequisites failed: all_lanes={all_lanes}, release_build={release_build}, source_clean={source_clean}"
+            "evidence prerequisites failed: all_lanes={all_lanes}, release_build={release_build}, \
+             source_clean={source_clean}, host_profile={}",
+            host_profile.as_str()
         )
         .into());
     }
@@ -351,8 +388,12 @@ async fn run_canary(
     println!("{}", artifact_dir.display());
 
     let result = async {
-        let (preflight, preflight_result) =
-            observe_preflight(Duration::from_secs(baseline_seconds), &artifact_dir).await?;
+        let (preflight, preflight_result) = observe_preflight(
+            host_profile,
+            Duration::from_secs(baseline_seconds),
+            &artifact_dir,
+        )
+        .await?;
         write_json_new(&artifact_dir.join("preflight.json"), &preflight)?;
         if let Err(error) = preflight_result {
             return Err(Box::new(error) as Box<dyn Error>);
@@ -363,7 +404,15 @@ async fn run_canary(
             let report = execute_dns_lane(scale_percent, timing, &preflight, &artifact_dir).await?;
             let accepted = report.accepted;
             lanes.push(report);
-            write_run_report(&artifact_dir, mode, scale_percent, timing, false, &lanes)?;
+            write_run_report(
+                &artifact_dir,
+                host_profile,
+                mode,
+                scale_percent,
+                timing,
+                false,
+                &lanes,
+            )?;
             if !accepted {
                 return Err("DNS resource lane failed acceptance".into());
             }
@@ -373,7 +422,15 @@ async fn run_canary(
                 execute_relay_lane(scale_percent, timing, &preflight, &artifact_dir).await?;
             let accepted = report.accepted;
             lanes.push(report);
-            write_run_report(&artifact_dir, mode, scale_percent, timing, false, &lanes)?;
+            write_run_report(
+                &artifact_dir,
+                host_profile,
+                mode,
+                scale_percent,
+                timing,
+                false,
+                &lanes,
+            )?;
             if !accepted {
                 return Err("relay resource lane failed acceptance".into());
             }
@@ -383,12 +440,28 @@ async fn run_canary(
                 execute_endpoint_lane(scale_percent, timing, &preflight, &artifact_dir).await?;
             let accepted = report.accepted;
             lanes.push(report);
-            write_run_report(&artifact_dir, mode, scale_percent, timing, false, &lanes)?;
+            write_run_report(
+                &artifact_dir,
+                host_profile,
+                mode,
+                scale_percent,
+                timing,
+                false,
+                &lanes,
+            )?;
             if !accepted {
                 return Err("endpoint resource lane failed acceptance".into());
             }
         }
-        write_run_report(&artifact_dir, mode, scale_percent, timing, true, &lanes)?;
+        write_run_report(
+            &artifact_dir,
+            host_profile,
+            mode,
+            scale_percent,
+            timing,
+            true,
+            &lanes,
+        )?;
         Ok::<(), Box<dyn Error>>(())
     }
     .await;
@@ -1152,6 +1225,7 @@ fn write_samples(path: &Path, samples: &[ResourceSample]) -> Result<(), Box<dyn 
 
 fn write_run_report(
     artifact_dir: &Path,
+    host_profile: HostProfile,
     mode: CanaryMode,
     scale_percent: u8,
     timing: DurationProfile,
@@ -1163,9 +1237,10 @@ fn write_run_report(
         return Err("source tree became dirty during evidence run".into());
     }
     let report = RunReport {
-        schema_version: 1,
+        schema_version: 2,
         recorded_unix_seconds: unix_seconds()?,
         source_revision: source_revision(),
+        host_profile: host_profile.as_str(),
         mode: if mode.is_evidence() {
             "evidence"
         } else {
@@ -1415,6 +1490,7 @@ fn duration_millis(duration: Duration) -> Result<u64, Box<dyn Error>> {
 }
 
 async fn observe_preflight(
+    host_profile: HostProfile,
     baseline: Duration,
     artifact_dir: &Path,
 ) -> Result<(PreflightReport, Result<(), CanaryError>), Box<dyn Error>> {
@@ -1490,13 +1566,12 @@ async fn observe_preflight(
         largest_competitor_rss_bytes,
     };
     let result = require_production_platform(std::env::consts::OS, std::env::consts::ARCH)
-        .and_then(|()| {
-            evaluate_host_preflight(&observation, HostRequirements::production_minimum())
-        });
+        .and_then(|()| evaluate_host_preflight(&observation, host_profile.requirements()));
     let report = PreflightReport {
-        schema_version: 1,
+        schema_version: 2,
         recorded_unix_seconds: unix_seconds()?,
         source_revision: source_revision(),
+        host_profile: host_profile.as_str(),
         accepted: result.is_ok(),
         failure: result.as_ref().err().map(ToString::to_string),
         operating_system: std::env::consts::OS,
