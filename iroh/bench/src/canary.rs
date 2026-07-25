@@ -112,6 +112,13 @@ pub enum CanaryError {
         /// Workload field.
         field: &'static str,
     },
+    /// Offered work does not equal the sum of all terminal outcomes.
+    WorkloadConservation {
+        /// Work offered by the harness.
+        offered: usize,
+        /// Terminal outcomes observed by the harness.
+        observed: usize,
+    },
 }
 
 impl fmt::Display for CanaryError {
@@ -201,11 +208,70 @@ impl fmt::Display for CanaryError {
             Self::ArrivalWindowTooLong { field } => {
                 write!(f, "{field} arrival window exceeds its admission hold")
             }
+            Self::WorkloadConservation { offered, observed } => write!(
+                f,
+                "workload conservation failed: {offered} offered but {observed} terminal outcomes observed"
+            ),
         }
     }
 }
 
 impl Error for CanaryError {}
+
+/// Exact terminal accounting for one bounded workload campaign.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkloadConservation {
+    offered: usize,
+    admitted: usize,
+    rejected: usize,
+    transport_failed: usize,
+}
+
+impl WorkloadConservation {
+    /// Validates exact conservation across every terminal outcome class.
+    pub const fn new(
+        offered: usize,
+        admitted: usize,
+        rejected: usize,
+        transport_failed: usize,
+    ) -> Result<Self, CanaryError> {
+        let Some(classified) = admitted.checked_add(rejected) else {
+            return Err(CanaryError::ArithmeticOverflow);
+        };
+        let Some(observed) = classified.checked_add(transport_failed) else {
+            return Err(CanaryError::ArithmeticOverflow);
+        };
+        if observed != offered {
+            return Err(CanaryError::WorkloadConservation { offered, observed });
+        }
+        Ok(Self {
+            offered,
+            admitted,
+            rejected,
+            transport_failed,
+        })
+    }
+
+    /// Work offered by the harness.
+    pub const fn offered(self) -> usize {
+        self.offered
+    }
+
+    /// Work admitted by the production boundary.
+    pub const fn admitted(self) -> usize {
+        self.admitted
+    }
+
+    /// Work rejected by the production boundary.
+    pub const fn rejected(self) -> usize {
+        self.rejected
+    }
+
+    /// Work that failed before receiving an admission outcome.
+    pub const fn transport_failed(self) -> usize {
+        self.transport_failed
+    }
+}
 
 /// Validated warm-up, measurement, cooldown, and sampling periods.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1092,10 +1158,11 @@ mod tests {
 
     use super::{
         AcceptanceInput, AdmissionSample, CanaryMode, DurationProfile, EvidencePrerequisites,
-        HeadroomThreshold, HostObservation, HostRequirements, WorkloadProfile,
-        cpu_usage_basis_points, evaluate_acceptance, evaluate_host_preflight, parse_cpu_ticks,
-        parse_meminfo, parse_open_file_limit, parse_process_cpu_ticks, parse_process_status,
-        parse_storage_available_bytes, require_loopback, require_production_platform,
+        HeadroomThreshold, HostObservation, HostRequirements, WorkloadConservation,
+        WorkloadProfile, cpu_usage_basis_points, evaluate_acceptance, evaluate_host_preflight,
+        parse_cpu_ticks, parse_meminfo, parse_open_file_limit, parse_process_cpu_ticks,
+        parse_process_status, parse_storage_available_bytes, require_loopback,
+        require_production_platform,
     };
 
     #[test]
@@ -1191,6 +1258,27 @@ mod tests {
         assert_eq!(profile.relay_sessions(), 8_192);
         assert_eq!(profile.relay_sessions_per_identity(), 4);
         assert_eq!(profile.endpoint_connections(), 4_096);
+    }
+
+    #[test]
+    fn workload_conservation_requires_every_offer_to_reach_one_terminal_class() {
+        let conserved =
+            WorkloadConservation::new(8, 4, 3, 1).expect("complete terminal accounting");
+        assert_eq!(conserved.offered(), 8);
+        assert_eq!(conserved.admitted(), 4);
+        assert_eq!(conserved.rejected(), 3);
+        assert_eq!(conserved.transport_failed(), 1);
+
+        let error =
+            WorkloadConservation::new(8, 4, 3, 0).expect_err("missing terminal outcome must fail");
+        assert_eq!(
+            error,
+            super::CanaryError::WorkloadConservation {
+                offered: 8,
+                observed: 7,
+            }
+        );
+        assert!(WorkloadConservation::new(usize::MAX, usize::MAX, 1, 0).is_err());
     }
 
     #[test]

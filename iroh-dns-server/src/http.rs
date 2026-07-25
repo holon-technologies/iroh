@@ -29,7 +29,7 @@ use tower_http::{
 };
 use tracing::{Level, info, span, warn};
 
-mod doh;
+pub(crate) mod doh;
 mod error;
 mod pkarr;
 mod rate_limiting;

@@ -1,4 +1,6 @@
 /target
+/fuzz/artifacts
+/fuzz/target
 /vendor/noq-1.1.0/target
 /vendor/rustls-0.23.41/target
 /logs

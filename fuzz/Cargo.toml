@@ -1,0 +1,50 @@
+[package]
+name = "iroh-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+iroh-dns-server = { path = "../iroh-dns-server", default-features = false, features = ["test-utils"] }
+iroh-relay = { path = "../iroh-relay", default-features = false, features = ["fuzzing"] }
+libfuzzer-sys = "0.4"
+
+[workspace]
+members = ["."]
+
+[patch.crates-io]
+# Keep fuzzing on the exact ownership/resource forks used by the production workspace.
+hickory-server = { path = "../vendor/hickory-server-0.26.1" }
+noq = { path = "../vendor/noq-1.1.0" }
+rustls = { path = "../vendor/rustls-0.23.41" }
+
+[[bin]]
+name = "doh_extract"
+path = "fuzz_targets/doh_extract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pkarr_body"
+path = "fuzz_targets/pkarr_body.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "relay_segmentation"
+path = "fuzz_targets/relay_segmentation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config_deserialize"
+path = "fuzz_targets/config_deserialize.rs"
+test = false
+doc = false
+bench = false

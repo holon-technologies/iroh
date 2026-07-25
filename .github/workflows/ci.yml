@@ -33,6 +33,47 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/tests.yaml"
 
+  fuzz_smoke:
+    name: Fuzz smoke (${{ matrix.target }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      # Moving nightly toolchains can deprecate APIs that remain required by the stable MSRV.
+      RUSTFLAGS: ""
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - doh_extract
+          - pkarr_body
+          - relay_segmentation
+          - config_deserialize
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Check bounded fuzz tooling contract
+        run: scripts/tests/check-fuzz-tooling.sh
+      - name: Run bounded fuzz smoke
+        run: |
+          scripts/run-bounded-fuzz.sh \
+            --seconds 1 \
+            --target "${{ matrix.target }}" \
+            --artifacts "$RUNNER_TEMP/fuzz-artifacts"
+      - name: Retain fuzz diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-smoke-${{ matrix.target }}
+          path: ${{ runner.temp }}/fuzz-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   simulation_contracts:
     name: Deterministic simulation contracts
     timeout-minutes: 15
@@ -48,8 +89,12 @@ jobs:
           sudo apt-get install --yes ripgrep
       - name: Check boundary checker contract
         run: scripts/tests/check-determinism-boundaries.sh
+      - name: Check syntax-aware boundary checker contract
+        run: scripts/tests/check-determinism-semantic.sh
       - name: Check reviewed boundary inventory
         run: scripts/check-determinism-boundaries.sh --check
+      - name: Check stable syntax-aware boundary inventory
+        run: scripts/check-determinism-semantic.sh --check
       - name: Test runtime capability contracts
         run: cargo test -p iroh-runtime
       - name: Test manifest, trace, and replay contracts
@@ -526,6 +571,12 @@ jobs:
       - run: cargo make format-check
       - name: Check determinism boundary inventory
         run: scripts/check-determinism-boundaries.sh --check
+      - name: Check production resource canary workflow
+        run: scripts/tests/check-resource-canary-workflow.sh
+      - name: Check bounded fuzz tooling
+        run: scripts/tests/check-fuzz-tooling.sh
+      - name: Check determinism documentation consistency
+        run: scripts/tests/check-determinism-docs.sh
 
   check_docs:
     timeout-minutes: 30

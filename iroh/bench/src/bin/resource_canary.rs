@@ -21,8 +21,8 @@ use iroh_bench::canary::{
     parse_storage_available_bytes, require_production_platform,
     workloads::{
         ArrivalSummary, DnsLaneConfig, DnsLaneOutcome, EndpointLaneConfig, EndpointLaneOutcome,
-        LanePhase, LaneTiming, LatencySummary, PhaseReporter, RelayLaneConfig, RelayLaneOutcome,
-        run_dns_lane, run_endpoint_lane, run_relay_lane,
+        LanePhase, LaneProgress, LaneState, LaneTiming, LatencySummary, PhaseReporter,
+        RelayLaneConfig, RelayLaneOutcome, run_dns_lane, run_endpoint_lane, run_relay_lane,
     },
 };
 use serde::Serialize;
@@ -178,6 +178,26 @@ struct LaneReport {
     resources: Option<ResourceSummary>,
     outcome: Option<Value>,
     samples_file: String,
+    diagnostic: LaneDiagnostic,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct LaneDiagnostic {
+    final_phase: &'static str,
+    elapsed_millis: u64,
+    error_class: Option<&'static str>,
+    progress: LaneProgressReport,
+    last_resource_sample: Option<ResourceSample>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+struct LaneProgressReport {
+    offered: usize,
+    admitted: usize,
+    rejected: usize,
+    transport_failed: usize,
+    active: usize,
+    high_water: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -422,7 +442,7 @@ async fn execute_dns_lane(
         operation_timeout,
     )?;
     let (phases, phase_receiver) = PhaseReporter::new();
-    let (outcome, samples) = monitor_lane(
+    let (outcome, samples, final_state, elapsed) = monitor_lane(
         timing.sample_interval(),
         phase_receiver,
         run_dns_lane(config, phases),
@@ -552,6 +572,12 @@ async fn execute_dns_lane(
                     outcome.store_background_failures
                 ));
             }
+            let diagnostic = lane_diagnostic(
+                final_state,
+                elapsed,
+                &samples,
+                failure.as_ref().map(|_| "acceptance"),
+            )?;
             Ok(LaneReport {
                 lane: "dns",
                 accepted: failure.is_none(),
@@ -559,16 +585,21 @@ async fn execute_dns_lane(
                 resources: Some(resources),
                 outcome: Some(dns_outcome_json(&outcome)?),
                 samples_file: samples_file.to_owned(),
+                diagnostic,
             })
         }
-        Err(error) => Ok(LaneReport {
-            lane: "dns",
-            accepted: false,
-            failure: Some(error.to_string()),
-            resources: Some(resources),
-            outcome: None,
-            samples_file: samples_file.to_owned(),
-        }),
+        Err(error) => {
+            let diagnostic = lane_diagnostic(final_state, elapsed, &samples, Some("workload"))?;
+            Ok(LaneReport {
+                lane: "dns",
+                accepted: false,
+                failure: Some(error.to_string()),
+                resources: Some(resources),
+                outcome: None,
+                samples_file: samples_file.to_owned(),
+                diagnostic,
+            })
+        }
     }
 }
 
@@ -620,7 +651,7 @@ async fn execute_relay_lane(
         operation_timeout,
     )?;
     let (phases, phase_receiver) = PhaseReporter::new();
-    let (outcome, samples) = monitor_lane(
+    let (outcome, samples, final_state, elapsed) = monitor_lane(
         timing.sample_interval(),
         phase_receiver,
         run_relay_lane(config, phases),
@@ -704,6 +735,12 @@ async fn execute_relay_lane(
             {
                 failure = Some("relay session status classes do not conserve attempts".to_owned());
             }
+            let diagnostic = lane_diagnostic(
+                final_state,
+                elapsed,
+                &samples,
+                failure.as_ref().map(|_| "acceptance"),
+            )?;
             Ok(LaneReport {
                 lane: "relay",
                 accepted: failure.is_none(),
@@ -711,16 +748,21 @@ async fn execute_relay_lane(
                 resources: Some(resources),
                 outcome: Some(relay_outcome_json(&outcome)?),
                 samples_file: samples_file.to_owned(),
+                diagnostic,
             })
         }
-        Err(error) => Ok(LaneReport {
-            lane: "relay",
-            accepted: false,
-            failure: Some(error.to_string()),
-            resources: Some(resources),
-            outcome: None,
-            samples_file: samples_file.to_owned(),
-        }),
+        Err(error) => {
+            let diagnostic = lane_diagnostic(final_state, elapsed, &samples, Some("workload"))?;
+            Ok(LaneReport {
+                lane: "relay",
+                accepted: false,
+                failure: Some(error.to_string()),
+                resources: Some(resources),
+                outcome: None,
+                samples_file: samples_file.to_owned(),
+                diagnostic,
+            })
+        }
     }
 }
 
@@ -737,7 +779,7 @@ async fn execute_endpoint_lane(
     let config =
         EndpointLaneConfig::new(capacity, offered, lane_timing(timing)?, operation_timeout)?;
     let (phases, phase_receiver) = PhaseReporter::new();
-    let (outcome, samples) = monitor_lane(
+    let (outcome, samples, final_state, elapsed) = monitor_lane(
         timing.sample_interval(),
         phase_receiver,
         run_endpoint_lane(config, phases),
@@ -786,6 +828,12 @@ async fn execute_endpoint_lane(
             if failure.is_none() && !endpoint_queue_headroom(&outcome)? {
                 failure = Some("Noq internal queues retained less than 30% headroom".to_owned());
             }
+            let diagnostic = lane_diagnostic(
+                final_state,
+                elapsed,
+                &samples,
+                failure.as_ref().map(|_| "acceptance"),
+            )?;
             Ok(LaneReport {
                 lane: "endpoint",
                 accepted: failure.is_none(),
@@ -793,24 +841,31 @@ async fn execute_endpoint_lane(
                 resources: Some(resources),
                 outcome: Some(endpoint_outcome_json(&outcome)?),
                 samples_file: samples_file.to_owned(),
+                diagnostic,
             })
         }
-        Err(error) => Ok(LaneReport {
-            lane: "endpoint",
-            accepted: false,
-            failure: Some(error.to_string()),
-            resources: Some(resources),
-            outcome: None,
-            samples_file: samples_file.to_owned(),
-        }),
+        Err(error) => {
+            let diagnostic = lane_diagnostic(final_state, elapsed, &samples, Some("workload"))?;
+            Ok(LaneReport {
+                lane: "endpoint",
+                accepted: false,
+                failure: Some(error.to_string()),
+                resources: Some(resources),
+                outcome: None,
+                samples_file: samples_file.to_owned(),
+                diagnostic,
+            })
+        }
     }
 }
 
 async fn monitor_lane<T, E>(
     sample_interval: Duration,
-    phase_receiver: watch::Receiver<LanePhase>,
+    phase_receiver: watch::Receiver<LaneState>,
     future: impl Future<Output = Result<T, E>>,
-) -> Result<(Result<T, E>, Vec<ResourceSample>), Box<dyn Error>> {
+) -> Result<(Result<T, E>, Vec<ResourceSample>, LaneState, Duration), Box<dyn Error>> {
+    let started = Instant::now();
+    let final_state = phase_receiver.clone();
     let (stop_tx, stop_rx) = watch::channel(false);
     let mut sampler = tokio::spawn(sample_resources(sample_interval, stop_rx, phase_receiver));
     tokio::select! {
@@ -820,7 +875,8 @@ async fn monitor_lane<T, E>(
                 .await
                 .map_err(|error| format!("resource sampler task failed: {error}"))?
                 .map_err(io::Error::other)?;
-            Ok((outcome, samples))
+            let state = *final_state.borrow();
+            Ok((outcome, samples, state, started.elapsed()))
         }
         result = &mut sampler => {
             let samples = result
@@ -838,7 +894,7 @@ async fn monitor_lane<T, E>(
 async fn sample_resources(
     interval: Duration,
     mut stop: watch::Receiver<bool>,
-    phase: watch::Receiver<LanePhase>,
+    phase: watch::Receiver<LaneState>,
 ) -> Result<Vec<ResourceSample>, String> {
     let started = Instant::now();
     let mut previous_cpu =
@@ -855,7 +911,7 @@ async fn sample_resources(
                         let (sample, _) = collect_resource_sample(
                             started,
                             previous_cpu,
-                            phase.borrow().as_str(),
+                            phase.borrow().phase.as_str(),
                         )?;
                         samples.push(sample);
                     }
@@ -871,7 +927,7 @@ async fn sample_resources(
                 let (sample, current_cpu) = collect_resource_sample(
                     started,
                     previous_cpu,
-                    phase.borrow().as_str(),
+                    phase.borrow().phase.as_str(),
                 )?;
                 samples.push(sample);
                 previous_cpu = current_cpu;
@@ -1136,6 +1192,7 @@ fn write_run_report(
                 resources: lane.resources,
                 outcome: lane.outcome.clone(),
                 samples_file: lane.samples_file.clone(),
+                diagnostic: lane.diagnostic.clone(),
             })
             .collect(),
     };
@@ -1153,11 +1210,42 @@ fn is_release_build() -> bool {
         && !cfg!(debug_assertions)
 }
 
+fn lane_diagnostic(
+    state: LaneState,
+    elapsed: Duration,
+    samples: &[ResourceSample],
+    error_class: Option<&'static str>,
+) -> Result<LaneDiagnostic, Box<dyn Error>> {
+    let LaneProgress {
+        offered,
+        admitted,
+        rejected,
+        transport_failed,
+        active,
+        high_water,
+    } = state.progress;
+    Ok(LaneDiagnostic {
+        final_phase: state.phase.as_str(),
+        elapsed_millis: duration_millis(elapsed)?,
+        error_class,
+        progress: LaneProgressReport {
+            offered,
+            admitted,
+            rejected,
+            transport_failed,
+            active,
+            high_water,
+        },
+        last_resource_sample: samples.last().cloned(),
+    })
+}
+
 fn endpoint_outcome_json(outcome: &EndpointLaneOutcome) -> Result<Value, Box<dyn Error>> {
     Ok(json!({
         "offered": outcome.offered,
         "accepted": outcome.accepted,
         "rejected": outcome.rejected,
+        "initial_conservation": conservation_json(outcome.initial_conservation),
         "recovered": outcome.recovered,
         "accepted_connection_latency": latency_json(outcome.accepted_connection_latency),
         "rejected_connection_latency": latency_json(outcome.rejected_connection_latency),
@@ -1216,9 +1304,11 @@ fn relay_outcome_json(outcome: &RelayLaneOutcome) -> Result<Value, Box<dyn Error
         "pending_offered": outcome.pending_offered,
         "pending_rejections": outcome.pending_rejections,
         "pending_rate_rejections": outcome.pending_rate_rejections,
+        "pending_conservation": conservation_json(outcome.pending_conservation),
         "sessions_offered": outcome.sessions_offered,
         "sessions_accepted": outcome.sessions_accepted,
         "sessions_rejected": outcome.sessions_rejected,
+        "session_conservation": conservation_json(outcome.session_conservation),
         "session_high_water": outcome.session_high_water,
         "endpoint_session_rejections": outcome.endpoint_session_rejections,
         "global_session_rejections": outcome.global_session_rejections,
@@ -1257,21 +1347,25 @@ fn dns_outcome_json(outcome: &DnsLaneOutcome) -> Result<Value, Box<dyn Error>> {
         "udp_completed": outcome.udp_completed,
         "udp_timed_out": outcome.udp_timed_out,
         "udp_rejections": outcome.udp_rejections,
+        "udp_conservation": conservation_json(outcome.udp_conservation),
         "udp_arrival": arrival_json(outcome.udp_arrival),
         "udp_latency": latency_json(outcome.udp_latency),
         "tcp_offered": outcome.tcp_offered,
         "tcp_active_high_water": outcome.tcp_active_high_water,
         "tcp_rejections": outcome.tcp_rejections,
+        "tcp_conservation": conservation_json(outcome.tcp_conservation),
         "http_connections_offered": outcome.http_connections_offered,
         "http_connections_active_high_water": outcome.http_connections_active_high_water,
         "http_connection_capacity_rejections": outcome.http_connection_capacity_rejections,
         "http_connection_rate_rejections": outcome.http_connection_rate_rejections,
         "http_connection_rejections": outcome.http_connection_rejections,
+        "http_connection_conservation": conservation_json(outcome.http_connection_conservation),
         "http_connection_arrival": arrival_json(outcome.http_connection_arrival),
         "http_requests_offered": outcome.http_requests_offered,
         "http_requests_admitted": outcome.http_requests_admitted,
         "http_requests_active_high_water": outcome.http_requests_active_high_water,
         "http_request_rejections": outcome.http_request_rejections,
+        "http_request_conservation": conservation_json(outcome.http_request_conservation),
         "http_request_recovered": outcome.http_request_recovered,
         "http_request_latency": latency_json(outcome.http_request_latency),
         "continuity_udp_successes": outcome.continuity_udp_successes,
@@ -1282,6 +1376,15 @@ fn dns_outcome_json(outcome: &DnsLaneOutcome) -> Result<Value, Box<dyn Error>> {
         "store_background_failures": outcome.store_background_failures,
         "shutdown_millis": duration_millis(outcome.shutdown)?,
     }))
+}
+
+fn conservation_json(conservation: iroh_bench::canary::WorkloadConservation) -> Value {
+    json!({
+        "offered": conservation.offered(),
+        "admitted": conservation.admitted(),
+        "rejected": conservation.rejected(),
+        "transport_failed": conservation.transport_failed(),
+    })
 }
 
 fn latency_json(latency: LatencySummary) -> Value {
@@ -1559,8 +1662,14 @@ fn finish_artifact_run(
 ) -> Result<(), Box<dyn Error>> {
     let mut failure = result.err().map(|error| error.to_string());
     if let Some(error) = failure.as_ref()
-        && let Err(record_error) =
-            write_json_new(&artifact_dir.join("failure.json"), &json!({"error": error}))
+        && let Err(record_error) = write_json_new(
+            &artifact_dir.join("failure.json"),
+            &json!({
+                "schema_version": 2,
+                "error_class": "run",
+                "error": error,
+            }),
+        )
     {
         failure = Some(format!(
             "{error}; failed to retain failure report: {record_error}"
@@ -1736,6 +1845,52 @@ mod tests {
         assert_eq!(before.elapsed(), Duration::from_secs(1));
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn resource_sampler_holds_exact_production_cadence_despite_collection_cost() {
+        let started = tokio::time::Instant::now();
+        let mut ticker =
+            resource_sample_ticker(Duration::from_secs(1)).expect("resource sample ticker");
+        for ordinal in 0..360 {
+            ticker.tick().await;
+            if ordinal < 359 {
+                tokio::time::advance(Duration::from_millis(10)).await;
+            }
+        }
+
+        assert_eq!(
+            started.elapsed(),
+            Duration::from_secs(360),
+            "absolute sampling cadence must not accumulate collection overhead"
+        );
+    }
+
+    #[test]
+    fn lane_diagnostic_retains_failure_phase_progress_and_last_sample() {
+        let state = LaneState {
+            phase: LanePhase::Measurement,
+            progress: LaneProgress {
+                offered: 8,
+                admitted: 4,
+                rejected: 3,
+                transport_failed: 1,
+                active: 4,
+                high_water: 4,
+            },
+        };
+        let samples = vec![sample(LanePhase::Measurement)];
+        let diagnostic =
+            lane_diagnostic(state, Duration::from_secs(21), &samples, Some("workload"))
+                .expect("lane diagnostic");
+        let json = serde_json::to_value(diagnostic).expect("diagnostic JSON");
+
+        assert_eq!(json["final_phase"], "measurement");
+        assert_eq!(json["elapsed_millis"], 21_000);
+        assert_eq!(json["error_class"], "workload");
+        assert_eq!(json["progress"]["offered"], 8);
+        assert_eq!(json["progress"]["transport_failed"], 1);
+        assert_eq!(json["last_resource_sample"]["phase"], "measurement");
+    }
+
     #[test]
     fn artifact_finalization_records_digest_and_removes_write_bits() {
         let temporary = tempfile::tempdir().expect("temporary artifact parent");
@@ -1802,6 +1957,8 @@ mod tests {
         )
         .expect("failure JSON");
         assert_eq!(failure["error"], "resource sampler failed");
+        assert_eq!(failure["schema_version"], 2);
+        assert_eq!(failure["error_class"], "run");
         let manifest: Value = serde_json::from_slice(
             &fs::read(artifact_dir.join("manifest.json")).expect("manifest"),
         )

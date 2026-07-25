@@ -161,6 +161,7 @@ server = [
 ]
 metrics = ["iroh-metrics/metrics"]
 test-utils = []
+fuzzing = []
 tls-ring = [
     "noq/ring",
     "rustls/ring",

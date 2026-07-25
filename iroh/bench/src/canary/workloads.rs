@@ -47,7 +47,7 @@ use tokio::{
     task::JoinSet,
 };
 
-use super::{CanaryError, require_loopback};
+use super::{CanaryError, WorkloadConservation, require_loopback};
 
 const CANARY_ALPN: &[u8] = b"iroh/resource-canary/1";
 const MAX_ENDPOINT_OFFERED_CONNECTIONS: usize = 4_096;
@@ -96,21 +96,64 @@ impl LanePhase {
     }
 }
 
-/// Shared phase signal for one monitored lane.
+/// Bounded last-known accounting retained while one lane is running.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LaneProgress {
+    /// Attempts launched by the harness.
+    pub offered: usize,
+    /// Attempts admitted by the production boundary.
+    pub admitted: usize,
+    /// Attempts rejected by the production boundary.
+    pub rejected: usize,
+    /// Attempts that failed before a classified admission result.
+    pub transport_failed: usize,
+    /// Resources currently retained by the harness.
+    pub active: usize,
+    /// Largest retained-resource count observed so far.
+    pub high_water: usize,
+}
+
+/// Last-known phase and bounded workload accounting for one lane.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LaneState {
+    /// Current lifecycle phase.
+    pub phase: LanePhase,
+    /// Latest workload counters.
+    pub progress: LaneProgress,
+}
+
+impl Default for LaneState {
+    fn default() -> Self {
+        Self {
+            phase: LanePhase::Setup,
+            progress: LaneProgress::default(),
+        }
+    }
+}
+
+/// Shared phase and progress signal for one monitored lane.
 #[derive(Clone, Debug)]
 pub struct PhaseReporter {
-    sender: watch::Sender<LanePhase>,
+    sender: watch::Sender<LaneState>,
 }
 
 impl PhaseReporter {
     /// Creates one reporter and its sampling receiver.
-    pub fn new() -> (Self, watch::Receiver<LanePhase>) {
-        let (sender, receiver) = watch::channel(LanePhase::Setup);
+    pub fn new() -> (Self, watch::Receiver<LaneState>) {
+        let (sender, receiver) = watch::channel(LaneState::default());
         (Self { sender }, receiver)
     }
 
     fn enter(&self, phase: LanePhase) {
-        self.sender.send_replace(phase);
+        let mut state = *self.sender.borrow();
+        state.phase = phase;
+        self.sender.send_replace(state);
+    }
+
+    fn record(&self, progress: LaneProgress) {
+        let mut state = *self.sender.borrow();
+        state.progress = progress;
+        self.sender.send_replace(state);
     }
 }
 
@@ -389,6 +432,8 @@ pub struct EndpointLaneOutcome {
     pub accepted: usize,
     /// Locally rejected excess attempts.
     pub rejected: usize,
+    /// Exact initial connection-attempt accounting.
+    pub initial_conservation: WorkloadConservation,
     /// Whether one released slot admitted a replacement.
     pub recovered: bool,
     /// Successful initial connection latency.
@@ -508,6 +553,14 @@ async fn run_endpoint_lane_body(
             }
         }
     }
+    phases.record(LaneProgress {
+        offered: config.offered.get(),
+        admitted: connections.len(),
+        rejected,
+        transport_failed: 0,
+        active: connections.len(),
+        high_water: connections.len(),
+    });
 
     let mut continuity_success_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
     let mut continuity_rejection_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
@@ -540,11 +593,14 @@ async fn run_endpoint_lane_body(
     .await
     .map_err(|_| lane_error("endpoint whole-lane shutdown timed out"))?;
     let shutdown = shutdown_started.elapsed();
+    let initial_conservation =
+        WorkloadConservation::new(config.offered.get(), config.capacity.get(), rejected, 0)?;
 
     Ok(EndpointLaneOutcome {
         offered: config.offered.get(),
         accepted: config.capacity.get(),
         rejected,
+        initial_conservation,
         recovered: continuity_successes > 0,
         accepted_connection_latency: accepted_latency.finish()?,
         rejected_connection_latency: rejected_latency.finish()?,
@@ -643,6 +699,23 @@ async fn run_endpoint_phases(
                     ));
                 }
             }
+            phases.record(LaneProgress {
+                offered: config
+                    .offered
+                    .get()
+                    .checked_add(rejections)
+                    .ok_or_else(|| lane_error("endpoint progress offered count overflowed"))?,
+                admitted: config.capacity.get(),
+                rejected: config
+                    .offered
+                    .get()
+                    .checked_sub(config.capacity.get())
+                    .and_then(|value| value.checked_add(rejections))
+                    .ok_or_else(|| lane_error("endpoint progress rejection count overflowed"))?,
+                transport_failed: 0,
+                active: connections.len(),
+                high_water: config.capacity.get(),
+            });
             let next = tokio::time::Instant::now()
                 .checked_add(Duration::from_secs(1))
                 .ok_or_else(|| lane_error("endpoint continuity deadline overflowed"))?
@@ -838,12 +911,16 @@ pub struct RelayLaneOutcome {
     pub pending_rejections: u64,
     /// Pending-establishment connection-rate rejections.
     pub pending_rate_rejections: u64,
+    /// Exact pending-establishment admission accounting.
+    pub pending_conservation: WorkloadConservation,
     /// Authenticated relay sessions offered.
     pub sessions_offered: usize,
     /// Sessions retained during measurement.
     pub sessions_accepted: usize,
     /// Session attempts rejected during overload.
     pub sessions_rejected: usize,
+    /// Exact initial authenticated-session accounting.
+    pub session_conservation: WorkloadConservation,
     /// Largest observed registered-session count.
     pub session_high_water: usize,
     /// Per-identity session-capacity rejections.
@@ -991,9 +1068,19 @@ async fn run_relay_lane_body(
             result.map_err(|error| lane_error(format!("relay pending task failed: {error}")))??,
         );
     }
-    wait_for_condition(config.operation_timeout, "relay pending overload", || {
-        metrics.admission_pending_full.get() > pending_before
-    })
+    let expected_pending_rejections = config
+        .pending_offered
+        .get()
+        .checked_sub(config.pending_capacity.get())
+        .ok_or_else(|| lane_error("relay pending rejection target underflowed"))?;
+    wait_for_condition(
+        config.operation_timeout,
+        "exact relay pending overload",
+        || {
+            pending_rejection_total(&metrics, pending_before, rate_before_pending)
+                .is_ok_and(|count| usize::try_from(count) == Ok(expected_pending_rejections))
+        },
+    )
     .await?;
     let pending_rejections = metrics
         .admission_pending_full
@@ -1005,6 +1092,26 @@ async fn run_relay_lane_body(
         .get()
         .checked_sub(rate_before_pending)
         .ok_or_else(|| lane_error("relay pending rate rejection counter regressed"))?;
+    let pending_rejected = usize::try_from(
+        pending_rejections
+            .checked_add(pending_rate_rejections)
+            .ok_or_else(|| lane_error("relay pending rejection count overflowed"))?,
+    )
+    .map_err(|_| lane_error("relay pending rejection count is out of range"))?;
+    let pending_conservation = WorkloadConservation::new(
+        config.pending_offered.get(),
+        config.pending_capacity.get(),
+        pending_rejected,
+        0,
+    )?;
+    phases.record(LaneProgress {
+        offered: config.pending_offered.get(),
+        admitted: config.pending_capacity.get(),
+        rejected: pending_rejected,
+        transport_failed: 0,
+        active: config.pending_capacity.get(),
+        high_water: config.pending_capacity.get(),
+    });
     drop(pending_sockets);
     let refill_millis = config
         .accept_burst
@@ -1153,6 +1260,14 @@ async fn run_relay_lane_body(
     )
     .await?;
     high_water = high_water.max(relay_connection_count(server)?);
+    phases.record(LaneProgress {
+        offered: config.session_capacity.get(),
+        admitted: clients.len(),
+        rejected: 0,
+        transport_failed: 0,
+        active: clients.len(),
+        high_water,
+    });
 
     let overload_identity_base = config
         .session_capacity
@@ -1225,6 +1340,17 @@ async fn run_relay_lane_body(
         ));
     }
     drop(rejected_clients);
+    phases.record(LaneProgress {
+        offered: config.sessions_offered.get(),
+        admitted: clients.len(),
+        rejected: rejection_client_outcomes
+            .total()?
+            .checked_sub(rejection_client_outcomes.timed_out)
+            .ok_or_else(|| lane_error("relay classified rejection count underflowed"))?,
+        transport_failed: rejection_client_outcomes.timed_out,
+        active: clients.len(),
+        high_water,
+    });
 
     let mut continuity_success_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
     let mut continuity_rejection_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
@@ -1327,15 +1453,32 @@ async fn run_relay_lane_body(
     .await
     .map_err(|_| lane_error("relay shutdown timed out"))??;
     let shutdown = shutdown_started.elapsed();
+    let initial_client_outcomes = rejection_client_outcomes.total()?;
+    if initial_client_outcomes != rejected_capacity {
+        return Err(lane_error(format!(
+            "relay observed {initial_client_outcomes} initial rejection outcomes for {rejected_capacity} attempts"
+        )));
+    }
+    let session_rejected = initial_client_outcomes
+        .checked_sub(rejection_client_outcomes.timed_out)
+        .ok_or_else(|| lane_error("relay client rejection accounting underflowed"))?;
+    let session_conservation = WorkloadConservation::new(
+        config.sessions_offered.get(),
+        config.session_capacity.get(),
+        session_rejected,
+        rejection_client_outcomes.timed_out,
+    )?;
 
     Ok((
         RelayLaneOutcome {
             pending_offered: config.pending_offered.get(),
             pending_rejections,
             pending_rate_rejections,
+            pending_conservation,
             sessions_offered: config.sessions_offered.get(),
             sessions_accepted: config.session_capacity.get(),
-            sessions_rejected: rejected_capacity,
+            sessions_rejected: session_rejected,
+            session_conservation,
             session_high_water: high_water,
             endpoint_session_rejections,
             global_session_rejections,
@@ -1431,6 +1574,26 @@ async fn run_relay_phases(
             .await?;
             drop(rejected_client);
             rejections = checked_increment(rejections, "relay continuity rejection")?;
+            let initial_rejections = config
+                .sessions_offered
+                .get()
+                .checked_sub(config.session_capacity.get())
+                .ok_or_else(|| lane_error("relay progress rejection count underflowed"))?;
+            phases.record(LaneProgress {
+                offered: config
+                    .sessions_offered
+                    .get()
+                    .checked_add(rejections)
+                    .ok_or_else(|| lane_error("relay progress offered count overflowed"))?,
+                admitted: config.session_capacity.get(),
+                rejected: initial_rejections
+                    .checked_add(rejections)
+                    .and_then(|value| value.checked_sub(client_outcomes.timed_out))
+                    .ok_or_else(|| lane_error("relay progress rejection count overflowed"))?,
+                transport_failed: client_outcomes.timed_out,
+                active: clients.len(),
+                high_water: config.session_capacity.get(),
+            });
 
             let next = tokio::time::Instant::now()
                 .checked_add(Duration::from_secs(1))
@@ -1681,6 +1844,26 @@ fn rejection_total(metrics: &iroh_relay::server::Metrics) -> LaneResult<u64> {
         .ok_or_else(|| lane_error("relay rejection metrics overflowed"))
 }
 
+fn pending_rejection_total(
+    metrics: &iroh_relay::server::Metrics,
+    pending_before: u64,
+    rate_before: u64,
+) -> LaneResult<u64> {
+    let pending = metrics
+        .admission_pending_full
+        .get()
+        .checked_sub(pending_before)
+        .ok_or_else(|| lane_error("relay pending rejection counter regressed"))?;
+    let rate = metrics
+        .admission_rate_limited
+        .get()
+        .checked_sub(rate_before)
+        .ok_or_else(|| lane_error("relay pending rate rejection counter regressed"))?;
+    pending
+        .checked_add(rate)
+        .ok_or_else(|| lane_error("relay pending rejection metrics overflowed"))
+}
+
 async fn wait_for_condition(
     timeout: Duration,
     description: &'static str,
@@ -1823,6 +2006,8 @@ pub struct DnsLaneOutcome {
     pub udp_timed_out: usize,
     /// Server-observed UDP capacity rejections.
     pub udp_rejections: u64,
+    /// Exact UDP outcome accounting, separating admission rejection from unrelated transport loss.
+    pub udp_conservation: WorkloadConservation,
     /// Absolute-deadline UDP arrival evidence.
     pub udp_arrival: ArrivalSummary,
     /// Successful DNS UDP request latency.
@@ -1833,6 +2018,8 @@ pub struct DnsLaneOutcome {
     pub tcp_active_high_water: usize,
     /// DNS TCP capacity rejections.
     pub tcp_rejections: u64,
+    /// Exact initial DNS TCP connection accounting.
+    pub tcp_conservation: WorkloadConservation,
     /// HTTP connections offered.
     pub http_connections_offered: usize,
     /// Largest observed active HTTP connection count.
@@ -1843,6 +2030,8 @@ pub struct DnsLaneOutcome {
     pub http_connection_rate_rejections: u64,
     /// Total HTTP connection capacity and rate rejections, including timed continuity.
     pub http_connection_rejections: u64,
+    /// Exact initial HTTP connection accounting.
+    pub http_connection_conservation: WorkloadConservation,
     /// Absolute-deadline HTTP connection arrival evidence.
     pub http_connection_arrival: ArrivalSummary,
     /// HTTP requests offered.
@@ -1853,6 +2042,8 @@ pub struct DnsLaneOutcome {
     pub http_requests_active_high_water: usize,
     /// HTTP request-capacity rejections.
     pub http_request_rejections: u64,
+    /// Exact initial HTTP request accounting.
+    pub http_request_conservation: WorkloadConservation,
     /// Whether request admission accepted new work after complete release.
     pub http_request_recovered: bool,
     /// Successful post-release HTTP request latency.
@@ -1970,6 +2161,22 @@ async fn run_dns_lane_body(
             udp_timed_out = checked_increment(udp_timed_out, "DNS UDP timeout")?;
         }
     }
+    let udp_rejected_so_far = usize::try_from(
+        metrics
+            .dns_udp_requests_rejected
+            .get()
+            .checked_sub(udp_rejections_before)
+            .ok_or_else(|| lane_error("DNS UDP rejection counter regressed"))?,
+    )
+    .map_err(|_| lane_error("DNS UDP rejection count is out of range"))?;
+    phases.record(LaneProgress {
+        offered: config.udp_offered.get(),
+        admitted: udp_completed,
+        rejected: udp_rejected_so_far,
+        transport_failed: udp_timed_out.saturating_sub(udp_rejected_so_far),
+        active: usize::try_from(metrics.dns_udp_requests_active.get()).unwrap_or(0),
+        high_water: config.udp_capacity.get(),
+    });
 
     let mut tcp_sockets = Vec::with_capacity(config.tcp_offered.get());
     for _ in 0..config.tcp_offered.get() {
@@ -1991,6 +2198,15 @@ async fn run_dns_lane_body(
     .await?;
     let tcp_active_high_water = usize::try_from(metrics.dns_tcp_connections_active.get())
         .map_err(|_| lane_error("DNS TCP active gauge is negative"))?;
+    phases.record(LaneProgress {
+        offered: config.tcp_offered.get(),
+        admitted: tcp_active_high_water,
+        rejected: usize::try_from(expected_tcp_rejections)
+            .map_err(|_| lane_error("DNS TCP rejection target is out of range"))?,
+        transport_failed: 0,
+        active: tcp_active_high_water,
+        high_water: tcp_active_high_water,
+    });
 
     let offer_rate = twice_nonzero(
         config.http_accept_rate_per_second,
@@ -2063,6 +2279,15 @@ async fn run_dns_lane_body(
         .map_err(|_| lane_error("DNS HTTP active gauge is negative"))?;
     let http_connection_capacity_rejections = metrics.http_connections_rejected_capacity.get();
     let http_connection_rate_rejections = metrics.http_connections_rejected_rate.get();
+    phases.record(LaneProgress {
+        offered: config.http_connections_offered.get(),
+        admitted: http_connections_active_high_water,
+        rejected: usize::try_from(expected_initial_http_connection_rejections)
+            .map_err(|_| lane_error("DNS HTTP connection rejection target is out of range"))?,
+        transport_failed: 0,
+        active: http_connections_active_high_water,
+        high_water: http_connections_active_high_water,
+    });
 
     let http_request_hold = config
         .timing
@@ -2104,6 +2329,15 @@ async fn run_dns_lane_body(
     let http_requests_active_high_water = usize::try_from(metrics.http_requests_active.get())
         .map_err(|_| lane_error("DNS HTTP request active gauge is negative"))?;
     let http_request_rejections = metrics.http_requests_rejected_capacity.get();
+    phases.record(LaneProgress {
+        offered: config.http_requests_offered.get(),
+        admitted: http_requests_active_high_water,
+        rejected: usize::try_from(expected_http_request_rejections)
+            .map_err(|_| lane_error("DNS HTTP request rejection target is out of range"))?,
+        transport_failed: 0,
+        active: http_requests_active_high_water,
+        high_water: http_requests_active_high_water,
+    });
 
     let mut continuity_udp_latency = LatencyAccumulator::new(MAX_RESOURCE_PHASE_OPERATIONS);
     let (
@@ -2224,27 +2458,66 @@ async fn run_dns_lane_body(
     let tcp_rejections = metrics.dns_tcp_connections_rejected.get();
     let http_connection_rejections = dns_http_connection_rejections(&metrics)?;
     let store_background_failures = metrics.store_background_failures.get();
+    let udp_rejected = usize::try_from(udp_rejections)
+        .map_err(|_| lane_error("DNS UDP rejection count is out of range"))?;
+    let udp_transport_failed = udp_timed_out
+        .checked_sub(udp_rejected)
+        .ok_or_else(|| lane_error("DNS UDP rejections exceed timed-out client outcomes"))?;
+    let udp_conservation = WorkloadConservation::new(
+        config.udp_offered.get(),
+        udp_completed,
+        udp_rejected,
+        udp_transport_failed,
+    )?;
+    let tcp_conservation = WorkloadConservation::new(
+        config.tcp_offered.get(),
+        tcp_active_high_water,
+        usize::try_from(tcp_rejections)
+            .map_err(|_| lane_error("DNS TCP rejection count is out of range"))?,
+        0,
+    )?;
+    let initial_http_connection_rejections = http_connection_capacity_rejections
+        .checked_add(http_connection_rate_rejections)
+        .ok_or_else(|| lane_error("DNS HTTP connection rejection count overflowed"))?;
+    let http_connection_conservation = WorkloadConservation::new(
+        config.http_connections_offered.get(),
+        http_connections_active_high_water,
+        usize::try_from(initial_http_connection_rejections)
+            .map_err(|_| lane_error("DNS HTTP connection rejection count is out of range"))?,
+        0,
+    )?;
+    let http_request_conservation = WorkloadConservation::new(
+        config.http_requests_offered.get(),
+        http_requests_admitted,
+        usize::try_from(http_request_rejections)
+            .map_err(|_| lane_error("DNS HTTP request rejection count is out of range"))?,
+        0,
+    )?;
     Ok((
         DnsLaneOutcome {
             udp_offered: config.udp_offered.get(),
             udp_completed,
             udp_timed_out,
             udp_rejections,
+            udp_conservation,
             udp_arrival,
             udp_latency: udp_latency.finish()?,
             tcp_offered: config.tcp_offered.get(),
             tcp_active_high_water,
             tcp_rejections,
+            tcp_conservation,
             http_connections_offered: config.http_connections_offered.get(),
             http_connections_active_high_water,
             http_connection_capacity_rejections,
             http_connection_rate_rejections,
             http_connection_rejections,
+            http_connection_conservation,
             http_connection_arrival,
             http_requests_offered: config.http_requests_offered.get(),
             http_requests_admitted,
             http_requests_active_high_water,
             http_request_rejections,
+            http_request_conservation,
             http_request_recovered,
             http_request_latency,
             continuity_udp_successes,
@@ -2577,8 +2850,8 @@ mod tests {
     use crate::canary::CanaryError;
 
     use super::{
-        DnsLaneConfig, EndpointLaneConfig, LaneTiming, PhaseReporter, RelayLaneConfig,
-        run_dns_lane, run_endpoint_lane, run_relay_lane,
+        DnsLaneConfig, EndpointLaneConfig, LanePhase, LaneProgress, LaneState, LaneTiming,
+        PhaseReporter, RelayLaneConfig, run_dns_lane, run_endpoint_lane, run_relay_lane,
     };
 
     fn test_timing() -> LaneTiming {
@@ -2588,6 +2861,35 @@ mod tests {
             Duration::from_millis(20),
         )
         .expect("valid test timing")
+    }
+
+    #[test]
+    fn phase_reporter_retains_last_bounded_progress_snapshot() {
+        let (reporter, receiver) = PhaseReporter::new();
+        reporter.enter(LanePhase::Measurement);
+        reporter.record(LaneProgress {
+            offered: 8,
+            admitted: 4,
+            rejected: 3,
+            transport_failed: 1,
+            active: 4,
+            high_water: 4,
+        });
+
+        assert_eq!(
+            *receiver.borrow(),
+            LaneState {
+                phase: LanePhase::Measurement,
+                progress: LaneProgress {
+                    offered: 8,
+                    admitted: 4,
+                    rejected: 3,
+                    transport_failed: 1,
+                    active: 4,
+                    high_water: 4,
+                },
+            }
+        );
     }
 
     #[test]
@@ -2637,6 +2939,10 @@ mod tests {
         assert_eq!(outcome.offered, 4);
         assert_eq!(outcome.accepted, 2);
         assert_eq!(outcome.rejected, 2);
+        assert_eq!(
+            outcome.initial_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved endpoint outcomes")
+        );
         assert!(outcome.recovered);
         assert_eq!(outcome.admission.maximum, 2);
         assert_eq!(outcome.admission.high_water, 2);
@@ -2687,9 +2993,17 @@ mod tests {
             .expect("bounded relay lane");
         assert_eq!(outcome.pending_offered, 4);
         assert!(outcome.pending_rejections >= 1);
+        assert_eq!(
+            outcome.pending_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved pending relay outcomes")
+        );
         assert_eq!(outcome.sessions_offered, 4);
         assert_eq!(outcome.sessions_accepted, 2);
         assert_eq!(outcome.sessions_rejected, 2);
+        assert_eq!(
+            outcome.session_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved relay outcomes")
+        );
         assert_eq!(outcome.session_high_water, 2);
         assert!(outcome.endpoint_session_rejections >= 1);
         assert!(outcome.global_session_rejections + outcome.rate_rejections >= 1);
@@ -2759,6 +3073,10 @@ mod tests {
         assert_eq!(outcome.udp_completed + outcome.udp_timed_out, 4);
         assert_eq!(outcome.udp_completed, 2);
         assert_eq!(outcome.udp_rejections, 2);
+        assert_eq!(
+            outcome.udp_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved UDP outcomes")
+        );
         assert_eq!(outcome.udp_arrival.attempts, 4);
         assert_eq!(
             u64::try_from(outcome.udp_completed)
@@ -2770,9 +3088,17 @@ mod tests {
         assert_eq!(outcome.tcp_offered, 4);
         assert_eq!(outcome.tcp_active_high_water, 2);
         assert_eq!(outcome.tcp_rejections, 2);
+        assert_eq!(
+            outcome.tcp_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved TCP outcomes")
+        );
         assert_eq!(outcome.http_connections_offered, 4);
         assert_eq!(outcome.http_connection_arrival.attempts, 4);
         assert_eq!(outcome.http_connections_active_high_water, 2);
+        assert_eq!(outcome.http_connection_conservation.offered(), 4);
+        assert_eq!(outcome.http_connection_conservation.admitted(), 2);
+        assert_eq!(outcome.http_connection_conservation.rejected(), 2);
+        assert_eq!(outcome.http_connection_conservation.transport_failed(), 0);
         assert!(outcome.http_connection_rejections >= 1);
         let initial_http_rejections = outcome
             .http_connection_capacity_rejections
@@ -2796,6 +3122,10 @@ mod tests {
         );
         assert_eq!(outcome.http_requests_offered, 4);
         assert_eq!(outcome.http_requests_admitted, 2);
+        assert_eq!(
+            outcome.http_request_conservation,
+            super::WorkloadConservation::new(4, 2, 2, 0).expect("conserved HTTP request outcomes")
+        );
         assert_eq!(outcome.http_requests_active_high_water, 2);
         assert!(outcome.http_request_rejections >= 1);
         assert!(outcome.http_request_recovered);

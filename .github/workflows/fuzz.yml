@@ -1,0 +1,52 @@
+name: Bounded fuzz campaign
+
+on:
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bounded-fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: Five-minute fuzz (${{ matrix.target }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - doh_extract
+          - pkarr_body
+          - relay_segmentation
+          - config_deserialize
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Check bounded fuzz tooling contract
+        run: scripts/tests/check-fuzz-tooling.sh
+      - name: Run bounded campaign
+        run: |
+          scripts/run-bounded-fuzz.sh \
+            --seconds 300 \
+            --target "${{ matrix.target }}" \
+            --artifacts "$RUNNER_TEMP/fuzz-artifacts"
+      - name: Retain crash artifacts and summaries
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bounded-fuzz-${{ matrix.target }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/fuzz-artifacts
+          if-no-files-found: ignore
+          retention-days: 30

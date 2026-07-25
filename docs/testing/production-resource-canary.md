@@ -31,6 +31,21 @@ The retained [run report](resource-canary/2026-07-24/run.json), [preflight repor
 and [manifest](resource-canary/2026-07-24/manifest.json) are byte-for-byte copies of the finalized
 artifact.
 
+## Recurring Evidence Service
+
+`.github/workflows/resource-canary.yml` defines a weekly and manually dispatched run on the
+dedicated `iroh-resource-canary` Linux x86-64 runner. It repeats the exact optimized evidence
+profile above, verifies finalized manifests, and retains success or failure artifacts for 30 days.
+The workflow is intentionally absent from pull-request triggers because host-performance evidence
+is meaningful only after the canary's uncontaminated-host preflight passes.
+
+This checked workflow definition is not itself execution evidence. The dated results below remain
+the latest retained passed run until a scheduled artifact is reviewed and promoted. New reports
+also retain, for every lane, the final phase, elapsed time, stable error class, bounded progress
+counters, and latest resource sample. Every offered DNS, relay pending-establishment, relay
+session, and endpoint operation must conserve exactly into admitted, rejected, or transport-failed
+terminal outcomes.
+
 ## Host
 
 | Property | Observed |

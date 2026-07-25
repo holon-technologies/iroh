@@ -784,6 +784,61 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(start_paused = true)]
+    #[traced_test]
+    async fn client_actor_survives_production_keepalive_horizon_when_polled() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
+        let (send_queue_s, send_queue_r) = mpsc::channel(1);
+        let (message_s, message_r) = mpsc::channel(1);
+        let endpoint_id = SecretKey::from_bytes(&rng.random()).public();
+        let (io, io_rw) = tokio::io::duplex(1_024);
+        let mut io_rw = Conn::test(io_rw, Default::default());
+        let stream = RelayedStream::test(io);
+        let clients = Clients::default();
+        let actor = Actor {
+            stream,
+            timeout: Duration::from_secs(1),
+            packet_send_queue: send_queue_r,
+            message_send_queue: message_r,
+            guard: Some(OnDisconnectGuard::empty(endpoint_id)),
+            endpoint_id,
+            registered: false,
+            clients: clients.clone(),
+            client_counter: ClientCounter::new(clients.runtime().wall_clock()),
+            ping_tracker: PingTracker::default(),
+            metrics: Arc::new(Metrics::default()),
+            clock: clients.runtime().clock(),
+        };
+        let done = CancellationToken::new();
+        let io_done = done.clone();
+        let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+
+        tokio::time::advance(Duration::from_secs(21)).await;
+        let ping = recv_frame(FrameType::Ping, &mut io_rw).await?;
+        let RelayToClientMsg::Ping(payload) = ping else {
+            bail_any!("production-horizon frame was not a relay ping");
+        };
+        io_rw.send(ClientToRelayMsg::Pong(payload)).await?;
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(6)).await;
+        assert!(
+            !handle.is_finished(),
+            "relay actor must remain live after a production keepalive pong"
+        );
+
+        io_rw.send(ClientToRelayMsg::Ping([9; 8])).await?;
+        assert_eq!(
+            recv_frame(FrameType::Pong, &mut io_rw).await?,
+            RelayToClientMsg::Pong([9; 8])
+        );
+
+        done.cancel();
+        drop(send_queue_s);
+        drop(message_s);
+        handle.await.std_context("join")?;
+        Ok(())
+    }
+
     fn test_client_builder(
         key: EndpointId,
         protocol_version: ProtocolVersion,

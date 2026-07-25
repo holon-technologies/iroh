@@ -233,7 +233,7 @@ fn encode_query_as_request(
     Ok(request)
 }
 
-fn decode_request(bytes: &[u8], src_addr: SocketAddr) -> Result<DNSRequest, AppError> {
+pub(crate) fn decode_request(bytes: &[u8], src_addr: SocketAddr) -> Result<DNSRequest, AppError> {
     match DNSRequest::from_bytes(bytes.to_vec(), src_addr, Protocol::Https) {
         Ok(request) => {
             info!("received message {:?}", *request);

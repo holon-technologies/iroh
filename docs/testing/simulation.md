@@ -39,8 +39,8 @@ branch order. Same-seed direct and relay production-QUIC replay are regression-t
 - Iroh's Noq adapter delegates `now`, timers, and task spawning to one context. The endpoint supplies Noq with a behavioral RNG seed from `endpoint/<endpoint-id>/noq`. Token validity uses the context wall clock.
 - Noq, socket, relay, direct-address report, active-relay, and remote-state actors run under the injected runtime and participate in structured cancellation and shutdown snapshots.
 
-The production-endpoint lanes drive harness roots directly around kernel steps; they no
-longer spawns paired Tokio harness tasks. Remote-map, relay-client, relay-impairment, net-report,
+The production-endpoint lanes drive harness roots directly around kernel steps; they no longer
+spawn paired Tokio harness tasks. Remote-map, relay-client, relay-impairment, net-report,
 and shutdown deadlines use the injected clock, and relay ping/backoff choices use named decision
 streams. Relay-server client actors now use the same injected executor, clock, wall clock, and
 decision source as the endpoints. A narrow workspace Rustls 0.23.41 fork changes provider
@@ -214,7 +214,10 @@ Run the deterministic-closure gates with:
 
 ```bash
 scripts/tests/check-determinism-boundaries.sh
+scripts/tests/check-determinism-semantic.sh
 scripts/check-determinism-boundaries.sh --check
+scripts/check-determinism-semantic.sh --check
+scripts/tests/check-determinism-docs.sh
 cargo test -p iroh-runtime
 cargo test -p iroh-dns --lib
 cargo test -p iroh-relay --all-features

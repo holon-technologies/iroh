@@ -1,6 +1,6 @@
 # Iroh Determinism and Testability Audit
 
-Status: Living audit reviewed through deterministic closure and TigerStyle lifecycle hardening, 2026-07-24
+Status: Living audit reviewed through deterministic tooling closure, 2026-07-25
 
 ## Scope
 
@@ -35,11 +35,18 @@ rg -n 'std::fs|tokio::fs|std::env|env::var|Command::new|thread::spawn|spawn_bloc
   iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
 rg -n 'HashMap|HashSet|FxHashMap|FxHashSet' \
   iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+
+scripts/tests/check-determinism-boundaries.sh
+scripts/tests/check-determinism-semantic.sh
+scripts/check-determinism-boundaries.sh --check
+scripts/check-determinism-semantic.sh --check
 ```
 
 Search results are classified by executable context, not merely by filename. Code below `#[cfg(test)] mod tests`, files under `tests/`, and benchmark/example binaries are test-only unless a simulator backend deliberately executes them.
 
-The revision baseline contains the following raw search matches. Counts intentionally include imports, types, test-only code, and false positives; the subsystem tables below classify them by executable context and behavior rather than silently discarding them.
+The historical Stage 0 revision contained the following raw search matches. Counts intentionally
+include imports, types, test-only code, and false positives; they record the discovery state and
+are not claims about the current tree.
 
 | Search family | Matches | Files | Classification rule |
 | --- | ---: | ---: | --- |
@@ -52,7 +59,16 @@ The revision baseline contains the following raw search matches. Counts intentio
 
 These counts are an audit baseline, not a permanent allowlist. Stage 0 converts the searches into a checked occurrence manifest so additions require an explicit classification in review.
 
-The executable occurrence manifest is `scripts/determinism-boundaries.txt` (936 normalized rows; SHA-256 `805dcba485a80e85c41c6130357bc9711030b86e226fb0040eda85f64af1ab44`). `scripts/check-determinism-boundaries.sh --check` fails CI on any addition, removal, line movement, or matched-source change. It scans the production crates plus `iroh-runtime` and `iroh-sim`, so new capability and simulator code cannot sit outside the gate. After reviewing and documenting drift, maintainers regenerate it explicitly with `--update`.
+The legacy executable occurrence manifest is `scripts/determinism-boundaries.txt`.
+`scripts/check-determinism-boundaries.sh --check` deliberately remains line-sensitive and fails CI
+on any addition, removal, line movement, or matched-source change. It is retained as a broad
+lexical backstop.
+
+The authoritative stable review identity is `scripts/determinism-boundaries.semantic.txt`.
+`scripts/check-determinism-semantic.sh --check` parses Rust with `syn`, ignores comments and string
+literals, resolves file-local `use` aliases, and records category, path, enclosing owner, API, and
+same-owner ordinal. Source-line movement alone therefore does not create semantic drift. Both
+inventories fail closed together; parse failure or drift requires explicit review and `--update`.
 
 The 2026-07-21 Stage 1 review added the `iroh-runtime` production adapters and moved existing Iroh occurrences as context plumbing and tests were introduced. `TokioClock` and `SystemWallClock` are classified as production implementations behind injectable clock traits; `RootSeed::random` is the single production behavioral-seed boundary; and `EndpointConfig::rng_seed` is now supplied from the explicit per-endpoint `endpoint/<id>/noq` decision stream. Endpoint identities, TLS token keys, and QUIC reset keys continue to use cryptographic entropy and were not routed through behavioral decisions.
 
@@ -277,17 +293,24 @@ explicit domain-separated materialization seed.
 | External netsim | `.github/workflows/netsim*.y*ml` and `.github/sims/**` | Runs real processes through the external `chuck` repository. Valuable integration/performance coverage, but not deterministic in-process simulation and not self-contained at a pinned source revision. |
 | Cross-platform CI | `.github/workflows/ci.yml`, `tests.yaml`, `wine.yaml` | Linux, macOS, Windows, Android, wasm, and cross-build coverage exists. |
 | Flake detection | `.github/workflows/flaky.yaml` | Daily repeated conventional tests; no seed corpus or deterministic replay. |
-| Fuzzing / Loom | No fuzz target or Loom test found; only a declared `iroh_loom` cfg | Coverage gap. |
+| Fuzzing / concurrency exploration | Four bounded cargo-fuzz targets cover DoH, pkarr, relay segmentation, and configuration parsing; the seeded deterministic scheduler explores actor-ready ordering. | PR smoke and scheduled fuzz campaigns are executable gates; the simulator remains the actor-level concurrency authority. |
 
-## Runtime and Task Scheduling
+## Historical Stage 0 Findings
 
-### Confirmed seams
+The runtime, time, entropy, network, and dependency sections below preserve the pre-implementation
+discovery that motivated Stages 1–6. Their “required action” and “gap” language is historical.
+The authoritative current state is the [Current High-Risk Gaps](#current-high-risk-gaps) section
+and the simulation guide.
+
+### Runtime and Task Scheduling
+
+#### Confirmed seams
 
 - `iroh/src/runtime.rs` wraps `noq::Runtime`, owns Noq tasks with `TaskTracker`, assigns per-endpoint numeric task IDs, and coordinates cancellation.
 - `noq::Runtime` already injects timer creation, `now()`, task spawning, and UDP wrapping. `noq::Endpoint::new_with_abstract_socket` accepts both an abstract socket and runtime.
 - `noq_proto::EndpointConfig::rng_seed` already allows deterministic QUIC behavioral randomness, but Iroh never supplies it.
 
-### Occurrence classification
+#### Occurrence classification
 
 | Occurrence group | Classification | Required action |
 | --- | --- | --- |
@@ -300,13 +323,13 @@ explicit domain-separated materialization seed.
 | `iroh-relay/src/main.rs:627` certificate file `spawn_blocking` | **Acceptable nondeterminism** | Keep in production binary; exclude from in-process simulation. |
 | DNS-server bounded per-IP token buckets | **Behavioral randomness** with explicit transition input | The LRU has a validated hard capacity; token transitions receive `Instant` explicitly. Only the HTTP middleware samples the production clock. There is no GC thread. |
 
-### Gaps
+#### Gaps
 
 - Stable task IDs exist only for tasks spawned by Noq through one endpoint runtime. Socket actors, discovery publishers, relay tasks, net-report probes, and application protocol tasks are outside that graph.
 - Tokio current-thread execution and paused time are useful bootstrap tools, but they do not provide seed-controlled legal task ordering or protection against accidental executor escape.
 - There is no deadlock/stalled-progress detector, ready-queue trace, task ownership graph, or end-of-scenario task leak assertion.
 
-## Time
+### Time
 
 `n0_future::time` is a native re-export of `tokio::time`; it is not an injectable clock. Pausing Tokio time therefore does not control code running on another executor and cannot provide a simulator-owned event queue.
 
@@ -327,9 +350,9 @@ explicit domain-separated materialization seed.
 | `iroh-dns-server/src/http.rs:290` request latency | **Acceptable nondeterminism** | It does not affect request behavior; source it from the runtime clock if deterministic metrics/trace equality is required. |
 | Test, example, and benchmark sleeps/timeouts/measurements | **Acceptable nondeterminism** | Existing test timeouts remain watchdogs; simulator correctness must use virtual bounds. |
 
-## Randomness
+### Randomness
 
-### Secure or cryptographic randomness
+#### Secure or cryptographic randomness
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
@@ -338,7 +361,7 @@ explicit domain-separated materialization seed.
 | `iroh-relay/src/protos/handshake.rs:452` server challenge | **Production randomness** | Add an explicit simulation/test challenge source only when real relay handshake code is executed in simulation. |
 | Crypto crates' internal `getrandom` / `OsRng` | **Production randomness**; **Architectural problem** if reached implicitly by simulation | Do not globally override platform entropy. Inject deterministic identities and protocol configuration at construction boundaries. |
 
-### Behavioral randomness
+#### Behavioral randomness
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
@@ -353,7 +376,7 @@ explicit domain-separated materialization seed.
 
 One shared mutable RNG is insufficient: adding a decision in one subsystem would perturb every later decision. Simulation must derive named streams from `(root seed, semantic path)` and trace both the path and per-stream draw index.
 
-## Datagram and Stream Networking
+### Datagram and Stream Networking
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
@@ -365,7 +388,7 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 | Relay server `TcpListener::bind` and QAD `UdpSocket::bind` | **Production environment adapters** | Deterministic relay sessions enter below these mechanics; production and Patchbay preserve them. Injected connectors suppress QAD probes of synthetic relay URLs. |
 | DNS server UDP/TCP binds in `iroh-dns-server/src/dns.rs` | **Architectural problem** for full server simulation | Simulated DNS provider covers aggregation logic first; real server parity remains an integration backend. |
 
-## DNS, Discovery, and Address Management
+### DNS, Discovery, and Address Management
 
 - **Injectable dependency:** `iroh_dns::dns::Resolver` already supports custom IPv4, IPv6, and TXT lookup futures plus cache reset. This is the correct response injection seam.
 - **Architectural problem:** `DnsResolver::Inner::op` owns Tokio notification selection and `n0_future` timeout; deterministic response providers do not make its timing deterministic.
@@ -373,7 +396,7 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 - **Architectural problem:** service task spawning, update ordering, expiry, Pkarr retry/republish, and address-source timestamps remain runtime-owned.
 - **Acceptable nondeterminism outside the deterministic backend:** external mDNS and Mainline address-lookup crates retain production integration/contract suites while the simulator exercises Iroh aggregation through controlled providers.
 
-## Network Monitoring, Interfaces, Net Reports, and Port Mapping
+### Network Monitoring, Interfaces, Net Reports, and Port Mapping
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
@@ -384,7 +407,7 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 | `iroh/src/portmapper.rs` concrete enabled client / disabled stub | **Injectable dependency** with an incomplete simulation seam | Generalize the existing wrapper into a port-mapper capability; simulated mappings and expiry remain in the virtual network model. |
 | Net-report QAD/HTTPS probes | **Injectable dependency** for QAD; **Architectural problem** for HTTPS | QAD over synthetic UDP can run in simulation. HTTPS/captive-portal checks require a synthetic HTTP connector or a controlled result provider until stream networking exists. |
 
-## Retry and Backoff
+### Retry and Backoff
 
 All retry/backoff that affects connection establishment, discovery, relay reconnection, network-change recovery, probing, address publication, or shutdown is **Behavioral randomness**. Direct ownership by Tokio rather than an injected clock is additionally an **Architectural problem**. The primary production sites are:
 
@@ -398,7 +421,7 @@ All retry/backoff that affects connection establishment, discovery, relay reconn
 
 Every retry policy needs an observable attempt number, next deadline, decision-stream name, cancellation event, and terminal classification in the simulator trace.
 
-## Filesystem, Environment, Processes, and Threads
+### Filesystem, Environment, Processes, and Threads
 
 | Occurrence group | Classification | Required action |
 | --- | --- | --- |
@@ -412,7 +435,7 @@ Every retry policy needs an observable attempt number, next deadline, decision-s
 
 No Rust `std::process::Command` use was found in production library code. Process nondeterminism currently lives primarily in CI workflows and executable orchestration.
 
-## Unordered Collections and Ordering
+### Unordered Collections and Ordering
 
 Unordered collection use is not automatically a defect. It is **Behavioral randomness** when iteration chooses a path, operation, eviction victim, trace order, or task order; such choices must be stabilized or explicitly recorded.
 
@@ -442,7 +465,7 @@ first hash-map iteration item. The associated manifest drift is line movement in
 production entropy/map boundaries, explicit saturating duration arithmetic, and timeout-based test
 orchestration; it adds no ambient effect source.
 
-## Dependency Assessment
+### Dependency Assessment
 
 | Dependency | Finding | Action |
 | --- | --- | --- |
@@ -457,19 +480,18 @@ orchestration; it adds no ambient effect source.
 
 ## Current High-Risk Gaps
 
-1. Relay and remote-state actor timers still use direct Tokio/n0-future time, despite their task
-   execution now being runtime-owned.
-2. Paired application-exchange harness tasks and the endpoint shutdown watchdog remain declared
-   Tokio compatibility boundaries.
-3. Relay backoff jitter and production cryptographic entropy are intentionally outside the seeded
-   scheduler stream; normalized replay may mask only opaque encrypted payload hashes.
-4. Net-report HTTP/STUN probes, real DNS/TCP/TLS listener mechanics, and platform interfaces remain
+1. Production cryptographic entropy is intentionally outside the seeded scheduler stream;
+   normalized replay may mask only opaque encrypted payload hashes.
+2. Net-report HTTP/STUN probes, real DNS/TCP/TLS listener mechanics, and platform interfaces remain
    realistic-backend coverage rather than synthetic-backend behavior.
-5. Patchbay/local/platform/interoperability fixture coverage is capability-scoped; double-NAT,
+3. Patchbay/local/platform/interoperability fixture coverage is capability-scoped; double-NAT,
    multi-relay deployments, captive portals, diverse home routers, and IPv6 transition networks
    still need stable realistic observations.
-6. Exact-source replay is guaranteed for the checked 30-day window; cross-schema conversion is
+4. Exact-source replay is guaranteed for the checked 30-day window; cross-schema conversion is
    intentionally unavailable until an explicit one-way migrator and fixture suite are added.
+5. The weekly production resource workflow and daily bounded fuzz workflow are checked service
+   definitions, not execution evidence. Their first retained runs still require the labelled
+   runner and GitHub service; a workflow definition must never be reported as a passed run.
 
 ## Audit Exit Criteria
 
@@ -477,7 +499,7 @@ This audit remains current only when:
 
 - every newly introduced direct clock, spawn, entropy, bind, resolver, monitor, port-mapper, filesystem, process, thread, or ordering-sensitive collection use is classified in this document;
 - simulator-supported modules contain no unapproved escape from environment capabilities;
-- automated source checks enforce the agreed direct-use policy;
+- the lexical and syntax-aware source checks jointly enforce the agreed direct-use policy;
 - every known limitation names the stage and evidence that will retire it.
 
 ## Evidence Map
@@ -492,11 +514,17 @@ This audit remains current only when:
 - Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server.rs:441-640`; `iroh-relay/src/quic.rs:97-200`.
 - Confirmed path-state ordering risks: `iroh/src/socket/biased_rtt_path_selector.rs`; `iroh/src/socket/remote_map/remote_state/path_state.rs`.
 - Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/patchbay.yml`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
+- Confirmed stable effect inventory: `tools/determinism-checker`;
+  `scripts/check-determinism-semantic.sh`; `scripts/determinism-boundaries.semantic.txt`.
+- Confirmed bounded parser/framing fuzzing: `fuzz/fuzz_targets`; `scripts/run-bounded-fuzz.sh`;
+  `.github/workflows/fuzz.yml`.
+- Confirmed recurring production canary definition: `.github/workflows/resource-canary.yml`;
+  `scripts/tests/check-resource-canary-workflow.sh`.
 
 ## Open Questions
 
 1. Which realistic backend should next export a stable semantic fixture for the currently deferred dimensions?
-2. When should direct relay/remote-map timer migration be prioritized over broader real-world fixture coverage?
+2. Which schema transition should justify the first explicit one-way replay migrator?
 
 ## Review Resolution
 
@@ -505,6 +533,9 @@ This audit remains current only when:
 - Resolved: the specification's five classification names are canonicalized above and mapped to every grouped occurrence.
 - Resolved: CI budgets, retention, triage, corpus review, and exact-source replay compatibility are
   validated by `iroh-sim/operations-policy.json` and documented in the operations runbook.
+- Resolved: production-duration lifecycle, exact load conservation, structured canary diagnostics,
+  scheduled realistic evidence, stable semantic boundary identities, and bounded protocol fuzzing
+  now have executable gates.
 
 ## Change Summary
 

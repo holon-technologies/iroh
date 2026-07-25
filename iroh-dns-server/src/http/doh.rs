@@ -25,7 +25,7 @@ use self::{
 use super::error::AppResult;
 use crate::state::AppState;
 
-mod extract;
+pub(crate) mod extract;
 pub(crate) mod response;
 
 /// GET handler for resolving DoH queries

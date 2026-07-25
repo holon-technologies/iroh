@@ -33,6 +33,9 @@
 
 pub mod client;
 pub mod defaults;
+#[doc(hidden)]
+#[cfg(feature = "fuzzing")]
+pub mod fuzz;
 pub mod http;
 mod key_cache;
 mod ping_tracker;
