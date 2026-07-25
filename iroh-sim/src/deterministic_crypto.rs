@@ -159,6 +159,16 @@ impl Drop for ActiveX25519 {
 mod tests {
     use super::*;
 
+    #[derive(Debug)]
+    struct RunOwnedRandom([u8; 1]);
+
+    impl SecureRandom for RunOwnedRandom {
+        fn fill(&self, destination: &mut [u8]) -> Result<(), GetRandomFailed> {
+            destination.fill(self.0[0]);
+            Ok(())
+        }
+    }
+
     fn bytes(provider: &CryptoProvider) -> [u8; 32] {
         let mut bytes = [0; 32];
         provider.secure_random.fill(&mut bytes).unwrap();
@@ -174,6 +184,18 @@ mod tests {
 
         assert_eq!(bytes(&first), bytes(&replay));
         assert_ne!(bytes(&first), bytes(&other));
+    }
+
+    #[test]
+    fn rustls_provider_owns_run_scoped_randomness() {
+        let random: Arc<dyn SecureRandom> = Arc::new(RunOwnedRandom([7]));
+        let mut provider = (*iroh_relay::tls::default_provider()).clone();
+        provider.secure_random = random.clone();
+
+        let mut bytes = [0; 4];
+        provider.secure_random.fill(&mut bytes).unwrap();
+        assert_eq!(bytes, [7; 4]);
+        assert_eq!(Arc::strong_count(&random), 2);
     }
 
     #[test]

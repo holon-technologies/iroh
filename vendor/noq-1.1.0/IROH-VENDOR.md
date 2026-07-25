@@ -1,5 +1,9 @@
 # Iroh Noq vendor delta
 
+Upstream base: `noq` 1.1.0. Published fork: `iroh-noq` 1.1.0-holon.1. The Rust library name
+remains `noq` so the fork is source-compatible at import sites. The package name and exact
+prerelease version make downstream dependency provenance explicit.
+
 This directory is an exact copy of the crates.io `noq` 1.1.0 package plus a narrow
 resource-accounting patch owned by the Iroh project.
 
@@ -34,8 +38,8 @@ never silently discarded.
 3. Review upstream Noq for equivalent item, byte, control, terminal, and connection-lifetime
    bounds.
 4. Run the vendored Noq tests plus Iroh endpoint, simulation, relay-QAD, and browser checks.
-5. Update the root `[patch.crates-io]`, workspace exclusion, `Cargo.lock`, and this document
-   together.
+5. Increment the Holon prerelease revision, update exact `iroh-noq` dependencies, the local source
+   patch, package verifier, lockfiles, changelog, and this document together.
 
 Do not remove this patch merely because outer endpoint or task admission exists. Queue admission
 must occur before channel allocation, and connection capacity must remain owned until both the

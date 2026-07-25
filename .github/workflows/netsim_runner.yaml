@@ -3,17 +3,19 @@ name: netsim-runner
 on:
   workflow_dispatch:
     inputs:
-      branch:
+      iroh_ref:
+        description: "Pinned 40-character Iroh commit SHA"
         required: true
         type: string
       max_workers:
-        required: true
+        required: false
         type: number
         default: 4
-      netsim_branch:
-        required: true
+      netsim_ref:
+        description: "Pinned 40-character commit SHA from n0-computer/chuck"
+        required: false
         type: string
-        default: "main"
+        default: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       rust_log:
         description: "Custom RUST_LOG value (e.g. 'iroh=debug,noq=trace'). If empty, defaults to warn."
         required: false
@@ -27,10 +29,6 @@ on:
         required: false
         type: string
         default: "sims/iroh,sims/integration"
-      publish_metrics:
-        required: false
-        type: boolean
-        default: false
       pr_number:
         required: false
         type: string
@@ -46,17 +44,19 @@ on:
         default: ""
   workflow_call:
     inputs:
-      branch:
+      iroh_ref:
+        description: "Pinned 40-character Iroh commit SHA"
         required: true
         type: string
       max_workers:
-        required: true
+        required: false
         type: number
         default: 4
-      netsim_branch:
-        required: true
+      netsim_ref:
+        description: "Pinned 40-character commit SHA from n0-computer/chuck"
+        required: false
         type: string
-        default: "main"
+        default: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       rust_log:
         description: "Custom RUST_LOG value (e.g. 'iroh=debug,noq=trace'). If empty, defaults to warn."
         required: false
@@ -70,10 +70,6 @@ on:
         required: false
         type: string
         default: "sims/iroh,sims/integration"
-      publish_metrics:
-        required: false
-        type: boolean
-        default: false
       pr_number:
         required: false
         type: string
@@ -92,22 +88,34 @@ env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
   MSRV: "1.66"
-  # SCCACHE_GHA_ENABLED: "true"
+  SCCACHE_GHA_ENABLED: "on"
   RUSTC_WRAPPER: "sccache"
   IROH_FORCE_STAGING_RELAYS: "1"
 
 jobs:
   netsim:
-    permissions: write-all
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     name: Netsim
     timeout-minutes: 45
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     steps:
+    - name: Validate immutable Iroh input
+      env:
+        IROH_REF: ${{ inputs.iroh_ref }}
+      run: |
+        if [[ ! "$IROH_REF" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::iroh_ref must be a pinned 40-character lowercase commit SHA"
+          exit 2
+        fi
+
     - name: Checkout
       uses: actions/checkout@v7
       with:
         submodules: recursive
-        ref: ${{ inputs.branch }}
+        ref: ${{ inputs.iroh_ref }}
 
     - name: Install rust stable
       uses: dtolnay/rust-toolchain@stable
@@ -115,17 +123,25 @@ jobs:
     - name: Install sccache
       uses: mozilla-actions/sccache-action@v0.0.10
       continue-on-error: true
-    - uses: ./.github/workflows/sccache-probe
+    - uses: ./.github/actions/sccache-probe
 
     - name: Build iroh
       run: |
         cargo build --profile ${{ inputs.build_profile }} --workspace --all-features --examples --bins
 
     - name: Fetch netsim
+      env:
+        NETSIM_REF: ${{ inputs.netsim_ref }}
       run: |
-        cd ..
-        rm -rf chuck
-        git clone --depth 1 --single-branch --branch ${{ inputs.netsim_branch }} https://github.com/n0-computer/chuck.git
+        if [[ ! "$NETSIM_REF" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::netsim_ref must be a pinned 40-character lowercase commit SHA"
+          exit 2
+        fi
+        mkdir ../chuck
+        git -C ../chuck init
+        git -C ../chuck remote add origin https://github.com/n0-computer/chuck.git
+        git -C ../chuck fetch --depth 1 origin "$NETSIM_REF"
+        git -C ../chuck checkout --detach FETCH_HEAD
 
     - name: Install netsim deps
       run: |
@@ -150,31 +166,34 @@ jobs:
     - name: Get commit sha
       shell: bash
       run: |
-        echo "LAST_COMMIT_SHA=$(git rev-parse --short ${GITHUB_SHA})" >> ${GITHUB_ENV}
+        echo "LAST_COMMIT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
     - name: Run tests
       id: run_tests
       continue-on-error: true
+      env:
+        FILTER_INPUT: ${{ inputs.filter }}
+        MAX_WORKERS: ${{ inputs.max_workers }}
+        RUST_LOG_INPUT: ${{ inputs.rust_log }}
+        SIM_PATHS_INPUT: ${{ inputs.sim_paths }}
       run: |
         cd ../chuck/netsim
-        IFS=',' read -ra sim_paths <<< "${{ inputs.sim_paths }}"
-        rust_log="${{ inputs.rust_log }}"
-        filter="${{ inputs.filter }}"
-        filter_flag=""
-        if [[ -n "${filter}" ]]; then
-          if [[ "${filter}" == skip:* ]]; then
-            filter_flag="--skip=${filter#skip:}"
-          elif [[ "${filter}" == only:* ]]; then
-            filter_flag="--only=${filter#only:}"
+        IFS=',' read -r -a sim_paths <<< "$SIM_PATHS_INPUT"
+        filter_args=()
+        if [[ -n "$FILTER_INPUT" ]]; then
+          if [[ "$FILTER_INPUT" == skip:* ]]; then
+            filter_args=("--skip=${FILTER_INPUT#skip:}")
+          elif [[ "$FILTER_INPUT" == only:* ]]; then
+            filter_args=("--only=${FILTER_INPUT#only:}")
           else
-            filter_flag="--only=${filter}"
+            filter_args=("--only=$FILTER_INPUT")
           fi
         fi
         for sim_path in "${sim_paths[@]}"; do
-          if [[ -n "${rust_log}" ]]; then
-            sudo RUST_LOG="${rust_log}" python3 main.py ${filter_flag} --max-workers=${{ inputs.max_workers }} --integration $sim_path
+          if [[ -n "$RUST_LOG_INPUT" ]]; then
+            sudo env RUST_LOG="$RUST_LOG_INPUT" python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
           else
-            sudo python3 main.py ${filter_flag} --max-workers=${{ inputs.max_workers }} --integration $sim_path
+            sudo python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
           fi
         done
 
@@ -188,44 +207,22 @@ jobs:
         python3 reports_csv.py --metro --commit ${{ env.LAST_COMMIT_SHA }} > report_metro.txt
         python3 reports_csv.py --metro --integration --commit ${{ env.LAST_COMMIT_SHA }} > report_metro_integration.txt
 
-    - name: Cache AWS CLI
-      if: always()
-      id: cache-awscli
-      uses: actions/cache@v5
-      with:
-        path: ~/awscli
-        key: awscli-${{ runner.os }}-${{ runner.arch }}-v2
-
-    - name: Download awscli
-      if: always() && steps.cache-awscli.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/awscli
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o ~/awscli/awscliv2.zip
-        cd ~/awscli && unzip -oq awscliv2.zip
-
-    - name: Install awscli
-      if: always()
-      run: sudo ~/awscli/aws/install --update
-
-    - name: Upload report
+    - name: Package report
       if: always()
       run: |
-        export AWS_ACCESS_KEY_ID=${{secrets.S3_ACCESS_KEY_ID}}
-        export AWS_SECRET_ACCESS_KEY=${{secrets.S3_ACCESS_KEY}}
-        export AWS_DEFAULT_REGION=us-west-2
-
         cd ../chuck/netsim
-
-        aws_fname=${{ env.LAST_COMMIT_SHA }}.tar.gz
-        tar -cvzf report.tar.gz report_prom.txt report_table.txt report_metro.txt report_metro_integration.txt logs/ report/ viz/
-        if [[ -n "${{ secrets.S3_BUCKET }}" ]]; then
-          aws s3 cp ./report.tar.gz s3://${{secrets.S3_REPORT_BUCKET}}/$aws_fname --no-progress
-        fi
-
-    - name: Move report
-      if: always()
-      run: |
-        cp ../chuck/netsim/report.tar.gz ./report.tar.gz
+        report_paths=(
+          report_prom.txt
+          report_table.txt
+          report_metro.txt
+          report_metro_integration.txt
+        )
+        for path in logs report viz; do
+          if [[ -e "$path" ]]; then
+            report_paths+=("$path")
+          fi
+        done
+        tar -czf "$GITHUB_WORKSPACE/report.tar.gz" "${report_paths[@]}"
 
     - name: Upload report
       if: always()
@@ -275,10 +272,12 @@ jobs:
       id: generate_report_table
       run: |
         cd ../chuck/netsim
-        export NETSIM_REPORT=$(cat report_table.txt)
-        echo "NETSIM_REPORT<<EOFMARKER" >> ${GITHUB_OUTPUT}
-        echo "${NETSIM_REPORT}" >> ${GITHUB_OUTPUT}
-        echo "EOFMARKER" >> ${GITHUB_OUTPUT}
+        netsim_report=$(cat report_table.txt)
+        {
+          echo "NETSIM_REPORT<<EOFMARKER"
+          echo "$netsim_report"
+          echo "EOFMARKER"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Echo Report Table on PR
       uses: peter-evans/create-or-update-comment@v5
@@ -286,20 +285,9 @@ jobs:
       with:
         issue-number: ${{ inputs.pr_number }}
         body: |
-          `${{ inputs.branch }}.${{ env.LAST_COMMIT_SHA }}`
+          `${{ inputs.iroh_ref }}.${{ env.LAST_COMMIT_SHA }}`
           Perf report:
           ${{ steps.generate_report_table.outputs.NETSIM_REPORT }}
-
-    - name: Publish metrics
-      if: ${{ inputs.publish_metrics && !github.event.pull_request.head.repo.fork }}
-      run: |
-        cd ../chuck/netsim
-        d=$(cat report_metro.txt)
-        metro_data=$(printf "%s\n " "$d")
-        curl -X POST -H  "Content-Type: application/json" -H "Authorization: Bearer ${{secrets.METRO_TOKEN}}" --data "$metro_data" ${{secrets.METRO_ENDPOINT}}
-        d=$(cat report_metro_integration.txt)
-        metro_data=$(printf "%s\n " "$d")
-        curl -X POST -H  "Content-Type: application/json" -H "Authorization: Bearer ${{secrets.METRO_TOKEN}}" --data "$metro_data" ${{secrets.METRO_ENDPOINT}}
 
     - name: Echo metrics (debug)
       run: |
@@ -312,5 +300,6 @@ jobs:
         echo "$metro_data"
 
     - name: Cleanup
+      if: always()
       run: |
-        ./cleanup.sh || true
+        (cd ../chuck/netsim && sudo ./cleanup.sh) || true

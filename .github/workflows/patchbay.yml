@@ -1,15 +1,14 @@
 name: Patchbay Tests
 
 on:
-  pull_request:
-  merge_group:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: patchbay-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   RUST_BACKTRACE: 1
@@ -33,7 +32,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
+      - uses: ./.github/actions/sccache-probe
       - name: Install cargo-make and cargo-nextest
         uses: taiki-e/install-action@v2
         with:
@@ -52,23 +51,23 @@ jobs:
           RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
 
       - name: Validate Patchbay semantic fixture contract
-        run: cargo test -p iroh-sim --test parity patchbay_fixture_import_is_strict_canonical_and_reports_capability_skips -- --exact
+        run: cargo test --manifest-path iroh-sim/Cargo.toml --test parity patchbay_fixture_import_is_strict_canonical_and_reports_capability_skips -- --exact
 
       - name: Import and compare fresh Patchbay semantic evidence
         run: |
           mkdir -p "$RUNNER_TEMP/parity"
           observed_at="$(date +%s)"
-          cargo run -p iroh-sim --bin cargo-sim -- parity import-patchbay \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity import-patchbay \
             "$RUNNER_TEMP/patchbay-public-receipt.json" \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$observed_at" \
             --output "$RUNNER_TEMP/parity/patchbay-public.json"
-          cargo run -p iroh-sim --bin cargo-sim -- parity export public \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
             --seed 7777777777777777777777777777777777777777777777777777777777777777 \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$observed_at" \
             --output "$RUNNER_TEMP/parity/deterministic-public.json"
-          cargo run -p iroh-sim --bin cargo-sim -- parity compare \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
             "$RUNNER_TEMP/parity/deterministic-public.json" \
             "$RUNNER_TEMP/parity/patchbay-public.json" \
             --output "$RUNNER_TEMP/parity/public-comparison.json"

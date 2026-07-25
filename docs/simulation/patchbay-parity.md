@@ -54,9 +54,17 @@ commands intersect declared capabilities and fail on a semantic difference or sk
 
 ## Fresh Patchbay evidence pipeline
 
-The privileged Patchbay workflow no longer treats the checked fixture as current execution
-evidence. After `nat::nat_none_x_none` proves an authenticated relay connection, direct-path
-upgrade, and successful ping, it atomically creates a receipt at
+The complete privileged matrix remains in `.github/workflows/patchbay.yml` as a manual workflow on
+its existing runner; it is the authority for the full NAT, degradation, outage, and
+interface-switching suite when a compatible runner is attached. It is not registered as an
+automatic required check while this repository has no self-hosted runner. A separate
+scheduled/manual probe in `.github/workflows/patchbay-hosted-smoke.yml` runs only
+`nat::nat_none_x_none` on `ubuntu-latest`. This bounded probe establishes whether the free hosted
+runner can support the public Patchbay case without weakening or replacing the complete matrix.
+
+Neither workflow treats the checked fixture as current execution evidence. After
+`nat::nat_none_x_none` proves an authenticated relay connection, direct-path upgrade, and successful
+ping, it atomically creates a receipt at
 `IROH_PATCHBAY_PARITY_RECEIPT`. Receipt creation is part of the test result: serialization or an
 existing output file fails the test. The workflow then:
 
@@ -66,9 +74,18 @@ existing output file fails the test. The workflow then:
 4. compares terminal, authentication, and delivery semantics; and
 5. uploads the receipt, both fixtures, and the comparison report.
 
-The Patchbay job requires Linux user namespaces. A host that cannot write `setgroups` cannot
-produce realistic evidence; this is an infrastructure failure, not a capability skip or parity
-match. The self-hosted workflow enables unprivileged namespaces before the run.
+Patchbay requires Linux user namespaces. A host that cannot write `setgroups` cannot produce
+realistic evidence; this is an infrastructure failure, not a capability skip or parity match. The
+hosted probe first applies the AppArmor user-namespace setting when the kernel exposes it, then
+requires an `unshare --user --map-root-user` preflight to succeed before compilation or test
+execution. It never converts a failed preflight, test, receipt, import, export, or comparison into a
+successful job.
+
+The scheduled/manual GitHub-hosted Patchbay smoke is a checked service definition, not execution
+evidence. Only a successful retained artifact containing the environment log, receipt, both parity
+fixtures, and comparison report establishes hosted-runner support for that revision. Keep the
+hosted scope at the public case until such evidence exists; add realistic double-NAT coverage only
+after the hosted capability is proven and the missing Patchbay fixture has been designed.
 
 When a Patchbay job refreshes a fixture, review the semantic diff with the production revision. Do
 not overwrite a difference merely because a run is environmentally flaky. Record the variance here,

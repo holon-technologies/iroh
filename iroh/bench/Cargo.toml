@@ -1,6 +1,6 @@
 [package]
 name = "iroh-bench"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -14,19 +14,19 @@ hdrhistogram = { version = "7.2", default-features = false }
 http-body-util = { version = "0.1", optional = true }
 hyper = { version = "1", features = ["client", "http2"], optional = true }
 hyper-util = { version = "0.1", features = ["tokio"], optional = true }
-iroh = { version = "1.0.3", path = "..", default-features = false }
-iroh-dns = { version = "1.0.3", path = "../../iroh-dns", optional = true }
-iroh-dns-server = { version = "1.0.3", path = "../../iroh-dns-server", features = [
+iroh = { version = "2.0.0", path = "..", default-features = false }
+iroh-dns = { version = "2.0.0", path = "../../iroh-dns", optional = true }
+iroh-dns-server = { version = "2.0.0", path = "../../iroh-dns-server", features = [
     "test-utils",
 ], optional = true }
 iroh-metrics = { version = "1.0.1", optional = true }
-iroh-relay = { version = "1.0.3", path = "../../iroh-relay", features = [
+iroh-relay = { version = "2.0.0", path = "../../iroh-relay", features = [
     "server",
     "test-utils",
 ], optional = true }
 n0-future = "0.3"
 n0-error = "1.0.0"
-noq = "1.1.0"
+noq = { package = "iroh-noq", version = "=1.1.0-holon.1" }
 rcgen = "0.14"
 rustls = { version = "0.23.33", default-features = false }
 clap = { version = "4", features = ["derive"] }

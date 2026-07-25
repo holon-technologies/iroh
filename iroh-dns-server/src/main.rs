@@ -8,6 +8,7 @@ use n0_error::{Result, StdResultExt};
 use tracing::{debug, info};
 
 #[derive(Parser, Debug)]
+#[command(version)]
 struct Cli {
     /// Path to config file
     #[clap(short, long)]
@@ -42,4 +43,20 @@ async fn main() -> Result<()> {
     info!("shutdown");
     server.shutdown().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::{Parser, error::ErrorKind};
+
+    use super::Cli;
+
+    #[test]
+    fn cli_reports_package_version() {
+        let error = Cli::try_parse_from(["iroh-dns-server", "--version"])
+            .expect_err("--version exits after displaying version information");
+
+        assert_eq!(error.kind(), ErrorKind::DisplayVersion);
+        assert!(error.to_string().contains(env!("CARGO_PKG_VERSION")));
+    }
 }

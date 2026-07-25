@@ -227,7 +227,7 @@ impl Incoming {
         let Self { inner, ep, permit } = self;
         inner
             .retry()
-            .map_err(|err| e!(RetryError { err, ep, permit }))
+            .map_err(|err| RetryError::with_permit(err, ep, permit))
     }
 
     /// Ignores this incoming connection attempt, not sending any packet in response.
@@ -279,22 +279,90 @@ impl IntoFuture for Incoming {
 }
 
 /// Error for attempting to retry an [`Incoming`] which already bears a token from a previous retry
+pub struct RetryError(RetryErrorInner);
+
 #[stack_error(derive, add_meta, from_sources)]
 #[error("retry() with validated Incoming")]
-pub struct RetryError {
+struct RetryErrorInner {
     err: noq::RetryError,
     ep: Endpoint,
     permit: Option<AdmissionPermit>,
 }
 
 impl RetryError {
+    /// Creates a retry error without an endpoint admission permit.
+    ///
+    /// This constructor retains the Iroh 1.x public signature. Errors created
+    /// by [`Incoming::retry`] use the same representation while preserving the
+    /// connection's owned admission permit internally.
+    #[track_caller]
+    pub fn new(err: noq::RetryError, ep: Endpoint) -> Self {
+        Self(RetryErrorInner::new(err, ep, None))
+    }
+
+    #[track_caller]
+    fn with_permit(err: noq::RetryError, ep: Endpoint, permit: Option<AdmissionPermit>) -> Self {
+        Self(RetryErrorInner::new(err, ep, permit))
+    }
+
     /// Get the [`Incoming`]
     pub fn into_incoming(self) -> Incoming {
+        let RetryErrorInner {
+            err, ep, permit, ..
+        } = self.0;
         Incoming {
-            inner: self.err.into_incoming(),
-            ep: self.ep,
-            permit: self.permit,
+            inner: err.into_incoming(),
+            ep,
+            permit,
         }
+    }
+}
+
+impl std::fmt::Display for RetryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl std::fmt::Debug for RetryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl std::error::Error for RetryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        std::error::Error::source(&self.0)
+    }
+}
+
+impl n0_error::StackError for RetryError {
+    fn as_std(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
+        self
+    }
+
+    fn into_std(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync> {
+        self
+    }
+
+    fn as_dyn(&self) -> &dyn n0_error::StackError {
+        self
+    }
+
+    fn meta(&self) -> Option<&n0_error::Meta> {
+        n0_error::StackError::meta(&self.0)
+    }
+
+    fn source(&self) -> Option<n0_error::ErrorRef<'_>> {
+        n0_error::StackError::source(&self.0)
+    }
+
+    fn fmt_message(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        n0_error::StackError::fmt_message(&self.0, f)
+    }
+
+    fn is_transparent(&self) -> bool {
+        n0_error::StackError::is_transparent(&self.0)
     }
 }
 
@@ -515,13 +583,13 @@ pub enum ConnectingError {
         /// Private source type, cannot be created publicly.
         source: RemoteStateActorStoppedError,
     },
+    #[error("Connection was rejected locally")]
+    LocallyRejected,
     #[error("Remote-state actor admission failed")]
     RemoteStateAdmission {
         /// Private source type, cannot be created publicly.
         source: RemoteStateRegistrationError,
     },
-    #[error("Connection was rejected locally")]
-    LocallyRejected,
 }
 
 impl Connecting {

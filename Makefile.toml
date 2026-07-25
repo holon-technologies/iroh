@@ -11,30 +11,12 @@ CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["iroh/bench"]
 
 [tasks.format]
 workspace = false
-command = "cargo"
-args = [
-     "fmt",
-     "--all",
-     "--",
-     "--config",
-     "unstable_features=true",
-     "--config",
-     "imports_granularity=Crate,group_imports=StdExternalCrate,reorder_imports=true,format_code_in_doc_comments=true",
-]
+command = "scripts/run-format.sh"
 
 [tasks.format-check]
 workspace = false
-command = "cargo"
-args = [
-     "fmt",
-     "--all",
-     "--check",
-     "--",
-     "--config",
-     "unstable_features=true",
-     "--config",
-     "imports_granularity=Crate,group_imports=StdExternalCrate,reorder_imports=true,format_code_in_doc_comments=true",
-]
+command = "scripts/run-format.sh"
+args = ["--check"]
 
 [tasks.patchbay]
 workspace = false

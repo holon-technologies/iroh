@@ -28,15 +28,15 @@ From the repository root:
 
 ```bash
 cargo test -p iroh-runtime
-cargo test -p iroh-sim
-cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+cargo test --manifest-path iroh-sim/Cargo.toml
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
 
 run_dir="$(mktemp -d /tmp/iroh-sim-run.XXXXXX)"
-cargo run -p iroh-sim --bin cargo-sim -- run \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
   iroh-sim/corpus/stage6-rare-ready-order/scenario.json \
   --seed 9b36bee1fa03258374d80340d7ad18d849164bf15abf2ddb859a42e9f131f434 \
   --artifacts "$run_dir"
-cargo run -p iroh-sim --bin cargo-sim -- replay "$run_dir/manifest.json"
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$run_dir/manifest.json"
 ```
 
 The run prints the only supported replay command. Do not edit a run directory: artifacts are
@@ -71,12 +71,12 @@ without packet-timeline coupling:
 
 ```bash
 parity_dir="$(mktemp -d /tmp/iroh-parity.XXXXXX)"
-cargo run -p iroh-sim --bin cargo-sim -- parity export public \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
   --seed 7777777777777777777777777777777777777777777777777777777777777777 \
   --source-revision "$(git rev-parse HEAD)" \
   --observed-at-unix-secs "$(date +%s)" \
   --output "$parity_dir/deterministic.json"
-cargo run -p iroh-sim --bin cargo-sim -- parity compare \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
   "$parity_dir/deterministic.json" \
   iroh-sim/tests/fixtures/patchbay-public.json \
   --output "$parity_dir/comparison.json"
@@ -170,12 +170,12 @@ For a seconds-long local contract—not production evidence—build the binary a
 process counts:
 
 ```bash
-cargo build -p iroh-sim --bin cargo-sim
+cargo build --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
 soak_root="$(mktemp -d /tmp/iroh-daily-soak.XXXXXX)"
 scripts/run-daily-simulation-soak.sh \
   --seed-window 1 \
   --artifacts "$soak_root/run" \
-  --sim-bin target/debug/cargo-sim \
+  --sim-bin iroh-sim/target/debug/cargo-sim \
   --epochs 2 \
   --epoch-seconds 1 \
   --jobs 1 \

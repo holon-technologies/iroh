@@ -82,7 +82,7 @@ Runtime events contain a global sequence, run-relative virtual timestamp, typed 
 Build or inspect the command with:
 
 ```bash
-cargo run -p iroh-sim --bin cargo-sim -- --help
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- --help
 ```
 
 The stable command surface is `run`, `campaign`, `soak`, `replay`, `minimize`, `corpus`, `explain`,
@@ -92,51 +92,51 @@ mobility, relay lifecycle, relay/direct paths, and seeded production-task ready 
 Run either checked-in Stage 2 scenario with an explicit behavioral seed:
 
 ```bash
-cargo run -p iroh-sim --bin cargo-sim -- run \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
   iroh-sim/tests/fixtures/ipv4-stream.json \
   --seed 1111111111111111111111111111111111111111111111111111111111111111 \
   --artifacts /tmp/iroh-sim-ipv4
 
-cargo run -p iroh-sim --bin cargo-sim -- replay \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
   /tmp/iroh-sim-ipv4/manifest.json
 
 # Exercise the production cryptographic provider with semantic replay.
-cargo run -p iroh-sim --bin cargo-sim -- run \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
   iroh-sim/tests/fixtures/ipv4-stream.json \
   --seed 2222222222222222222222222222222222222222222222222222222222222222 \
   --crypto production-provider \
   --artifacts /tmp/iroh-sim-ipv4-production-crypto
 
-cargo run -p iroh-sim --bin cargo-sim -- replay \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
   /tmp/iroh-sim-ipv4-production-crypto/manifest.json
 ```
 
 Run a declarative scenario, test the reviewed corpus, and execute a bounded campaign:
 
 ```bash
-cargo run -p iroh-sim --bin cargo-sim -- run \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
   iroh-sim/tests/fixtures/v2-ipv4-stream.json \
   --seed 1212121212121212121212121212121212121212121212121212121212121212 \
   --artifacts /tmp/iroh-sim-v2
 
-cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
 
-cargo run -p iroh-sim --bin cargo-sim -- campaign \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
   iroh-sim/tests/fixtures/v2-ipv4-stream.json \
   --seeds 0..100 --jobs 4 --generated --continue-on-failure \
   --artifacts /tmp/iroh-sim-campaign
 
-cargo run -p iroh-sim --bin cargo-sim -- campaign \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
   iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json \
   --seeds 0..100 --jobs 4 --continue-on-failure \
   --artifacts /tmp/iroh-sim-nat-campaign
 
-cargo run -p iroh-sim --bin cargo-sim -- campaign \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
   iroh-sim/corpus/stage5-relay-restart/scenario.json \
   --seeds 0..100 --jobs 4 --continue-on-failure \
   --artifacts /tmp/iroh-sim-relay-campaign
 
-cargo run -p iroh-sim --bin cargo-sim -- campaign \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
   --swarm iroh-sim/swarms/direct-smoke.json \
   --seeds 0..100 --jobs 4 --continue-on-failure --max-runs 100 \
   --artifacts /tmp/iroh-sim-swarm-campaign
@@ -149,11 +149,11 @@ successful trace. The daily shell runner starts eight fresh processes so process
 cannot accumulate across the full four-hour service:
 
 ```bash
-cargo build --release -p iroh-sim --bin cargo-sim
+cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
 scripts/run-daily-simulation-soak.sh \
   --seed-window 1 \
   --artifacts /tmp/iroh-daily-soak \
-  --sim-bin target/release/cargo-sim
+  --sim-bin iroh-sim/target/release/cargo-sim
 ```
 
 The production defaults are eight 30-minute epochs, four workers, 64 scenarios per deadline
@@ -197,10 +197,10 @@ A failing declarative run stores the canonical scenario, terminal report, invari
 Minimize a failure and resume an interrupted reduction with:
 
 ```bash
-cargo run -p iroh-sim --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
   --output /tmp/iroh-sim-minimized --max-attempts 10000
 
-cargo run -p iroh-sim --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
   --output /tmp/iroh-sim-minimized --resume --max-attempts 10000
 ```
 
@@ -227,7 +227,7 @@ hosted run completed.
 For a compact terminal, obligation, resource, causal-suffix, and command summary:
 
 ```bash
-cargo run -p iroh-sim --bin cargo-sim -- explain /tmp/iroh-sim-failure/manifest.json
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- explain /tmp/iroh-sim-failure/manifest.json
 ```
 
 Cross-backend fixtures use `cargo sim parity export` and `cargo sim parity compare`. The complete
@@ -249,10 +249,11 @@ scripts/tests/check-daily-simulation-workflow.sh
 cargo test -p iroh-runtime
 cargo test -p iroh-dns --lib
 cargo test -p iroh-relay --all-features
-cargo test -p iroh-sim
-cargo test -p iroh-sim --test swarm
+cargo test --manifest-path iroh-sim/Cargo.toml
+cargo test --manifest-path iroh-sim/Cargo.toml --test swarm
 cargo test -p iroh --lib --all-features
-cargo clippy -p iroh-runtime -p iroh-sim -p iroh --all-targets --all-features -- -D warnings
+cargo clippy -p iroh-runtime -p iroh --all-targets --all-features -- -D warnings
+cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings
 cargo check -p iroh --no-default-features
 ```
 
@@ -285,7 +286,7 @@ Stage 2 adds capability dispatch at IP socket construction and send/receive boun
 Stage 3 adds no observer branch to the production Iroh crate: `ScenarioRunner`, reference models, invariants, corpus, and minimization live in the separate non-published `iroh-sim` crate, so an application that does not construct the simulator has no Stage 3 runner/observer path to disable. A non-gating 2026-07-21 container measurement on this worktree ran 32 generated production-QUIC scenarios with four workers in 4.26 seconds wall time (7.51 scenarios/second; 7.11 seconds user, 0.18 seconds system):
 
 ```bash
-/usr/bin/time -p target/debug/cargo-sim campaign \
+/usr/bin/time -p iroh-sim/target/debug/cargo-sim campaign \
   iroh-sim/tests/fixtures/v2-ipv4-stream.json \
   --seeds 100..132 --jobs 4 --generated --continue-on-failure \
   --artifacts /tmp/iroh-sim-throughput

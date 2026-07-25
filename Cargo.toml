@@ -7,11 +7,11 @@ members = [
   "iroh/bench",
   "iroh-relay",
   "iroh-runtime",
-  "iroh-sim",
   "tools/determinism-checker",
 ]
 exclude = [
   "fuzz",
+  "iroh-sim",
   "vendor/hickory-server-0.26.1",
   "vendor/noq-1.1.0",
   "vendor/rustls-0.23.41",
@@ -77,9 +77,7 @@ type_marked_deprecated = { required-update = "minor" }
 type_method_marked_deprecated = { required-update = "minor" }
 
 [patch.crates-io]
-# Narrow ownership fork: bounds UDP request and TCP connection tasks before spawn.
-hickory-server = { path = "vendor/hickory-server-0.26.1" }
-# Narrow ownership fork: bounds connection lifetime and internal protocol event queues.
-noq = { path = "vendor/noq-1.1.0" }
-# Narrow ownership fork: permits run-scoped simulator entropy and key-exchange components.
-rustls = { path = "vendor/rustls-0.23.41" }
+# Local sources for the explicitly named, exact-version production forks. Published Iroh crates
+# resolve these package names from crates.io; release verification uses packaged candidate sources.
+iroh-hickory-server = { path = "vendor/hickory-server-0.26.1" }
+iroh-noq = { path = "vendor/noq-1.1.0" }

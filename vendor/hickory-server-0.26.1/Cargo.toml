@@ -12,32 +12,41 @@
 [package]
 edition = "2021"
 rust-version = "1.88"
-name = "hickory-server"
-version = "0.26.1"
+name = "iroh-hickory-server"
+version = "0.26.1-holon.1"
 authors = ["The contributors to Hickory DNS"]
 build = false
+publish = true
 autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
 description = """
-hickory-server is a library for integrating safe and secure DNS servers into
+Holon-maintained hickory-server fork for integrating safe and secure DNS servers into
 an async Tokio application. It supports a variety of protocol features
 (DNSSEC, TSIG, SIG(0), DoT, DoQ, DoH). Servers can be operated in an authoritative
 role, or as a forwarding resolver, stub resolver, or a recursive resolver
 (experimental).
 """
 homepage = "https://hickory-dns.org/"
-documentation = "https://docs.rs/hickory-server"
+documentation = "https://docs.rs/iroh-hickory-server"
 readme = "README.md"
+include = [
+    "src/**",
+    "CHANGELOG.md",
+    "IROH-VENDOR.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "README.md",
+]
 keywords = [
     "dns",
     "dnssec",
 ]
 categories = ["network-programming"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/hickory-dns/hickory-dns"
+repository = "https://github.com/holon-technologies/iroh"
 
 [package.metadata.docs.rs]
 all-features = true

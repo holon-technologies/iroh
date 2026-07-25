@@ -7,7 +7,7 @@ Stage 6 adds a domain-separated `kernel/ready-task` draw for every kernel task p
 Command:
 
 ```text
-cargo bench -p iroh-sim --bench stage6_scheduler -- --sample-size 10
+cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler -- --sample-size 10
 ```
 
 | Policy | Median time | Throughput |

@@ -3,7 +3,7 @@
 The Stage 4 microbenchmarks are durable Criterion targets, not correctness tests. Run them with:
 
 ```bash
-cargo bench -p iroh-sim --bench stage4_environment
+cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage4_environment
 ```
 
 They measure one hot operation at a time with structured tracing disabled through

@@ -1797,32 +1797,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hickory-server"
-version = "0.26.1"
-dependencies = [
- "async-trait",
- "bytes",
- "cfg-if",
- "data-encoding",
- "futures-util",
- "h2",
- "hickory-net",
- "hickory-proto",
- "hickory-resolver",
- "http",
- "ipnet",
- "prefix-trie",
- "rustls",
- "serde",
- "thiserror 2.0.18",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "http"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2168,7 +2142,7 @@ dependencies = [
 
 [[package]]
 name = "iroh"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "assert_matches",
  "axum",
@@ -2182,7 +2156,6 @@ dependencies = [
  "console_error_panic_hook",
  "ctor",
  "ctutils",
- "curve25519-dalek",
  "data-encoding",
  "derive_more",
  "ed25519-dalek",
@@ -2195,6 +2168,7 @@ dependencies = [
  "iroh-base",
  "iroh-dns",
  "iroh-metrics",
+ "iroh-noq",
  "iroh-relay",
  "iroh-runtime",
  "n0-error",
@@ -2202,7 +2176,6 @@ dependencies = [
  "n0-tracing-test",
  "n0-watcher",
  "netwatch",
- "noq",
  "noq-proto",
  "noq-udp",
  "papaya",
@@ -2239,7 +2212,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-base"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "curve25519-dalek",
  "data-encoding",
@@ -2261,7 +2234,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-bench"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "bytes",
  "clap",
@@ -2273,10 +2246,10 @@ dependencies = [
  "iroh-dns",
  "iroh-dns-server",
  "iroh-metrics",
+ "iroh-noq",
  "iroh-relay",
  "n0-error",
  "n0-future",
- "noq",
  "rcgen",
  "rustls",
  "serde",
@@ -2290,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-dns"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "arc-swap",
  "cfg_aliases",
@@ -2313,7 +2286,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-dns-server"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2326,7 +2299,6 @@ dependencies = [
  "derive_more",
  "dirs-next",
  "hickory-resolver",
- "hickory-server",
  "http",
  "humantime",
  "humantime-serde",
@@ -2336,6 +2308,7 @@ dependencies = [
  "iroh",
  "iroh-base",
  "iroh-dns",
+ "iroh-hickory-server",
  "iroh-metrics",
  "lru 0.18.0",
  "mainline",
@@ -2367,6 +2340,32 @@ dependencies = [
  "tracing-subscriber",
  "ttl_cache",
  "url",
+]
+
+[[package]]
+name = "iroh-hickory-server"
+version = "0.26.1-holon.1"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "data-encoding",
+ "futures-util",
+ "h2",
+ "hickory-net",
+ "hickory-proto",
+ "hickory-resolver",
+ "http",
+ "ipnet",
+ "prefix-trie",
+ "rustls",
+ "serde",
+ "thiserror 2.0.18",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -2405,8 +2404,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-noq"
+version = "1.1.0-holon.1"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "derive_more",
+ "noq-proto",
+ "noq-udp",
+ "pin-project-lite",
+ "rustc-hash",
+ "rustls",
+ "socket2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "web-time",
+]
+
+[[package]]
 name = "iroh-relay"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2426,12 +2445,12 @@ dependencies = [
  "iroh-base",
  "iroh-dns",
  "iroh-metrics",
+ "iroh-noq",
  "iroh-runtime",
  "lru 0.18.0",
  "n0-error",
  "n0-future",
  "n0-tracing-test",
- "noq",
  "noq-proto",
  "num_enum",
  "pin-project",
@@ -2472,7 +2491,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-runtime"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "blake3",
  "futures-util",
@@ -2484,28 +2503,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "web-time",
-]
-
-[[package]]
-name = "iroh-sim"
-version = "1.0.3"
-dependencies = [
- "blake3",
- "clap",
- "criterion",
- "iroh",
- "iroh-relay",
- "iroh-runtime",
- "n0-error",
- "n0-future",
- "n0-watcher",
- "netwatch",
- "noq-udp",
- "proptest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
 ]
 
 [[package]]
@@ -3094,26 +3091,6 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
-]
-
-[[package]]
-name = "noq"
-version = "1.1.0"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "derive_more",
- "noq-proto",
- "noq-udp",
- "pin-project-lite",
- "rustc-hash",
- "rustls",
- "socket2",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tracing",
- "web-time",
 ]
 
 [[package]]
@@ -4095,7 +4072,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.41"
+version = "0.23.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c54fcab019b409d04215d3a17cb438fd7fbf192ee61461f20f4fe18704bc138"
 dependencies = [
  "aws-lc-rs",
  "log",

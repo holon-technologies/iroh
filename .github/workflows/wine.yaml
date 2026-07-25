@@ -10,24 +10,18 @@ concurrency:
   group: wine-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  pick-runner:
-    uses: "./.github/workflows/pick-runner.yml"
-    with:
-      min_free_runners: 3
-    secrets:
-      RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
-
   wine_test:
     name: Wine Sanity Check
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_1) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -37,7 +31,9 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo mkdir -pm755 /etc/apt/keyrings
           sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -cs)/winehq-$(lsb_release -cs).sources
+          ubuntu_codename=$(lsb_release --codename --short)
+          wine_source="https://dl.winehq.org/wine-builds/ubuntu/dists/$ubuntu_codename/winehq-$ubuntu_codename.sources"
+          sudo wget -O "/etc/apt/sources.list.d/winehq-$ubuntu_codename.sources" "$wine_source"
           sudo apt-get update
           sudo apt-get install -y --install-recommends winehq-stable || sudo apt-get install -y wine64 wine32
           # Initialize Wine prefix

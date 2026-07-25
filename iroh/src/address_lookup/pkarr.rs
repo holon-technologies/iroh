@@ -102,21 +102,21 @@ pub enum PkarrError {
     },
     #[error("Invalid relay URL")]
     InvalidRelayUrl { url: RelayUrl },
-    #[error("Failed to construct HTTP client")]
-    HttpClient {
-        #[error(std_err)]
-        source: reqwest::Error,
-    },
     #[error("Error sending http request")]
     HttpSend { source: AnyError },
     #[error("Error resolving http request")]
     HttpRequest { status: http::StatusCode },
     #[error("Http payload error")]
     HttpPayload { source: AnyError },
-    #[error("Http payload too large: {actual} bytes exceeds {maximum}")]
-    PayloadTooLarge { actual: usize, maximum: usize },
     #[error("EncodingError")]
     Encoding { source: EncodingError },
+    #[error("Failed to construct HTTP client")]
+    HttpClient {
+        #[error(std_err)]
+        source: reqwest::Error,
+    },
+    #[error("Http payload too large: {actual} bytes exceeds {maximum}")]
+    PayloadTooLarge { actual: usize, maximum: usize },
 }
 
 impl From<PkarrError> for AddressLookupError {

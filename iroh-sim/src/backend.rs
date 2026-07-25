@@ -13,7 +13,7 @@ use iroh_runtime::{RootSeed, RuntimeContext, TraceSink};
 use crate::{
     BackendCapabilities, CryptoMode, DeterminismGrade, DeterministicPortMapper, Kernel,
     KernelConfig, KernelDriver, KernelDriverError, NetworkConfig, NetworkError,
-    StaticNetworkMonitor, SyntheticNetwork, TraceComparisonMode,
+    StaticNetworkMonitor, SyntheticNetwork, TraceComparisonMode, deterministic_crypto,
 };
 
 /// Complete construction inputs for the Stage 2 direct-IP backend.
@@ -123,11 +123,12 @@ impl DeterministicBackend {
             crypto,
         );
         if self.crypto_mode == SimulationCryptoMode::DeterministicTest {
-            environment = environment.with_deterministic_test_tls(
+            let provider = deterministic_crypto::deterministic_test_crypto_provider(
                 iroh_relay::tls::default_provider(),
                 derive_crypto_seed(self.context.root_seed(), host),
                 &format!("endpoint/{host}"),
             );
+            environment = environment.with_deterministic_test_tls(provider);
         }
         if let Some(nat) = self.network.host_nat(host)? {
             let mapper = self

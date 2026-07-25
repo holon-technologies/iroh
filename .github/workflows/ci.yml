@@ -12,6 +12,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
@@ -21,13 +24,6 @@ env:
   IROH_FORCE_STAGING_RELAYS: "1"
 
 jobs:
-  pick-runner:
-    uses: "./.github/workflows/pick-runner.yml"
-    with:
-      min_free_runners: 3
-    secrets:
-      RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
-
   tests:
     name: CI Test Suite
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
@@ -99,79 +95,87 @@ jobs:
         run: scripts/tests/check-daily-simulation-soak.sh
       - name: Check daily simulation soak workflow
         run: scripts/tests/check-daily-simulation-workflow.sh
+      - name: Check deterministic simulation nightly workflow
+        run: scripts/tests/check-simulation-nightly-workflow.sh
+      - name: Check GitHub-hosted Patchbay smoke workflow
+        run: scripts/tests/check-patchbay-hosted-smoke-workflow.sh
+      - name: Check v2 release-readiness source contract
+        run: scripts/tests/check-v2-release-readiness.sh
+      - name: Check release dependency-fork boundary
+        run: scripts/tests/check-release-fork-boundary.sh
       - name: Test runtime capability contracts
         run: cargo test -p iroh-runtime
       - name: Test manifest, trace, and replay contracts
-        run: cargo test -p iroh-sim
+        run: cargo test --manifest-path iroh-sim/Cargo.toml
       - name: Validate simulation operations and cross-backend parity policy
-        run: cargo test -p iroh-sim --test operations --test parity
+        run: cargo test --manifest-path iroh-sim/Cargo.toml --test operations --test parity
       - name: Run and replay Stage 2 production-IP smoke scenario
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             iroh-sim/tests/fixtures/ipv4-stream.json \
             --seed 1111111111111111111111111111111111111111111111111111111111111111 \
             --artifacts "$RUNNER_TEMP/iroh-sim-smoke"
-          cargo run -p iroh-sim --bin cargo-sim -- replay \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/iroh-sim-smoke/manifest.json"
       - name: Run and replay Stage 3 declarative production-IP smoke scenario
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             iroh-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 1212121212121212121212121212121212121212121212121212121212121212 \
             --artifacts "$RUNNER_TEMP/iroh-sim-declarative"
-          cargo run -p iroh-sim --bin cargo-sim -- replay \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/iroh-sim-declarative/manifest.json"
       - name: Run and replay production-crypto semantic smoke scenario
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             iroh-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 1313131313131313131313131313131313131313131313131313131313131313 \
             --crypto production-provider \
             --artifacts "$RUNNER_TEMP/iroh-sim-production-crypto"
-          cargo run -p iroh-sim --bin cargo-sim -- replay \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/iroh-sim-production-crypto/manifest.json"
       - name: Test reviewed corpus and bounded generated campaign
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             iroh-sim/tests/fixtures/v2-ipv4-stream.json \
             --seeds 0..4 --jobs 2 --generated --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-campaign"
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/direct-smoke.json \
             --seeds 0..4 --jobs 2 --continue-on-failure --max-runs 4 \
             --artifacts "$RUNNER_TEMP/iroh-sim-swarm"
       - name: Run Stage 4 NAT, discovery, and mobility smoke campaigns
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/nat-behavior.json \
             --seeds 0..2 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage4-nat"
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/discovery-timing.json \
             --seeds 0..2 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage4-discovery"
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/mobility-timing.json \
             --seeds 0..2 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage4-mobility"
       - name: Run Stage 5 relay restart and fallback smoke campaigns
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/relay-lifecycle.json \
             --seeds 0..3 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-restart"
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             iroh-sim/corpus/stage5-direct-relay-fallback/scenario.json \
             --seeds 0..3 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-fallback"
       - name: Run Stage 6 rare ready-order replay smoke campaigns
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm iroh-sim/swarms/ready-order-pressure.json \
             --seeds 0..8 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage6-direct-schedules"
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             iroh-sim/corpus/stage5-relay-restart/scenario.json \
             --seeds 0..8 --jobs 2 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/iroh-sim-stage6-relay-schedules"
@@ -180,15 +184,15 @@ jobs:
       - name: Check native minimal feature graph
         run: cargo check -p iroh --no-default-features
       - name: Check simulation code quality
-        run: cargo clippy -p iroh-runtime -p iroh-sim -p iroh --all-targets --all-features -- -D warnings
+        run: |
+          cargo clippy -p iroh-runtime -p iroh --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings
 
   cross_build:
     name: Cross Build Only
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     timeout-minutes: 30
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_1) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTFLAGS: "-Dwarnings --cfg skip_patchbay"
     strategy:
@@ -216,7 +220,10 @@ jobs:
       - name: Cleanup Docker
         continue-on-error: true
         run: |
-          docker kill $(docker ps -q)
+          mapfile -t running_containers < <(docker ps --quiet)
+          if ((${#running_containers[@]} != 0)); then
+            docker kill "${running_containers[@]}"
+          fi
 
         # See https://github.com/cross-rs/cross/issues/1222
       - name: Cache cross
@@ -243,7 +250,7 @@ jobs:
     name: Android Build & Test
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     timeout-minutes: 30
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -356,10 +363,8 @@ jobs:
           # stays NO-CARRIER and every connect() to a public IP fails with ENETUNREACH.
           # See https://github.com/ReactiveCircus/android-emulator-runner/issues/348#issuecomment-2578082030
           #
-          # `-no-snapshot`: on persistent self-hosted runners the AVD survives between jobs,
-          # so the emulator quickboot-resumes from the previous run's snapshot. Resumed guests
-          # have broken networking (UDP DNS times out), failing DNS tests. Always cold boot
-          # and never save state.
+          # Always cold boot and never save emulator state so DNS and routing
+          # behavior starts from the same baseline on every hosted runner.
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -dns-server 8.8.8.8 -netfast -no-metrics -no-snapshot
           disable-animations: true
           script: |
@@ -378,13 +383,9 @@ jobs:
             adb shell sysctl -w net.ipv6.conf.default.disable_ipv6=1 || true
             adb shell sysctl -w net.ipv6.conf.lo.disable_ipv6=1 || true
             adb shell ip addr
-            # Sweep leftover test binaries out of the guest. `force-avd-creation: false`
-            # keeps the AVD between jobs, and `-no-snapshot` only disables the *RAM*
-            # quickboot snapshot - the userdata qcow2 overlay still persists on disk. A
-            # job that is cancelled or times out leaves its pushed binaries behind, so
-            # without this they accumulate until /data (~5.8G) fills and every `adb push`
-            # fails with ENOSPC. The runner wrapper deletes binaries as it goes; this
-            # catches what it could not.
+            # Sweep test binaries before execution so the emulator has a
+            # deterministic amount of free space. The runner wrapper also
+            # removes each binary after it runs.
             adb shell 'rm -rf /data/local/tmp/*' || true
             adb shell df -h /data
             cargo ndk test -p iroh-base --all-features
@@ -396,9 +397,7 @@ jobs:
     name: Cross Test
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     timeout-minutes: 30
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_3) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -418,7 +417,10 @@ jobs:
       - name: Cleanup Docker
         continue-on-error: true
         run: |
-          docker kill $(docker ps -q)
+          mapfile -t running_containers < <(docker ps --quiet)
+          if ((${#running_containers[@]} != 0)); then
+            docker kill "${running_containers[@]}"
+          fi
 
         # See https://github.com/cross-rs/cross/issues/1222
       - name: Cache cross
@@ -440,9 +442,7 @@ jobs:
 
   wasm_test:
     name: Build & test wasm32 for browsers
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_4) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTFLAGS: '--cfg getrandom_backend="wasm_js"'
     steps:
@@ -495,9 +495,7 @@ jobs:
         run: cargo test -p iroh --test integration --target=wasm32-unknown-unknown
 
   check_semver:
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_5) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
@@ -508,20 +506,23 @@ jobs:
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
-      - name: Check semver
-        # uses: obi1kenobi/cargo-semver-checks-action@v2
-        uses: n0-computer/cargo-semver-checks-action@feat-baseline
+      - uses: ./.github/actions/sccache-probe
+      - name: Install pinned nightly Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          package: iroh, iroh-base, iroh-dns, iroh-dns-server, iroh-relay
+          toolchain: nightly-2026-07-19
+      - name: Install pinned semver verifier
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@0.49.0
+      - name: Check v2 public API against v1.0.3
+        run: scripts/run-v2-semver-checks.sh
 
   check_external_types:
     timeout-minutes: 30
     name: Check external types in public API
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_9) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
@@ -566,7 +567,7 @@ jobs:
           components: rustfmt
       - uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
+      - uses: ./.github/actions/sccache-probe
       - uses: taiki-e/install-action@cargo-make
       - name: Install ripgrep
         run: |
@@ -585,9 +586,7 @@ jobs:
   check_docs:
     timeout-minutes: 30
     name: Checking docs
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_6) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
@@ -600,16 +599,16 @@ jobs:
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
+      - uses: ./.github/actions/sccache-probe
 
       - name: Docs
-        run: cargo doc --workspace --all-features --no-deps --document-private-items
+        run: |
+          cargo doc --workspace --all-features --no-deps --document-private-items
+          cargo doc --manifest-path iroh-sim/Cargo.toml --all-features --no-deps --document-private-items
 
   clippy_check:
     timeout-minutes: 30
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_7) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
@@ -621,7 +620,7 @@ jobs:
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
+      - uses: ./.github/actions/sccache-probe
 
       # TODO: We have a bunch of platform-dependent code so should
       #    probably run this job on the full platform matrix
@@ -659,9 +658,7 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     timeout-minutes: 30
     name: Minimal Supported Rust Version
-    needs: pick-runner
-    runs-on: ${{ fromJSON(needs.pick-runner.outputs.overflow_8) }}
-    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
@@ -673,11 +670,11 @@ jobs:
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.10
         continue-on-error: true
-      - uses: ./.github/workflows/sccache-probe
+      - uses: ./.github/actions/sccache-probe
 
       - name: Check MSRV all features
         run: |
-          cargo +$MSRV check --workspace --all-targets
+          cargo "+$MSRV" check --workspace --all-targets
 
   cargo_deny:
     timeout-minutes: 30
@@ -692,14 +689,16 @@ jobs:
           command-arguments: "-Dwarnings"
 
   netsim-integration-tests:
-    permissions: write-all
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/netsim_runner.yaml"
-    secrets: inherit
     with:
-      branch: ${{ github.ref }}
+      iroh_ref: ${{ github.sha }}
       max_workers: 6
-      netsim_branch: "main"
+      netsim_ref: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       sim_paths: ${{ github.event_name == 'pull_request' && 'sims/integration' || 'sims/iroh/iroh.json,sims/integration' }}
       pr_number: ${{ github.event.pull_request.number || '' }}
       filter: ${{ github.event_name == 'pull_request' && 'skip:intg_iroh_full__1_to_3,intg_iroh_full__1_to_1x3,intg_iroh_relay_only__1_to_3' || '' }}

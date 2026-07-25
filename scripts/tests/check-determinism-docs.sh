@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 audit="$repo_root/docs/testing/determinism-audit.md"
 simulation="$repo_root/docs/testing/simulation.md"
+parity="$repo_root/docs/simulation/patchbay-parity.md"
 canary="$repo_root/docs/testing/production-resource-canary.md"
 fuzzing="$repo_root/docs/testing/fuzzing.md"
 
@@ -14,6 +15,8 @@ required=(
   "$simulation|The checked workflow and its seconds-long contract are definitions, not evidence"
   "$audit|The 2026-07-25 daily deterministic soak adds process wall-time measurement"
   "$audit|only an uploaded run report is execution evidence"
+  "$audit|scheduled/manual GitHub-hosted Patchbay public smoke are checked service"
+  "$parity|The scheduled/manual GitHub-hosted Patchbay smoke is a checked service definition, not execution"
   "$canary|This checked workflow definition is not itself execution evidence"
   "$canary|conserve exactly into admitted, rejected, or transport-failed"
   "$fuzzing|Each adapter rejects oversized input before expensive parsing"

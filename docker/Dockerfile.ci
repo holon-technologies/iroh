@@ -1,5 +1,5 @@
 ### Base image for iroh-relay and iroh-dns-server
-FROM alpine:latest AS base
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS base
 RUN apk update && apk add ca-certificates && update-ca-certificates
 
 ### Target image
@@ -16,7 +16,6 @@ WORKDIR /
 # http, https, stun, metrics
 EXPOSE  80 443 3478/udp 9090
 ENTRYPOINT ["/iroh-relay"]
-CMD [""]
 
 ### Target image
 FROM base AS iroh-dns-server
@@ -32,4 +31,3 @@ WORKDIR /
 # dns, metrics
 EXPOSE 53/udp 9090
 ENTRYPOINT ["/iroh-dns-server"]
-CMD [""]

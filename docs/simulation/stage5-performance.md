@@ -4,7 +4,7 @@ Stage 5 adds an optional relay-connector branch to the production relay actor an
 in-memory transport for production relay protocol sessions. The durable Criterion target is:
 
 ```bash
-cargo bench -p iroh-sim --bench stage5_relay
+cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage5_relay
 ```
 
 It measures four distinct costs:

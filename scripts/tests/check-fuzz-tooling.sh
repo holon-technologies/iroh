@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016 # Required entries are literal shell-source contracts.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -75,6 +76,8 @@ fi
 grep -Fq -- '-rss_limit_mb=2048' "$runner"
 grep -Fq -- 'artifact_file_limit=64' "$runner"
 grep -Fq -- 'artifact_byte_limit=67108864' "$runner"
+grep -Fq -- 'fuzz_target=$(rustc +nightly -vV' "$runner"
+grep -Fq -- '--target "$fuzz_target"' "$runner"
 
 workflow_contracts=(
   "$ci_workflow|fuzz_smoke:"

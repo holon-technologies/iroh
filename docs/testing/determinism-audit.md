@@ -272,11 +272,21 @@ injected clock and driver; relay pings and reconnect jitter use named decision s
 in-memory relay server's per-client actors use the same run-owned executor, monotonic clock, wall
 clock, and decision source.
 
-A narrow workspace Rustls 0.23.41 fork resolves the former provider ownership constraint by storing
-`SecureRandom` and `SupportedKxGroup` components in owned `Arc`s. The deterministic-test lane uses
-run- and endpoint-scoped deterministic random/X25519 components, deterministic Noq local and Initial
-connection IDs, and deterministic relay authentication challenges. These inputs are independently
-domain-separated and require no leaked state, process-global dispatch, or worker coupling.
+The isolated, non-published `iroh-sim` workspace applies a narrow Rustls 0.23.41 fork that stores
+`SecureRandom` and `SupportedKxGroup` components in owned `Arc`s. The deterministic provider
+implementation now lives inside `iroh-sim`; published Iroh packages compile against public Rustls
+and merely accept an already constructed provider through the hidden simulation environment. The
+deterministic-test lane uses run- and endpoint-scoped deterministic random/X25519 components,
+deterministic Noq local and Initial connection IDs, and deterministic relay authentication
+challenges. These inputs are independently domain-separated and require no leaked state,
+process-global dispatch, or worker coupling.
+
+The 2026-07-25 publishable-fork boundary moved that deterministic provider implementation from
+`iroh` into `iroh-sim` and shortened the adjacent production simulation capability module. The
+resulting lexical inventory changes are reviewed line movement in existing network-environment
+adapters; `State::fake()` remains explicit deterministic simulation input, and the Iroh
+`netwatch` adapters remain production environment input behind injectable dependencies. No new
+clock, entropy, scheduler, external-state, network, or unordered-iteration source was added.
 
 Manifest schema 3 therefore distinguishes two honest lanes. `deterministic_test` has zero escapes,
 records `deterministic_test_crypto` as a fidelity exception, is graded `fully_deterministic`, and
@@ -505,11 +515,14 @@ orchestration; it adds no ambient effect source.
    still need stable realistic observations.
 4. Exact-source replay is guaranteed for the checked 30-day window; cross-schema conversion is
    intentionally unavailable until an explicit one-way migrator and fixture suite are added.
-5. The weekly GitHub-hosted resource observation, daily deterministic soak, and daily bounded fuzz
-   workflow are checked service definitions, not execution evidence. Their first retained runs
-   still require the GitHub service; a workflow definition must never be reported as a passed run.
-   The hosted resource profile is explicitly non-evidence, so recurring production-capacity
-   qualification still requires an 8-core/30-GiB host outside that free service tier.
+5. The weekly GitHub-hosted resource observation, daily deterministic soak, daily bounded fuzz
+   workflow, and scheduled/manual GitHub-hosted Patchbay public smoke are checked service
+   definitions, not execution evidence. Their first retained runs still require the GitHub service;
+   a workflow definition must never be reported as a passed run. The hosted Patchbay smoke is
+   limited to `nat::nat_none_x_none` and must fail when its user-namespace preflight or semantic
+   parity comparison fails. The hosted resource profile is explicitly non-evidence, so recurring
+   production-capacity qualification still requires an 8-core/30-GiB host outside that free service
+   tier.
 
 ## Audit Exit Criteria
 
@@ -532,6 +545,9 @@ This audit remains current only when:
 - Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server.rs:441-640`; `iroh-relay/src/quic.rs:97-200`.
 - Confirmed path-state ordering risks: `iroh/src/socket/biased_rtt_path_selector.rs`; `iroh/src/socket/remote_map/remote_state/path_state.rs`.
 - Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/patchbay.yml`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
+- Confirmed recurring hosted Patchbay public-parity definition:
+  `.github/workflows/patchbay-hosted-smoke.yml`;
+  `scripts/tests/check-patchbay-hosted-smoke-workflow.sh`.
 - Confirmed stable effect inventory: `tools/determinism-checker`;
   `scripts/check-determinism-semantic.sh`; `scripts/determinism-boundaries.semantic.txt`.
 - Confirmed bounded parser/framing fuzzing: `fuzz/fuzz_targets`; `scripts/run-bounded-fuzz.sh`;

@@ -2,9 +2,12 @@
 
 set -euo pipefail
 
-readonly script_path="$(readlink -f "${BASH_SOURCE[0]}")"
-readonly script_dir="$(dirname "$script_path")"
-readonly default_repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
+script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+readonly script_path
+script_dir="$(dirname "$script_path")"
+readonly script_dir
+default_repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
+readonly default_repo_root
 readonly repo_root="${IROH_REPO_ROOT:-$default_repo_root}"
 readonly dockerfile="${IROH_TEST_DOCKERFILE:-$repo_root/docker/Dockerfile.test-env}"
 readonly entrypoint="${IROH_TEST_ENTRYPOINT:-$repo_root/docker/test-env-entrypoint}"
@@ -13,7 +16,8 @@ readonly build_jobs="${IROH_TEST_BUILD_JOBS:-2}"
 if [[ -n "${IROH_TEST_IMAGE:-}" ]]; then
     readonly image="$IROH_TEST_IMAGE"
 else
-    readonly dockerfile_hash="$(sha256sum "$dockerfile" | cut -d ' ' -f 1)"
+    dockerfile_hash="$(sha256sum "$dockerfile" | cut -d ' ' -f 1)"
+    readonly dockerfile_hash
     readonly image="iroh-test-env:ubuntu-24.04-${dockerfile_hash:0:12}"
 fi
 
@@ -28,7 +32,7 @@ if [[ $# -eq 0 ]]; then
     # Patchbay's checked-in Nextest profile is single-threaded because each
     # case creates a complete network lab. Preserve that isolation when the
     # full workspace is run through plain Cargo.
-    set -- cargo test --workspace --all-features --tests -- --test-threads=1
+    set -- scripts/run-all-tests.sh
 fi
 
 exec docker run --rm \

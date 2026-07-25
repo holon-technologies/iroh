@@ -2,6 +2,14 @@
 
 All notable changes to iroh-dns-server will be documented in this file.
 
+## Unreleased
+
+### Safety
+
+- Added validated, finite DNS and HTTP ingress limits, bounded request bodies
+  and rate-limit state, trusted-proxy validation, bounded store batching, and
+  graceful shutdown deadlines.
+
 ## [1.0.3](https://github.com/n0-computer/iroh/compare/v1.0.2..1.0.3) - 2026-07-20
 
 ### 🐛 Bug Fixes
@@ -26,5 +34,4 @@ All notable changes to iroh-dns-server will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(*)* Add release configuration for generating the changelog - ([ead46e5](https://github.com/n0-computer/iroh/commit/ead46e50823e7ddcc4d142ea71511ed38a37260e))
-
 

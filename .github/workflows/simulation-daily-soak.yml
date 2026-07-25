@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Build the fresh-process simulator
-        run: cargo build --release -p iroh-sim --bin cargo-sim
+        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
       - name: Execute eight bounded epochs
         id: soak
         shell: bash
@@ -34,7 +34,7 @@ jobs:
           scripts/run-daily-simulation-soak.sh \
             --seed-window "${{ github.run_number }}" \
             --artifacts "$RUNNER_TEMP/daily-soak" \
-            --sim-bin target/release/cargo-sim
+            --sim-bin iroh-sim/target/release/cargo-sim
           soak_status=$?
           set -e
           echo "status=$soak_status" >> "$GITHUB_OUTPUT"

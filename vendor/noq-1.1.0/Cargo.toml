@@ -12,23 +12,37 @@
 [package]
 edition = "2024"
 rust-version = "1.88"
-name = "noq"
-version = "1.1.0"
+name = "iroh-noq"
+version = "1.1.0-holon.1"
 build = "build.rs"
+publish = true
 autolib = false
 autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "General purpose QUIC transport protocol implementation"
+description = "Holon-maintained Noq fork with bounded queues and connection lifetimes"
+documentation = "https://docs.rs/iroh-noq"
 readme = "README.md"
+include = [
+    "benches/**",
+    "examples/**",
+    "src/**",
+    "tests/**",
+    "build.rs",
+    "CHANGELOG.md",
+    "IROH-VENDOR.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "README.md",
+]
 keywords = ["quic"]
 categories = [
     "network-programming",
     "asynchronous",
 ]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/n0-computer/noq"
+repository = "https://github.com/holon-technologies/iroh"
 resolver = "2"
 
 [package.metadata.docs.rs]

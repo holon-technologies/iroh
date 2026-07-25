@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::{config::IngressPolicy, metrics::Metrics};
 
 /// Rate limiting strategy for the HTTP server.
-#[derive(Debug, Deserialize, Default, Serialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Default, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum RateLimitConfig {
@@ -132,7 +132,7 @@ pub(super) fn create(
 ) -> Option<Arc<RateLimiter>> {
     match config {
         RateLimitConfig::Disabled => None,
-        mode => Some(Arc::new(RateLimiter::new(*mode, policy, metrics))),
+        mode => Some(Arc::new(RateLimiter::new(mode.clone(), policy, metrics))),
     }
 }
 

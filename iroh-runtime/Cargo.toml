@@ -1,11 +1,12 @@
 [package]
 name = "iroh-runtime"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
+readme = "README.md"
 description = "Internal runtime capabilities for Iroh"
 license = "MIT OR Apache-2.0"
 authors = ["n0 team"]
-repository = "https://github.com/n0-computer/iroh"
+repository = "https://github.com/holon-technologies/iroh"
 keywords = ["networking", "testing", "simulation"]
 rust-version = "1.91"
 

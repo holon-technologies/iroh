@@ -7,6 +7,7 @@ mod bounded_io;
 mod campaign;
 pub mod cli;
 mod corpus;
+mod deterministic_crypto;
 mod discovery;
 mod dns;
 mod failure;

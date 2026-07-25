@@ -35,7 +35,7 @@ jobs:
             relay) swarm="iroh-sim/swarms/relay-lifecycle.json" ;;
             ready-order) swarm="iroh-sim/swarms/ready-order-pressure.json" ;;
           esac
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm "$swarm" \
             --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure --max-runs 64 \
             --artifacts "$RUNNER_TEMP/campaign"
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Measure NAT, firewall, discovery, and disabled production path
-        run: cargo bench -p iroh-sim --bench stage4_environment
+        run: cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage4_environment
       - name: Upload Criterion reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Measure disabled connector, authentication, and routing
-        run: cargo bench -p iroh-sim --bench stage5_relay
+        run: cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage5_relay
       - name: Upload Criterion reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -93,8 +93,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Measure FIFO baseline and seeded fair ready-task scheduling
         run: |
-          cargo bench -p iroh-sim --bench stage6_scheduler
-          cargo bench -p iroh-sim --bench deterministic_closure
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench deterministic_closure
       - name: Upload Criterion reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -113,27 +113,35 @@ jobs:
       matrix:
         include:
           - scenario: ipv4-stream
-            seed: 2222222222222222222222222222222222222222222222222222222222222222
+            seed: "2222222222222222222222222222222222222222222222222222222222222222"
           - scenario: ipv4-stream-loss
-            seed: 1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e
+            seed: "1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e"
           - scenario: ipv4-stream-corruption
-            seed: 1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f
+            seed: "1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f"
           - scenario: ipv6-stream
-            seed: 2424242424242424242424242424242424242424242424242424242424242424
+            seed: "2424242424242424242424242424242424242424242424242424242424242424"
           - scenario: ipv6-datagram
-            seed: 3333333333333333333333333333333333333333333333333333333333333333
+            seed: "3333333333333333333333333333333333333333333333333333333333333333"
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - name: Prepare scenario diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/${{ matrix.scenario }}"
+          {
+            uname -a
+            printf 'scenario=%s\n' "${{ matrix.scenario }}"
+            printf 'seed=%s\n' "${{ matrix.seed }}"
+          } >"$RUNNER_TEMP/${{ matrix.scenario }}/environment.txt"
       - name: Run named scenario
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             "iroh-sim/tests/fixtures/${{ matrix.scenario }}.json" \
             --seed "${{ matrix.seed }}" \
             --artifacts "$RUNNER_TEMP/${{ matrix.scenario }}"
       - name: Replay byte-exact trace
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- replay \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/${{ matrix.scenario }}/manifest.json"
       - name: Upload simulation artifacts
         if: always()
@@ -157,7 +165,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Test permanent regression corpus
-        run: cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
       - name: Run deterministic declarative campaign shard
         run: |
           case "${{ matrix.domain }}" in
@@ -165,7 +173,7 @@ jobs:
             discovery) scenario="iroh-sim/corpus/stage4-discovery-conflict/scenario.json" ;;
             mobility) scenario="iroh-sim/tests/fixtures/stage4-mobility.json" ;;
           esac
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             "$scenario" \
             --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/campaign"
@@ -191,14 +199,14 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Test permanent regression corpus
-        run: cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
       - name: Run deterministic relay campaign shard
         run: |
           case "${{ matrix.domain }}" in
             relay-restart) scenario="iroh-sim/corpus/stage5-relay-restart/scenario.json" ;;
             direct-relay-fallback) scenario="iroh-sim/corpus/stage5-direct-relay-fallback/scenario.json" ;;
           esac
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             "$scenario" \
             --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/campaign"
@@ -229,7 +237,7 @@ jobs:
             direct) scenario="iroh-sim/tests/fixtures/v2-ipv4-stream.json" ;;
             relay) scenario="iroh-sim/corpus/stage5-relay-restart/scenario.json" ;;
           esac
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             "$scenario" \
             --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
             --artifacts "$RUNNER_TEMP/campaign"

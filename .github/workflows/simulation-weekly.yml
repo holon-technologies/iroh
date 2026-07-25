@@ -21,30 +21,30 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate checked service policy
-        run: cargo test -p iroh-sim --test operations
+        run: cargo test --manifest-path iroh-sim/Cargo.toml --test operations
       - name: Execute permanent corpus
-        run: cargo run -p iroh-sim --bin cargo-sim -- corpus test iroh-sim/corpus
+        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
       - name: Exercise both replay lanes
         run: |
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             iroh-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 8888888888888888888888888888888888888888888888888888888888888888 \
             --artifacts "$RUNNER_TEMP/raw-lane"
-          cargo run -p iroh-sim --bin cargo-sim -- replay "$RUNNER_TEMP/raw-lane/manifest.json"
-          cargo run -p iroh-sim --bin cargo-sim -- run \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/raw-lane/manifest.json"
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
             iroh-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 9999999999999999999999999999999999999999999999999999999999999999 \
             --crypto production-provider --artifacts "$RUNNER_TEMP/semantic-lane"
-          cargo run -p iroh-sim --bin cargo-sim -- replay "$RUNNER_TEMP/semantic-lane/manifest.json"
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/semantic-lane/manifest.json"
       - name: Export and compare canonical public parity evidence
         run: |
           mkdir -p "$RUNNER_TEMP/parity"
-          cargo run -p iroh-sim --bin cargo-sim -- parity export public \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
             --seed 7777777777777777777777777777777777777777777777777777777777777777 \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$(date +%s)" \
             --output "$RUNNER_TEMP/parity/deterministic-public.json"
-          cargo run -p iroh-sim --bin cargo-sim -- parity compare \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
             "$RUNNER_TEMP/parity/deterministic-public.json" \
             iroh-sim/tests/fixtures/patchbay-public.json \
             --output "$RUNNER_TEMP/parity/public-comparison.json"
@@ -76,7 +76,7 @@ jobs:
             direct) swarm="iroh-sim/swarms/ready-order-pressure.json" ;;
             relay) swarm="iroh-sim/swarms/relay-lifecycle.json" ;;
           esac
-          cargo run -p iroh-sim --bin cargo-sim -- campaign \
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
             --swarm "$swarm" --crypto "${{ matrix.crypto }}" \
             --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
             --max-runs 256 --artifacts "$RUNNER_TEMP/campaign"
@@ -98,10 +98,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Measure environment, relay, and scheduler components
         run: |
-          cargo bench -p iroh-sim --bench stage4_environment
-          cargo bench -p iroh-sim --bench stage5_relay
-          cargo bench -p iroh-sim --bench stage6_scheduler
-          cargo bench -p iroh-sim --bench deterministic_closure
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage4_environment
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage5_relay
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler
+          cargo bench --manifest-path iroh-sim/Cargo.toml --bench deterministic_closure
       - name: Upload Criterion evidence
         if: always()
         uses: actions/upload-artifact@v7

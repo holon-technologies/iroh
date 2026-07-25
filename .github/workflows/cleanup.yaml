@@ -18,7 +18,6 @@ env:
 jobs:
   clean_docs_branch:
     permissions:
-      issues: write
       contents: write
     runs-on: ubuntu-latest
     steps:
@@ -32,17 +31,20 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           cd pr/
           # keep the last 25 prs
-          dirs=$(ls -1d [0-9]* | sort -n)
-          total_dirs=$(echo "$dirs" | wc -l)
-          dirs_to_remove=$(echo "$dirs" | head -n $(($total_dirs - 25)))
-          if [ -n "$dirs_to_remove" ]; then
-            echo "$dirs_to_remove" | xargs rm -rf
+          mapfile -t doc_dirs < <(
+            find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
+              awk '/^[0-9]+$/' |
+              sort -n
+          )
+          if ((${#doc_dirs[@]} > 25)); then
+            remove_count=$((${#doc_dirs[@]} - 25))
+            for ((index = 0; index < remove_count; index++)); do
+              find "${doc_dirs[index]}" -depth -delete
+            done
           fi
           git add .
           git diff --cached --quiet && echo "Nothing to clean up" && exit 0
           git commit -m "Cleanup old docs"
           git push
-
-
 
 

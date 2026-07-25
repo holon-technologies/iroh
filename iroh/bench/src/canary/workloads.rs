@@ -2847,12 +2847,11 @@ async fn wait_for_accept_refill(
 mod tests {
     use std::{num::NonZeroUsize, time::Duration};
 
-    use crate::canary::CanaryError;
-
     use super::{
         DnsLaneConfig, EndpointLaneConfig, LanePhase, LaneProgress, LaneState, LaneTiming,
         PhaseReporter, RelayLaneConfig, run_dns_lane, run_endpoint_lane, run_relay_lane,
     };
+    use crate::canary::CanaryError;
 
     fn test_timing() -> LaneTiming {
         LaneTiming::new(

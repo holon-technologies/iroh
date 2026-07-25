@@ -610,8 +610,8 @@ network-environment	iroh-relay/tests/relay_axum.rs:77	let listener = TcpListener
 network-environment	iroh-relay/tests/relay_hyper.rs:66	let listener = TcpListener::bind("127.0.0.1:0").await?;
 network-environment	iroh-sim/benches/stage4_environment.rs:69	group.bench_function("production_builder_portmapper_disabled", |b| {
 network-environment	iroh-sim/benches/stage4_environment.rs:72	iroh::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
-network-environment	iroh-sim/src/backend.rs:328	) -> netwatch::netmon::State {
-network-environment	iroh-sim/src/backend.rs:329	let mut state = netwatch::netmon::State::fake();
+network-environment	iroh-sim/src/backend.rs:329	) -> netwatch::netmon::State {
+network-environment	iroh-sim/src/backend.rs:330	let mut state = netwatch::netmon::State::fake();
 network-environment	iroh-sim/src/monitor.rs:7	use netwatch::netmon::State;
 network-environment	iroh-sim/src/network.rs:1779	lookup_socket(&mut state, &destination_host, datagram.destination)
 network-environment	iroh-sim/src/network.rs:2217	fn lookup_socket(
@@ -716,13 +716,13 @@ network-environment	iroh/src/portmapper.rs:85	#[cfg(all(not(wasm_browser), featu
 network-environment	iroh/src/portmapper.rs:95	#[cfg(all(not(wasm_browser), feature = "portmapper"))]
 network-environment	iroh/src/runtime.rs:301	t: std::net::UdpSocket,
 network-environment	iroh/src/runtime.rs:302	) -> std::io::Result<Box<dyn noq::AsyncUdpSocket>> {
-network-environment	iroh/src/simulation.rs:232	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State>;
-network-environment	iroh/src/simulation.rs:241	inner: netwatch::netmon::Monitor,
-network-environment	iroh/src/simulation.rs:246	pub async fn new() -> Result<Self, netwatch::netmon::Error> {
-network-environment	iroh/src/simulation.rs:248	inner: netwatch::netmon::Monitor::new().await?,
-network-environment	iroh/src/simulation.rs:254	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
-network-environment	iroh/src/simulation.rs:357	inner: Arc::new(netwatch::UdpSocket::bind_full(addr)?),
-network-environment	iroh/src/simulation.rs:364	inner: Arc<netwatch::UdpSocket>,
+network-environment	iroh/src/simulation.rs:223	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State>;
+network-environment	iroh/src/simulation.rs:232	inner: netwatch::netmon::Monitor,
+network-environment	iroh/src/simulation.rs:237	pub async fn new() -> Result<Self, netwatch::netmon::Error> {
+network-environment	iroh/src/simulation.rs:239	inner: netwatch::netmon::Monitor::new().await?,
+network-environment	iroh/src/simulation.rs:245	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
+network-environment	iroh/src/simulation.rs:319	inner: Arc::new(netwatch::UdpSocket::bind_full(addr)?),
+network-environment	iroh/src/simulation.rs:326	inner: Arc<netwatch::UdpSocket>,
 network-environment	iroh/src/socket.rs:1078	address_lookup_user_data,
 network-environment	iroh/src/socket.rs:1101	portmapper_config,
 network-environment	iroh/src/socket.rs:1121	let port_mapper = portmapper::create_client(&portmapper_config, simulation_port_mapper);

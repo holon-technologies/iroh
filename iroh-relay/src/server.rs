@@ -783,8 +783,6 @@ pub struct Server {
 #[stack_error(derive, add_meta, std_sources)]
 #[non_exhaustive]
 pub enum SpawnError {
-    #[error("Invalid relay admission policy")]
-    AdmissionPolicy { source: AdmissionPolicyError },
     #[error("Unable to get local address")]
     LocalAddr { source: std::io::Error },
     #[error("Failed to bind QAD listener")]
@@ -810,6 +808,8 @@ pub enum SpawnError {
         #[error(std_err)]
         source: std::io::Error,
     },
+    #[error("Invalid relay admission policy")]
+    AdmissionPolicy { source: AdmissionPolicyError },
 }
 
 /// Server task errors

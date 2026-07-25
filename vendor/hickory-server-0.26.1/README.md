@@ -1,5 +1,11 @@
 # Overview
 
+> **Holon-maintained fork:** the published package is `iroh-hickory-server` version
+> `0.26.1-holon.1`, based on upstream `hickory-server` 0.26.1. It retains the
+> `hickory_server` Rust library name and adds the pre-spawn admission guarantees documented in
+> [IROH-VENDOR.md](IROH-VENDOR.md). It is maintained in the Iroh repository rather than by the
+> upstream Hickory DNS project.
+
 `hickory-server` is a library for integrating safe and secure DNS servers into
 an async Tokio application. It supports a variety of protocol features
 (DNSSEC, TSIG, SIG(0), DoT, DoQ, DoH). Servers can be operated in an authoritative

@@ -17,7 +17,10 @@ env:
 
 jobs:
   preview_docs:
-    permissions: write-all
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     timeout-minutes: 30
     name: Docs preview
     if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) && !github.event.pull_request.head.repo.fork }}
@@ -36,7 +39,7 @@ jobs:
     - name: Install sccache
       uses: mozilla-actions/sccache-action@v0.0.10
       continue-on-error: true
-    - uses: ./.github/workflows/sccache-probe
+    - uses: ./.github/actions/sccache-probe
 
     - name: Generate Docs
       run: cargo doc --workspace --all-features --no-deps
@@ -46,7 +49,7 @@ jobs:
     - name: Deploy Docs to Preview Branch
       uses: peaceiris/actions-gh-pages@v4
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ github.token }}
         publish_dir: ./target/doc/
         destination_dir: ${{ env.PREVIEW_PATH }}
         publish_branch: generated-docs-preview
@@ -61,7 +64,7 @@ jobs:
 
     - name: Get current timestamp
       id: get_timestamp
-      run: echo "TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+      run: echo "TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
     - name: Create or Update Docs Comment
       uses: peter-evans/create-or-update-comment@v5

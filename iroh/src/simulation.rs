@@ -6,9 +6,6 @@
 
 #![doc(hidden)]
 
-#[cfg(not(wasm_browser))]
-mod deterministic_crypto;
-
 use std::{
     fmt,
     future::Future,
@@ -103,14 +100,8 @@ impl SimulationEnvironment {
     pub fn with_deterministic_test_tls(
         mut self,
         provider: Arc<rustls::crypto::CryptoProvider>,
-        run_seed: [u8; 32],
-        endpoint_scope: &str,
     ) -> Self {
-        self.crypto_provider = Some(deterministic_crypto::deterministic_test_crypto_provider(
-            provider,
-            run_seed,
-            endpoint_scope,
-        ));
+        self.crypto_provider = Some(provider);
         self.crypto_mode = SimulationCryptoMode::DeterministicTest;
         self
     }
@@ -315,35 +306,6 @@ pub trait IpSocketSender: fmt::Debug + Send + Sync + 'static {
     /// Maximum number of GSO transmit segments.
     fn max_transmit_segments(&self) -> NonZeroUsize {
         NonZeroUsize::MIN
-    }
-}
-
-#[cfg(all(test, with_crypto_provider, not(wasm_browser)))]
-mod crypto_ownership_tests {
-    use rustls::crypto::{GetRandomFailed, SecureRandom};
-
-    use super::*;
-
-    #[derive(Debug)]
-    struct RunOwnedRandom([u8; 1]);
-
-    impl SecureRandom for RunOwnedRandom {
-        fn fill(&self, destination: &mut [u8]) -> Result<(), GetRandomFailed> {
-            destination.fill(self.0[0]);
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn rustls_provider_owns_run_scoped_randomness() {
-        let random: Arc<dyn SecureRandom> = Arc::new(RunOwnedRandom([7]));
-        let mut provider = (*iroh_relay::tls::default_provider()).clone();
-        provider.secure_random = random.clone();
-
-        let mut bytes = [0; 4];
-        provider.secure_random.fill(&mut bytes).unwrap();
-        assert_eq!(bytes, [7; 4]);
-        assert_eq!(Arc::strong_count(&random), 2);
     }
 }
 

@@ -9,13 +9,15 @@ on:
       pr_number:
         required: true
         type: string
-      branch:
+      iroh_ref:
+        description: "Pinned 40-character Iroh commit SHA"
         required: true
         type: string
-      netsim_branch:
-        required: true
+      netsim_ref:
+        description: "Pinned 40-character commit SHA from n0-computer/chuck"
+        required: false
         type: string
-        default: "main"
+        default: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       report_table:
         required: false
         type: boolean
@@ -36,31 +38,31 @@ env:
 
 jobs:
   netsim-release:
-    permissions: write-all
+    permissions:
+      contents: read
     if: ${{github.ref_name=='main' && github.event_name == 'push'}}
     uses: './.github/workflows/netsim_runner.yaml'
-    secrets: inherit
     with:
-      branch: "main"
+      iroh_ref: ${{ github.sha }}
       max_workers: 1
-      netsim_branch: "main"
+      netsim_ref: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       sim_paths: "sims/iroh,sims/integration"
       pr_number: ""
-      publish_metrics: true
       build_profile: "optimized-release"
 
   netsim-perf:
-    permissions: write-all
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     if: ${{github.event_name != 'push'}}
     uses: './.github/workflows/netsim_runner.yaml'
-    secrets: inherit
     with:
-      branch: ${{inputs.branch}}
+      iroh_ref: ${{inputs.iroh_ref}}
       max_workers: 1
-      netsim_branch: ${{inputs.netsim_branch}}
+      netsim_ref: ${{inputs.netsim_ref}}
       sim_paths: "sims/iroh"
       pr_number: ${{inputs.pr_number}}
-      publish_metrics: false
       build_profile: "optimized-release"
       report_table: ${{inputs.report_table}}
       rust_log: ${{inputs.rust_log}}

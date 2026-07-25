@@ -1022,10 +1022,6 @@ pub enum BindError {
     Sockets { source: io::Error },
     #[error("Failed to create internal QUIC endpoint")]
     CreateQuicEndpoint { source: io::Error },
-    #[error("Failed to create QUIC address-discovery client")]
-    CreateQuicClient {
-        source: iroh_relay::quic::QuicClientBuildError,
-    },
     #[error("Failed to create netmon monitor")]
     CreateNetmonMonitor { source: AnyError },
     #[error("Invalid transport configuration")]
@@ -1043,6 +1039,10 @@ pub enum BindError {
     TlsConfigError {
         #[error(from)]
         source: tls::TlsConfigError,
+    },
+    #[error("Failed to create QUIC address-discovery client")]
+    CreateQuicClient {
+        source: iroh_relay::quic::QuicClientBuildError,
     },
     #[error("Invalid deterministic runtime context")]
     RuntimeContext { source: AnyError },

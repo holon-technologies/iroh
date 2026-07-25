@@ -1,0 +1,99 @@
+name: GitHub-hosted Patchbay Public Parity Smoke
+
+on:
+  schedule:
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iroh-patchbay-hosted-public-smoke
+  cancel-in-progress: false
+
+env:
+  RUST_BACKTRACE: "1"
+  IROH_FORCE_STAGING_RELAYS: "1"
+  NEXTEST_VERSION: "0.9.80"
+  RUSTC_WRAPPER: "sccache"
+  SCCACHE_GHA_ENABLED: "on"
+
+jobs:
+  hosted_public_parity:
+    name: Public parity smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Prepare diagnostic artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/patchbay-hosted"
+          {
+            uname -a
+            printf 'runner_os=%s\n' "$RUNNER_OS"
+            printf 'runner_arch=%s\n' "$RUNNER_ARCH"
+          } >"$RUNNER_TEMP/patchbay-hosted/environment.txt"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@${{ env.NEXTEST_VERSION }}
+
+      - name: Require usable unprivileged user namespaces
+        run: |
+          set -o pipefail
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 \
+              2>&1 | tee -a "$RUNNER_TEMP/patchbay-hosted/environment.txt"
+          fi
+          unshare --user --map-root-user sh -c "test \"\$(id -u)\" -eq 0" \
+            2>&1 | tee -a "$RUNNER_TEMP/patchbay-hosted/environment.txt"
+
+      - name: Run the public Patchbay case
+        env:
+          IROH_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-hosted/public-receipt.json
+          PATCHBAY_LOG: ${{ runner.debug && 'trace' || 'debug' }}
+          RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
+        run: |
+          set -o pipefail
+          cargo nextest run -p iroh --features qlog --test patchbay \
+            --profile patchbay nat::nat_none_x_none --no-capture \
+            2>&1 | tee "$RUNNER_TEMP/patchbay-hosted/test.log"
+          test -s "$IROH_PATCHBAY_PARITY_RECEIPT"
+
+      - name: Import and compare public parity evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/patchbay-hosted/parity"
+          observed_at="$(date +%s)"
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity import-patchbay \
+            "$RUNNER_TEMP/patchbay-hosted/public-receipt.json" \
+            --source-revision "${{ github.sha }}" \
+            --observed-at-unix-secs "$observed_at" \
+            --output "$RUNNER_TEMP/patchbay-hosted/parity/patchbay-public.json"
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
+            --seed 7777777777777777777777777777777777777777777777777777777777777777 \
+            --source-revision "${{ github.sha }}" \
+            --observed-at-unix-secs "$observed_at" \
+            --output "$RUNNER_TEMP/patchbay-hosted/parity/deterministic-public.json"
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
+            "$RUNNER_TEMP/patchbay-hosted/parity/deterministic-public.json" \
+            "$RUNNER_TEMP/patchbay-hosted/parity/patchbay-public.json" \
+            --output "$RUNNER_TEMP/patchbay-hosted/parity/public-comparison.json"
+
+      - name: Upload diagnostics and parity evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: patchbay-hosted-public-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/patchbay-hosted/
+          if-no-files-found: error
+          retention-days: 7

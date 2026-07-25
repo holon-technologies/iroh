@@ -1,6 +1,8 @@
 /target
 /fuzz/artifacts
 /fuzz/target
+/iroh-sim/target
+/vendor/hickory-server-0.26.1/target
 /vendor/noq-1.1.0/target
 /vendor/rustls-0.23.41/target
 /logs
