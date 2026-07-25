@@ -6,7 +6,7 @@ use iroh_runtime::{NoopTraceSink, RootSeed};
 use iroh_sim::{
     DeterministicDiscovery, Firewall, FirewallAction, FirewallConfig, FirewallConnectionState,
     FirewallDirection, FirewallPacket, FirewallProtocol, FirewallRule, Kernel, KernelConfig,
-    NatConfig, NatFilteringBehavior, NatMappingBehavior, NatTable,
+    KernelResourceLimits, NatConfig, NatFilteringBehavior, NatMappingBehavior, NatTable,
 };
 
 fn stage4_environment(c: &mut Criterion) {
@@ -80,8 +80,11 @@ fn kernel(seed: [u8; 32]) -> (Kernel, Arc<iroh_runtime::RuntimeContext>) {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 1_000_000,
+            max_scheduled_events: 1_000_000,
             max_virtual_time: Duration::from_secs(60),
             max_tasks: 8,
+            max_trace_events: 1_000_000,
+            resource_limits: KernelResourceLimits::uniform(1_000_000),
         },
         Arc::new(NoopTraceSink),
     )

@@ -264,7 +264,34 @@ impl WallClock for SystemWallClock {
     }
 }
 
+/// Clock-owned resource family with bounded simultaneous use.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ClockResource {
+    /// Live resettable timers.
+    Timer,
+    /// Events retained by a clock's deterministic scheduling queue.
+    ScheduledEvent,
+}
+
+impl ClockResource {
+    /// Returns the stable diagnostic spelling of this resource family.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Timer => "timers",
+            Self::ScheduledEvent => "scheduled_events",
+        }
+    }
+}
+
+impl fmt::Display for ClockResource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Monotonic clock or timer failure.
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClockError {
     /// A stable timer or trace sequence ID could not be allocated.
@@ -275,6 +302,13 @@ pub enum ClockError {
     BackendUnavailable,
     /// A clock-owned resource counter cannot be represented.
     ResourceCounterOverflow,
+    /// A clock-owned resource reached its configured simultaneous-use limit.
+    ResourceLimit {
+        /// Resource family whose capacity was exhausted.
+        resource: ClockResource,
+        /// Configured maximum.
+        limit: u64,
+    },
     /// A periodic timer was configured with a zero period.
     InvalidPeriod,
     /// The trace sink rejected a timer observation.
@@ -290,6 +324,12 @@ impl fmt::Display for ClockError {
             Self::TimelineOverflow => f.write_str("runtime clock exceeds trace timeline range"),
             Self::BackendUnavailable => f.write_str("runtime clock backend is unavailable"),
             Self::ResourceCounterOverflow => f.write_str("runtime clock resource counter overflow"),
+            Self::ResourceLimit { resource, limit } => {
+                write!(
+                    f,
+                    "runtime clock {resource} resource limit {limit} exceeded"
+                )
+            }
             Self::InvalidPeriod => f.write_str("runtime interval period must be nonzero"),
             Self::Trace(err) => write!(f, "runtime clock trace failed: {err}"),
             Self::Recorder(err) => write!(f, "runtime clock trace failed: {err}"),

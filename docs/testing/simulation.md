@@ -33,6 +33,19 @@ The socket actor's periodic re-STUN and network-change timers use the injected c
 jitter uses a per-endpoint decision stream, and internal multi-ready selection has an explicit
 branch order. Same-seed direct and relay production-QUIC replay are regression-tested.
 
+Resource admission is fail-closed. The kernel bounds the simultaneously retained scheduled-event
+queue separately from the cumulative execution budget, and it rejects timers, sockets,
+connections, streams, and relays before their per-family ledger ceiling is exceeded. Declarative
+runs bound timers and sockets by the event budget, connections and streams by the action budget,
+and relays by the declared topology size; tasks and queued packets retain their dedicated
+`max_tasks` and `max_packets` limits. `max_trace_events` wraps any installed trace sink with an
+exact admission limit, while standalone in-memory `TraceBuffer`s also have an explicit finite
+capacity. Exhaustion is returned as a typed kernel, clock, ledger, or trace error; no limit silently
+evicts or truncates evidence.
+Runner-level regressions additionally cap live connections and relays at one, then verify that a
+rejected second admission leaves trace, scheduler, task, and runtime state unchanged; partial relay
+reservations roll back, shutdown returns the ledger to zero, and same-seed evidence is identical.
+
 - `iroh-runtime` defines stable IDs, a monotonic `Clock`, `WallClock`, resettable timers, structured task groups, domain-separated decision streams, the global trace schema, and `RuntimeContext`.
 - Normal `Endpoint::builder(...).bind()` installs Tokio, system wall time, an OS-backed behavioral root seed, and a no-op trace sink. Endpoint identities, TLS token keys, and QUIC reset keys still use cryptographic randomness.
 - The explicit, doc-hidden `Builder::runtime_context_for_test` path requires `UnsafeTestOnly::acknowledge()`. It is constructor injection, never an environment-variable or feature selection. The marker means “not a production default”; it does not weaken Rust memory safety.

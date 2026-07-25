@@ -26,8 +26,8 @@ pub use task::{
 #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 pub use time::TokioClock;
 pub use time::{
-    Clock, ClockDomain, ClockError, ClockInterval, ClockSleep, ClockTimeout, Instant, SystemTime,
-    SystemWallClock, TimeoutError, Timer, WallClock,
+    Clock, ClockDomain, ClockError, ClockInterval, ClockResource, ClockSleep, ClockTimeout,
+    Instant, SystemTime, SystemWallClock, TimeoutError, Timer, WallClock,
 };
 pub use trace::{
     NoopTraceSink, TRACE_SCHEMA_VERSION, TaskKind, TaskMetadata, TraceContext, TraceEvent,

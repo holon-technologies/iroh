@@ -11,9 +11,9 @@ use iroh::simulation::{IpSocket, IpSocketSender};
 use iroh_runtime::{RootSeed, TraceEventKind};
 use iroh_sim::{
     FirewallAction, FirewallConfig, FirewallConnectionState, FirewallDirection, FirewallProtocol,
-    FirewallRule, IpCidr, Kernel, KernelConfig, LinkConfig, NatConfig, NatFilteringBehavior,
-    NatMappingBehavior, NetworkConfig, NetworkError, ResourceKind, SyntheticNetwork, TraceBuffer,
-    normalized_trace_json,
+    FirewallRule, IpCidr, Kernel, KernelConfig, KernelResourceLimits, LedgerError, LinkConfig,
+    NatConfig, NatFilteringBehavior, NatMappingBehavior, NetworkConfig, NetworkError, ResourceKind,
+    SyntheticNetwork, TraceBuffer, normalized_trace_json,
 };
 use proptest::prelude::*;
 
@@ -39,8 +39,11 @@ impl Fixture {
         let kernel = Kernel::new(
             KernelConfig {
                 max_events: 10_000,
+                max_scheduled_events: 10_000,
                 max_virtual_time: Duration::from_secs(60),
                 max_tasks: 64,
+                max_trace_events: 10_000,
+                resource_limits: KernelResourceLimits::uniform(10_000),
             },
             Arc::new(trace.clone()),
         )
@@ -590,6 +593,61 @@ fn ephemeral_rebind_and_socket_drop_balance_resources() {
 
     drop(socket);
     assert_eq!(fixture.kernel.ledger().current(ResourceKind::Socket), 0);
+}
+
+#[test]
+fn socket_factory_rejects_admission_at_the_kernel_limit() {
+    let trace = TraceBuffer::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 100,
+            max_scheduled_events: 100,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 8,
+            max_trace_events: 100,
+            resource_limits: KernelResourceLimits {
+                max_sockets: 1,
+                ..KernelResourceLimits::uniform(8)
+            },
+        },
+        Arc::new(trace),
+    )
+    .unwrap();
+    let context = Arc::new(kernel.runtime_context(RootSeed::new([30; 32]), SystemTime::UNIX_EPOCH));
+    let network = SyntheticNetwork::new(
+        kernel.clone(),
+        context,
+        NetworkConfig {
+            max_packets: 8,
+            ephemeral_port_start: 40_000,
+        },
+    )
+    .unwrap();
+    network.add_host("a").unwrap();
+    network.add_link("lan", LinkConfig::default()).unwrap();
+    network
+        .add_interface(
+            "a",
+            "a0",
+            "lan",
+            [IpCidr::new(Ipv4Addr::new(192, 0, 2, 1).into(), 24).unwrap()],
+        )
+        .unwrap();
+    let factory = network.socket_factory("a").unwrap();
+    let _admitted = factory.bind("192.0.2.1:1001".parse().unwrap()).unwrap();
+
+    let error = factory.bind("192.0.2.1:1002".parse().unwrap()).unwrap_err();
+    assert!(matches!(
+        error
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<NetworkError>()),
+        Some(NetworkError::Ledger(LedgerError::LimitExceeded {
+            kind: ResourceKind::Socket,
+            limit: 1,
+        }))
+    ));
+    assert_eq!(kernel.ledger().current(ResourceKind::Socket), 1);
+    assert_eq!(kernel.ledger().high_water(ResourceKind::Socket), 1);
 }
 
 #[test]

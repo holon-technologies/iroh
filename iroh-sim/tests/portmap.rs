@@ -8,9 +8,9 @@ use std::{
 use iroh::simulation::{IpSocket, PortMapper};
 use iroh_runtime::RootSeed;
 use iroh_sim::{
-    DeterministicPortMapper, IpCidr, Kernel, KernelConfig, LinkConfig, NatConfig,
-    NatFilteringBehavior, NatMappingBehavior, NetworkConfig, ResourceKind, SyntheticNetwork,
-    TraceBuffer,
+    DeterministicPortMapper, IpCidr, Kernel, KernelConfig, KernelResourceLimits, LinkConfig,
+    NatConfig, NatFilteringBehavior, NatMappingBehavior, NetworkConfig, ResourceKind,
+    SyntheticNetwork, TraceBuffer,
 };
 
 #[test]
@@ -19,8 +19,11 @@ fn injected_port_mapping_opens_renews_expires_and_cleans_up_nat_state() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 1_000,
+            max_scheduled_events: 1_000,
             max_virtual_time: Duration::from_secs(60),
             max_tasks: 16,
+            max_trace_events: 1_000,
+            resource_limits: KernelResourceLimits::uniform(1_000),
         },
         Arc::new(trace),
     )

@@ -8,9 +8,23 @@ use std::{
 };
 
 use iroh_runtime::{
-    Clock, ClockDomain, SystemWallClock, Timer, TokioClock, TraceContext, TraceEvent,
-    TraceEventKind, TraceRecorder, TraceSink, TraceSinkError, WallClock,
+    Clock, ClockDomain, ClockError, ClockResource, SystemWallClock, Timer, TokioClock,
+    TraceContext, TraceEvent, TraceEventKind, TraceRecorder, TraceSink, TraceSinkError, WallClock,
 };
+
+#[test]
+fn clock_resources_have_stable_typed_names() {
+    assert_eq!(ClockResource::Timer.as_str(), "timers");
+    assert_eq!(ClockResource::ScheduledEvent.as_str(), "scheduled_events");
+    assert_eq!(
+        ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit: 7,
+        }
+        .to_string(),
+        "runtime clock scheduled_events resource limit 7 exceeded"
+    );
+}
 
 #[test]
 fn non_tokio_clocks_can_allocate_distinct_domains() {

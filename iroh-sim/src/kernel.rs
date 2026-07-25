@@ -15,15 +15,18 @@ use std::{
 };
 
 use iroh_runtime::{
-    BoxedTask, Clock, ClockDomain, ClockError, DecisionError, DecisionSource, DecisionStream,
-    Executor, IdAllocator, OwnedTaskHandle, RootSeed, RuntimeContext, SeededDecisionSource,
-    SpawnError, TaskCompletion, TaskControl, TaskGroup, TaskGroupCapacitySnapshot, TaskGroupError,
-    TaskGroupLimits, TaskGroupSnapshot, TaskHandleError, TaskId, TaskKind, TaskMetadata,
-    TaskOutcome, Timer, TimerId, TraceContext, TraceDecisionObserver, TraceEventKind,
-    TraceRecordError, TraceRecorder, TraceSink, WallClock,
+    BoxedTask, Clock, ClockDomain, ClockError, ClockResource, DecisionError, DecisionSource,
+    DecisionStream, Executor, IdAllocator, OwnedTaskHandle, RootSeed, RuntimeContext,
+    SeededDecisionSource, SpawnError, TaskCompletion, TaskControl, TaskGroup,
+    TaskGroupCapacitySnapshot, TaskGroupError, TaskGroupLimits, TaskGroupSnapshot, TaskHandleError,
+    TaskId, TaskKind, TaskMetadata, TaskOutcome, Timer, TimerId, TraceContext,
+    TraceDecisionObserver, TraceEventKind, TraceRecordError, TraceRecorder, TraceSink, WallClock,
 };
 
-use crate::{LedgerError, ResourceKind, ResourceLedger, ResourceLedgerSnapshot, ResourceToken};
+use crate::{
+    LedgerError, ResourceKind, ResourceLedger, ResourceLedgerSnapshot, ResourceToken,
+    trace::BoundedTraceSink,
+};
 
 /// Stable identity of one scheduled kernel event.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -73,10 +76,67 @@ pub enum EventClass {
 pub struct KernelConfig {
     /// Maximum task polls plus live scheduled-event executions.
     pub max_events: u64,
+    /// Maximum events simultaneously retained by the scheduled-event queue.
+    pub max_scheduled_events: u64,
     /// Maximum run-relative virtual time.
     pub max_virtual_time: Duration,
     /// Maximum simultaneously live tasks.
     pub max_tasks: u64,
+    /// Maximum trace events admitted to the configured sink.
+    pub max_trace_events: u64,
+    /// Maximum simultaneous use for kernel-owned resource families.
+    pub resource_limits: KernelResourceLimits,
+}
+
+/// Per-family simultaneous-use limits enforced by the deterministic kernel.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KernelResourceLimits {
+    /// Maximum live resettable timers.
+    pub max_timers: u64,
+    /// Maximum bound synthetic sockets.
+    pub max_sockets: u64,
+    /// Maximum live modeled or production connections.
+    pub max_connections: u64,
+    /// Maximum live modeled or production streams.
+    pub max_streams: u64,
+    /// Maximum live simulator-owned relay services.
+    pub max_relays: u64,
+}
+
+impl KernelResourceLimits {
+    /// Applies one simultaneous-use limit to every kernel-owned resource family.
+    pub const fn uniform(limit: u64) -> Self {
+        Self {
+            max_timers: limit,
+            max_sockets: limit,
+            max_connections: limit,
+            max_streams: limit,
+            max_relays: limit,
+        }
+    }
+
+    const fn is_valid(self) -> bool {
+        self.max_timers > 0
+            && self.max_sockets > 0
+            && self.max_connections > 0
+            && self.max_streams > 0
+            && self.max_relays > 0
+    }
+
+    const fn limit(self, kind: ResourceKind) -> Option<u64> {
+        match kind {
+            ResourceKind::Task => None,
+            ResourceKind::Timer => Some(self.max_timers),
+            ResourceKind::Socket => Some(self.max_sockets),
+            ResourceKind::Connection => Some(self.max_connections),
+            ResourceKind::Stream => Some(self.max_streams),
+            ResourceKind::Relay => Some(self.max_relays),
+            ResourceKind::QueuedPacket
+            | ResourceKind::Mapping
+            | ResourceKind::DiscoveryRecord
+            | ResourceKind::TraceBuffer => None,
+        }
+    }
 }
 
 /// Why a kernel stopped after exhausting runnable work.
@@ -160,10 +220,17 @@ impl fmt::Debug for Kernel {
 impl Kernel {
     /// Creates an empty deterministic kernel and shared trace sequence.
     pub fn new(config: KernelConfig, sink: Arc<dyn TraceSink>) -> Result<Self, KernelError> {
-        if config.max_events == 0 || config.max_virtual_time.is_zero() || config.max_tasks == 0 {
+        if config.max_events == 0
+            || config.max_scheduled_events == 0
+            || config.max_virtual_time.is_zero()
+            || config.max_tasks == 0
+            || config.max_trace_events == 0
+            || !config.resource_limits.is_valid()
+        {
             return Err(KernelError::InvalidConfig);
         }
         let max_virtual_time_nanos = duration_nanos(config.max_virtual_time)?;
+        let sink = Arc::new(BoundedTraceSink::new(sink, config.max_trace_events));
         let trace = Arc::new(TraceRecorder::new(sink));
         let ledger = ResourceLedger::default();
         let inner = Arc::new(KernelInner {
@@ -171,6 +238,7 @@ impl Kernel {
             max_virtual_time_nanos,
             trace,
             ledger,
+            deferred_clock_failure: Mutex::new(None),
             ready_scheduler: Mutex::new(None),
             state: Mutex::new(KernelState::default()),
         });
@@ -357,7 +425,7 @@ impl Kernel {
         kind: ResourceKind,
         limit: Option<u64>,
     ) -> Result<ResourceToken, LedgerError> {
-        self.inner.ledger.acquire(kind, limit)
+        self.inner.acquire_resource(kind, limit)
     }
 
     fn reserve_step(&self) -> Result<(), KernelError> {
@@ -418,6 +486,7 @@ struct KernelInner {
     max_virtual_time_nanos: u64,
     trace: Arc<TraceRecorder>,
     ledger: ResourceLedger,
+    deferred_clock_failure: Mutex<Option<TraceRecordError>>,
     ready_scheduler: Mutex<Option<Box<dyn DecisionStream>>>,
     state: Mutex<KernelState>,
 }
@@ -443,6 +512,7 @@ struct KernelState {
     tasks: BTreeMap<TaskId, Arc<TaskCell>>,
     task_history: BTreeMap<TaskId, TaskMetadata>,
     events: BTreeMap<EventKey, EventAction>,
+    reserved_events: u64,
     scheduler_decisions: u64,
     fairness_forced: u64,
     max_ready_wait: u64,
@@ -468,6 +538,30 @@ enum EventAction {
     },
 }
 
+#[derive(Debug)]
+struct EventReservation {
+    id: EventId,
+    kernel: Weak<KernelInner>,
+    active: bool,
+}
+
+impl Drop for EventReservation {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        let Some(kernel) = self.kernel.upgrade() else {
+            return;
+        };
+        let mut state = kernel.state.lock().expect("kernel state lock poisoned");
+        state.reserved_events = state
+            .reserved_events
+            .checked_sub(1)
+            .expect("live event reservation has matching kernel capacity");
+        self.active = false;
+    }
+}
+
 impl EventAction {
     fn is_live(&self) -> bool {
         match self {
@@ -484,6 +578,24 @@ impl EventAction {
 }
 
 impl KernelInner {
+    fn acquire_resource(
+        &self,
+        kind: ResourceKind,
+        requested_limit: Option<u64>,
+    ) -> Result<ResourceToken, LedgerError> {
+        let configured_limit = match kind {
+            ResourceKind::Task => Some(self.config.max_tasks),
+            ResourceKind::TraceBuffer => Some(self.config.max_trace_events),
+            _ => self.config.resource_limits.limit(kind),
+        };
+        let limit = match (requested_limit, configured_limit) {
+            (Some(requested), Some(configured)) => Some(requested.min(configured)),
+            (Some(requested), None) => Some(requested),
+            (None, configured) => configured,
+        };
+        self.ledger.acquire(kind, limit)
+    }
+
     fn advance_ready_epoch(&self) {
         let mut state = self.state.lock().expect("kernel state lock poisoned");
         state.ready_epoch = state.ready_epoch.saturating_add(1);
@@ -525,6 +637,16 @@ impl KernelInner {
             .now_nanos
     }
 
+    fn latch_deferred_clock_failure(&self, error: TraceRecordError) {
+        let mut failure = self
+            .deferred_clock_failure
+            .lock()
+            .expect("kernel clock failure lock poisoned");
+        if failure.is_none() {
+            *failure = Some(error);
+        }
+    }
+
     fn schedule(
         &self,
         deadline_nanos: u64,
@@ -532,12 +654,18 @@ impl KernelInner {
         action: EventAction,
     ) -> Result<EventId, KernelError> {
         let mut state = self.state.lock().expect("kernel state lock poisoned");
-        let next = state
-            .next_event_id
-            .checked_add(1)
-            .ok_or(KernelError::EventIdExhausted)?;
-        state.next_event_id = next;
-        let id = EventId(next);
+        self.schedule_locked(&mut state, deadline_nanos, class, action)
+    }
+
+    fn schedule_locked(
+        &self,
+        state: &mut KernelState,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> Result<EventId, KernelError> {
+        self.ensure_event_capacity(state)?;
+        let id = Self::allocate_event_id(state)?;
         let key = EventKey {
             deadline_nanos: deadline_nanos.max(state.now_nanos),
             class,
@@ -545,6 +673,135 @@ impl KernelInner {
         };
         state.events.insert(key, action);
         Ok(id)
+    }
+
+    fn reserve_event(self: &Arc<Self>) -> Result<EventReservation, KernelError> {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        self.ensure_event_capacity(&state)?;
+        let id = Self::allocate_event_id(&mut state)?;
+        state.reserved_events = state
+            .reserved_events
+            .checked_add(1)
+            .ok_or(KernelError::ResourceCounterOverflow)?;
+        Ok(EventReservation {
+            id,
+            kernel: Arc::downgrade(self),
+            active: true,
+        })
+    }
+
+    fn ensure_event_capacity(&self, state: &KernelState) -> Result<(), KernelError> {
+        let queued =
+            u64::try_from(state.events.len()).map_err(|_| KernelError::ResourceCounterOverflow)?;
+        let retained = queued
+            .checked_add(state.reserved_events)
+            .ok_or(KernelError::ResourceCounterOverflow)?;
+        if retained >= self.config.max_scheduled_events {
+            return Err(KernelError::ScheduledEventLimitExceeded {
+                limit: self.config.max_scheduled_events,
+            });
+        }
+        Ok(())
+    }
+
+    fn allocate_event_id(state: &mut KernelState) -> Result<EventId, KernelError> {
+        let next = state
+            .next_event_id
+            .checked_add(1)
+            .ok_or(KernelError::EventIdExhausted)?;
+        state.next_event_id = next;
+        Ok(EventId(next))
+    }
+
+    fn commit_reserved_event(
+        &self,
+        state: &mut KernelState,
+        reservation: &mut EventReservation,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> EventId {
+        assert!(
+            reservation.active,
+            "scheduled event reservation must be committed exactly once"
+        );
+        assert_eq!(
+            reservation.kernel.as_ptr(),
+            self as *const Self,
+            "scheduled event reservation belongs to this kernel"
+        );
+        state.reserved_events = state
+            .reserved_events
+            .checked_sub(1)
+            .expect("committed event reservation has matching kernel capacity");
+        let id = reservation.id;
+        let key = EventKey {
+            deadline_nanos: deadline_nanos.max(state.now_nanos),
+            class,
+            id,
+        };
+        let previous = state.events.insert(key, action);
+        assert!(
+            previous.is_none(),
+            "reserved event identity must be unique at commit"
+        );
+        reservation.active = false;
+        id
+    }
+
+    fn schedule_reserved(
+        &self,
+        mut reservation: EventReservation,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> EventId {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        self.commit_reserved_event(&mut state, &mut reservation, deadline_nanos, class, action)
+    }
+
+    fn reset_timer(
+        &self,
+        mut reservation: EventReservation,
+        timer: &Arc<VirtualTimerState>,
+        deadline_nanos: u64,
+        generation: u64,
+        was_completed: bool,
+        resource: Option<ResourceToken>,
+    ) {
+        let mut kernel_state = self.state.lock().expect("kernel state lock poisoned");
+        let mut timer_state = timer.state.lock().expect("virtual timer lock poisoned");
+        assert_eq!(
+            timer_state.completed, was_completed,
+            "timer completion must not race an exclusive reset"
+        );
+        assert_eq!(
+            timer_state.generation.checked_add(1),
+            Some(generation),
+            "timer generation must not change during an exclusive reset"
+        );
+        if was_completed {
+            assert!(
+                timer_state.resource.is_none(),
+                "completed timer must release its resource before reset"
+            );
+        }
+        self.commit_reserved_event(
+            &mut kernel_state,
+            &mut reservation,
+            deadline_nanos,
+            EventClass::Timer,
+            EventAction::Timer {
+                timer: Arc::downgrade(timer),
+                generation,
+            },
+        );
+        if was_completed {
+            timer_state.resource = resource;
+        }
+        timer_state.completed = false;
+        timer_state.deadline_nanos = deadline_nanos;
+        timer_state.generation = generation;
     }
 
     fn pop_next_live_event(&self) -> Option<(EventKey, EventAction)> {
@@ -1038,8 +1295,7 @@ impl TaskGroup for KernelTaskGroup {
             return Err(SpawnError::Closed { metadata });
         }
         let resource = kernel
-            .ledger
-            .acquire(ResourceKind::Task, Some(kernel.config.max_tasks))
+            .acquire_resource(ResourceKind::Task, None)
             .map_err(|error| match error {
                 LedgerError::LimitExceeded { limit, .. } => SpawnError::ResourceLimit {
                     resource: "tasks",
@@ -1236,20 +1492,9 @@ impl Clock for VirtualClock {
             .unwrap_or_default()
             .max(kernel.now_nanos());
         let resource = kernel
-            .ledger
-            .acquire(ResourceKind::Timer, None)
-            .map_err(|_| ClockError::ResourceCounterOverflow)?;
-        kernel
-            .trace
-            .record(
-                kernel.now_nanos(),
-                TraceContext::default(),
-                TraceEventKind::TimerCreated {
-                    timer: id,
-                    deadline_nanos,
-                },
-            )
-            .map_err(ClockError::Recorder)?;
+            .acquire_resource(ResourceKind::Timer, None)
+            .map_err(timer_resource_error)?;
+        let reservation = kernel.reserve_event().map_err(timer_schedule_error)?;
         let state = Arc::new(VirtualTimerState {
             id,
             kernel: Arc::downgrade(&kernel),
@@ -1263,15 +1508,25 @@ impl Clock for VirtualClock {
             }),
         });
         kernel
-            .schedule(
-                deadline_nanos,
-                EventClass::Timer,
-                EventAction::Timer {
-                    timer: Arc::downgrade(&state),
-                    generation: 0,
+            .trace
+            .record(
+                kernel.now_nanos(),
+                TraceContext::default(),
+                TraceEventKind::TimerCreated {
+                    timer: id,
+                    deadline_nanos,
                 },
             )
-            .map_err(|_| ClockError::TimelineOverflow)?;
+            .map_err(ClockError::Recorder)?;
+        kernel.schedule_reserved(
+            reservation,
+            deadline_nanos,
+            EventClass::Timer,
+            EventAction::Timer {
+                timer: Arc::downgrade(&state),
+                generation: 0,
+            },
+        );
         Ok(Box::pin(VirtualTimer {
             state,
             origin: self.origin,
@@ -1283,6 +1538,17 @@ impl Clock for VirtualClock {
             .upgrade()
             .map(|kernel| kernel.now_nanos())
             .ok_or(ClockError::BackendUnavailable)
+    }
+
+    fn take_failure(&self) -> Option<ClockError> {
+        self.inner.upgrade().and_then(|kernel| {
+            kernel
+                .deferred_clock_failure
+                .lock()
+                .expect("kernel clock failure lock poisoned")
+                .take()
+                .map(ClockError::Recorder)
+        })
     }
 }
 
@@ -1338,28 +1604,23 @@ impl Timer for VirtualTimer {
             .map_err(|_| ClockError::TimelineOverflow)?
             .unwrap_or_default()
             .max(kernel.now_nanos());
-        let generation = {
-            let mut state = self
+        let (generation, was_completed) = {
+            let state = self
                 .state
                 .state
                 .lock()
                 .expect("virtual timer lock poisoned");
-            if state.completed {
-                state.resource = Some(
-                    kernel
-                        .ledger
-                        .acquire(ResourceKind::Timer, None)
-                        .map_err(|_| ClockError::ResourceCounterOverflow)?,
-                );
-            }
-            state.completed = false;
-            state.deadline_nanos = deadline_nanos;
-            state.generation = state
+            let generation = state
                 .generation
                 .checked_add(1)
                 .ok_or(ClockError::TimelineOverflow)?;
-            state.generation
+            (generation, state.completed)
         };
+        let resource = was_completed
+            .then(|| kernel.acquire_resource(ResourceKind::Timer, None))
+            .transpose()
+            .map_err(timer_resource_error)?;
+        let reservation = kernel.reserve_event().map_err(timer_schedule_error)?;
         kernel
             .trace
             .record(
@@ -1371,16 +1632,14 @@ impl Timer for VirtualTimer {
                 },
             )
             .map_err(ClockError::Recorder)?;
-        kernel
-            .schedule(
-                deadline_nanos,
-                EventClass::Timer,
-                EventAction::Timer {
-                    timer: Arc::downgrade(&self.state),
-                    generation,
-                },
-            )
-            .map_err(|_| ClockError::TimelineOverflow)?;
+        kernel.reset_timer(
+            reservation,
+            &self.state,
+            deadline_nanos,
+            generation,
+            was_completed,
+            resource,
+        );
         Ok(())
     }
 
@@ -1452,14 +1711,17 @@ impl Drop for VirtualTimer {
                 true
             }
         };
-        if should_record && let Some(kernel) = self.state.kernel.upgrade() {
-            let _ = kernel.trace.record(
+        if should_record
+            && let Some(kernel) = self.state.kernel.upgrade()
+            && let Err(error) = kernel.trace.record(
                 kernel.now_nanos(),
                 TraceContext::default(),
                 TraceEventKind::TimerDropped {
                     timer: self.state.id,
                 },
-            );
+            )
+        {
+            kernel.latch_deferred_clock_failure(error);
         }
     }
 }
@@ -1488,6 +1750,29 @@ fn duration_nanos(duration: Duration) -> Result<u64, KernelError> {
     u64::try_from(duration.as_nanos()).map_err(|_| KernelError::TimelineOverflow)
 }
 
+fn timer_resource_error(error: LedgerError) -> ClockError {
+    match error {
+        LedgerError::LimitExceeded { limit, .. } => ClockError::ResourceLimit {
+            resource: ClockResource::Timer,
+            limit,
+        },
+        LedgerError::Overflow => ClockError::ResourceCounterOverflow,
+    }
+}
+
+fn timer_schedule_error(error: KernelError) -> ClockError {
+    match error {
+        KernelError::EventIdExhausted => ClockError::IdExhausted,
+        KernelError::ScheduledEventLimitExceeded { limit } => ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit,
+        },
+        KernelError::TimelineOverflow => ClockError::TimelineOverflow,
+        KernelError::ResourceCounterOverflow => ClockError::ResourceCounterOverflow,
+        _ => ClockError::BackendUnavailable,
+    }
+}
+
 /// Deterministic kernel construction or execution failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KernelError {
@@ -1497,6 +1782,11 @@ pub enum KernelError {
     TimelineOverflow,
     /// Stable event identities are exhausted.
     EventIdExhausted,
+    /// The scheduled-event queue reached its configured admission limit.
+    ScheduledEventLimitExceeded {
+        /// Configured maximum queued events.
+        limit: u64,
+    },
     /// The owner was dropped while a runtime capability remained.
     KernelDropped,
     /// A task had no future despite still being scheduled.
@@ -1540,6 +1830,9 @@ impl fmt::Display for KernelError {
             Self::InvalidConfig => f.write_str("kernel budgets must be nonzero"),
             Self::TimelineOverflow => f.write_str("kernel timeline cannot represent duration"),
             Self::EventIdExhausted => f.write_str("kernel event identity space exhausted"),
+            Self::ScheduledEventLimitExceeded { limit } => {
+                write!(f, "kernel scheduled-event limit {limit} exceeded")
+            }
             Self::KernelDropped => f.write_str("deterministic kernel was dropped"),
             Self::TaskFutureUnavailable(task) => {
                 write!(f, "kernel task {task} has no pollable future")

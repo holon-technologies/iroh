@@ -4,8 +4,8 @@ use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use iroh::simulation::SimulationCryptoMode;
 use iroh_runtime::{ClockSleep, NoopTraceSink, RootSeed};
 use iroh_sim::{
-    IpFamily, Kernel, KernelConfig, KernelDriver, ScenarioBuilder, ScenarioOperation,
-    ScenarioRunner, SwarmTemplate,
+    IpFamily, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, ScenarioBuilder,
+    ScenarioOperation, ScenarioRunner, SwarmTemplate,
 };
 
 fn deterministic_closure(c: &mut Criterion) {
@@ -103,8 +103,11 @@ fn kernel_driver_parts() -> (Kernel, KernelDriver) {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 64,
+            max_scheduled_events: 64,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 8,
+            max_trace_events: 64,
+            resource_limits: KernelResourceLimits::uniform(64),
         },
         Arc::new(NoopTraceSink),
     )

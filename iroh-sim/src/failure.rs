@@ -188,9 +188,8 @@ fn classify(error: &RunnerError) -> (TerminalFailureClass, Option<InvariantName>
             None,
             vec![entity.clone()],
         ),
-        RunnerError::ResourceLeak(_) | RunnerError::Ledger(_) => {
-            (TerminalFailureClass::ResourceLeak, None, Vec::new())
-        }
+        RunnerError::ResourceLeak(_) => (TerminalFailureClass::ResourceLeak, None, Vec::new()),
+        RunnerError::Ledger(_) => (TerminalFailureClass::KernelLimit, None, Vec::new()),
         RunnerError::TerminalNotAllowed(terminal) => (
             TerminalFailureClass::Action,
             None,

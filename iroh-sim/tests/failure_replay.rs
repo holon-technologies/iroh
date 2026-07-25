@@ -3,8 +3,9 @@ use std::{collections::BTreeMap, fs};
 use iroh_runtime::{TraceContext, TraceEvent, TraceEventKind, TraceSequence};
 use iroh_sim::{
     ArtifactStore, FailureArtifactBundle, FailureReplayError, FailureSignature, InvariantClass,
-    InvariantFailure, InvariantName, InvariantSnapshot, ResourceLedgerSnapshot, RunnerError,
-    Scenario, compare_failure_replay, verify_failure_artifacts,
+    InvariantFailure, InvariantName, InvariantSnapshot, LedgerError, ResourceKind,
+    ResourceLedgerSnapshot, RunnerError, Scenario, TerminalFailureClass, compare_failure_replay,
+    verify_failure_artifacts,
 };
 
 #[test]
@@ -22,6 +23,18 @@ fn failure_signature_is_typed_normalized_and_bounded() {
     assert_eq!(first.entities, ["connection-1", "server"]);
     assert_eq!(first.causal_event_count, 3);
     assert_eq!(first.causal_suffix_digest.len(), 64);
+}
+
+#[test]
+fn resource_admission_failure_is_not_classified_as_a_leak() {
+    let error = RunnerError::Ledger(LedgerError::LimitExceeded {
+        kind: ResourceKind::Connection,
+        limit: 1,
+    });
+
+    let signature = FailureSignature::from_runner_error(&error, &[], 1).unwrap();
+
+    assert_eq!(signature.terminal_class, TerminalFailureClass::KernelLimit);
 }
 
 #[test]

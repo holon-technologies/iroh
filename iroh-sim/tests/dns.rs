@@ -11,7 +11,8 @@ use std::{
 use iroh::dns::{BoxIter, DnsError, DnsResolver, Resolver, TxtRecordData};
 use iroh_runtime::RootSeed;
 use iroh_sim::{
-    DeterministicDnsRuntime, Kernel, KernelConfig, KernelDriver, TraceBuffer, normalized_trace_json,
+    DeterministicDnsRuntime, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, TraceBuffer,
+    normalized_trace_json,
 };
 use n0_error::AnyError;
 use n0_future::boxed::BoxFuture;
@@ -80,8 +81,11 @@ fn fixture(seed: [u8; 32]) -> (Kernel, TraceBuffer, DeterministicDnsRuntime) {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 100,
+            max_scheduled_events: 100,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 8,
+            max_trace_events: 100,
+            resource_limits: KernelResourceLimits::uniform(100),
         },
         Arc::new(trace.clone()),
     )

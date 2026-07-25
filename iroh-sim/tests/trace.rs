@@ -4,7 +4,32 @@ use std::{
 };
 
 use iroh_runtime::{TaskId, TraceContext, TraceEvent, TraceEventKind, TraceSequence, TraceSink};
-use iroh_sim::{ArtifactStore, ArtifactTraceWriter, first_trace_divergence, normalized_trace_json};
+use iroh_sim::{
+    ArtifactStore, ArtifactTraceWriter, TraceBuffer, TraceBufferError, first_trace_divergence,
+    normalized_trace_json,
+};
+
+#[test]
+fn trace_buffer_rejects_events_at_the_exact_limit_and_recovers_after_take() {
+    let trace = TraceBuffer::new(1).unwrap();
+    trace.record(event(1, 0)).unwrap();
+
+    let error = trace.record(event(2, 1)).unwrap_err();
+    assert_eq!(error.to_string(), "trace buffer event limit 1 exceeded");
+    assert_eq!(trace.events().len(), 1);
+
+    assert_eq!(trace.take().len(), 1);
+    trace.record(event(3, 2)).unwrap();
+    assert_eq!(trace.events().len(), 1);
+}
+
+#[test]
+fn trace_buffer_rejects_invalid_limits() {
+    assert_eq!(
+        TraceBuffer::new(0).unwrap_err(),
+        TraceBufferError::InvalidLimit { limit: 0 }
+    );
+}
 
 #[test]
 fn trace_normalization_redacts_host_paths_and_is_stable() {

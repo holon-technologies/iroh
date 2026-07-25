@@ -57,8 +57,8 @@ pub use invariant::{
 };
 pub use inventory::ScenarioInventory;
 pub use kernel::{
-    EventClass, EventId, Kernel, KernelConfig, KernelError, KernelExecutor, KernelRun,
-    KernelSchedulerSnapshot, KernelStep, KernelTaskSnapshot, Quiescence, ScheduledEvent,
+    EventClass, EventId, Kernel, KernelConfig, KernelError, KernelExecutor, KernelResourceLimits,
+    KernelRun, KernelSchedulerSnapshot, KernelStep, KernelTaskSnapshot, Quiescence, ScheduledEvent,
     VirtualClock, VirtualWallClock,
 };
 pub use kernel_driver::{KernelDriver, KernelDriverError};
@@ -137,6 +137,6 @@ pub use swarm::{
     SwarmMutation, SwarmOption, SwarmSelectedChoice, SwarmSelection, SwarmSpec, SwarmTemplate,
 };
 pub use trace::{
-    TraceBuffer, TraceDivergence, TraceNormalizationError, first_trace_divergence,
-    normalized_trace_json,
+    DEFAULT_MAX_TRACE_BUFFER_EVENTS, TraceBuffer, TraceBufferError, TraceDivergence,
+    TraceNormalizationError, first_trace_divergence, normalized_trace_json,
 };

@@ -66,6 +66,22 @@ async fn declarative_scenario_runs_real_quic_and_replays_the_same_report_and_tra
             && task.metadata.name == "remote-state-actor"
     }));
     assert!(first_report.tasks.iter().all(|task| !task.live));
+    for (kind, limit) in [
+        (iroh_sim::ResourceKind::Timer, 100_000),
+        (iroh_sim::ResourceKind::Socket, 100_000),
+        (iroh_sim::ResourceKind::Connection, 64),
+        (iroh_sim::ResourceKind::Stream, 64),
+        (iroh_sim::ResourceKind::Relay, 1),
+    ] {
+        assert!(first_report.observations.iter().any(|observation| matches!(
+            &observation.kind,
+            iroh_sim::ObservationKind::Resource {
+                kind: observed,
+                limit: observed_limit,
+                ..
+            } if *observed == kind && *observed_limit == limit
+        )));
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]

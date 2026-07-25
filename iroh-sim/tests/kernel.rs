@@ -6,25 +6,29 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
     time::{Duration, SystemTime},
 };
 
 use iroh_runtime::{
-    RootSeed, SpawnError, TaskGroupCapacitySnapshot, TaskGroupLimits, TaskKind, Timer,
-    TraceEventKind,
+    ClockError, ClockResource, RootSeed, SpawnError, TaskGroupCapacitySnapshot, TaskGroupLimits,
+    TaskKind, Timer, TraceContext, TraceEvent, TraceEventKind, TraceRecordError, TraceSink,
+    TraceSinkError,
 };
 use iroh_sim::{
-    EventClass, Kernel, KernelConfig, KernelError, Quiescence, ResourceKind, TraceBuffer,
-    normalized_trace_json,
+    EventClass, Kernel, KernelConfig, KernelError, KernelResourceLimits, LedgerError, Quiescence,
+    ResourceKind, TraceBuffer, normalized_trace_json,
 };
 
 fn kernel() -> Kernel {
     Kernel::new(
         KernelConfig {
             max_events: 10_000,
+            max_scheduled_events: 10_000,
             max_virtual_time: Duration::from_secs(60 * 60 * 24 * 30),
             max_tasks: 64,
+            max_trace_events: 10_000,
+            resource_limits: KernelResourceLimits::uniform(10_000),
         },
         Arc::new(TraceBuffer::default()),
     )
@@ -37,8 +41,11 @@ fn seeded_ready_tasks_are_selected_without_duplicate_wakes() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 10_000,
+            max_scheduled_events: 10_000,
             max_virtual_time: Duration::from_secs(60),
             max_tasks: 64,
+            max_trace_events: 10_000,
+            resource_limits: KernelResourceLimits::uniform(10_000),
         },
         Arc::new(trace.clone()),
     )
@@ -240,8 +247,11 @@ fn runnable_budget_reports_possible_livelock_separately() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 3,
+            max_scheduled_events: 3,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(3),
         },
         Arc::new(TraceBuffer::default()),
     )
@@ -306,6 +316,330 @@ fn idle_kernel_orders_events_by_deadline_class_then_id() {
         ["infra-1", "infra-2", "timer", "late"]
     );
     assert_eq!(run.virtual_time, Duration::from_secs(2));
+}
+
+#[test]
+fn scheduled_event_queue_rejects_admission_at_the_configured_limit() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 4,
+            max_scheduled_events: 2,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+    let (_, cancelled) = kernel
+        .schedule_cancellable_at(Duration::ZERO, EventClass::Network, || Ok(()))
+        .unwrap();
+    cancelled.cancel();
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Network, || Ok(()))
+        .unwrap();
+
+    assert_eq!(
+        kernel.schedule_at(Duration::ZERO, EventClass::Network, || Ok(())),
+        Err(KernelError::ScheduledEventLimitExceeded { limit: 2 })
+    );
+
+    kernel.run_until_idle().unwrap();
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Network, || Ok(()))
+        .unwrap();
+}
+
+#[test]
+fn kernel_resource_limits_reject_admission_before_the_ledger_exceeds_them() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 32,
+            max_scheduled_events: 32,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 32,
+            resource_limits: KernelResourceLimits::uniform(1),
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+
+    for kind in [
+        ResourceKind::Timer,
+        ResourceKind::Socket,
+        ResourceKind::Connection,
+        ResourceKind::Stream,
+        ResourceKind::Relay,
+    ] {
+        let admitted = kernel.acquire_resource(kind, None).unwrap();
+        assert_eq!(
+            kernel.acquire_resource(kind, None).unwrap_err(),
+            LedgerError::LimitExceeded { kind, limit: 1 }
+        );
+        assert_eq!(kernel.ledger().current(kind), 1);
+        drop(admitted);
+        assert_eq!(kernel.ledger().current(kind), 0);
+    }
+}
+
+#[test]
+fn virtual_timer_reports_typed_resource_exhaustion() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 32,
+            max_scheduled_events: 32,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 32,
+            resource_limits: KernelResourceLimits {
+                max_timers: 1,
+                ..KernelResourceLimits::uniform(2)
+            },
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([32; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+    let _admitted = clock.new_timer(clock.now()).unwrap();
+
+    assert_eq!(
+        clock.new_timer(clock.now()).unwrap_err(),
+        ClockError::ResourceLimit {
+            resource: ClockResource::Timer,
+            limit: 1,
+        }
+    );
+}
+
+#[test]
+fn failed_timer_reset_preserves_completed_state_and_resource_accounting() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 8,
+            max_scheduled_events: 1,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([34; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+    let mut timer = clock.new_timer(clock.now()).unwrap();
+    assert_eq!(
+        kernel.run_until_idle().unwrap().quiescence,
+        Quiescence::Complete
+    );
+    let mut context = Context::from_waker(Waker::noop());
+    assert_eq!(timer.as_mut().poll(&mut context), Poll::Ready(Ok(())));
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Infrastructure, || Ok(()))
+        .unwrap();
+
+    assert_eq!(
+        timer.as_mut().reset(clock.now()),
+        Err(ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit: 1,
+        })
+    );
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+}
+
+#[test]
+fn timer_creation_rejects_queue_exhaustion_before_emitting_created_trace() {
+    let trace = TraceBuffer::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 8,
+            max_scheduled_events: 1,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(trace.clone()),
+    )
+    .unwrap();
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Infrastructure, || Ok(()))
+        .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([36; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+
+    assert_eq!(
+        clock.new_timer(clock.now()).unwrap_err(),
+        ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit: 1,
+        }
+    );
+    assert!(
+        !trace
+            .events()
+            .iter()
+            .any(|event| matches!(event.event, TraceEventKind::TimerCreated { .. }))
+    );
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+}
+
+#[test]
+fn timer_reset_trace_failure_does_not_commit_state_or_queue_admission() {
+    let trace = TraceBuffer::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 8,
+            max_scheduled_events: 1,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 1,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(trace),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([37; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+    let mut timer = clock.new_timer(clock.now()).unwrap();
+    let original_deadline = timer.deadline();
+    kernel.run_until_idle().unwrap();
+    let mut poll_context = Context::from_waker(Waker::noop());
+    assert!(matches!(
+        timer.as_mut().poll(&mut poll_context),
+        Poll::Ready(Err(ClockError::Recorder(TraceRecordError::Sink(error))))
+            if error.to_string() == "trace event limit 1 exceeded"
+    ));
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+
+    assert!(matches!(
+        timer.as_mut().reset(clock.now()),
+        Err(ClockError::Recorder(TraceRecordError::Sink(error)))
+            if error.to_string() == "trace event limit 1 exceeded"
+    ));
+    assert_eq!(timer.deadline(), original_deadline);
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Infrastructure, || Ok(()))
+        .unwrap();
+}
+
+#[test]
+fn timer_drop_trace_failure_is_reported_once_by_the_clock() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 8,
+            max_scheduled_events: 1,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 1,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([38; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+    let timer = clock
+        .new_timer(clock.now() + Duration::from_millis(1))
+        .unwrap();
+
+    drop(timer);
+
+    assert!(matches!(
+        clock.take_failure(),
+        Some(ClockError::Recorder(TraceRecordError::Sink(error)))
+            if error.to_string() == "trace event limit 1 exceeded"
+    ));
+    assert_eq!(clock.take_failure(), None);
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+}
+
+#[test]
+fn kernel_trace_budget_rejects_before_the_sink_retains_an_extra_event() {
+    let trace = TraceBuffer::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 2,
+            max_scheduled_events: 2,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 1,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(trace.clone()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([33; 32]), SystemTime::UNIX_EPOCH);
+    context
+        .trace()
+        .record(
+            0,
+            TraceContext::default(),
+            TraceEventKind::StateTransition {
+                component: "test".to_owned(),
+                from: "created".to_owned(),
+                to: "running".to_owned(),
+            },
+        )
+        .unwrap();
+
+    assert!(matches!(
+        context.trace().record(
+            0,
+            TraceContext::default(),
+            TraceEventKind::StateTransition {
+                component: "test".to_owned(),
+                from: "running".to_owned(),
+                to: "stopped".to_owned(),
+            },
+        ),
+        Err(TraceRecordError::Sink(error))
+            if error.to_string() == "trace event limit 1 exceeded"
+    ));
+    assert_eq!(trace.events().len(), 1);
+}
+
+#[test]
+fn kernel_trace_budget_never_reinvokes_a_sink_after_a_delegated_failure() {
+    let sink = RetainingFailSink::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 2,
+            max_scheduled_events: 2,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 1,
+            resource_limits: KernelResourceLimits::uniform(2),
+        },
+        Arc::new(sink.clone()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([35; 32]), SystemTime::UNIX_EPOCH);
+    let record = || {
+        context.trace().record(
+            0,
+            TraceContext::default(),
+            TraceEventKind::StateTransition {
+                component: "test".to_owned(),
+                from: "created".to_owned(),
+                to: "failed".to_owned(),
+            },
+        )
+    };
+
+    assert!(
+        matches!(record(), Err(TraceRecordError::Sink(error)) if error.to_string() == "retained then failed")
+    );
+    assert!(
+        matches!(record(), Err(TraceRecordError::Sink(error)) if error.to_string() == "trace event limit 1 exceeded")
+    );
+    assert_eq!(sink.retained(), 1);
 }
 
 #[test]
@@ -452,8 +786,11 @@ fn stalled_tasks_and_event_budget_are_distinct_results() {
     let bounded = Kernel::new(
         KernelConfig {
             max_events: 1,
+            max_scheduled_events: 2,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(1),
         },
         Arc::new(TraceBuffer::default()),
     )
@@ -477,8 +814,11 @@ fn event_budget_is_cumulative_across_step_and_run_calls() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 2,
+            max_scheduled_events: 3,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(2),
         },
         Arc::new(trace),
     )
@@ -508,8 +848,11 @@ fn task_panics_are_contained_and_observed() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 10,
+            max_scheduled_events: 10,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(10),
         },
         Arc::new(trace.clone()),
     )
@@ -543,8 +886,11 @@ fn same_seed_kernel_runs_have_byte_identical_normalized_traces() {
         let kernel = Kernel::new(
             KernelConfig {
                 max_events: 100,
+                max_scheduled_events: 100,
                 max_virtual_time: Duration::from_secs(60),
                 max_tasks: 4,
+                max_trace_events: 100,
+                resource_limits: KernelResourceLimits::uniform(100),
             },
             Arc::new(trace.clone()),
         )
@@ -582,8 +928,11 @@ fn virtual_time_budget_rejects_the_next_event_without_advancing() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 2,
+            max_scheduled_events: 2,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits::uniform(2),
         },
         Arc::new(TraceBuffer::default()),
     )
@@ -612,6 +961,22 @@ struct YieldMany {
     id: u8,
     remaining: u64,
     order: Arc<Mutex<Vec<u8>>>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RetainingFailSink(Arc<Mutex<Vec<TraceEvent>>>);
+
+impl RetainingFailSink {
+    fn retained(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
+}
+
+impl TraceSink for RetainingFailSink {
+    fn record(&self, event: TraceEvent) -> Result<(), TraceSinkError> {
+        self.0.lock().unwrap().push(event);
+        Err(TraceSinkError::new("retained then failed"))
+    }
 }
 
 impl YieldMany {

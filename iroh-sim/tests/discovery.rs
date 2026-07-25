@@ -6,7 +6,8 @@ use std::{
 use iroh::{SecretKey, address_lookup::AddressLookup};
 use iroh_runtime::RootSeed;
 use iroh_sim::{
-    DeterministicDiscovery, Kernel, KernelConfig, KernelDriver, ResourceKind, TraceBuffer,
+    DeterministicDiscovery, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, ResourceKind,
+    TraceBuffer,
 };
 use n0_future::StreamExt;
 
@@ -16,8 +17,11 @@ async fn delayed_failure_success_stale_suppression_and_expiry_are_ordered() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 100,
+            max_scheduled_events: 100,
             max_virtual_time: Duration::from_millis(20),
             max_tasks: 8,
+            max_trace_events: 100,
+            resource_limits: KernelResourceLimits::uniform(100),
         },
         Arc::new(trace.clone()),
     )
@@ -90,8 +94,11 @@ fn withdrawal_cancels_expiry_and_releases_record_ownership() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 10,
+            max_scheduled_events: 10,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 10,
+            resource_limits: KernelResourceLimits::uniform(10),
         },
         Arc::new(trace),
     )

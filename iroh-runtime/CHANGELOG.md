@@ -11,6 +11,7 @@ All notable changes to iroh-runtime will be documented in this file.
   simulation.
 - Added finite task-group admission and structured task outcomes.
 - Added deterministic decision streams and a versioned causal trace schema.
+- Added typed clock-resource admission failures for timers and scheduled events.
 
 ### Compatibility
 

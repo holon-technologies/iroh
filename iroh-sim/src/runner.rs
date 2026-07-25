@@ -26,10 +26,11 @@ use crate::{
     DeterministicDiscovery, DiscoveryRecordState, EndpointId, EndpointSpec, EndpointState,
     EventClass, FaultRule, FirewallConfig, FirewallRule, InvariantError, InvariantFailure,
     InvariantName, InvariantRegistry, InvariantSnapshot, InvariantTransition, IpCidr, KernelConfig,
-    KernelSchedulerSnapshot, KernelTaskSnapshot, LinkConfig, LinkSpec, NatConfig, NatSpec,
-    NetworkConfig, Observation, ObservationKind, ObservationTrigger, OperationId, PacketFault,
-    PathId, PayloadDigest, RelayEnvironment, ResourceKind, ResourceLedgerSnapshot, ResourceToken,
-    Scenario, ScenarioAction, ScenarioRequirements, StreamId,
+    KernelResourceLimits, KernelSchedulerSnapshot, KernelTaskSnapshot, LinkConfig, LinkSpec,
+    NatConfig, NatSpec, NetworkConfig, Observation, ObservationKind, ObservationTrigger,
+    OperationId, PacketFault, PathId, PayloadDigest, RelayEnvironment, ResourceKind,
+    ResourceLedgerSnapshot, ResourceToken, Scenario, ScenarioAction, ScenarioRequirements,
+    StreamId,
 };
 
 const ALPN: &[u8] = b"iroh-sim/declarative/2";
@@ -1052,6 +1053,24 @@ impl DeterministicScenarioBackend {
         trace: Arc<dyn TraceSink>,
         crypto_mode: iroh::simulation::SimulationCryptoMode,
     ) -> Result<Self, RunnerError> {
+        Self::new_with_resource_limits(
+            scenario,
+            root_seed,
+            wall_epoch,
+            trace,
+            crypto_mode,
+            scenario_kernel_resource_limits(scenario),
+        )
+    }
+
+    fn new_with_resource_limits(
+        scenario: &Scenario,
+        root_seed: RootSeed,
+        wall_epoch: SystemTime,
+        trace: Arc<dyn TraceSink>,
+        crypto_mode: iroh::simulation::SimulationCryptoMode,
+        resource_limits: KernelResourceLimits,
+    ) -> Result<Self, RunnerError> {
         let budgets = scenario.run_budgets();
         let backend = DeterministicBackend::new(
             DeterministicBackendConfig {
@@ -1059,8 +1078,11 @@ impl DeterministicScenarioBackend {
                 wall_epoch,
                 kernel: KernelConfig {
                     max_events: budgets.max_events,
+                    max_scheduled_events: budgets.max_events,
                     max_virtual_time: Duration::from_nanos(budgets.max_virtual_time_nanos),
                     max_tasks: budgets.max_tasks,
+                    max_trace_events: scenario.budgets.max_trace_events,
+                    resource_limits,
                 },
                 network: NetworkConfig {
                     max_packets: budgets.max_packets,
@@ -1076,6 +1098,7 @@ impl DeterministicScenarioBackend {
         capabilities.discovery = !scenario.topology.discovery.is_empty();
         capabilities.relay = !scenario.topology.relays.is_empty();
         capabilities.mobility = true;
+        let (relay, relay_resources) = initialize_relays(&backend, scenario)?;
         let discovery = scenario
             .topology
             .discovery
@@ -1092,16 +1115,6 @@ impl DeterministicScenarioBackend {
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, RunnerError>>()?;
-        let relay = (!scenario.topology.relays.is_empty())
-            .then(|| {
-                RelayEnvironment::new_with_runtime(
-                    &scenario.topology.relays,
-                    &scenario.topology.relay_impairments,
-                    backend.runtime_context().clone(),
-                )
-            })
-            .transpose()
-            .map_err(|error| RunnerError::Scenario(error.to_string()))?;
         let relay_urls = scenario
             .topology
             .relays
@@ -1113,12 +1126,6 @@ impl DeterministicScenarioBackend {
                     .map_err(|_| RunnerError::Scenario(format!("invalid relay URL {:?}", spec.url)))
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
-        let relay_resources = scenario
-            .topology
-            .relays
-            .iter()
-            .map(|_| backend.kernel().acquire_resource(ResourceKind::Relay, None))
-            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             backend,
             capabilities,
@@ -1224,6 +1231,10 @@ impl DeterministicScenarioBackend {
                     .expect("validated endpoint relay"),
             );
         }
+        let resource = self
+            .backend
+            .kernel()
+            .acquire_resource(ResourceKind::Connection, None)?;
         let client_ep = client_endpoint.endpoint.clone();
         let server_ep = server_endpoint.endpoint.clone();
         let server_operation = async move {
@@ -1247,10 +1258,6 @@ impl DeterministicScenarioBackend {
                 Ok::<_, String>((server?, client?))
             })
             .await??;
-        let resource = self
-            .backend
-            .kernel()
-            .acquire_resource(ResourceKind::Connection, None)?;
         let peer_identity = self
             .endpoints
             .get(server)
@@ -1513,6 +1520,29 @@ impl DeterministicScenarioBackend {
             },
         ])
     }
+}
+
+fn initialize_relays(
+    backend: &DeterministicBackend,
+    scenario: &Scenario,
+) -> Result<(Option<RelayEnvironment>, Vec<ResourceToken>), RunnerError> {
+    let resources = scenario
+        .topology
+        .relays
+        .iter()
+        .map(|_| backend.kernel().acquire_resource(ResourceKind::Relay, None))
+        .collect::<Result<Vec<_>, _>>()?;
+    let environment = (!scenario.topology.relays.is_empty())
+        .then(|| {
+            RelayEnvironment::new_with_runtime(
+                &scenario.topology.relays,
+                &scenario.topology.relay_impairments,
+                backend.runtime_context().clone(),
+            )
+        })
+        .transpose()
+        .map_err(|error| RunnerError::Scenario(error.to_string()))?;
+    Ok((environment, resources))
 }
 
 impl ScenarioBackend for DeterministicScenarioBackend {
@@ -2119,17 +2149,32 @@ const ALL_RESOURCE_KINDS: [ResourceKind; 10] = [
 ];
 
 fn resource_limit(scenario: &Scenario, kind: ResourceKind) -> u64 {
+    let runtime = scenario_kernel_resource_limits(scenario);
     match kind {
         ResourceKind::Task => scenario.budgets.max_tasks,
         ResourceKind::QueuedPacket => scenario.budgets.max_packets,
         ResourceKind::TraceBuffer => scenario.budgets.max_trace_events,
-        ResourceKind::Socket
-        | ResourceKind::Connection
-        | ResourceKind::Stream
-        | ResourceKind::Mapping
-        | ResourceKind::DiscoveryRecord
-        | ResourceKind::Relay
-        | ResourceKind::Timer => scenario.budgets.max_actions.max(1),
+        ResourceKind::Timer => runtime.max_timers,
+        ResourceKind::Socket => runtime.max_sockets,
+        ResourceKind::Connection => runtime.max_connections,
+        ResourceKind::Stream => runtime.max_streams,
+        ResourceKind::Relay => runtime.max_relays,
+        ResourceKind::Mapping | ResourceKind::DiscoveryRecord => {
+            scenario.budgets.max_actions.max(1)
+        }
+    }
+}
+
+fn scenario_kernel_resource_limits(scenario: &Scenario) -> KernelResourceLimits {
+    let max_relays = u64::try_from(scenario.topology.relays.len())
+        .expect("scenario relay count fits u64 on supported targets")
+        .max(1);
+    KernelResourceLimits {
+        max_timers: scenario.budgets.max_events,
+        max_sockets: scenario.budgets.max_events,
+        max_connections: scenario.budgets.max_actions,
+        max_streams: scenario.budgets.max_actions,
+        max_relays,
     }
 }
 
@@ -2314,5 +2359,227 @@ impl From<InvariantError> for RunnerError {
 impl From<String> for RunnerError {
     fn from(value: String) -> Self {
         Self::Operation(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        IpFamily, LedgerError, RelayProtocolVersion, RelaySpec, ScenarioBuilder, ScenarioOperation,
+        TraceBuffer,
+    };
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct AdmissionEvidence {
+        error: String,
+        trace: Vec<iroh_runtime::TraceEvent>,
+        resources_after_rejection: ResourceLedgerSnapshot,
+        resources_after_cleanup: ResourceLedgerSnapshot,
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn connection_admission_rejects_before_dial_and_replays_identically() {
+        let first = connection_admission_evidence([81; 32]).await;
+        let replay = connection_admission_evidence([81; 32]).await;
+
+        assert_eq!(first, replay);
+    }
+
+    async fn connection_admission_evidence(seed: [u8; 32]) -> AdmissionEvidence {
+        let scenario = ScenarioBuilder::direct_ip_echo(
+            "runner/connection-admission",
+            IpFamily::Ipv4,
+            ScenarioOperation::Stream,
+        )
+        .expect("standard scenario is valid")
+        .build()
+        .expect("standard scenario normalizes");
+        let mut resource_limits = scenario_kernel_resource_limits(&scenario);
+        resource_limits.max_connections = 1;
+        let trace = TraceBuffer::default();
+        let mut backend = DeterministicScenarioBackend::new_with_resource_limits(
+            &scenario,
+            RootSeed::new(seed),
+            SystemTime::UNIX_EPOCH,
+            Arc::new(trace.clone()),
+            iroh::simulation::SimulationCryptoMode::DeterministicTest,
+            resource_limits,
+        )
+        .expect("bounded deterministic backend constructs");
+        backend
+            .prepare(&scenario)
+            .await
+            .expect("standard topology prepares");
+
+        for action_id in ["01-start-client", "02-start-server", "03-connect"] {
+            let action = scenario
+                .actions
+                .iter()
+                .find(|action| action.id == action_id)
+                .expect("standard scenario action exists");
+            backend
+                .execute(action)
+                .await
+                .expect("first connection is admitted");
+        }
+        assert_eq!(backend.connections.len(), 1);
+
+        let trace_before = trace.events();
+        let scheduler_before = backend.backend.kernel().scheduler_snapshot();
+        let tasks_before = backend.backend.kernel().task_ownership_snapshot();
+        let rejected = ActionSpec {
+            id: "04-rejected-connect".to_owned(),
+            schedule: ActionSchedule::At { nanos: 0 },
+            action: ScenarioAction::Connect {
+                client: "client".to_owned(),
+                server: "server".to_owned(),
+                connection: "c2".to_owned(),
+            },
+        };
+        let error = backend
+            .execute(&rejected)
+            .await
+            .expect_err("second live connection exceeds the configured ceiling");
+
+        assert!(matches!(
+            error,
+            RunnerError::Ledger(LedgerError::LimitExceeded {
+                kind: ResourceKind::Connection,
+                limit: 1,
+            })
+        ));
+        assert_eq!(backend.connections.len(), 1);
+        assert_eq!(trace.events(), trace_before, "rejection must not dial");
+        assert_eq!(
+            backend.backend.kernel().scheduler_snapshot(),
+            scheduler_before,
+            "rejection must not poll connection tasks"
+        );
+        assert_eq!(
+            backend.backend.kernel().task_ownership_snapshot(),
+            tasks_before,
+            "rejection must not create connection tasks"
+        );
+        let resources_after_rejection = backend.resource_snapshot();
+        assert_eq!(
+            resources_after_rejection.current(ResourceKind::Connection),
+            1
+        );
+        assert_eq!(
+            resources_after_rejection.high_water(ResourceKind::Connection),
+            1
+        );
+
+        backend
+            .shutdown()
+            .await
+            .expect("admitted connection and endpoints shut down");
+        let resources_after_cleanup = backend.resource_snapshot();
+        assert!(resources_after_cleanup.is_empty());
+        assert_eq!(
+            resources_after_cleanup.high_water(ResourceKind::Connection),
+            1
+        );
+
+        AdmissionEvidence {
+            error: error.to_string(),
+            trace: trace.events(),
+            resources_after_rejection,
+            resources_after_cleanup,
+        }
+    }
+
+    #[test]
+    fn relay_admission_rejects_before_construction_rolls_back_and_replays_identically() {
+        let first = relay_admission_evidence([82; 32]);
+        let replay = relay_admission_evidence([82; 32]);
+
+        assert_eq!(first, replay);
+    }
+
+    fn relay_admission_evidence(seed: [u8; 32]) -> AdmissionEvidence {
+        let mut builder = ScenarioBuilder::direct_ip_echo(
+            "runner/relay-admission",
+            IpFamily::Ipv4,
+            ScenarioOperation::Stream,
+        )
+        .expect("standard scenario is valid");
+        let scenario = builder.scenario_mut();
+        scenario.topology.relays.extend([
+            relay_spec("first", "https://first.invalid", 8),
+            // This constructor-invalid sentinel proves that relay construction was not reached:
+            // admission must return the typed ledger failure first.
+            relay_spec("sentinel", "https://sentinel.invalid", 0),
+        ]);
+        let scenario = scenario.clone();
+        let trace = TraceBuffer::default();
+        let mut resource_limits = scenario_kernel_resource_limits(&scenario);
+        resource_limits.max_relays = 1;
+        let budgets = scenario.run_budgets();
+        let backend = DeterministicBackend::new(
+            DeterministicBackendConfig {
+                root_seed: RootSeed::new(seed),
+                wall_epoch: SystemTime::UNIX_EPOCH,
+                kernel: KernelConfig {
+                    max_events: budgets.max_events,
+                    max_scheduled_events: budgets.max_events,
+                    max_virtual_time: Duration::from_nanos(budgets.max_virtual_time_nanos),
+                    max_tasks: budgets.max_tasks,
+                    max_trace_events: scenario.budgets.max_trace_events,
+                    resource_limits,
+                },
+                network: NetworkConfig {
+                    max_packets: budgets.max_packets,
+                    ephemeral_port_start: 40_000,
+                },
+                max_driver_turns: budgets.max_events.saturating_mul(8).max(1_000),
+                crypto_mode: iroh::simulation::SimulationCryptoMode::DeterministicTest,
+            },
+            Arc::new(trace.clone()),
+        )
+        .expect("bounded deterministic backend constructs");
+        let scheduler_before = backend.kernel().scheduler_snapshot();
+        let tasks_before = backend.kernel().task_ownership_snapshot();
+
+        let error = initialize_relays(&backend, &scenario)
+            .expect_err("second relay exceeds the configured ceiling");
+
+        assert!(matches!(
+            error,
+            RunnerError::Ledger(LedgerError::LimitExceeded {
+                kind: ResourceKind::Relay,
+                limit: 1,
+            })
+        ));
+        assert!(
+            trace.events().is_empty(),
+            "rejection must not construct relays"
+        );
+        assert_eq!(backend.kernel().scheduler_snapshot(), scheduler_before);
+        assert_eq!(backend.kernel().task_ownership_snapshot(), tasks_before);
+        let resources_after_rejection = backend.kernel().ledger();
+        assert!(resources_after_rejection.is_empty());
+        assert_eq!(resources_after_rejection.current(ResourceKind::Relay), 0);
+        assert_eq!(resources_after_rejection.high_water(ResourceKind::Relay), 1);
+        let resources_after_cleanup = resources_after_rejection.clone();
+
+        AdmissionEvidence {
+            error: error.to_string(),
+            trace: trace.events(),
+            resources_after_rejection,
+            resources_after_cleanup,
+        }
+    }
+
+    fn relay_spec(id: &str, url: &str, max_sessions: u64) -> RelaySpec {
+        RelaySpec {
+            id: id.to_owned(),
+            url: url.to_owned(),
+            online: true,
+            max_sessions,
+            byte_capacity: 256 * 1_024,
+            protocol_version: RelayProtocolVersion::V2,
+        }
     }
 }

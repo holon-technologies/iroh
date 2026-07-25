@@ -7,9 +7,9 @@ use std::{
 use iroh_runtime::RootSeed;
 use iroh_sim::{
     Firewall, FirewallAction, FirewallConfig, FirewallConnectionState, FirewallDirection,
-    FirewallPacket, FirewallProtocol, FirewallRule, IpCidr, Kernel, KernelConfig, NatConfig,
-    NatError, NatFilteringBehavior, NatMappingBehavior, NatTable, ResourceKind, TraceBuffer,
-    normalized_trace_json,
+    FirewallPacket, FirewallProtocol, FirewallRule, IpCidr, Kernel, KernelConfig,
+    KernelResourceLimits, NatConfig, NatError, NatFilteringBehavior, NatMappingBehavior, NatTable,
+    ResourceKind, TraceBuffer, normalized_trace_json,
 };
 
 #[test]
@@ -175,8 +175,11 @@ fn firewall_rule_order_state_and_default_actions_are_explicit() {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 100,
+            max_scheduled_events: 100,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 1,
+            max_trace_events: 100,
+            resource_limits: KernelResourceLimits::uniform(100),
         },
         Arc::new(trace.clone()),
     )
@@ -315,8 +318,11 @@ impl Fixture {
         let kernel = Kernel::new(
             KernelConfig {
                 max_events: 1_000,
+                max_scheduled_events: 1_000,
                 max_virtual_time: Duration::from_secs(1),
                 max_tasks: 8,
+                max_trace_events: 1_000,
+                resource_limits: KernelResourceLimits::uniform(1_000),
             },
             Arc::new(trace.clone()),
         )
@@ -348,8 +354,11 @@ fn double_nat_trace(seed: [u8; 32]) -> Vec<Vec<u8>> {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 1_000,
+            max_scheduled_events: 1_000,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: 8,
+            max_trace_events: 1_000,
+            resource_limits: KernelResourceLimits::uniform(1_000),
         },
         Arc::new(trace.clone()),
     )

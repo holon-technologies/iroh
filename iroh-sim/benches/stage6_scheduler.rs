@@ -2,7 +2,7 @@ use std::{hint::black_box, sync::Arc, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use iroh_runtime::{Executor, RootSeed, TaskKind};
-use iroh_sim::{Kernel, KernelConfig, Quiescence, TraceBuffer};
+use iroh_sim::{Kernel, KernelConfig, KernelResourceLimits, Quiescence, TraceBuffer};
 
 const TASKS: u64 = 256;
 
@@ -26,8 +26,11 @@ fn run_ready_tasks(seeded: bool) -> u64 {
     let kernel = Kernel::new(
         KernelConfig {
             max_events: 10_000,
+            max_scheduled_events: 10_000,
             max_virtual_time: Duration::from_secs(1),
             max_tasks: TASKS,
+            max_trace_events: 10_000,
+            resource_limits: KernelResourceLimits::uniform(10_000),
         },
         Arc::new(TraceBuffer::default()),
     )

@@ -13,8 +13,9 @@ use iroh_runtime::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DeterministicBackend, DeterministicBackendConfig, IpCidr, KernelConfig, LinkConfig,
-    NetworkConfig, ResourceKind, ResourceLedgerSnapshot, RunBudgets, TraceBuffer,
+    DeterministicBackend, DeterministicBackendConfig, IpCidr, KernelConfig, KernelResourceLimits,
+    LinkConfig, NetworkConfig, ResourceKind, ResourceLedgerSnapshot, RunBudgets, TraceBuffer,
+    TraceBufferError,
 };
 
 /// Current strict schema for Stage 2 scenario files.
@@ -148,15 +149,18 @@ impl ScenarioHarness {
         crypto_mode: iroh::simulation::SimulationCryptoMode,
     ) -> Result<Self, ScenarioError> {
         scenario.validate()?;
-        let trace = TraceBuffer::default();
+        let trace = TraceBuffer::new(budgets.max_events)?;
         let backend = DeterministicBackend::new(
             DeterministicBackendConfig {
                 root_seed,
                 wall_epoch,
                 kernel: KernelConfig {
                     max_events: budgets.max_events,
+                    max_scheduled_events: budgets.max_events,
                     max_virtual_time: Duration::from_nanos(budgets.max_virtual_time_nanos),
                     max_tasks: budgets.max_tasks,
+                    max_trace_events: budgets.max_events,
+                    resource_limits: KernelResourceLimits::uniform(budgets.max_events),
                 },
                 network: NetworkConfig {
                     max_packets: budgets.max_packets,
@@ -513,6 +517,7 @@ pub enum ScenarioError {
     Driver(crate::KernelDriverError),
     Operation(String),
     Endpoint(String),
+    TraceBuffer(TraceBufferError),
     DataMismatch,
     ResourceLeak(ResourceLedgerSnapshot),
     ExpectedFaultNotObserved(String),
@@ -532,6 +537,7 @@ impl fmt::Display for ScenarioError {
             Self::Driver(error) => write!(f, "scenario kernel driver failed: {error}"),
             Self::Operation(error) => write!(f, "scenario operation failed: {error}"),
             Self::Endpoint(error) => write!(f, "scenario endpoint failed: {error}"),
+            Self::TraceBuffer(error) => write!(f, "scenario trace buffer failed: {error}"),
             Self::DataMismatch => f.write_str("scenario application data mismatch"),
             Self::ResourceLeak(ledger) => write!(f, "scenario resource leak: {ledger:?}"),
             Self::ExpectedFaultNotObserved(rule) => {
@@ -569,6 +575,12 @@ impl From<crate::NetworkError> for ScenarioError {
 impl From<crate::KernelDriverError> for ScenarioError {
     fn from(value: crate::KernelDriverError) -> Self {
         Self::Driver(value)
+    }
+}
+
+impl From<TraceBufferError> for ScenarioError {
+    fn from(value: TraceBufferError) -> Self {
+        Self::TraceBuffer(value)
     }
 }
 

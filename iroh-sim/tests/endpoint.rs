@@ -7,9 +7,9 @@ use iroh::{
 };
 use iroh_runtime::{RootSeed, UnsafeTestOnly};
 use iroh_sim::{
-    DeterministicBackend, DeterministicBackendConfig, IpCidr, KernelConfig, LinkConfig,
-    NetworkConfig, ResourceKind, RunBudgets, ScenarioHarness, Stage2Scenario, TraceBuffer,
-    first_trace_divergence,
+    DeterministicBackend, DeterministicBackendConfig, IpCidr, KernelConfig, KernelResourceLimits,
+    LinkConfig, NetworkConfig, ResourceKind, RunBudgets, ScenarioHarness, Stage2Scenario,
+    TraceBuffer, first_trace_divergence,
 };
 
 const ALPN: &[u8] = b"iroh-sim/endpoint-echo/1";
@@ -79,8 +79,11 @@ async fn production_endpoints_exchange_a_quic_stream_over_the_synthetic_network(
             wall_epoch: std::time::SystemTime::UNIX_EPOCH,
             kernel: KernelConfig {
                 max_events: 100_000,
+                max_scheduled_events: 100_000,
                 max_virtual_time: Duration::from_secs(60),
                 max_tasks: 1_024,
+                max_trace_events: 200_000,
+                resource_limits: KernelResourceLimits::uniform(100_000),
             },
             network: NetworkConfig {
                 max_packets: 10_000,
@@ -262,8 +265,11 @@ async fn run_ipv6_datagram(seed: [u8; 32]) -> Vec<iroh_runtime::TraceEvent> {
             wall_epoch: std::time::SystemTime::UNIX_EPOCH,
             kernel: KernelConfig {
                 max_events: 100_000,
+                max_scheduled_events: 100_000,
                 max_virtual_time: Duration::from_secs(60),
                 max_tasks: 1_024,
+                max_trace_events: 200_000,
+                resource_limits: KernelResourceLimits::uniform(100_000),
             },
             network: NetworkConfig {
                 max_packets: 10_000,
