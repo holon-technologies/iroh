@@ -14,23 +14,41 @@ fi
 required=(
   'name: Daily Deterministic Simulation Soak'
   'schedule:'
+  '- cron: "23 1,7,13,19 * * *"'
   'workflow_dispatch:'
   'permissions:'
   'contents: read'
   'group: iroh-daily-simulation-soak'
   'cancel-in-progress: false'
+  'build_simulator:'
+  'soak_lane:'
+  'aggregate:'
   'runs-on: ubuntu-latest'
   'timeout-minutes: 300'
   'cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim'
+  'name: iroh-sim-cargo-sim-${{ github.sha }}'
+  'retention-days: 1'
+  'needs: build_simulator'
+  'fail-fast: false'
+  'max-parallel: 12'
+  'actions/download-artifact@v8'
+  'sha256sum --check cargo-sim.sha256'
+  'seed_window=$((RUN_NUMBER * 16 + LANE_INDEX))'
   'scripts/run-daily-simulation-soak.sh'
-  '--seed-window "${{ github.run_number }}"'
+  '--lane "${{ matrix.lane }}"'
+  '--seed-window "$seed_window"'
   '--artifacts "$RUNNER_TEMP/daily-soak"'
-  '--sim-bin iroh-sim/target/release/cargo-sim'
+  '--sim-bin "$RUNNER_TEMP/cargo-sim/cargo-sim"'
+  '--max-runs-per-epoch 10416'
+  'pattern: iroh-sim-soak-*-${{ github.run_id }}'
+  'scripts/aggregate-daily-simulation-soak.sh'
+  'daily-soak-aggregate.json'
   'actions/upload-artifact@v7'
   'if-no-files-found: error'
   'retention-days: 14'
   'if: always()'
-  'Propagate simulation result'
+  'Propagate lane result'
+  'Propagate aggregate result'
 )
 
 for expected in "${required[@]}"; do
@@ -53,10 +71,47 @@ if grep -Eq 'ubuntu-(4|8|16|32|64)-core|larger-runner' "$workflow"; then
   exit 1
 fi
 
-upload_line=$(grep -n -m1 'actions/upload-artifact@v7' "$workflow" | cut -d: -f1)
-propagate_line=$(grep -n -m1 'Propagate simulation result' "$workflow" | cut -d: -f1)
-if ((upload_line >= propagate_line)); then
-  echo "daily soak result must be propagated only after artifact upload" >&2
+expected_lanes=(
+  direct/deterministic-test
+  direct/production-provider
+  discovery/deterministic-test
+  discovery/production-provider
+  mobility/deterministic-test
+  mobility/production-provider
+  nat/deterministic-test
+  nat/production-provider
+  ready-order/deterministic-test
+  ready-order/production-provider
+  relay/deterministic-test
+  relay/production-provider
+)
+mapfile -t actual_lanes < <(
+  sed -n 's/^[[:space:]]*- lane: \([^[:space:]]*\)$/\1/p' "$workflow"
+)
+if [[ "${actual_lanes[*]}" != "${expected_lanes[*]}" ]]; then
+  echo "daily simulation matrix must contain the exact twelve soak lanes in plan order" >&2
+  exit 1
+fi
+
+expected_indexes=(0 1 2 3 4 5 6 7 8 9 10 11)
+mapfile -t actual_indexes < <(
+  sed -n 's/^[[:space:]]*lane_index: \([0-9][0-9]*\)$/\1/p' "$workflow"
+)
+if [[ "${actual_indexes[*]}" != "${expected_indexes[*]}" ]]; then
+  echo "daily simulation matrix must assign exact unique lane indexes 0 through 11" >&2
+  exit 1
+fi
+
+lane_upload_line=$(grep -n -m1 'Upload lane report and failure artifacts' "$workflow" | cut -d: -f1)
+lane_propagate_line=$(grep -n -m1 'Propagate lane result' "$workflow" | cut -d: -f1)
+aggregate_upload_line=$(grep -n -m1 'Upload aggregate report' "$workflow" | cut -d: -f1)
+aggregate_propagate_line=$(grep -n -m1 'Propagate aggregate result' "$workflow" | cut -d: -f1)
+if ((lane_upload_line >= lane_propagate_line)); then
+  echo "lane result must be propagated only after artifact upload" >&2
+  exit 1
+fi
+if ((aggregate_upload_line >= aggregate_propagate_line)); then
+  echo "aggregate result must be propagated only after artifact upload" >&2
   exit 1
 fi
 

@@ -8,6 +8,7 @@ plan="$repo_root/iroh-sim/soaks/daily.json"
 sim_bin="$repo_root/iroh-sim/target/release/cargo-sim"
 artifact_root=
 seed_window=
+lane=
 epochs=8
 epoch_seconds=1800
 jobs=4
@@ -23,6 +24,7 @@ Usage: run-daily-simulation-soak.sh --seed-window N --artifacts PATH [options]
 Options:
   --plan PATH
   --sim-bin PATH
+  --lane ID
   --epochs N
   --epoch-seconds N
   --jobs N
@@ -39,6 +41,10 @@ while (($# > 0)); do
       ;;
     --sim-bin)
       sim_bin=$2
+      shift 2
+      ;;
+    --lane)
+      lane=$2
       shift 2
       ;;
     --seed-window)
@@ -135,6 +141,19 @@ if [[ ! -f "$plan" ]]; then
   printf 'daily simulation soak plan is missing: %s\n' "$plan" >&2
   exit 66
 fi
+if [[ -n "$lane" ]]; then
+  if ! lane_matches=$(jq -r \
+    --arg lane "$lane" \
+    '[.lanes[] | select(.id == $lane)] | length' \
+    "$plan"); then
+    printf 'daily simulation soak plan is invalid: %s\n' "$plan" >&2
+    exit 65
+  fi
+  if [[ "$lane_matches" != "1" ]]; then
+    printf 'daily simulation lane must match exactly once in %s: %s\n' "$plan" "$lane" >&2
+    exit 64
+  fi
+fi
 if [[ ! -x "$sim_bin" ]]; then
   printf 'cargo-sim binary is not executable: %s\n' "$sim_bin" >&2
   exit 66
@@ -149,6 +168,10 @@ fi
 
 mkdir -p "$(dirname "$artifact_root")"
 mkdir "$artifact_root"
+lane_arguments=()
+if [[ -n "$lane" ]]; then
+  lane_arguments=(--lane "$lane")
+fi
 epoch_results="$artifact_root/epoch-results.jsonl"
 : >"$epoch_results"
 
@@ -157,6 +180,9 @@ publish_report() {
   jq -s \
     --argjson seed_window "$seed_window" \
     --argjson configured_epochs "$epochs" \
+    --arg lane "$lane" \
+    --argjson max_runs_per_epoch "$max_runs_per_epoch" \
+    --argjson configured_max_runs "$((epochs * max_runs_per_epoch))" \
     '
       . as $records
       | ([$records[]
@@ -181,8 +207,11 @@ publish_report() {
             else "success"
             end
           ),
+          lane: (if $lane == "" then null else $lane end),
           seed_window: $seed_window,
           configured_epochs: $configured_epochs,
+          max_runs_per_epoch: $max_runs_per_epoch,
+          configured_max_runs: $configured_max_runs,
           completed_epochs: ([$records[] | select(.summary != null)] | length),
           infrastructure_failures: $infrastructure_failures,
           simulation_failed_epochs: $simulation_failed_epochs,
@@ -218,6 +247,7 @@ for ((epoch = 0; epoch < epochs; epoch++)); do
   set +e
   "$sim_bin" soak \
     --plan "$plan" \
+    "${lane_arguments[@]}" \
     --epoch "$epoch" \
     --seed-window "$seed_window" \
     --wall-seconds "$epoch_seconds" \
@@ -255,6 +285,9 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo "## Daily deterministic simulation soak"
     echo
     printf -- '- Status: `%s`\n' "$status"
+    if [[ -n "$lane" ]]; then
+      printf -- '- Lane: `%s`\n' "$lane"
+    fi
     printf -- '- Epochs: `%s/%s`\n' \
       "$(jq -r '.completed_epochs' "$report")" \
       "$(jq -r '.configured_epochs' "$report")"

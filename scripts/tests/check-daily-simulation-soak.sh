@@ -21,8 +21,10 @@ required=(
   'max_runs_per_epoch=125000'
   'max_failure_artifacts_per_epoch=2'
   'max_artifact_bytes_per_epoch=33554432'
+  '--lane'
   '"$sim_bin" soak'
   '--plan "$plan"'
+  '--lane "$lane"'
   '--seed-window "$seed_window"'
   '--max-failure-artifacts "$max_failure_artifacts_per_epoch"'
   '--max-artifact-bytes "$max_artifact_bytes_per_epoch"'
@@ -52,6 +54,8 @@ set -euo pipefail
 shift
 artifact_root=
 epoch=
+selected_plan=
+selected_lane=
 while (($# > 0)); do
   case "$1" in
     --artifacts)
@@ -62,11 +66,26 @@ while (($# > 0)); do
       epoch=$2
       shift 2
       ;;
+    --plan)
+      selected_plan=$2
+      shift 2
+      ;;
+    --lane)
+      selected_lane=$2
+      shift 2
+      ;;
     *)
       shift
       ;;
   esac
 done
+if [[ -n "${EXPECTED_LANE:-}" ]]; then
+  [[ "$selected_lane" == "$EXPECTED_LANE" ]]
+  jq -e \
+    --arg lane "$EXPECTED_LANE" \
+    '.lanes | length == 12 and any(.[]; .id == $lane)' \
+    "$selected_plan" >/dev/null
+fi
 mkdir -p "$artifact_root"
 failed=0
 status=0
@@ -100,7 +119,8 @@ chmod +x "$fake_sim"
 
 artifact_root="$fixture_root/artifacts"
 set +e
-"$runner" \
+EXPECTED_LANE=direct/deterministic-test "$runner" \
+  --lane direct/deterministic-test \
   --seed-window 42 \
   --artifacts "$artifact_root" \
   --sim-bin "$fake_sim" \
@@ -120,6 +140,9 @@ fi
 report="$artifact_root/daily-soak-summary.json"
 jq -e '
   .status == "simulation_failure"
+  and .lane == "direct/deterministic-test"
+  and .max_runs_per_epoch == 1
+  and .configured_max_runs == 2
   and .configured_epochs == 2
   and .completed_epochs == 2
   and .totals.completed_runs == 2
@@ -128,5 +151,44 @@ jq -e '
   and .totals.errored_runs == 0
   and (.epochs | length) == 2
 ' "$report" >/dev/null
+
+set +e
+"$runner" \
+  --lane missing/lane \
+  --seed-window 43 \
+  --artifacts "$fixture_root/unknown-lane-artifacts" \
+  --sim-bin "$fake_sim" \
+  --epochs 1 \
+  --epoch-seconds 1 \
+  --jobs 1 \
+  --batch-runs 1 \
+  --max-runs-per-epoch 1 >/dev/null 2>&1
+unknown_lane_status=$?
+set -e
+
+if [[ "$unknown_lane_status" -ne 64 ]]; then
+  echo "daily runner must reject a lane absent from the soak plan" >&2
+  exit 1
+fi
+if [[ -e "$fixture_root/unknown-lane-artifacts" ]]; then
+  echo "daily runner must validate the lane before creating artifacts" >&2
+  exit 1
+fi
+
+compatibility_root="$fixture_root/compatibility-artifacts"
+"$runner" \
+  --seed-window 44 \
+  --artifacts "$compatibility_root" \
+  --sim-bin "$fake_sim" \
+  --epochs 1 \
+  --epoch-seconds 1 \
+  --jobs 1 \
+  --batch-runs 1 \
+  --max-runs-per-epoch 1
+jq -e '
+  .status == "success"
+  and .lane == null
+  and .configured_max_runs == 1
+' "$compatibility_root/daily-soak-summary.json" >/dev/null
 
 echo "daily simulation soak runner contract passed"

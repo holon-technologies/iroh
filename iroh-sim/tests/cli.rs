@@ -45,6 +45,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
         .current_dir(workspace)
         .arg("soak")
         .args(["--plan", "iroh-sim/soaks/daily.json"])
+        .args(["--lane", "relay/production-provider"])
         .args(["--epoch", "0", "--seed-window", "1"])
         .args(["--wall-seconds", "1", "--jobs", "1"])
         .args(["--batch-runs", "1", "--max-runs", "1"])
@@ -72,6 +73,8 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert_eq!(summary["completed_runs"], 1);
     assert_eq!(summary["successful_runs"], 1);
     assert_eq!(summary["failed_runs"], 0);
+    assert_eq!(summary["lanes"].as_array().unwrap().len(), 1);
+    assert_eq!(summary["lanes"][0]["id"], "relay/production-provider");
     assert_eq!(
         fs::read_dir(&artifact_root)
             .unwrap()
@@ -81,6 +84,103 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
         0,
         "successful soak runs must not retain per-seed artifacts"
     );
+
+    let mut drifted_plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+            .unwrap();
+    drifted_plan["lanes"][0]["crypto"] = serde_json::Value::String("production_provider".into());
+    drifted_plan["lanes"][1]["crypto"] = serde_json::Value::String("deterministic_test".into());
+    let drifted_plan_path = root.join("drifted-plan.json");
+    fs::write(
+        &drifted_plan_path,
+        serde_json::to_vec_pretty(&drifted_plan).unwrap(),
+    )
+    .unwrap();
+    let drifted_artifact_root = root.join("drifted-soak");
+    let drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .arg("--plan")
+        .arg(&drifted_plan_path)
+        .args(["--lane", "relay/production-provider"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&drifted_artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(
+        drifted.status.code(),
+        Some(64),
+        "a selected lane must reject definition drift in an unselected lane"
+    );
+    assert!(!drifted_artifact_root.exists());
+
+    let mut digest_drifted_plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+            .unwrap();
+    digest_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String("a".repeat(64));
+    let digest_drifted_plan_path = root.join("digest-drifted-plan.json");
+    fs::write(
+        &digest_drifted_plan_path,
+        serde_json::to_vec_pretty(&digest_drifted_plan).unwrap(),
+    )
+    .unwrap();
+    let digest_drifted_artifact_root = root.join("digest-drifted-soak");
+    let digest_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .arg("--plan")
+        .arg(&digest_drifted_plan_path)
+        .args(["--lane", "relay/production-provider"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&digest_drifted_artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(
+        digest_drifted.status.code(),
+        Some(74),
+        "a selected lane must validate unselected swarm digests"
+    );
+    assert!(!digest_drifted_artifact_root.exists());
+
+    let unknown_artifact_root = root.join("unknown-lane-soak");
+    let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .args(["--plan", "iroh-sim/soaks/daily.json"])
+        .args(["--lane", "missing/lane"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&unknown_artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(unknown.status.code(), Some(64));
+    assert!(!unknown_artifact_root.exists());
     fs::remove_dir_all(root).unwrap();
 }
 

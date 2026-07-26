@@ -2,7 +2,7 @@ name: Daily Deterministic Simulation Soak
 
 on:
   schedule:
-    - cron: "23 1 * * *"
+    - cron: "23 1,7,13,19 * * *"
   workflow_dispatch:
 
 permissions:
@@ -17,43 +17,173 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  daily_soak:
-    name: Four-hour deterministic simulation service
+  build_simulator:
+    name: Build source-bound simulation binary
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Build the fresh-process simulator
         run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
-      - name: Execute eight bounded epochs
-        id: soak
+      - name: Stage simulator and checksum
         shell: bash
         run: |
+          mkdir -p "$RUNNER_TEMP/cargo-sim"
+          cp iroh-sim/target/release/cargo-sim "$RUNNER_TEMP/cargo-sim/cargo-sim"
+          cd "$RUNNER_TEMP/cargo-sim"
+          sha256sum cargo-sim > cargo-sim.sha256
+      - name: Upload source-bound simulator
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-cargo-sim-${{ github.sha }}
+          path: ${{ runner.temp }}/cargo-sim
+          if-no-files-found: error
+          retention-days: 1
+
+  soak_lane:
+    name: ${{ matrix.lane }} deterministic simulation
+    needs: build_simulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include:
+          - lane: direct/deterministic-test
+            lane_slug: direct-deterministic-test
+            lane_index: 0
+          - lane: direct/production-provider
+            lane_slug: direct-production-provider
+            lane_index: 1
+          - lane: discovery/deterministic-test
+            lane_slug: discovery-deterministic-test
+            lane_index: 2
+          - lane: discovery/production-provider
+            lane_slug: discovery-production-provider
+            lane_index: 3
+          - lane: mobility/deterministic-test
+            lane_slug: mobility-deterministic-test
+            lane_index: 4
+          - lane: mobility/production-provider
+            lane_slug: mobility-production-provider
+            lane_index: 5
+          - lane: nat/deterministic-test
+            lane_slug: nat-deterministic-test
+            lane_index: 6
+          - lane: nat/production-provider
+            lane_slug: nat-production-provider
+            lane_index: 7
+          - lane: ready-order/deterministic-test
+            lane_slug: ready-order-deterministic-test
+            lane_index: 8
+          - lane: ready-order/production-provider
+            lane_slug: ready-order-production-provider
+            lane_index: 9
+          - lane: relay/deterministic-test
+            lane_slug: relay-deterministic-test
+            lane_index: 10
+          - lane: relay/production-provider
+            lane_slug: relay-production-provider
+            lane_index: 11
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download source-bound simulator
+        uses: actions/download-artifact@v8
+        with:
+          name: iroh-sim-cargo-sim-${{ github.sha }}
+          path: ${{ runner.temp }}/cargo-sim
+      - name: Verify source-bound simulator
+        shell: bash
+        working-directory: ${{ runner.temp }}/cargo-sim
+        run: |
+          sha256sum --check cargo-sim.sha256
+          chmod +x cargo-sim
+      - name: Execute bounded lane epochs
+        id: soak
+        shell: bash
+        env:
+          LANE_INDEX: ${{ matrix.lane_index }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [[ ! "$RUN_NUMBER" =~ ^[0-9]+$ || ! "$LANE_INDEX" =~ ^[0-9]+$ ]]; then
+            echo "run number and lane index must be unsigned decimal integers" >&2
+            exit 64
+          fi
+          seed_window=$((RUN_NUMBER * 16 + LANE_INDEX))
           set +e
           scripts/run-daily-simulation-soak.sh \
-            --seed-window "${{ github.run_number }}" \
+            --lane "${{ matrix.lane }}" \
+            --seed-window "$seed_window" \
             --artifacts "$RUNNER_TEMP/daily-soak" \
-            --sim-bin iroh-sim/target/release/cargo-sim
+            --sim-bin "$RUNNER_TEMP/cargo-sim/cargo-sim" \
+            --max-runs-per-epoch 10416
           soak_status=$?
           set -e
           echo "status=$soak_status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Upload daily soak report and failure artifacts
+      - name: Upload lane report and failure artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: iroh-sim-daily-soak-${{ github.run_id }}
+          name: iroh-sim-soak-${{ matrix.lane_slug }}-${{ github.run_id }}
           path: ${{ runner.temp }}/daily-soak
           if-no-files-found: error
           retention-days: 14
-      - name: Propagate simulation result
+      - name: Propagate lane result
         if: always()
         shell: bash
         run: |
           soak_status="${{ steps.soak.outputs.status }}"
           if [[ ! "$soak_status" =~ ^[0-9]+$ ]]; then
-            echo "daily soak did not publish a valid exit status" >&2
+            echo "lane soak did not publish a valid exit status" >&2
             exit 2
           fi
           exit "$soak_status"
+
+  aggregate:
+    name: Aggregate deterministic simulation evidence
+    if: always()
+    needs: [build_simulator, soak_lane]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download lane evidence
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: iroh-sim-soak-*-${{ github.run_id }}
+          path: ${{ runner.temp }}/lane-results
+      - name: Aggregate lane reports
+        id: aggregate
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          scripts/aggregate-daily-simulation-soak.sh \
+            --artifacts "$RUNNER_TEMP/lane-results" \
+            --output "$RUNNER_TEMP/aggregate/daily-soak-aggregate.json"
+          aggregate_status=$?
+          set -e
+          echo "status=$aggregate_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload aggregate report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-soak-aggregate-${{ github.run_id }}
+          path: ${{ runner.temp }}/aggregate/daily-soak-aggregate.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Propagate aggregate result
+        if: always()
+        shell: bash
+        run: |
+          aggregate_status="${{ steps.aggregate.outputs.status }}"
+          if [[ ! "$aggregate_status" =~ ^[0-9]+$ ]]; then
+            echo "aggregate did not publish a valid exit status" >&2
+            exit 2
+          fi
+          exit "$aggregate_status"

@@ -143,20 +143,29 @@ either layer as its own issue; do not tune correctness budgets to conceal it.
 
 ## Daily deterministic soak operation
 
-`.github/workflows/simulation-daily-soak.yml` is the free-capacity simulation service. Once per
-day, or on manual dispatch, one standard `ubuntu-latest` job runs with workflow concurrency one.
-It builds `cargo-sim` once, then `scripts/run-daily-simulation-soak.sh` starts eight sequential,
-fresh 30-minute processes. Each process uses four workers and fixed 64-run batches while rotating
-twelve pinned direct, NAT, discovery, mobility, ready-order, and relay lanes across both crypto
-modes. The workflow run number, epoch ordinal, lane ordinal, and lane-local ordinal reserve a
-non-overlapping deterministic seed identity.
+`.github/workflows/simulation-daily-soak.yml` is the free-capacity simulation service. At minute 23
+every six hours, or on manual dispatch, it builds `cargo-sim` once and uploads the source-SHA-bound
+binary and checksum. Twelve standard `ubuntu-latest` jobs verify that binary and independently run
+the pinned direct, NAT, discovery, mobility, ready-order, and relay lanes across both crypto modes.
+Each lane starts eight sequential, fresh 30-minute processes using four workers and fixed 64-run
+batches. The workflow run number and lane index reserve distinct seed windows; the epoch and
+lane-local ordinals remain deterministic inside each window.
 
-The daily hard limits are four simulation hours, one million completed runs, sixteen retained
-failure directories, 256 MiB of retained failure data, and 14-day upload retention. Successful
-runs retain counters only. Every completed batch atomically replaces `soak-summary.json`; every
-epoch updates `daily-soak-summary.json`. A product failure does not stop later epochs. The workflow
-uploads reports and retained failures before it propagates the final simulation or infrastructure
-status.
+Each lane is capped at 83,328 completed runs, sixteen retained failure directories, and 256 MiB of
+retained failure data. Each window is therefore capped at 999,936 runs, and all four scheduled
+windows at 3,999,744 runs per day. Upload retention is 14 days. Successful runs retain counters
+only. Every completed batch atomically replaces `soak-summary.json`; every epoch updates the
+lane's `daily-soak-summary.json`. A product failure does not stop later epochs or sibling lanes.
+Each lane uploads its evidence before propagating status.
+
+The always-running aggregate job downloads lane artifacts by run ID and discovers reports by
+content rather than directory name. `daily-soak-aggregate.json` requires the exact twelve lanes
+once each, distinct seed windows, the production 8 × 10,416 configuration, all epoch ordinals, and
+counter-reconciled summaries with no infrastructure-failed lane. It sums run and artifact counters
+and deduplicates normalized signatures across lanes. Missing, duplicate, malformed, or
+underconfigured evidence is an infrastructure failure; otherwise any failed lane is a simulation
+failure. The aggregate is uploaded before its status is propagated. Workflow concurrency one and
+`cancel-in-progress: false` queue overlapping scheduled or manual windows.
 
 Use `daily-soak-summary.json` first. `infrastructure_failure` means an epoch failed to publish a
 summary or failure retention failed; do not classify it as a product result.
@@ -173,6 +182,7 @@ process counts:
 cargo build --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
 soak_root="$(mktemp -d /tmp/iroh-daily-soak.XXXXXX)"
 scripts/run-daily-simulation-soak.sh \
+  --lane direct/deterministic-test \
   --seed-window 1 \
   --artifacts "$soak_root/run" \
   --sim-bin iroh-sim/target/debug/cargo-sim \
@@ -183,16 +193,16 @@ scripts/run-daily-simulation-soak.sh \
   --max-runs-per-epoch 1
 ```
 
-This validates orchestration, plan digests, reporting, and process freshness. It does not claim
-that the checked four-hour GitHub service ran, does not exercise real networking, and does not
+This validates one lane's orchestration, plan digest, reporting, and process freshness. It does not
+claim that a checked four-hour GitHub window ran, does not exercise real networking, and does not
 replace Patchbay, interoperability, production capacity, or resource-canary evidence.
 
 ## Recurring gates
 
 - PR: boundary policy, runtime/simulator tests, corpus, bounded campaigns, minimal build, Clippy.
 - Nightly: 256-seed direct/NAT/discovery/mobility/relay/ready-order swarm shards and component benchmarks.
-- Daily soak: one four-hour GitHub-hosted job with eight fresh deterministic epochs and bounded
-  failure-only retention.
+- Recurring soak: four daily four-hour windows, each with twelve GitHub-hosted lane jobs, eight
+  fresh deterministic epochs per lane, exact aggregation, and bounded failure-only retention.
 - Weekly: 1024-seed direct/relay schedule soaks under both crypto lanes, strict parity export/compare, and correlated
   component benchmarks.
 - Patchbay: privileged namespace tests, fresh receipt import, and same-revision semantic comparison,

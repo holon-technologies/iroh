@@ -169,10 +169,15 @@ scripts/run-daily-simulation-soak.sh \
   --sim-bin iroh-sim/target/release/cargo-sim
 ```
 
-The production defaults are eight 30-minute epochs, four workers, 64 scenarios per deadline
-boundary, at most one million total runs, sixteen retained failures, and 256 MiB of failure data.
-The consolidated report distinguishes product/simulation failures from missing-summary or
-artifact infrastructure failures and is uploaded before CI propagates failure.
+The production service starts a window every six hours. It builds one source-bound simulator,
+fans the twelve lanes out to standard GitHub-hosted runners, and gives each lane eight 30-minute
+epochs, four workers, and 64 scenarios per deadline boundary. A lane is capped at 83,328 runs, so
+each window is capped at 999,936 runs and the four daily windows at 3,999,744. Each lane retains at
+most sixteen failures and 256 MiB of failure data. The final aggregate requires every lane exactly
+once with a distinct seed window and complete, counter-reconciled evidence for the configured eight
+epochs. It deduplicates signatures across lanes and distinguishes product/simulation failures from
+missing, malformed, underconfigured, or infrastructure-failed evidence before CI propagates
+failure.
 
 Scenario JSON is strict and currently supports `direct-ip/ipv4-stream`, `direct-ip/ipv4-stream-loss`, `direct-ip/ipv4-stream-corruption`, `direct-ip/ipv6-stream`, and `direct-ip/ipv6-datagram`. The checked-in loss fixture and seed demonstrate QUIC recovery after real packet loss. The corruption fixture requires the injected corruption to occur and treats the resulting authenticated-transport failure as its expected terminal result. Unknown fields, schemas, and scenario IDs fail closed. `run` writes the manifest before endpoint execution and prints one replay command. `replay` verifies source revision, dirty-tree digest, dependency lockfile, simulator/schema version, scenario digest, normalized configuration, features, backend identity, crypto/grade/comparison matrix, budgets, and seed before comparing the manifest-selected raw or semantic trace.
 
@@ -237,12 +242,14 @@ Each directory below `iroh-sim/corpus` must contain exactly `metadata.json` and 
 
 Campaigns execute half-open seed ranges in deterministic worker batches. Results are sorted by seed, failure signatures are deduplicated independent of completion order, fail-fast stops only at a stable batch boundary, and every run gets its own artifact directory. Campaign summaries retain the template inventory. PR CI runs the corpus, generated production-QUIC smoke, and bounded environment/relay campaigns. Nightly CI shards 256 seeds independently across the Stage 4 environment domains and both Stage 5 relay domains, retaining artifacts and unique-failure summaries.
 
-The daily soak uses the same deterministic batch semantics without retaining successful per-seed
-directories. It rotates all twelve pinned lanes round-robin, checkpoints after every batch, and
-deduplicates normalized failures across batches. One standard GitHub-hosted runner supplies four
-internal workers; workflow concurrency one prevents overlapping daily/manual services.
-The checked workflow and its seconds-long contract are definitions, not evidence that a four-hour
-hosted run completed.
+The recurring soak uses the same deterministic batch semantics without retaining successful
+per-seed directories. Twelve standard GitHub-hosted lane jobs run independently, checkpoint after
+every batch, and each supply four internal workers. The workflow builds `cargo-sim` once, binds the
+uploaded binary to the source SHA with a checksum, assigns disjoint run-number-derived seed
+windows, and aggregates exact lane evidence after every matrix job has finished. Workflow
+concurrency one queues overlapping scheduled or manual windows instead of cancelling them.
+The checked workflow and its seconds-long contract are definitions, not evidence that a hosted
+window completed.
 
 For a compact terminal, obligation, resource, causal-suffix, and command summary:
 
@@ -265,6 +272,7 @@ scripts/check-determinism-boundaries.sh --check
 scripts/check-determinism-semantic.sh --check
 scripts/tests/check-determinism-docs.sh
 scripts/tests/check-daily-simulation-soak.sh
+scripts/tests/check-daily-simulation-aggregate.sh
 scripts/tests/check-daily-simulation-workflow.sh
 cargo test -p iroh-runtime
 cargo test -p iroh-dns --lib

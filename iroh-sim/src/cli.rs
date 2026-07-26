@@ -118,6 +118,9 @@ enum Command {
         /// Strict versioned soak plan.
         #[arg(long)]
         plan: PathBuf,
+        /// Execute exactly one lane from the validated canonical plan.
+        #[arg(long)]
+        lane: Option<String>,
         /// Zero-based process ordinal in the daily seed window.
         #[arg(long)]
         epoch: u8,
@@ -259,6 +262,7 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
         }),
         Command::Soak {
             plan,
+            lane,
             epoch,
             seed_window,
             wall_seconds,
@@ -270,6 +274,7 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
             artifacts,
         } => execute_soak(SoakOptions {
             plan_path: &plan,
+            lane: lane.as_deref(),
             epoch,
             seed_window,
             wall_seconds,
@@ -1164,6 +1169,7 @@ const MAX_DAILY_SOAK_RUNS_PER_EPOCH: u64 = 125_000;
 
 struct SoakOptions<'a> {
     plan_path: &'a Path,
+    lane: Option<&'a str>,
     epoch: u8,
     seed_window: u64,
     wall_seconds: u64,
@@ -1186,10 +1192,22 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
     let plan_bytes = read_file(options.plan_path)?;
     let plan = SoakPlan::from_json(&plan_bytes)?;
     validate_daily_soak_plan(&plan)?;
+    let selected_lane_index = match options.lane {
+        Some(requested_lane) => Some(
+            plan.lanes
+                .iter()
+                .position(|lane| lane.id == requested_lane)
+                .ok_or_else(|| {
+                    CliError::Usage(format!(
+                        "soak --lane must name one lane from the canonical daily plan: {requested_lane}"
+                    ))
+                })?,
+        ),
+        None => None,
+    };
 
-    let mut lanes = Vec::with_capacity(plan.lanes.len());
     let mut loaded = BTreeMap::new();
-    for (lane_index, plan_lane) in plan.lanes.iter().enumerate() {
+    for plan_lane in &plan.lanes {
         let swarm_path = workspace.join(&plan_lane.swarm);
         let canonical_workspace = workspace.canonicalize().map_err(CliError::Io)?;
         let canonical_swarm = swarm_path.canonicalize().map_err(CliError::Io)?;
@@ -1209,12 +1227,6 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
             });
         }
         let (swarm, _) = load_swarm_template(&canonical_swarm, &workspace)?;
-        let seed_start = derive_soak_seed_start(options.seed_window, options.epoch, lane_index)?;
-        lanes.push(SoakLane {
-            id: plan_lane.id.clone(),
-            scenario: swarm.base.clone(),
-            seed_start,
-        });
         loaded.insert(
             plan_lane.id.clone(),
             LoadedSoakLane {
@@ -1225,6 +1237,27 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
                 },
             },
         );
+    }
+
+    let lane_capacity = if selected_lane_index.is_some() {
+        1
+    } else {
+        plan.lanes.len()
+    };
+    let mut lanes = Vec::with_capacity(lane_capacity);
+    for (lane_index, plan_lane) in plan.lanes.iter().enumerate() {
+        if selected_lane_index.is_some_and(|selected| selected != lane_index) {
+            continue;
+        }
+        let loaded_lane = loaded
+            .get(&plan_lane.id)
+            .expect("validated canonical soak lanes must have loaded state");
+        let seed_start = derive_soak_seed_start(options.seed_window, options.epoch, lane_index)?;
+        lanes.push(SoakLane {
+            id: plan_lane.id.clone(),
+            scenario: loaded_lane.swarm.base.clone(),
+            seed_start,
+        });
     }
 
     let requested_root = absolutize(options.artifact_root)?;
@@ -1376,15 +1409,23 @@ fn validate_soak_options(options: &SoakOptions<'_>) -> Result<(), CliError> {
 }
 
 fn validate_daily_soak_plan(plan: &SoakPlan) -> Result<(), CliError> {
-    if plan.id != "daily"
-        || plan
+    let is_canonical = plan.id == "daily"
+        && plan.lanes.len() == DAILY_SOAK_LANE_IDS.len()
+        && plan
             .lanes
             .iter()
-            .map(|lane| lane.id.as_str())
-            .ne(DAILY_SOAK_LANE_IDS)
-    {
+            .zip(DAILY_SOAK_LANE_IDS)
+            .all(|(lane, expected_id)| {
+                let expected_crypto = if expected_id.ends_with("/deterministic-test") {
+                    SoakCryptoLane::DeterministicTest
+                } else {
+                    SoakCryptoLane::ProductionProvider
+                };
+                lane.id == expected_id && lane.crypto == expected_crypto
+            });
+    if !is_canonical {
         return Err(CliError::Usage(
-            "daily soak plan must contain the canonical twelve lanes".to_owned(),
+            "daily soak plan must contain the canonical twelve lane definitions".to_owned(),
         ));
     }
     Ok(())

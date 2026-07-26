@@ -93,6 +93,8 @@ jobs:
         run: scripts/check-determinism-semantic.sh --check
       - name: Check daily simulation soak runner
         run: scripts/tests/check-daily-simulation-soak.sh
+      - name: Check daily simulation aggregate runner
+        run: scripts/tests/check-daily-simulation-aggregate.sh
       - name: Check daily simulation soak workflow
         run: scripts/tests/check-daily-simulation-workflow.sh
       - name: Check deterministic simulation nightly workflow

@@ -90,22 +90,22 @@ clock-timer	iroh-relay/tests/runtime_auth.rs:335	tokio::time::timeout(Duration::
 clock-timer	iroh-relay/tests/runtime_auth.rs:359	tokio::time::timeout(timeout, async {
 clock-timer	iroh-relay/tests/runtime_auth.rs:361	tokio::time::sleep(Duration::from_millis(20)).await;
 clock-timer	iroh-runtime/src/time.rs:263	SystemTime::now()
-clock-timer	iroh-runtime/src/time.rs:372	origin: tokio::time::Instant::now().into_std(),
-clock-timer	iroh-runtime/src/time.rs:387	tokio::time::Instant::now().into_std()
-clock-timer	iroh-runtime/src/time.rs:399	sleep: Box::pin(tokio::time::sleep_until(deadline.into())),
-clock-timer	iroh-runtime/src/time.rs:436	tokio::time::Instant::now().into_std()
-clock-timer	iroh-runtime/src/time.rs:451	sleep: Pin<Box<tokio::time::Sleep>>,
-clock-timer	iroh-runtime/src/time.rs:524	tokio::time::advance(Duration::from_secs(5)).await;
-clock-timer	iroh-runtime/src/time.rs:536	tokio::time::advance(Duration::from_secs(8)).await;
-clock-timer	iroh-runtime/src/time.rs:557	tokio::time::advance(Duration::from_secs(5)).await;
-clock-timer	iroh-runtime/tests/time.rs:33	tokio::time::advance(Duration::from_secs(4)).await;
-clock-timer	iroh-runtime/tests/time.rs:35	tokio::time::advance(Duration::from_secs(1)).await;
-clock-timer	iroh-runtime/tests/time.rs:50	tokio::time::advance(Duration::from_secs(3)).await;
-clock-timer	iroh-runtime/tests/time.rs:70	let before = SystemTime::now();
-clock-timer	iroh-runtime/tests/time.rs:72	let after = SystemTime::now();
-clock-timer	iroh-sim/src/cli.rs:1252	let started = Instant::now();
-clock-timer	iroh-sim/src/cli.rs:856	let now_unix_secs = SystemTime::now()
-clock-timer	iroh-sim/src/kernel.rs:179	origin: iroh_runtime::Instant::now(),
+clock-timer	iroh-runtime/src/time.rs:412	origin: tokio::time::Instant::now().into_std(),
+clock-timer	iroh-runtime/src/time.rs:427	tokio::time::Instant::now().into_std()
+clock-timer	iroh-runtime/src/time.rs:439	sleep: Box::pin(tokio::time::sleep_until(deadline.into())),
+clock-timer	iroh-runtime/src/time.rs:476	tokio::time::Instant::now().into_std()
+clock-timer	iroh-runtime/src/time.rs:491	sleep: Pin<Box<tokio::time::Sleep>>,
+clock-timer	iroh-runtime/src/time.rs:564	tokio::time::advance(Duration::from_secs(5)).await;
+clock-timer	iroh-runtime/src/time.rs:576	tokio::time::advance(Duration::from_secs(8)).await;
+clock-timer	iroh-runtime/src/time.rs:597	tokio::time::advance(Duration::from_secs(5)).await;
+clock-timer	iroh-runtime/tests/time.rs:47	tokio::time::advance(Duration::from_secs(4)).await;
+clock-timer	iroh-runtime/tests/time.rs:49	tokio::time::advance(Duration::from_secs(1)).await;
+clock-timer	iroh-runtime/tests/time.rs:64	tokio::time::advance(Duration::from_secs(3)).await;
+clock-timer	iroh-runtime/tests/time.rs:84	let before = SystemTime::now();
+clock-timer	iroh-runtime/tests/time.rs:86	let after = SystemTime::now();
+clock-timer	iroh-sim/src/cli.rs:1285	let started = Instant::now();
+clock-timer	iroh-sim/src/cli.rs:861	let now_unix_secs = SystemTime::now()
+clock-timer	iroh-sim/src/kernel.rs:238	origin: iroh_runtime::Instant::now(),
 clock-timer	iroh-sim/tests/deterministic_runtime.rs:44	tokio::time::advance(Duration::from_secs(5)).await;
 clock-timer	iroh-sim/tests/relay.rs:193	let started = tokio::time::Instant::now();
 clock-timer	iroh-sim/tests/relay.rs:328	let started = tokio::time::Instant::now();
@@ -246,11 +246,11 @@ clock-timer	iroh/src/endpoint.rs:4490	let res = tokio::time::timeout(Duration::f
 clock-timer	iroh/src/endpoint.rs:4496	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
 clock-timer	iroh/src/endpoint.rs:4540	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
 clock-timer	iroh/src/endpoint.rs:4564	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
-clock-timer	iroh/src/endpoint/connection.rs:1655	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_server))
-clock-timer	iroh/src/endpoint/connection.rs:1661	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_client))
-clock-timer	iroh/src/endpoint/connection.rs:1668	tokio::time::pause();
-clock-timer	iroh/src/endpoint/connection.rs:1675	tokio::time::timeout(Duration::from_nanos(1), async {
-clock-timer	iroh/src/endpoint/connection.rs:1680	tokio::time::timeout(Duration::from_nanos(1), async {
+clock-timer	iroh/src/endpoint/connection.rs:1723	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_server))
+clock-timer	iroh/src/endpoint/connection.rs:1729	tokio::time::timeout(Duration::from_secs(1), wait_for_paths(&mut paths_client))
+clock-timer	iroh/src/endpoint/connection.rs:1736	tokio::time::pause();
+clock-timer	iroh/src/endpoint/connection.rs:1743	tokio::time::timeout(Duration::from_nanos(1), async {
+clock-timer	iroh/src/endpoint/connection.rs:1748	tokio::time::timeout(Duration::from_nanos(1), async {
 clock-timer	iroh/src/endpoint/quic.rs:711	/// Defaults to [`noq::StdSystemTime`], which simply calls [`SystemTime::now()`](std::time::SystemTime::now).
 clock-timer	iroh/src/net_report.rs:1289	tokio::time::advance(Duration::from_secs(s.after)).await;
 clock-timer	iroh/src/net_report.rs:253	last_full: Instant::now(),
@@ -422,58 +422,63 @@ external-state	iroh-sim/src/artifact.rs:180	let mut file = OpenOptions::new()
 external-state	iroh-sim/src/artifact.rs:6	fs::{self, OpenOptions},
 external-state	iroh-sim/src/bin/cargo-sim.rs:4	let args: Vec<_> = std::env::args_os().collect();
 external-state	iroh-sim/src/bounded_io.rs:19	let file = File::open(path)?;
-external-state	iroh-sim/src/cli.rs:1686	let mut file = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:1884	let journal = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:1945	let mut file = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:2313	let output = ProcessCommand::new("git")
-external-state	iroh-sim/src/cli.rs:2330	let mut command = ProcessCommand::new("git");
-external-state	iroh-sim/src/cli.rs:2354	let mut current = std::env::current_dir().map_err(CliError::Io)?;
-external-state	iroh-sim/src/cli.rs:2404	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
+external-state	iroh-sim/src/cli.rs:1727	let mut file = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:1925	let journal = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:1986	let mut file = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:2354	let output = ProcessCommand::new("git")
+external-state	iroh-sim/src/cli.rs:2371	let mut command = ProcessCommand::new("git");
+external-state	iroh-sim/src/cli.rs:2395	let mut current = std::env::current_dir().map_err(CliError::Io)?;
+external-state	iroh-sim/src/cli.rs:2445	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
 external-state	iroh-sim/src/cli.rs:6	fs::{self, OpenOptions},
-external-state	iroh-sim/src/cli.rs:916	let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
+external-state	iroh-sim/src/cli.rs:921	let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
 external-state	iroh-sim/src/corpus.rs:274	std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
 external-state	iroh-sim/src/corpus.rs:275	std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
 external-state	iroh-sim/src/corpus.rs:286	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
 external-state	iroh-sim/src/corpus.rs:287	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
 external-state	iroh-sim/src/corpus.rs:288	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
-external-state	iroh-sim/tests/cli.rs:1034	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1047	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:105	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1063	let path = std::env::temp_dir().join(format!(
-external-state	iroh-sim/tests/cli.rs:160	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:193	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:220	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:100	let drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1065	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1099	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1152	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1195	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1208	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1224	let path = std::env::temp_dir().join(format!(
+external-state	iroh-sim/tests/cli.rs:137	let digest_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:164	let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:205	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	iroh-sim/tests/cli.rs:23	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:236	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:259	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:294	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:316	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:332	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:350	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:368	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:403	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:426	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:260	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:293	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:320	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:336	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:359	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:394	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:416	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:432	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	iroh-sim/tests/cli.rs:44	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:450	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:481	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:506	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:522	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:555	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:580	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:597	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:615	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:639	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:666	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:693	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:736	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:757	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:838	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:904	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:938	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:991	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/corpus_campaign.rs:213	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
-external-state	iroh-sim/tests/failure_replay.rs:157	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
-external-state	iroh-sim/tests/trace.rs:157	let path = std::env::temp_dir().join(format!(
+external-state	iroh-sim/tests/cli.rs:450	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:468	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:503	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:526	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:550	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:581	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:606	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:625	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:658	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:683	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:700	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:718	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:742	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:769	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:803	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:829	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:854	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:897	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:918	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:999	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/corpus_campaign.rs:276	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/failure_replay.rs:207	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/trace.rs:182	let path = std::env::temp_dir().join(format!(
 external-state	iroh/bench/build.rs:3	use std::env;
 external-state	iroh/bench/build.rs:6	let profile = env::var("PROFILE").expect("Cargo always sets PROFILE for build scripts");
 external-state	iroh/bench/build.rs:8	env::var("OPT_LEVEL").expect("Cargo always sets OPT_LEVEL for build scripts");
@@ -608,24 +613,24 @@ network-environment	iroh-relay/src/test_utils.rs:23	fn lookup_ipv6(&self, _host:
 network-environment	iroh-relay/src/test_utils.rs:28	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
 network-environment	iroh-relay/tests/relay_axum.rs:77	let listener = TcpListener::bind("127.0.0.1:0").await?;
 network-environment	iroh-relay/tests/relay_hyper.rs:66	let listener = TcpListener::bind("127.0.0.1:0").await?;
-network-environment	iroh-sim/benches/stage4_environment.rs:69	group.bench_function("production_builder_portmapper_disabled", |b| {
-network-environment	iroh-sim/benches/stage4_environment.rs:72	iroh::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
+network-environment	iroh-sim/benches/stage4_environment.rs:77	group.bench_function("production_builder_portmapper_disabled", |b| {
+network-environment	iroh-sim/benches/stage4_environment.rs:80	iroh::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
 network-environment	iroh-sim/src/backend.rs:329	) -> netwatch::netmon::State {
 network-environment	iroh-sim/src/backend.rs:330	let mut state = netwatch::netmon::State::fake();
 network-environment	iroh-sim/src/monitor.rs:7	use netwatch::netmon::State;
 network-environment	iroh-sim/src/network.rs:1779	lookup_socket(&mut state, &destination_host, datagram.destination)
 network-environment	iroh-sim/src/network.rs:2217	fn lookup_socket(
-network-environment	iroh-sim/src/runner.rs:1167	.portmapper_config(PortmapperConfig::Disabled)
-network-environment	iroh-sim/src/scenario.rs:432	.portmapper_config(PortmapperConfig::Disabled)
-network-environment	iroh-sim/tests/dns.rs:103	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:114	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:118	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:139	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:143	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:147	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
-network-environment	iroh-sim/tests/dns.rs:38	.drive(resolver.lookup_ipv4_staggered("peer.invalid", Duration::from_millis(50), &[10, 20]))
-network-environment	iroh-sim/tests/dns.rs:65	.drive(resolver.lookup_ipv4("peer.invalid", Duration::from_millis(5)))
-network-environment	iroh-sim/tests/endpoint.rs:388	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh-sim/src/runner.rs:1162	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh-sim/src/scenario.rs:436	.portmapper_config(PortmapperConfig::Disabled)
+network-environment	iroh-sim/tests/dns.rs:107	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:118	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:122	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:143	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:147	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:151	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
+network-environment	iroh-sim/tests/dns.rs:39	.drive(resolver.lookup_ipv4_staggered("peer.invalid", Duration::from_millis(50), &[10, 20]))
+network-environment	iroh-sim/tests/dns.rs:66	.drive(resolver.lookup_ipv4("peer.invalid", Duration::from_millis(5)))
+network-environment	iroh-sim/tests/endpoint.rs:394	.portmapper_config(PortmapperConfig::Disabled)
 network-environment	iroh/bench/src/canary/workloads.rs:2651	let tcp = StdTcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
 network-environment	iroh/bench/src/canary/workloads.rs:2653	let udp = StdUdpSocket::bind((Ipv4Addr::LOCALHOST, port))?;
 network-environment	iroh/bench/src/canary/workloads.rs:2665	let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await?;
@@ -923,7 +928,7 @@ spawn-task	iroh/src/endpoint.rs:4104	let client_stats_task = tokio::spawn(collec
 spawn-task	iroh/src/endpoint.rs:4432	let accept_task = tokio::spawn(async move {
 spawn-task	iroh/src/endpoint.rs:4476	let task = tokio::task::spawn(async move {
 spawn-task	iroh/src/endpoint.rs:4495	let task = tokio::task::spawn(async move {
-spawn-task	iroh/src/endpoint/connection.rs:1431	tokio::spawn({
+spawn-task	iroh/src/endpoint/connection.rs:1499	tokio::spawn({
 spawn-task	iroh/src/net_report.rs:38	use tokio::task::JoinSet;
 spawn-task	iroh/src/net_report.rs:511	let mut v4_buf = JoinSet::new();
 spawn-task	iroh/src/net_report.rs:513	let mut v6_buf = JoinSet::new();
