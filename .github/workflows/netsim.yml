@@ -46,7 +46,8 @@ jobs:
     uses: './.github/workflows/netsim_runner.yaml'
     with:
       iroh_ref: ${{ github.sha }}
-      max_workers: 1
+      # Match the concurrency proven by the main CI netsim job on the same runner class.
+      max_workers: 6
       netsim_ref: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       sim_paths: "sims/iroh,sims/integration"
       pr_number: ""

@@ -208,6 +208,9 @@ done
 if ! grep -Fq -- 'filter: "skip:iroh_cust_10gb__1_to_10"' <<< "$netsim_release_job"; then
   fail '.github/workflows/netsim.yml netsim-release must exclude the oversized hosted-runner case'
 fi
+if ! grep -Fq -- 'max_workers: 6' <<< "$netsim_release_job"; then
+  fail '.github/workflows/netsim.yml netsim-release must use the proven hosted-runner concurrency'
+fi
 
 semver_job=$(sed -n '/^  check_semver:/,/^  check_external_types:/p' "$repo_root/.github/workflows/ci.yml")
 if ! grep -Fq -- 'RUSTFLAGS: ""' <<< "$semver_job"; then
