@@ -175,9 +175,10 @@ jobs:
           exit 2
         fi
         declare -A seen_paths=()
+        declare -A seen_configs=()
         config_files=()
         for sim_path in "${sim_paths[@]}"; do
-          if [[ ! "$sim_path" =~ ^sims/(iroh|integration|paused)$ ]]; then
+          if [[ ! "$sim_path" =~ ^sims/(iroh|integration|paused)(/[a-z0-9_]+\.json)?$ ]]; then
             echo "::error::unsupported Netsim path set: $sim_path"
             exit 2
           fi
@@ -186,11 +187,23 @@ jobs:
             exit 2
           fi
           seen_paths[$sim_path]=1
-          mapfile -d '' selected_configs < <(
-            find "../chuck/netsim/$sim_path" \
-              -maxdepth 1 -type f -name '*.json' -print0 | sort -z
-          )
-          config_files+=("${selected_configs[@]}")
+          selected_configs=()
+          if [[ -f "../chuck/netsim/$sim_path" ]]; then
+            selected_configs=("../chuck/netsim/$sim_path")
+          else
+            mapfile -d '' selected_configs < <(
+              find "../chuck/netsim/$sim_path" \
+                -maxdepth 1 -type f -name '*.json' -print0 | sort -z
+            )
+          fi
+          for selected_config in "${selected_configs[@]}"; do
+            if [[ -n "${seen_configs[$selected_config]:-}" ]]; then
+              echo "::error::duplicate Netsim configuration selected: $selected_config"
+              exit 2
+            fi
+            seen_configs[$selected_config]=1
+            config_files+=("$selected_config")
+          done
         done
         maximum_cases=64
         if ((${#config_files[@]} == 0)); then

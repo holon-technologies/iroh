@@ -5,6 +5,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 entry="$repo_root/.github/workflows/netsim.yml"
 runner="$repo_root/.github/workflows/netsim_runner.yaml"
+ci="$repo_root/.github/workflows/ci.yml"
 
 for required in \
   'group: iroh-netsim-${{ github.ref || inputs.iroh_ref }}' \
@@ -20,6 +21,8 @@ for required in \
   'maximum_cases=64' \
   'MAX_WORKERS < 1 || MAX_WORKERS > 6' \
   '${#sim_paths[@]} > 3' \
+  '^sims/(iroh|integration|paused)(/[a-z0-9_]+\.json)?$' \
+  'if [[ -f "../chuck/netsim/$sim_path" ]]; then' \
   'retention-days: 3' \
   '- name: Cleanup' \
   'if: always()'; do
@@ -29,7 +32,12 @@ for required in \
   }
 done
 
-python3 - "$entry" "$runner" <<'PY'
+grep -Fq -- "sims/iroh/iroh.json,sims/integration" "$ci" || {
+  printf 'Main CI is missing its bounded Netsim selection\n' >&2
+  exit 1
+}
+
+python3 - "$entry" "$runner" "$ci" <<'PY'
 import pathlib
 import sys
 import yaml

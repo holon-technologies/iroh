@@ -1,6 +1,6 @@
 # Iroh Determinism and Testability Audit
 
-Status: Living audit reviewed through deterministic tooling closure, 2026-07-25
+Status: Living audit reviewed through deterministic tooling closure, 2026-07-26
 
 ## Scope
 
@@ -228,6 +228,16 @@ The 2026-07-26 hosted CI portability review moves four existing paused-Tokio tim
 the resource-canary regression tests while making artifact permission assertions portable to
 Windows. They remain **Acceptable nondeterminism in regression-test orchestration** and do not add
 or change any production or simulation clock boundary.
+
+The 2026-07-26 Android address-lookup regression review replaces a paused-Tokio sleep and timeout
+with an explicit `Notify` handoff and two finite real-time bounds. The test binds real operating-
+system UDP sockets, so allowing Tokio's paused clock to auto-advance while Android emulator I/O is
+externally pending could expire the assertion before packets were scheduled. These bounds are
+**Acceptable nondeterminism in regression-test orchestration**: they determine only whether the
+hosted test reports a liveness failure and cannot influence production or simulated protocol
+behavior. The shared endpoint fixture also injects a fixed loopback DNS nameserver, removing the
+test's ambient Android JNI/DNS dependency. Remaining address-lookup manifest changes are reviewed
+line movement caused by this test-only synchronization and fixture plumbing.
 
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 

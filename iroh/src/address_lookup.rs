@@ -701,11 +701,13 @@ mod tests {
     use n0_future::{StreamExt, time};
     use n0_tracing_test::traced_test;
     use rand::{CryptoRng, RngExt, SeedableRng};
+    use tokio::{sync::Notify, time::timeout};
     use tokio_util::task::AbortOnDropHandle;
 
     use super::*;
     use crate::{
         Endpoint,
+        dns::DnsResolver,
         endpoint::{
             ConnectError, ConnectOptions, ConnectWithOptsError, IdleTimeout, QuicTransportConfig,
             presets,
@@ -838,13 +840,22 @@ mod tests {
     }
 
     /// An address lookup whose `resolve` stream never yields and never ends.
-    #[derive(Debug, Clone)]
-    struct HangingAddressLookup;
+    #[derive(Debug, Clone, Default)]
+    struct HangingAddressLookup {
+        started: Arc<Notify>,
+    }
+
+    impl HangingAddressLookup {
+        async fn wait_until_started(&self) {
+            self.started.notified().await;
+        }
+    }
 
     impl AddressLookup for HangingAddressLookup {
         fn publish(&self, _data: &EndpointData) {}
 
         fn resolve(&self, _endpoint_id: EndpointId) -> Option<BoxStream<Result<Item, Error>>> {
+            self.started.notify_one();
             Some(n0_future::stream::pending().boxed())
         }
     }
@@ -1040,7 +1051,7 @@ mod tests {
     /// `RemoteStateActor` reply when handling `ResolveRemote`, so a slow or
     /// hanging lookup would serialise every other `connect()` behind it via the
     /// single socket actor. This tests that we do not serialize here anymore.
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    #[tokio::test(flavor = "current_thread")]
     #[traced_test]
     async fn concurrent_connects_not_blocked_by_slow_lookup() -> Result {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
@@ -1053,10 +1064,11 @@ mod tests {
         // lookup. For unknown ids the merged stream pends forever, because
         // the working lookup ends immediately with no item while the hanging
         // one never closes.
+        let hanging_lookup = HangingAddressLookup::default();
         let (ep_client, _guard_client) = new_endpoint_add(&mut rng, |ep| {
             let lookup = ep.address_lookup().unwrap();
             lookup.add(shared.create_address_lookup(ep.id()));
-            lookup.add(HangingAddressLookup);
+            lookup.add(hanging_lookup.clone());
         })
         .await;
 
@@ -1069,13 +1081,16 @@ mod tests {
                 let _ = ep.connect(offline_id, TEST_ALPN).await;
             }
         }));
-        // Wait until that `ResolveRemote` is in flight in the socket actor.
-        time::sleep(Duration::from_millis(200)).await;
+        // Observe that `ResolveRemote` is in flight instead of relying on a
+        // scheduler-dependent sleep before starting the competing connect.
+        timeout(Duration::from_secs(5), hanging_lookup.wait_until_started())
+            .await
+            .expect("hanging lookup was not started");
 
         // With the bug this connect is queued behind the hanging one and
         // never makes progress; with the fix it completes promptly.
-        let _conn = time::timeout(
-            Duration::from_secs(1),
+        let _conn = timeout(
+            Duration::from_secs(5),
             ep_client.connect(ep_server.id(), TEST_ALPN),
         )
         .await
@@ -1098,7 +1113,7 @@ mod tests {
             .await?;
         ep.address_lookup()
             .expect("endpoint is still open")
-            .add(HangingAddressLookup);
+            .add(HangingAddressLookup::default());
 
         let offline_id = SecretKey::from_bytes(&rng.random()).public();
         let connect_task = tokio::spawn(async move { ep.connect(offline_id, TEST_ALPN).await });
@@ -1291,10 +1306,14 @@ mod tests {
         add_address_lookup: F,
     ) -> (Endpoint, AbortOnDropHandle<Result<()>>) {
         let secret = SecretKey::from_bytes(&rng.random());
+        let dns_nameserver = "127.0.0.1:53"
+            .parse()
+            .expect("test DNS nameserver must be valid");
 
         let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
+            .dns_resolver(DnsResolver::with_nameserver(dns_nameserver))
             .bind()
             .await
             .unwrap();

@@ -209,8 +209,8 @@ clock-timer	iroh/examples/transfer.rs:796	let shutdown_start = Instant::now();
 clock-timer	iroh/examples/transfer.rs:841	let start = Instant::now();
 clock-timer	iroh/examples/transfer.rs:885	let start = Instant::now();
 clock-timer	iroh/examples/transfer.rs:925	let timeout = tokio::time::sleep(timeout);
-clock-timer	iroh/src/address_lookup.rs:1324	SystemTime::now()
-clock-timer	iroh/src/address_lookup.rs:1343	use n0_future::time::Duration;
+clock-timer	iroh/src/address_lookup.rs:1343	SystemTime::now()
+clock-timer	iroh/src/address_lookup.rs:1362	use n0_future::time::Duration;
 clock-timer	iroh/src/address_lookup/memory.rs:172	let last_updated = SystemTime::now();
 clock-timer	iroh/src/address_lookup/memory.rs:185	let last_updated = SystemTime::now();
 clock-timer	iroh/src/address_lookup/pkarr.rs:735	Instant::now()
@@ -371,7 +371,7 @@ entropy-random	iroh/examples/connect.rs:38	let secret_key = SecretKey::generate(
 entropy-random	iroh/examples/listen-unreliable.rs:17	let secret_key = SecretKey::generate();
 entropy-random	iroh/examples/listen.rs:22	let secret_key = SecretKey::generate();
 entropy-random	iroh/examples/transfer.rs:411	let s = SecretKey::generate();
-entropy-random	iroh/src/address_lookup.rs:769	let port: u16 = rand::rng().random_range(10_000..20_000);
+entropy-random	iroh/src/address_lookup.rs:771	let port: u16 = rand::rng().random_range(10_000..20_000);
 entropy-random	iroh/src/address_lookup/memory.rs:59	/// let id = SecretKey::generate().public();
 entropy-random	iroh/src/endpoint.rs:265	let secret_key = self.secret_key.unwrap_or_else(SecretKey::generate);
 entropy-random	iroh/src/endpoint.rs:285	RustlsTokenKey::new(&mut rand::rng(), &crypto_provider)
@@ -642,36 +642,36 @@ network-environment	iroh/bench/src/canary/workloads.rs:9	net::{IpAddr, Ipv4Addr,
 network-environment	iroh/examples/0rtt.rs:73	let mut address_lookup_stream = endpoint.address_lookup()?.resolve(remote_id);
 network-environment	iroh/examples/0rtt.rs:74	let _item = address_lookup_stream
 network-environment	iroh/examples/transfer.rs:536	let addr = tokio::net::lookup_host(host)
-network-environment	iroh/src/address_lookup.rs:1004	async fn address_lookup_succeeds_after_other_resolver_errors() -> Result {
-network-environment	iroh/src/address_lookup.rs:1006	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:1010	.add(address_lookup_shared.create_address_lookup(ep.id()));
-network-environment	iroh/src/address_lookup.rs:1022	let working = address_lookup_shared.create_address_lookup(ep.id());
-network-environment	iroh/src/address_lookup.rs:1180	async fn address_lookup_combined_wrong_only() -> Result {
-network-environment	iroh/src/address_lookup.rs:1183	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:1185	address_lookup_shared.create_address_lookup(ep.id())
-network-environment	iroh/src/address_lookup.rs:1190	let address_lookup1 = address_lookup_shared.create_lying_address_lookup(ep.id());
-network-environment	iroh/src/address_lookup.rs:1214	async fn address_lookup_with_wrong_existing_addr() -> Result {
-network-environment	iroh/src/address_lookup.rs:1217	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:1219	address_lookup_shared.create_address_lookup(ep.id())
-network-environment	iroh/src/address_lookup.rs:1223	address_lookup_shared.create_address_lookup(ep.id())
-network-environment	iroh/src/address_lookup.rs:1236	fn concurrent_address_lookup_addr_filter() {
-network-environment	iroh/src/address_lookup.rs:1376	.lookup_endpoint_by_id(&endpoint_info.endpoint_id, &origin)
-network-environment	iroh/src/address_lookup.rs:1417	.lookup_endpoint_by_id(&endpoint_id, &origin)
-network-environment	iroh/src/address_lookup.rs:874	async fn aggregate_lookup_bounds_inline_service_errors() {
-network-environment	iroh/src/address_lookup.rs:898	async fn address_lookup_simple_shared() -> Result {
-network-environment	iroh/src/address_lookup.rs:916	async fn address_lookup_simple_shared_with_arc() -> Result {
-network-environment	iroh/src/address_lookup.rs:918	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:920	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
-network-environment	iroh/src/address_lookup.rs:925	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
-network-environment	iroh/src/address_lookup.rs:936	async fn address_lookup_combined_with_empty_and_right() -> Result {
-network-environment	iroh/src/address_lookup.rs:938	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:940	address_lookup_shared.create_address_lookup(ep.id())
-network-environment	iroh/src/address_lookup.rs:945	let addr_lookup2 = address_lookup_shared.create_address_lookup(ep.id());
-network-environment	iroh/src/address_lookup.rs:973	async fn address_lookup_combined_with_empty_and_wrong() -> Result {
-network-environment	iroh/src/address_lookup.rs:975	let address_lookup_shared = TestAddressLookupShared::default();
-network-environment	iroh/src/address_lookup.rs:977	address_lookup_shared.create_address_lookup(ep.id())
-network-environment	iroh/src/address_lookup.rs:983	let address_lookup2 = address_lookup_shared.create_lying_address_lookup(ep.id());
-network-environment	iroh/src/address_lookup.rs:984	let address_lookup3 = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:1015	async fn address_lookup_succeeds_after_other_resolver_errors() -> Result {
+network-environment	iroh/src/address_lookup.rs:1017	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:1021	.add(address_lookup_shared.create_address_lookup(ep.id()));
+network-environment	iroh/src/address_lookup.rs:1033	let working = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:1195	async fn address_lookup_combined_wrong_only() -> Result {
+network-environment	iroh/src/address_lookup.rs:1198	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:1200	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1205	let address_lookup1 = address_lookup_shared.create_lying_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:1229	async fn address_lookup_with_wrong_existing_addr() -> Result {
+network-environment	iroh/src/address_lookup.rs:1232	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:1234	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1238	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:1251	fn concurrent_address_lookup_addr_filter() {
+network-environment	iroh/src/address_lookup.rs:1395	.lookup_endpoint_by_id(&endpoint_info.endpoint_id, &origin)
+network-environment	iroh/src/address_lookup.rs:1436	.lookup_endpoint_by_id(&endpoint_id, &origin)
+network-environment	iroh/src/address_lookup.rs:885	async fn aggregate_lookup_bounds_inline_service_errors() {
+network-environment	iroh/src/address_lookup.rs:909	async fn address_lookup_simple_shared() -> Result {
+network-environment	iroh/src/address_lookup.rs:927	async fn address_lookup_simple_shared_with_arc() -> Result {
+network-environment	iroh/src/address_lookup.rs:929	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:931	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
+network-environment	iroh/src/address_lookup.rs:936	Arc::new(address_lookup_shared.create_address_lookup(ep.id()))
+network-environment	iroh/src/address_lookup.rs:947	async fn address_lookup_combined_with_empty_and_right() -> Result {
+network-environment	iroh/src/address_lookup.rs:949	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:951	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:956	let addr_lookup2 = address_lookup_shared.create_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:984	async fn address_lookup_combined_with_empty_and_wrong() -> Result {
+network-environment	iroh/src/address_lookup.rs:986	let address_lookup_shared = TestAddressLookupShared::default();
+network-environment	iroh/src/address_lookup.rs:988	address_lookup_shared.create_address_lookup(ep.id())
+network-environment	iroh/src/address_lookup.rs:994	let address_lookup2 = address_lookup_shared.create_lying_address_lookup(ep.id());
+network-environment	iroh/src/address_lookup.rs:995	let address_lookup3 = address_lookup_shared.create_address_lookup(ep.id());
 network-environment	iroh/src/address_lookup/dns.rs:121	debug_span!("DnsAddressLookup", lookup_id=%endpoint_id.fmt_short(), %origin_domain);
 network-environment	iroh/src/address_lookup/dns.rs:125	.lookup_endpoint_by_id_staggered(&endpoint_id, &origin_domain, DNS_STAGGERING_MS)
 network-environment	iroh/src/defaults.rs:146	async fn test_dns_lookup_ipv4_ipv6() {
@@ -894,12 +894,12 @@ spawn-task	iroh/examples/remote-info.rs:47	let _inspect_task = tokio::task::spaw
 spawn-task	iroh/examples/transfer.rs:635	tokio::spawn(
 spawn-task	iroh/examples/transfer.rs:674	tokio::spawn(
 spawn-task	iroh/examples/transfer.rs:961	tokio::spawn(async move {
-spawn-task	iroh/src/address_lookup.rs:1066	let _offline_connect = AbortOnDropHandle::new(tokio::spawn({
-spawn-task	iroh/src/address_lookup.rs:1104	let connect_task = tokio::spawn(async move { ep.connect(offline_id, TEST_ALPN).await });
-spawn-task	iroh/src/address_lookup.rs:1146	let first = tokio::spawn({
-spawn-task	iroh/src/address_lookup.rs:1155	let second = tokio::spawn({
-spawn-task	iroh/src/address_lookup.rs:1303	let handle = tokio::spawn({
-spawn-task	iroh/src/address_lookup.rs:1479	let handle = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1078	let _offline_connect = AbortOnDropHandle::new(tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1119	let connect_task = tokio::spawn(async move { ep.connect(offline_id, TEST_ALPN).await });
+spawn-task	iroh/src/address_lookup.rs:1161	let first = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1170	let second = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1322	let handle = tokio::spawn({
+spawn-task	iroh/src/address_lookup.rs:1498	let handle = tokio::spawn({
 spawn-task	iroh/src/address_lookup/pkarr.rs:341	let join_handle = task::spawn(service.run().instrument(info_span!("pkarr_publish")));
 spawn-task	iroh/src/endpoint.rs:1439	/// tokio::spawn(endpoint_closed.run_until(async move {
 spawn-task	iroh/src/endpoint.rs:1931	/// tokio::spawn(endpoint.closed().run_until(async move {
@@ -1009,7 +1009,7 @@ unordered-collection	iroh/examples/remote-info.rs:269	type RemoteMapInner = Arc<
 unordered-collection	iroh/examples/remote-info.rs:337	pub fn read(&self) -> RwLockReadGuard<'_, HashMap<EndpointId, RemoteInfo>> {
 unordered-collection	iroh/examples/remote-info.rs:430	map: Arc<RwLock<HashMap<iroh::PublicKey, RemoteInfo>>>,
 unordered-collection	iroh/src/address_lookup.rs:693	collections::HashMap,
-unordered-collection	iroh/src/address_lookup.rs:715	type InfoStore = HashMap<EndpointId, (EndpointData, u64)>;
+unordered-collection	iroh/src/address_lookup.rs:717	type InfoStore = HashMap<EndpointId, (EndpointData, u64)>;
 unordered-collection	iroh/src/socket.rs:2093	local_addrs: FxHashSet<IpAddr>,
 unordered-collection	iroh/src/socket.rs:52	use rustc_hash::FxHashSet;
 unordered-collection	iroh/src/socket/biased_rtt_path_selector.rs:14	use rustc_hash::FxHashMap;

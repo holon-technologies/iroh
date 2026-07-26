@@ -199,8 +199,8 @@ clock-timer	iroh/examples/transfer.rs	impl<Output>::new	std::time::Instant::now	
 clock-timer	iroh/examples/transfer.rs	send_data	std::time::Instant::now	1
 clock-timer	iroh/examples/transfer.rs	write_chunk_timeout	tokio::time::sleep	1
 clock-timer	iroh/src/address_lookup.rs	tests::concurrent_connects_do_not_race_on_empty_resolve	time::sleep	1
-clock-timer	iroh/src/address_lookup.rs	tests::concurrent_connects_not_blocked_by_slow_lookup	time::sleep	1
-clock-timer	iroh/src/address_lookup.rs	tests::concurrent_connects_not_blocked_by_slow_lookup	time::timeout	1
+clock-timer	iroh/src/address_lookup.rs	tests::concurrent_connects_not_blocked_by_slow_lookup	timeout	1
+clock-timer	iroh/src/address_lookup.rs	tests::concurrent_connects_not_blocked_by_slow_lookup	timeout	2
 clock-timer	iroh/src/address_lookup.rs	tests::hanging_resolve_returns_bounded_deadline_error	time::timeout	1
 clock-timer	iroh/src/address_lookup.rs	tests::impl<FailingAddressLookup>::resolve	time::sleep	1
 clock-timer	iroh/src/address_lookup.rs	tests::impl<TestAddressLookup>::resolve	time::sleep	1
