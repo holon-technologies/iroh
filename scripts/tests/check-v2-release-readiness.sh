@@ -37,6 +37,7 @@ for path in \
   .github/workflows/release.yml \
   .github/workflows/docker.yaml \
   .github/workflows/simulation-nightly.yml \
+  Makefile.toml \
   scripts/run-bounded-fuzz.sh \
   scripts/run-v2-semver-checks.sh \
   scripts/tests/check-release-fork-boundary.sh \
@@ -69,7 +70,10 @@ for path in "${version_manifests[@]}"; do
   fi
 done
 
-python3 - "$repo_root/Cargo.lock" "$repo_root/iroh-sim/Cargo.lock" <<'PY' ||
+python3 - \
+  "$repo_root/Cargo.lock" \
+  "$repo_root/fuzz/Cargo.lock" \
+  "$repo_root/iroh-sim/Cargo.lock" <<'PY' ||
 import sys
 import tomllib
 
@@ -112,8 +116,8 @@ for path in "${portable_workflows[@]}"; do
   fi
 done
 
-require_text scripts/run-bounded-fuzz.sh 'fuzz_target=$(rustc +nightly -vV'
-require_text scripts/run-bounded-fuzz.sh '--target "$fuzz_target"'
+require_text scripts/run-bounded-fuzz.sh 'fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"'
+require_text scripts/run-bounded-fuzz.sh 'cargo "+$fuzz_toolchain" fuzz run'
 
 nightly="$repo_root/.github/workflows/simulation-nightly.yml"
 if grep -Eq '^[[:space:]]+seed: [0-9a-f]{64}[[:space:]]*$' "$nightly"; then
@@ -184,6 +188,28 @@ done
 require_text .github/workflows/ci.yml 'scripts/tests/check-v2-release-readiness.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-release-fork-boundary.sh'
 require_text .github/workflows/ci.yml 'scripts/run-v2-semver-checks.sh'
+require_text Makefile.toml 'CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["iroh/bench", "tools/determinism-checker"]'
+require_text .github/workflows/tests.yaml 'runs-on: windows-2022'
+require_text .github/workflows/tests.yaml 'toolchain: nightly-2026-07-19'
+postcard_override_count=$(grep -Fc -- 'update -p postcard-derive --precise 0.2.2' \
+  "$repo_root/.github/workflows/tests.yaml" || true)
+if (( postcard_override_count != 2 )); then
+  fail ".github/workflows/tests.yaml must apply the reviewed postcard-derive lower-bound override in both minimal-version jobs"
+fi
+require_text .github/workflows/netsim_runner.yaml 'NETSIM_PYTHONPATH'
+require_text .github/workflows/netsim_runner.yaml 'sudo env PYTHONPATH="$NETSIM_PYTHONPATH"'
+
+netsim_release_job=$(sed -n '/^  netsim-release:/,/^  netsim-perf:/p' "$repo_root/.github/workflows/netsim.yml")
+for permission in 'contents: read' 'issues: write' 'pull-requests: write'; do
+  if ! grep -Fq -- "$permission" <<< "$netsim_release_job"; then
+    fail ".github/workflows/netsim.yml netsim-release is missing called-workflow permission: $permission"
+  fi
+done
+
+semver_job=$(sed -n '/^  check_semver:/,/^  check_external_types:/p' "$repo_root/.github/workflows/ci.yml")
+if ! grep -Fq -- 'RUSTFLAGS: ""' <<< "$semver_job"; then
+  fail '.github/workflows/ci.yml check_semver must not turn compatibility-only deprecations into errors'
+fi
 if grep -Fq -- 'cargo-semver-checks-action' "$repo_root/.github/workflows/ci.yml"; then
   fail '.github/workflows/ci.yml still uses registry-only semver setup that cannot resolve unpublished owned forks'
 fi

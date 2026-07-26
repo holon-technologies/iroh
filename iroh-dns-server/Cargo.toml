@@ -98,6 +98,10 @@ all-features = true
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
+    # Metrics is the concrete observer passed to the vendored DNS server.
+    "hickory_server::*",
+    # LimitsConfig deliberately exposes typed trusted proxy networks.
+    "ipnet::*",
     "iroh_metrics::*",
     "n0_error::*",
     "serde_core::*",

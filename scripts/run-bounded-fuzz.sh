@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 seconds=30
 selected_target=""
 artifacts="$repo_root/target/fuzz-artifacts"
+readonly fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"
 readonly artifact_file_limit=64
 readonly artifact_byte_limit=67108864
 readonly -a targets=(
@@ -83,9 +84,10 @@ if ! cargo fuzz --help >/dev/null 2>&1; then
   exit 2
 fi
 
-fuzz_target=$(rustc +nightly -vV | sed -n 's/^host: //p')
+fuzz_target=$(rustc "+$fuzz_toolchain" -vV | sed -n 's/^host: //p')
 if [[ ! "$fuzz_target" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-  printf 'nightly rustc returned an invalid host target: %s\n' "$fuzz_target" >&2
+  printf '%s rustc returned an invalid host target: %s\n' \
+    "$fuzz_toolchain" "$fuzz_target" >&2
   exit 2
 fi
 
@@ -119,7 +121,7 @@ run_target() {
   (
     cd "$repo_root"
     RUSTFLAGS="${IROH_FUZZ_RUSTFLAGS:--A deprecated}" \
-      cargo +nightly fuzz run --target "$fuzz_target" "$target" "$run_corpus" -- \
+      cargo "+$fuzz_toolchain" fuzz run --target "$fuzz_target" "$target" "$run_corpus" -- \
       "-max_total_time=$seconds" \
       -timeout=10 \
       -rss_limit_mb=2048 \

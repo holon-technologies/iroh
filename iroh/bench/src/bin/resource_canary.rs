@@ -1852,9 +1852,33 @@ fn unix_seconds() -> Result<u64, Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
     use super::*;
+
+    fn assert_artifact_directory_is_readonly(path: &Path) {
+        let permissions = fs::metadata(path)
+            .expect("artifact directory metadata")
+            .permissions();
+        assert!(permissions.readonly());
+
+        #[cfg(unix)]
+        assert_eq!(permissions.mode() & 0o222, 0);
+    }
+
+    fn restore_artifact_directory_permissions(path: &Path) {
+        let mut permissions = fs::metadata(path)
+            .expect("artifact directory metadata")
+            .permissions();
+
+        #[cfg(unix)]
+        permissions.set_mode(0o700);
+        #[cfg(windows)]
+        permissions.set_readonly(false);
+
+        fs::set_permissions(path, permissions).expect("restore temporary directory");
+    }
 
     fn sample(phase: LanePhase) -> ResourceSample {
         ResourceSample {
@@ -1989,14 +2013,7 @@ mod tests {
         )
         .expect("manifest JSON");
         assert_eq!(manifest["files"][0]["path"], "preflight.json");
-        assert_eq!(
-            fs::metadata(&artifact_dir)
-                .expect("artifact directory metadata")
-                .permissions()
-                .mode()
-                & 0o222,
-            0
-        );
+        assert_artifact_directory_is_readonly(&artifact_dir);
         assert!(
             fs::metadata(preflight_path)
                 .expect("preflight metadata")
@@ -2004,11 +2021,7 @@ mod tests {
                 .readonly()
         );
 
-        let mut permissions = fs::metadata(&artifact_dir)
-            .expect("artifact directory metadata")
-            .permissions();
-        permissions.set_mode(0o700);
-        fs::set_permissions(&artifact_dir, permissions).expect("restore temporary directory");
+        restore_artifact_directory_permissions(&artifact_dir);
     }
 
     #[test]
@@ -2040,10 +2053,6 @@ mod tests {
         .expect("manifest JSON");
         assert_eq!(manifest["files"][0]["path"], "failure.json");
 
-        let mut permissions = fs::metadata(&artifact_dir)
-            .expect("artifact directory metadata")
-            .permissions();
-        permissions.set_mode(0o700);
-        fs::set_permissions(&artifact_dir, permissions).expect("restore temporary directory");
+        restore_artifact_directory_permissions(&artifact_dir);
     }
 }

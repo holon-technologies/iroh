@@ -148,6 +148,9 @@ jobs:
         cd ../chuck/netsim
         sudo apt update
         ./setup.sh
+        netsim_pythonpath=$(python3 -c 'import site; print(site.getusersitepackages())')
+        echo "NETSIM_PYTHONPATH=$netsim_pythonpath" >> "$GITHUB_ENV"
+        sudo env PYTHONPATH="$netsim_pythonpath" python3 -c 'import humanfriendly, pyshark'
         ./cleanup.sh || true
 
     - name: Copy sim configs
@@ -191,9 +194,11 @@ jobs:
         fi
         for sim_path in "${sim_paths[@]}"; do
           if [[ -n "$RUST_LOG_INPUT" ]]; then
-            sudo env RUST_LOG="$RUST_LOG_INPUT" python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
+            sudo env PYTHONPATH="$NETSIM_PYTHONPATH" RUST_LOG="$RUST_LOG_INPUT" \
+              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
           else
-            sudo python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
+            sudo env PYTHONPATH="$NETSIM_PYTHONPATH" \
+              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
           fi
         done
 

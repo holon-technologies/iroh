@@ -160,11 +160,11 @@ jobs:
   build_and_test_windows:
     timeout-minutes: 30
     name: "Tests"
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
-        name: [windows-latest]
+        name: [windows-2022]
         rust: ["${{ inputs.rust-version}}"]
         features: [all, none, default]
         target:
@@ -181,7 +181,7 @@ jobs:
       - name: Install ${{ matrix.rust }}
         run: |
           rustup toolchain install ${{ matrix.rust }}
-          rustup toolchain default ${{ matrix.rust }}
+          rustup default ${{ matrix.rust }}
           rustup target add ${{ matrix.target }}
           rustup set default-host ${{ matrix.target }}
 
@@ -267,6 +267,9 @@ jobs:
 
   minimal-crates:
     runs-on: ${{ matrix.runner }}
+    env:
+      # This job checks dependency lower bounds, not warning policy.
+      RUSTFLAGS: ""
     strategy:
       fail-fast: false
       matrix:
@@ -284,26 +287,33 @@ jobs:
             runner: macos-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-07-19
       - name: cargo check
         run: |
           rm -f Cargo.lock
-          cargo +nightly check -Z minimal-versions --workspace --all-features --lib --bins
+          cargo +nightly-2026-07-19 generate-lockfile -Z minimal-versions
+          # postcard-derive 0.2.0 understates its Syn lower bound.
+          cargo +nightly-2026-07-19 update -p postcard-derive --precise 0.2.2
+          cargo +nightly-2026-07-19 check --locked --workspace --all-features --lib --bins
 
   minimal-crates-windows:
     timeout-minutes: 30
     name: "Minimal Crates (Windows)"
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
-        name: [windows-latest]
+        name: [windows-2022]
         rust: ["${{ inputs.rust-version}}"]
         target:
           - x86_64-pc-windows-msvc
     env:
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
+      # This job checks dependency lower bounds, not warning policy.
+      RUSTFLAGS: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -312,9 +322,7 @@ jobs:
 
       - name: Install Rust nightly
         run: |
-          rustup toolchain install nightly
-          rustup target add ${{ matrix.target }}
-          rustup set default-host ${{ matrix.target }}
+          rustup toolchain install nightly-2026-07-19 --target ${{ matrix.target }}
 
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.10
@@ -340,4 +348,7 @@ jobs:
       - name: cargo check
         run: |
           rm -Force Cargo.lock
-          cargo +nightly check -Z minimal-versions --workspace --all-features --lib --bins
+          cargo +nightly-2026-07-19 generate-lockfile -Z minimal-versions
+          # postcard-derive 0.2.0 understates its Syn lower bound.
+          cargo +nightly-2026-07-19 update -p postcard-derive --precise 0.2.2
+          cargo +nightly-2026-07-19 check --locked --workspace --all-features --lib --bins

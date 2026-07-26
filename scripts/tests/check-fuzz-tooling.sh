@@ -76,8 +76,20 @@ fi
 grep -Fq -- '-rss_limit_mb=2048' "$runner"
 grep -Fq -- 'artifact_file_limit=64' "$runner"
 grep -Fq -- 'artifact_byte_limit=67108864' "$runner"
-grep -Fq -- 'fuzz_target=$(rustc +nightly -vV' "$runner"
-grep -Fq -- '--target "$fuzz_target"' "$runner"
+grep -Fq -- 'fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"' "$runner"
+grep -Fq -- 'fuzz_target=$(rustc "+$fuzz_toolchain" -vV' "$runner"
+grep -Fq -- 'cargo "+$fuzz_toolchain" fuzz run' "$runner"
+
+for workflow in "$ci_workflow" "$scheduled_workflow"; do
+  grep -Fq -- 'IROH_FUZZ_TOOLCHAIN: "nightly-2026-07-19"' "$workflow" || {
+    printf 'fuzz workflow does not select the reviewed nightly: %s\n' "$workflow" >&2
+    exit 1
+  }
+  grep -Fq -- 'toolchain: nightly-2026-07-19' "$workflow" || {
+    printf 'fuzz workflow does not install the reviewed nightly: %s\n' "$workflow" >&2
+    exit 1
+  }
+done
 
 workflow_contracts=(
   "$ci_workflow|fuzz_smoke:"

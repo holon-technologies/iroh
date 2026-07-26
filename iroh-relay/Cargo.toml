@@ -43,7 +43,7 @@ n0-error = "1.0.0"
 n0-future = "0.3"
 num_enum = "0.7"
 pin-project = "1"
-postcard = { version = "1", default-features = false, features = [
+postcard = { version = "1.1.3", default-features = false, features = [
     "alloc",
     "use-std",
     "experimental-derive",
@@ -193,6 +193,7 @@ allowed_external_types = [
     # workspace crates
     "iroh_base::*",
     "iroh_dns::*",
+    "iroh_runtime::*",
     # crates owned by us that will move to 1.0 as well
     "iroh_metrics::*",
     "n0_error::*",
@@ -210,6 +211,8 @@ allowed_external_types = [
     # non-1.0 crates that we decided to accept in the public API
     "rustls::*",
     "tokio_rustls::*",
+    # BoundedAcmeCache is the concrete cache implementation supplied to ACME.
+    "tokio_rustls_acme::*",
     "futures_core::stream::Stream",
     "futures_sink::Sink",
 ]

@@ -49,6 +49,8 @@ tokio = { version = "1", features = ["macros", "rt"] }
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
     "iroh_base::*",
+    # BuildError intentionally retains the concrete resolver construction cause.
+    "hickory_net::*",
     "n0_error::*",
     "rustls::*",
     "url::*",

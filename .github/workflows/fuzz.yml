@@ -17,6 +17,8 @@ jobs:
     name: Five-minute fuzz (${{ matrix.target }})
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    env:
+      IROH_FUZZ_TOOLCHAIN: "nightly-2026-07-19"
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +31,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-07-19
       - name: Install cargo-fuzz
         uses: taiki-e/install-action@v2
         with:

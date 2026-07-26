@@ -40,6 +40,8 @@ jobs:
   netsim-release:
     permissions:
       contents: read
+      issues: write
+      pull-requests: write
     if: ${{github.ref_name=='main' && github.event_name == 'push'}}
     uses: './.github/workflows/netsim_runner.yaml'
     with:
