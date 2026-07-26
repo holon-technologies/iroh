@@ -1,6 +1,6 @@
 # Goal: Coverage-Driven Distributed-Network Testing
 
-- Status: Active — repository implementation verified; external activation pending
+- Status: Active — external gates enforced; scheduled and runtime-history evidence accruing
 - Defined: 2026-07-26
 
 ## Scope
@@ -125,14 +125,14 @@ The run manifest, source revision, scenario, seed, decision trace, simulator ver
 This goal is complete when all of the following are true:
 
 - [x] A checked, versioned coverage policy defines the network-mode dimensions, obligations, lane ownership, and execution bounds.
-- [ ] Pull-request and merge/main gates have documented inputs, deterministic seed selection, runtime budgets, and required status checks.
+- [x] Pull-request and merge/main gates have documented inputs, deterministic seed selection, runtime budgets, and required status checks.
 - [x] The permanent corpus runs in the pull-request gate and every entry replays with its declared expected result.
 - [x] The continuous explorer never intentionally reuses an exploratory seed lease for the same policy revision and records lease ownership in aggregate evidence.
 - [x] Every declared individual coverage bucket and required pair is exercised within a rolling seven-day window, or the report names the uncovered obligation and reason.
 - [x] Applicable campaigns execute separate fault and recovery phases with safety and bounded-liveness oracles.
 - [x] Aggregate reports expose configuration, state-transition, oracle, and failure-signature coverage rather than only run totals.
 - [x] Confirmed simulation product failures automatically create or update one deduplicated GitHub issue containing replay evidence.
-- [ ] A fixed failure cannot be closed until a minimized corpus regression passes in the required pull-request gate.
+- [x] A fixed failure cannot be closed until a minimized corpus regression passes in the required pull-request gate.
 - [x] Infrastructure, expected resource-exhaustion, product-correctness, determinism, and performance outcomes are distinct typed classifications.
 - [x] Nightly and weekly workflows no longer repeat exploratory fixed seed ranges already covered by the continuous service; they run gap-directed, parity, platform, scale, or performance work instead.
 - [x] At least one shared semantic workload is continuously checked in both the deterministic simulator and a realistic network backend.
@@ -191,27 +191,26 @@ This goal is complete when all of the following are true:
 - Retained explorer failures carry an integrity-indexed, versioned operational outcome bound to the
   normalized signature digest; triage fixtures prove that a non-product class cannot create an
   issue and that replay directories are excluded from source-failure discovery.
-- Existing hosted evidence is green for the remote revision: [daily deterministic soak run
-  30206768991](https://github.com/holon-technologies/iroh/actions/runs/30206768991), [CI run
-  30203847298](https://github.com/holon-technologies/iroh/actions/runs/30203847298), [Netsim run
-  30203847309](https://github.com/holon-technologies/iroh/actions/runs/30203847309), and [Patchbay public
-  parity run 30192572910](https://github.com/holon-technologies/iroh/actions/runs/30192572910). These
-  runs predate the uncommitted coverage-driven changes and therefore do not prove the new hosted
-  paths.
+- Current-revision hosted evidence is green for commit `ebaf23437437039cafa2b5b7f1f5a77042a235e1`:
+  [CI run 30214682866](https://github.com/holon-technologies/iroh/actions/runs/30214682866)
+  completed all 34 jobs successfully, including both deterministic simulation checks and the main
+  Netsim integration suite; [Netsim release run
+  30214682876](https://github.com/holon-technologies/iroh/actions/runs/30214682876) and [Wine run
+  30214682813](https://github.com/holon-technologies/iroh/actions/runs/30214682813) also succeeded.
+- Repository ruleset [Required deterministic simulation gates
+  19774422](https://github.com/holon-technologies/iroh/rules/19774422) actively targets `main` with
+  no bypass actors. It requires up-to-date successful GitHub Actions checks named `Deterministic
+  simulation contracts and corpus` and `Deterministic simulation change gate`; GitHub's effective
+  branch-rule response contains both checks and reports `main` as protected.
 
 ### Remaining external acceptance
 
-- GitHub reports `main` as unprotected and exposes no repository rulesets, so the two intended
-  simulation status checks are not yet externally required. The source-controlled closure guard
-  now verifies promotion, corpus replay,
-  and both same-revision check results, but it cannot prove that those checks are required by the
-  repository branch rule. This leaves the gate/status-check and issue-closure acceptance items open.
-- The source changes must be committed and pushed, then the new CI, daily, nightly, weekly, Netsim,
-  and Patchbay paths must complete on that revision before hosted behavior can be claimed.
-- The live runtime-SLO audit currently reports zero compatible PR and main samples because the new
-  two-job gate has not been pushed. Twenty successful compatible executions per tier are required
-  before the documented P95 targets can be measured rather than reported as
-  `insufficient_history`.
+- Daily, nightly, weekly, and Patchbay workflows have not yet completed against the activated
+  coverage-driven revision. Their next scheduled or manually dispatched runs must supply that
+  hosted service evidence.
+- The live runtime-SLO history has one compatible successful main execution and no compatible pull-
+  request execution yet. Twenty successful compatible executions per tier are required before the
+  documented P95 targets can be measured rather than reported as `insufficient_history`.
 
 ## Resolved Implementation Decisions
 
