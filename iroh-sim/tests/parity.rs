@@ -18,6 +18,18 @@ fn patchbay_fixture_import_is_strict_canonical_and_reports_capability_skips() {
         fixture.to_canonical_json().unwrap(),
         include_bytes!("fixtures/patchbay-public.json")
     );
+    let public = canonical_patchbay_scenarios()
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.case == CanonicalParityCase::Public)
+        .unwrap();
+    let current_scenario_hash = blake3::hash(&public.scenario.to_canonical_json().unwrap())
+        .to_hex()
+        .to_string();
+    assert_eq!(
+        fixture.evidence.scenario_hash, current_scenario_hash,
+        "checked Patchbay fixture must track the canonical public scenario"
+    );
 
     let skipped = ParityFixture {
         schema_version: PARITY_FIXTURE_SCHEMA_VERSION,

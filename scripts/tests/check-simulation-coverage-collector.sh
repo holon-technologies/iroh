@@ -29,10 +29,15 @@ if [[ "$1 $2" == "run download" ]]; then
   run_id=$3
   shift 3
   destination=
+  artifact_name=
   while (($# > 0)); do
     case "$1" in
       --dir)
         destination=$2
+        shift 2
+        ;;
+      --name)
+        artifact_name=$2
         shift 2
         ;;
       *)
@@ -40,6 +45,13 @@ if [[ "$1 $2" == "run download" ]]; then
         ;;
     esac
   done
+  if [[ "$run_id" == 38 ]]; then
+    if [[ "$artifact_name" == "iroh-sim-daily-soak-38" ]]; then
+      mkdir -p "$destination"
+      exit 0
+    fi
+    exit 1
+  fi
   mkdir -p "$destination"
   cp "$FAKE_GH_FIXTURES/$run_id/daily-soak-aggregate.json" "$destination/"
   exit 0
@@ -121,6 +133,11 @@ export FAKE_GH_RUNS='[
     "databaseId": 39,
     "headSha": "cccccccccccccccccccccccccccccccccccccccc",
     "createdAt": "1970-01-03T00:36:40Z"
+  },
+  {
+    "databaseId": 38,
+    "headSha": "dddddddddddddddddddddddddddddddddddddddd",
+    "createdAt": "1970-01-02T23:46:40Z"
   }
 ]'
 
@@ -144,6 +161,7 @@ jq -e '.workflow_run_id == 41' "$history/41.json" >/dev/null
 grep -Fq -- '--limit 32' "$FAKE_GH_LOG"
 grep -Fq -- '--status completed' "$FAKE_GH_LOG"
 grep -Fq -- '--repo holon-technologies/iroh' "$FAKE_GH_LOG"
+grep -Fq -- 'iroh-sim-daily-soak-38' "$FAKE_GH_LOG"
 
 # GitHub metadata and immutable aggregate provenance must agree.
 jq '.source_revision = "dddddddddddddddddddddddddddddddddddddddd"' \
