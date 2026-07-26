@@ -205,8 +205,8 @@ for permission in 'contents: read' 'issues: write' 'pull-requests: write'; do
     fail ".github/workflows/netsim.yml netsim-release is missing called-workflow permission: $permission"
   fi
 done
-if ! grep -Fq -- 'filter: "skip:iroh_cust_10gb"' <<< "$netsim_release_job"; then
-  fail '.github/workflows/netsim.yml netsim-release must exclude the soak-grade 10 GiB profile'
+if ! grep -Fq -- 'filter: "skip:iroh_cust_10gb,iroh_relay_only__1_to_10"' <<< "$netsim_release_job"; then
+  fail '.github/workflows/netsim.yml netsim-release must exclude the soak-grade 10 GiB cases'
 fi
 if ! grep -Fq -- 'max_workers: 6' <<< "$netsim_release_job"; then
   fail '.github/workflows/netsim.yml netsim-release must use the proven hosted-runner concurrency'

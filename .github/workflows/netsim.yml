@@ -52,9 +52,9 @@ jobs:
       sim_paths: "sims/iroh,sims/integration"
       pr_number: ""
       build_profile: "optimized-release"
-      # The 10 GiB performance profile is soak-grade: serial execution cannot fit
-      # this job, while concurrent cases exceed Chuck's 300-second per-case deadline.
-      filter: "skip:iroh_cust_10gb"
+      # Keep aggregate 10 GiB workloads in the manually dispatched performance lane:
+      # they cannot complete within Chuck's 300-second per-case deadline on hosted CI.
+      filter: "skip:iroh_cust_10gb,iroh_relay_only__1_to_10"
 
   netsim-perf:
     permissions:
