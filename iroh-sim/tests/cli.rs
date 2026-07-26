@@ -8,11 +8,11 @@ use std::{
 };
 
 use iroh_sim::{
-    ActionSchedule, ActionSpec, AllowedTerminal, CryptoMode, DeterminismGrade, IpFamily,
-    NatFilteringBehavior, NatMappingBehavior, ObservationTrigger, PATCHBAY_RECEIPT_SCHEMA_VERSION,
-    PatchbayReceipt, ReferencedSwarmSpec, RunManifest, SWARM_SCHEMA_VERSION, Scenario,
-    ScenarioAction, ScenarioBuilder, ScenarioOperation, SwarmChoice, SwarmMutation, SwarmOption,
-    SwarmSpec, TraceComparisonMode,
+    ActionSchedule, ActionSpec, AllowedTerminal, CryptoMode, DeterminismGrade, FailureSignature,
+    IpFamily, NatFilteringBehavior, NatMappingBehavior, ObservationTrigger,
+    PATCHBAY_RECEIPT_SCHEMA_VERSION, PatchbayReceipt, ReferencedSwarmSpec, RunManifest,
+    SWARM_SCHEMA_VERSION, Scenario, ScenarioAction, ScenarioBuilder, ScenarioOperation,
+    SwarmChoice, SwarmMutation, SwarmOption, SwarmSpec, TraceComparisonMode,
 };
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -97,7 +97,7 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
     plan["lanes"][0]["swarm"] =
         serde_json::Value::String("iroh-sim/tests/fixtures/soak-failure-swarm.json".to_owned());
     plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
-        "8b83cb4c2840557016f2d8bd67e04caf9d142c3dd66fde1d263abfdad6683e12".to_owned(),
+        "e1d0d2581fcff21ec47d3643360c47d2993a5b9b517bbbe6a4d3656e2c38bd5c".to_owned(),
     );
     let plan_path = root.join("failure-plan.json");
     fs::write(&plan_path, serde_json::to_vec_pretty(&plan).unwrap()).unwrap();
@@ -494,13 +494,13 @@ fn production_crypto_run_records_semantic_contract_and_replays() {
 }
 
 #[test]
-fn declarative_run_and_expected_failure_replay_through_the_same_cli() {
+fn versioned_declarative_run_and_expected_failure_replay_through_the_same_cli() {
     let _guard = CLI_RUN_LOCK.lock().unwrap();
     let root = temp_dir();
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let fixture = workspace.join("iroh-sim/tests/fixtures/v2-ipv4-stream.json");
+    let fixture = workspace.join("iroh-sim/tests/fixtures/schema-v2-ipv4-stream.json");
 
     let success_dir = root.join("success");
     let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
@@ -519,6 +519,9 @@ fn declarative_run_and_expected_failure_replay_through_the_same_cli() {
     );
     assert!(success_dir.join("scenario.json").is_file());
     assert!(success_dir.join("terminal-report.json").is_file());
+    let canonical = Scenario::from_json(&fs::read(success_dir.join("scenario.json")).unwrap())
+        .expect("v2 input is stored as canonical v3");
+    assert_eq!(canonical.schema_version, iroh_sim::SCENARIO_SCHEMA_VERSION);
     let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("replay")
@@ -532,7 +535,7 @@ fn declarative_run_and_expected_failure_replay_through_the_same_cli() {
         String::from_utf8_lossy(&replay.stderr)
     );
 
-    let mut failing = Scenario::from_json(&fs::read(&fixture).unwrap()).unwrap();
+    let mut failing = canonical;
     failing.metadata.id = "cli/expected-trigger-stall".to_owned();
     failing
         .allowed_terminals
@@ -682,6 +685,64 @@ fn declarative_run_and_expected_failure_replay_through_the_same_cli() {
 }
 
 #[test]
+fn all_resource_exhaustion_corpus_entries_run_and_replay_through_cli() {
+    let _guard = CLI_RUN_LOCK.lock().unwrap();
+    let root = temp_dir();
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    for (name, entity) in [
+        ("resource-connection-limit", "connection"),
+        ("resource-relay-limit", "relay"),
+        ("resource-socket-limit", "socket"),
+        ("resource-stream-limit", "stream"),
+        ("resource-timer-limit", "timer"),
+        ("resource-trace-limit", "trace_buffer"),
+    ] {
+        let artifacts = root.join(name);
+        let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+            .current_dir(workspace)
+            .arg("run")
+            .arg(workspace.join(format!("iroh-sim/corpus/{name}/scenario.json")))
+            .args(["--seed", &"aa".repeat(32), "--artifacts"])
+            .arg(&artifacts)
+            .output()
+            .unwrap();
+        assert!(
+            run.status.success(),
+            "{name}: stdout={} stderr={}",
+            String::from_utf8_lossy(&run.stdout),
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let signature = FailureSignature::from_json(
+            &fs::read(artifacts.join("failure-signature.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(signature.entities, [entity]);
+        let manifest =
+            RunManifest::from_json(&fs::read(artifacts.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(
+            manifest.scheduling_profile,
+            "seeded-fair-kernel+root-driver+declarative-v3"
+        );
+
+        let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+            .current_dir(workspace)
+            .arg("replay")
+            .arg(artifacts.join("manifest.json"))
+            .output()
+            .unwrap();
+        assert!(
+            replay.status.success(),
+            "{name}: stdout={} stderr={}",
+            String::from_utf8_lossy(&replay.stdout),
+            String::from_utf8_lossy(&replay.stderr)
+        );
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn generated_campaign_respects_operation_payload_limits() {
     let _guard = CLI_RUN_LOCK.lock().unwrap();
     let root = temp_dir();
@@ -799,7 +860,7 @@ fn swarm_campaign_records_selections_and_surfaces_seeded_zero_time_livelock() {
             .build()
             .unwrap();
     base.budgets.max_events = 1_024;
-    base.budgets.max_trace_events = 4_096;
+    base.budgets.resources.max_trace_events = 4_096;
     for invariant in &mut base.invariants {
         if invariant.max_events.is_some() {
             invariant.max_events = Some(base.budgets.max_events);

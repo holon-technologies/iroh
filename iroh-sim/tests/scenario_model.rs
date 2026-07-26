@@ -6,11 +6,12 @@ use iroh_sim::{
     IpFamily, NatFilteringBehavior, NatMappingBehavior, NatSpec, ObservationTrigger,
     RelayImpairmentSpec, RelayProtocolVersion, RelaySpec, SCENARIO_SCHEMA_VERSION, Scenario,
     ScenarioAction, ScenarioBuilder, ScenarioGenerator, ScenarioModelError, ScenarioOperation,
+    ScenarioResourceLimits,
 };
 use proptest::prelude::*;
 
 #[test]
-fn strict_v2_fixture_matches_the_rust_builder_and_round_trips_canonically() {
+fn strict_v3_fixture_matches_the_rust_builder_and_round_trips_canonically() {
     let fixture = include_bytes!("fixtures/v2-ipv4-stream.json");
     let parsed = Scenario::from_json(fixture).unwrap();
     let built = ScenarioBuilder::direct_ip_echo(
@@ -27,6 +28,113 @@ fn strict_v2_fixture_matches_the_rust_builder_and_round_trips_canonically() {
     let canonical = parsed.to_canonical_json().unwrap();
     assert_eq!(Scenario::from_json(&canonical).unwrap(), parsed);
     assert_eq!(canonical, parsed.to_canonical_json().unwrap());
+}
+
+#[test]
+fn v3_resource_limits_are_required_strict_and_allow_zero_live_capacity() {
+    let mut scenario = ScenarioBuilder::direct_ip_echo(
+        "schema/resource-limits",
+        IpFamily::Ipv4,
+        ScenarioOperation::Stream,
+    )
+    .unwrap()
+    .build()
+    .unwrap();
+    scenario.budgets.resources = ScenarioResourceLimits {
+        max_scheduled_events: 1,
+        max_trace_events: 1,
+        max_timers: 0,
+        max_sockets: 0,
+        max_connections: 0,
+        max_streams: 0,
+        max_relays: 0,
+    };
+    scenario.validate().unwrap();
+
+    scenario.budgets.resources.max_scheduled_events = 0;
+    assert!(matches!(
+        scenario.validate(),
+        Err(ScenarioModelError::InvalidBudgets)
+    ));
+    scenario.budgets.resources.max_scheduled_events = 1;
+    scenario.budgets.resources.max_trace_events = 0;
+    assert!(matches!(
+        scenario.validate(),
+        Err(ScenarioModelError::InvalidBudgets)
+    ));
+
+    let mut encoded = serde_json::to_value(
+        ScenarioBuilder::direct_ip_echo(
+            "schema/resource-limits-strict",
+            IpFamily::Ipv4,
+            ScenarioOperation::Stream,
+        )
+        .unwrap()
+        .build()
+        .unwrap(),
+    )
+    .unwrap();
+    encoded["budgets"]["resources"]["surprise"] = serde_json::json!(1);
+    assert!(matches!(
+        Scenario::from_json(&serde_json::to_vec(&encoded).unwrap()),
+        Err(ScenarioModelError::Json(_))
+    ));
+}
+
+#[test]
+fn v2_documents_migrate_exact_resource_limits_and_are_not_current_schema() {
+    let fixture = include_bytes!("fixtures/schema-v2-ipv4-stream.json");
+    assert!(matches!(
+        Scenario::from_json(fixture),
+        Err(ScenarioModelError::UnsupportedSchema(2))
+    ));
+
+    let migrated = Scenario::from_versioned_json(fixture).unwrap();
+    assert_eq!(migrated.schema_version, 3);
+    assert_eq!(
+        migrated.budgets.resources,
+        ScenarioResourceLimits {
+            max_scheduled_events: 100_000,
+            max_trace_events: 200_000,
+            max_timers: 100_000,
+            max_sockets: 100_000,
+            max_connections: 64,
+            max_streams: 64,
+            max_relays: 1,
+        }
+    );
+}
+
+#[test]
+fn sleep_actions_are_positive_bounded_and_counted_in_inventory() {
+    let mut scenario =
+        ScenarioBuilder::direct_ip_echo("schema/sleep", IpFamily::Ipv4, ScenarioOperation::Stream)
+            .unwrap()
+            .build()
+            .unwrap();
+    scenario.actions.push(ActionSpec {
+        id: "08-sleep".to_owned(),
+        schedule: ActionSchedule::At { nanos: 0 },
+        action: ScenarioAction::Sleep { duration_nanos: 1 },
+    });
+    scenario.validate().unwrap();
+    assert_eq!(
+        iroh_sim::ScenarioInventory::from_scenario(&scenario).sleep_actions,
+        1
+    );
+
+    scenario.actions.last_mut().unwrap().action = ScenarioAction::Sleep { duration_nanos: 0 };
+    assert!(matches!(
+        scenario.validate(),
+        Err(ScenarioModelError::InvalidAction("sleep"))
+    ));
+    scenario.actions.last_mut().unwrap().action = ScenarioAction::Sleep {
+        duration_nanos: scenario.budgets.max_virtual_time_nanos + 1,
+    };
+    assert!(matches!(
+        scenario.validate(),
+        Err(ScenarioModelError::InvalidAction("sleep"))
+    ));
 }
 
 #[test]
@@ -95,14 +203,16 @@ fn relay_schema_requires_declared_bounded_relays_and_resolves_lifecycle_actions(
 #[test]
 fn schema_rejects_unknown_fields_dangling_references_and_missing_capabilities() {
     let unknown = br#"{
-        "schema_version": 2,
+        "schema_version": 3,
         "metadata": {"id": "bad", "description": "", "tags": []},
         "requirements": {"controlled_runtime": true, "virtual_time": true,
           "synthetic_ip": true, "nat": false, "relay": false, "discovery": false,
           "mobility": false},
         "budgets": {"max_events": 1, "max_virtual_time_nanos": 1, "max_tasks": 1,
-          "max_packets": 1, "max_trace_events": 1, "max_obligations": 1,
-          "max_actions": 1, "max_payload_bytes": 1},
+          "max_packets": 1, "max_obligations": 1, "max_actions": 1,
+          "max_payload_bytes": 1, "resources": {"max_scheduled_events": 1,
+          "max_trace_events": 1, "max_timers": 0, "max_sockets": 0,
+          "max_connections": 0, "max_streams": 0, "max_relays": 0}},
         "topology": {"hosts": [], "links": []}, "endpoints": [], "actions": [],
         "fault_rules": [], "fairness": [],
         "completion": {"kind": "all_actions", "shutdown_deadline_nanos": 1},
@@ -296,6 +406,8 @@ fn generated_scenarios_are_domain_reproducible_and_bounded() {
 
     assert_eq!(first, second);
     assert!(first.actions.len() <= 16);
+    assert_eq!(first.budgets.resources.max_connections, 16);
+    assert_eq!(first.budgets.resources.max_streams, 16);
     assert!(first.actions.iter().all(|action| {
         action
             .schedule
@@ -306,7 +418,7 @@ fn generated_scenarios_are_domain_reproducible_and_bounded() {
 }
 
 #[test]
-fn legacy_stage_two_documents_migrate_explicitly_to_v2() {
+fn legacy_stage_two_documents_migrate_explicitly_to_v3() {
     for (fixture, operation) in [
         (
             include_bytes!("fixtures/ipv4-stream.json").as_slice(),

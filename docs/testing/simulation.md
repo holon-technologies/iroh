@@ -35,13 +35,13 @@ branch order. Same-seed direct and relay production-QUIC replay are regression-t
 
 Resource admission is fail-closed. The kernel bounds the simultaneously retained scheduled-event
 queue separately from the cumulative execution budget, and it rejects timers, sockets,
-connections, streams, and relays before their per-family ledger ceiling is exceeded. Declarative
-runs bound timers and sockets by the event budget, connections and streams by the action budget,
-and relays by the declared topology size; tasks and queued packets retain their dedicated
-`max_tasks` and `max_packets` limits. `max_trace_events` wraps any installed trace sink with an
-exact admission limit, while standalone in-memory `TraceBuffer`s also have an explicit finite
-capacity. Exhaustion is returned as a typed kernel, clock, ledger, or trace error; no limit silently
-evicts or truncates evidence.
+connections, streams, and relays before their per-family ledger ceiling is exceeded. Schema-v3
+declarative runs require explicit `budgets.resources` ceilings for scheduled events, trace events,
+timers, sockets, connections, streams, and relays; tasks and queued packets retain their dedicated
+`max_tasks` and `max_packets` limits. The trace-event ceiling wraps any installed trace sink with
+an exact admission limit, while standalone in-memory `TraceBuffer`s also have an explicit finite
+capacity. Exhaustion is returned as a typed kernel, clock, ledger, or trace error; failure
+signatures identify the exhausted resource, and no limit silently evicts or truncates evidence.
 Runner-level regressions additionally cap live connections and relays at one, then verify that a
 rejected second admission leaves trace, scheduler, task, and runtime state unchanged; partial relay
 reservations roll back, shutdown returns the ledger to zero, and same-seed evidence is identical.
@@ -178,15 +178,22 @@ Scenario JSON is strict and currently supports `direct-ip/ipv4-stream`, `direct-
 
 ### Declarative schema and invariants
 
-Schema v2 contains metadata, exact backend requirements, hard budgets, hosts/interfaces/links, endpoints, stable action IDs, schedules, fault rules, fairness assumptions, completion policy, allowed terminals, and enabled invariants. Canonical encoding sorts set-like collections and rejects duplicates, dangling references, host paths, unbounded values, unknown fields, and unsupported schemas. Schema v1 named fixtures migrate only through the explicit loader.
+Schema v3 contains metadata, exact backend requirements, hard budgets with explicit per-resource admission ceilings, hosts/interfaces/links, endpoints, stable action IDs, schedules, fault rules, fairness assumptions, completion policy, allowed terminals, and enabled invariants. Canonical encoding sorts set-like collections and rejects duplicates, dangling references, host paths, unbounded values, unknown fields, and unsupported schemas. Schema v1 and v2 documents migrate only through the explicit versioned loader; strict current-schema parsing accepts v3 only.
 
 Actions may start/stop endpoints, connect, exchange a stream or datagram, close, partition/heal,
-update a link, advance virtual time, rebind a NAT, request a port mapping, mutate discovery records,
-change relay lifecycle, change interface/address/route state, or sleep/resume a host. Observation-triggered actions use
+update a link, advance virtual time, wait on an injected virtual-clock timer, rebind a NAT, request
+a port mapping, mutate discovery records, change relay lifecycle, change interface/address/route
+state, or sleep/resume a host. Observation-triggered actions use
 endpoint, connection, or satisfied-invariant predicates. The invariant families cover authenticated
 peer identity, delivery integrity and misdelivery, per-stream ordering, monotonic lifecycle,
 relay routing, resource ceilings, shutdown cleanup, and fairness-qualified reachable-connect liveness. Safety
 checks run on the first matching observation; liveness is bounded by virtual time and event count.
+
+The reviewed resource corpus contains deterministic expected failures for connection, stream,
+socket, timer, trace-buffer, and relay admission. Each ceiling is part of the canonical scenario,
+each failure signature names the typed resource, and failed-run cleanup must leave the live ledger
+empty. The nightly `resource_exhaustion` matrix runs and replays all six with one fixed seed and
+retains their artifacts for 14 days.
 
 ### Strict swarm materialization
 

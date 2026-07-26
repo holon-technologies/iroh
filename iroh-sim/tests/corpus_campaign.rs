@@ -98,6 +98,69 @@ fn campaign_is_repeatable_ordered_and_worker_count_independent() {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn reviewed_resource_failures_replay_with_distinct_typed_entities() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus");
+    let corpus = Corpus::load(&root).unwrap();
+    let entries = corpus
+        .entries()
+        .iter()
+        .filter(|entry| entry.metadata.id.starts_with("resource-"))
+        .collect::<Vec<_>>();
+    assert_eq!(entries.len(), 6);
+    let mut entities = std::collections::BTreeSet::new();
+
+    for entry in entries {
+        let seed = RootSeed::new(decode_seed(&entry.metadata.seed));
+        let first = execute_resource_failure(entry.scenario.clone(), seed).await;
+        let replay = execute_resource_failure(entry.scenario.clone(), seed).await;
+        assert_eq!(first, replay, "{} must replay", entry.metadata.id);
+        assert!(first.2.is_empty(), "{} must clean up", entry.metadata.id);
+        let CorpusExpectation::ExpectedFailure { signature } = &entry.metadata.expectation else {
+            panic!("{} must declare expected failure", entry.metadata.id);
+        };
+        assert_eq!(&first.0, signature);
+        assert_eq!(signature.entities.len(), 1);
+        entities.insert(signature.entities[0].clone());
+    }
+
+    assert_eq!(
+        entities,
+        std::collections::BTreeSet::from([
+            "connection".to_owned(),
+            "relay".to_owned(),
+            "socket".to_owned(),
+            "stream".to_owned(),
+            "timer".to_owned(),
+            "trace_buffer".to_owned(),
+        ])
+    );
+}
+
+async fn execute_resource_failure(
+    scenario: Scenario,
+    seed: RootSeed,
+) -> (
+    FailureSignature,
+    Vec<iroh_runtime::TraceEvent>,
+    iroh_sim::ResourceLedgerSnapshot,
+) {
+    let trace = TraceBuffer::default();
+    let failure = ScenarioRunner::deterministic(
+        scenario,
+        seed,
+        SystemTime::UNIX_EPOCH,
+        Arc::new(trace.clone()),
+    )
+    .unwrap()
+    .run_detailed()
+    .await
+    .expect_err("resource scenario must fail");
+    let events = trace.events();
+    let signature = FailureSignature::from_runner_error(&failure.error, &events, 64).unwrap();
+    (signature, events, failure.resources)
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn reviewed_rare_ready_order_replays_the_production_scheduler_witness() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus");
     let corpus = Corpus::load(&root).unwrap();

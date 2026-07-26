@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, fs};
 
-use iroh_runtime::{TraceContext, TraceEvent, TraceEventKind, TraceSequence};
+use iroh_runtime::{
+    ClockError, ClockResource, TraceContext, TraceEvent, TraceEventKind, TraceSequence,
+};
 use iroh_sim::{
     ArtifactStore, FailureArtifactBundle, FailureReplayError, FailureSignature, InvariantClass,
     InvariantFailure, InvariantName, InvariantSnapshot, LedgerError, ResourceKind,
@@ -35,6 +37,41 @@ fn resource_admission_failure_is_not_classified_as_a_leak() {
     let signature = FailureSignature::from_runner_error(&error, &[], 1).unwrap();
 
     assert_eq!(signature.terminal_class, TerminalFailureClass::KernelLimit);
+    assert_eq!(signature.entities, ["connection"]);
+}
+
+#[test]
+fn clock_and_trace_exhaustion_have_stable_resource_entities() {
+    let timer = FailureSignature::from_runner_error(
+        &RunnerError::Clock(ClockError::ResourceLimit {
+            resource: ClockResource::Timer,
+            limit: 0,
+        }),
+        &[],
+        1,
+    )
+    .unwrap();
+    let scheduled = FailureSignature::from_runner_error(
+        &RunnerError::Clock(ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit: 1,
+        }),
+        &[],
+        1,
+    )
+    .unwrap();
+    let trace = FailureSignature::from_runner_error(
+        &RunnerError::Trace(iroh_runtime::TraceRecordError::Sink(
+            iroh_runtime::TraceSinkError::new("limit"),
+        )),
+        &[],
+        1,
+    )
+    .unwrap();
+
+    assert_eq!(timer.entities, ["timer"]);
+    assert_eq!(scheduled.entities, ["scheduled_event"]);
+    assert_eq!(trace.entities, ["trace_buffer"]);
 }
 
 #[test]

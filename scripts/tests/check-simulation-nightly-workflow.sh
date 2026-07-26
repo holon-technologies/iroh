@@ -29,11 +29,23 @@ required=(
   '--seed "${{ matrix.seed }}"'
   'if: always()'
   'if-no-files-found: error'
+  'resource_exhaustion:'
+  'RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
+  'iroh-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json'
+  '$RUNNER_TEMP/resource-${{ matrix.resource }}/manifest.json'
+  'retention-days: 14'
 )
 
 for expected in "${required[@]}"; do
   if ! grep -Fq -- "$expected" "$workflow"; then
     printf 'nightly workflow is missing required contract: %s\n' "$expected" >&2
+    exit 1
+  fi
+done
+
+for resource in connection relay socket stream timer trace; do
+  if ! grep -Fq -- "resource: $resource" "$workflow"; then
+    printf 'nightly resource matrix is missing: %s\n' "$resource" >&2
     exit 1
   fi
 done

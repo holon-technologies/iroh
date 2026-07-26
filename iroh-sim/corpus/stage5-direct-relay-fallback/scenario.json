@@ -1,8 +1,25 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "metadata": {"id": "relay/stage5-direct-fallback", "description": "Production direct path failure and relay fallback", "tags": ["fallback", "relay", "stage5"]},
   "requirements": {"controlled_runtime": true, "virtual_time": true, "synthetic_ip": true, "nat": false, "relay": true, "discovery": false, "mobility": false},
-  "budgets": {"max_events": 100000, "max_virtual_time_nanos": 60000000000, "max_tasks": 1024, "max_packets": 10000, "max_trace_events": 200000, "max_obligations": 1024, "max_actions": 64, "max_payload_bytes": 1048576},
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 60000000000,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_obligations": 1024,
+    "max_actions": 64,
+    "max_payload_bytes": 1048576,
+    "resources": {
+      "max_scheduled_events": 100000,
+      "max_trace_events": 200000,
+      "max_timers": 100000,
+      "max_sockets": 100000,
+      "max_connections": 64,
+      "max_streams": 64,
+      "max_relays": 1
+    }
+  },
   "topology": {
     "hosts": [
       {"id": "client", "interfaces": [{"id": "eth0", "link": "lan", "addresses": ["192.0.2.1/24"]}]},

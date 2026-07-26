@@ -28,6 +28,8 @@ pub struct ScenarioInventory {
     pub relay_lifecycle_actions: u64,
     #[serde(default)]
     pub relay_impairments: u64,
+    #[serde(default)]
+    pub sleep_actions: u64,
 }
 
 impl ScenarioInventory {
@@ -73,6 +75,7 @@ impl ScenarioInventory {
                 ScenarioAction::RelayLifecycle { .. } => {
                     inventory.relay_lifecycle_actions += 1;
                 }
+                ScenarioAction::Sleep { .. } => inventory.sleep_actions += 1,
                 _ => {}
             }
         }

@@ -2,12 +2,12 @@ use std::{sync::Arc, time::SystemTime};
 
 use iroh_runtime::RootSeed;
 use iroh_sim::{
-    ActionSchedule, ActionSpec, DiscoveryProviderSpec, DiscoveryRecordState, FirewallAction,
-    FirewallConnectionState, FirewallDirection, FirewallProtocol, FirewallRuleSpec, FirewallSpec,
-    InvariantName, InvariantSpec, IpFamily, NatFilteringBehavior, NatMappingBehavior, NatSpec,
-    ReferenceModel, RelayImpairmentSpec, RelayProtocolVersion, RelaySpec, RunnerError, Scenario,
-    ScenarioAction, ScenarioBuilder, ScenarioOperation, ScenarioRunner, TraceBuffer,
-    first_trace_divergence,
+    ActionSchedule, ActionSpec, DiscoveryProviderSpec, DiscoveryRecordState, FailureSignature,
+    FirewallAction, FirewallConnectionState, FirewallDirection, FirewallProtocol, FirewallRuleSpec,
+    FirewallSpec, InvariantName, InvariantSpec, IpFamily, NatFilteringBehavior, NatMappingBehavior,
+    NatSpec, ReferenceModel, RelayImpairmentSpec, RelayProtocolVersion, RelaySpec, ResourceKind,
+    RunnerError, Scenario, ScenarioAction, ScenarioBuilder, ScenarioOperation, ScenarioRunner,
+    TerminalFailureClass, TraceBuffer, first_trace_divergence,
 };
 
 fn enable_relay_routing_invariant(scenario: &mut Scenario) {
@@ -30,6 +30,144 @@ fn assert_production_relay_coverage(
             ..
         } if authenticated_sessions >= minimum_authenticated_sessions && forwarded_packets > 0
     )));
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ResourceFailureEvidence {
+    signature: FailureSignature,
+    trace: Vec<iroh_runtime::TraceEvent>,
+    resources: iroh_sim::ResourceLedgerSnapshot,
+    virtual_time_nanos: u64,
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn declarative_resource_exhaustion_is_typed_clean_and_replayable() {
+    for (scenario, entity, resource, high_water) in resource_limit_scenarios() {
+        let first = resource_failure_evidence(scenario.clone(), [83; 32]).await;
+        let replay = resource_failure_evidence(scenario, [83; 32]).await;
+
+        assert_eq!(first, replay, "resource failure {entity} must replay");
+        assert_eq!(first.signature.entities, [entity]);
+        assert!(matches!(
+            first.signature.terminal_class,
+            TerminalFailureClass::KernelLimit | TerminalFailureClass::Trace
+        ));
+        assert!(first.resources.is_empty());
+        if let Some(resource) = resource {
+            assert_eq!(first.resources.high_water(resource), high_water);
+        }
+        if entity == "trace_buffer" {
+            assert_eq!(first.trace.len(), 1);
+        }
+        if entity == "timer" {
+            assert_eq!(first.virtual_time_nanos, 0);
+        }
+        if entity == "relay" {
+            assert!(first.trace.is_empty());
+        }
+    }
+}
+
+async fn resource_failure_evidence(scenario: Scenario, seed: [u8; 32]) -> ResourceFailureEvidence {
+    let trace = TraceBuffer::default();
+    let runner = ScenarioRunner::deterministic(
+        scenario,
+        RootSeed::new(seed),
+        SystemTime::UNIX_EPOCH,
+        Arc::new(trace.clone()),
+    )
+    .unwrap();
+    let failure = runner
+        .run_detailed()
+        .await
+        .expect_err("resource ceiling must reject the scenario");
+    let events = trace.events();
+    let signature = FailureSignature::from_runner_error(&failure.error, &events, 64).unwrap();
+    ResourceFailureEvidence {
+        signature,
+        trace: events,
+        resources: failure.resources,
+        virtual_time_nanos: failure.virtual_time_nanos,
+    }
+}
+
+fn resource_limit_scenarios() -> Vec<(Scenario, &'static str, Option<ResourceKind>, u64)> {
+    let mut connection = direct_scenario("resource/connection");
+    connection.budgets.resources.max_connections = 1;
+    connection.actions.push(ActionSpec {
+        id: "04-rejected-connect".to_owned(),
+        schedule: ActionSchedule::At { nanos: 0 },
+        action: ScenarioAction::Connect {
+            client: "client".to_owned(),
+            server: "server".to_owned(),
+            connection: "c2".to_owned(),
+        },
+    });
+    connection = connection.normalized().unwrap();
+
+    let mut stream = direct_scenario("resource/stream");
+    stream.budgets.resources.max_streams = 0;
+    stream.validate().unwrap();
+
+    let mut socket = direct_scenario("resource/socket");
+    socket.budgets.resources.max_sockets = 1;
+    socket.validate().unwrap();
+
+    let mut timer = direct_scenario("resource/timer");
+    timer.actions = vec![ActionSpec {
+        id: "01-sleep".to_owned(),
+        schedule: ActionSchedule::At { nanos: 0 },
+        action: ScenarioAction::Sleep { duration_nanos: 1 },
+    }];
+    timer.budgets.resources.max_timers = 0;
+    timer.validate().unwrap();
+
+    let mut trace = direct_scenario("resource/trace");
+    trace.actions = vec![ActionSpec {
+        id: "01-no-resource".to_owned(),
+        schedule: ActionSchedule::At { nanos: 0 },
+        action: ScenarioAction::ExpectFailure {
+            class: "trace_limit".to_owned(),
+        },
+    }];
+    trace.budgets.resources.max_trace_events = 1;
+    trace.validate().unwrap();
+
+    let mut relay = direct_scenario("resource/relay");
+    relay.requirements.relay = true;
+    relay.topology.relays = vec![
+        resource_relay("first", "https://first.invalid"),
+        resource_relay("second", "https://second.invalid"),
+    ];
+    relay.budgets.resources.max_relays = 1;
+    relay = relay.normalized().unwrap();
+
+    vec![
+        (connection, "connection", Some(ResourceKind::Connection), 1),
+        (stream, "stream", Some(ResourceKind::Stream), 0),
+        (socket, "socket", Some(ResourceKind::Socket), 1),
+        (timer, "timer", Some(ResourceKind::Timer), 0),
+        (trace, "trace_buffer", None, 0),
+        (relay, "relay", Some(ResourceKind::Relay), 1),
+    ]
+}
+
+fn direct_scenario(id: &str) -> Scenario {
+    ScenarioBuilder::direct_ip_echo(id, IpFamily::Ipv4, ScenarioOperation::Stream)
+        .unwrap()
+        .build()
+        .unwrap()
+}
+
+fn resource_relay(id: &str, url: &str) -> RelaySpec {
+    RelaySpec {
+        id: id.to_owned(),
+        url: url.to_owned(),
+        online: true,
+        max_sessions: 8,
+        byte_capacity: 256 * 1_024,
+        protocol_version: RelayProtocolVersion::V2,
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -501,6 +639,7 @@ async fn endpoints_on_distinct_relays_route_without_cross_relay_identity_leakage
     .unwrap();
     let scenario = builder.scenario_mut();
     scenario.requirements.relay = true;
+    scenario.budgets.resources.max_relays = 2;
     enable_relay_routing_invariant(scenario);
     scenario.topology.relays.extend([
         RelaySpec {

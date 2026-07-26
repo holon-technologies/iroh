@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "metadata": {
     "id": "stage4-nat-rebind-expiry",
     "description": "Production QUIC survives deterministic NAT rebind and mapping expiry.",
@@ -23,10 +23,18 @@
     "max_virtual_time_nanos": 60000000000,
     "max_tasks": 1024,
     "max_packets": 10000,
-    "max_trace_events": 200000,
     "max_obligations": 1024,
     "max_actions": 64,
-    "max_payload_bytes": 1048576
+    "max_payload_bytes": 1048576,
+    "resources": {
+      "max_scheduled_events": 100000,
+      "max_trace_events": 200000,
+      "max_timers": 100000,
+      "max_sockets": 100000,
+      "max_connections": 64,
+      "max_streams": 64,
+      "max_relays": 1
+    }
   },
   "topology": {
     "hosts": [

@@ -124,7 +124,7 @@ pub use scenario_model::{
     LinkSpec, NatSpec, ObservationTrigger, PacketFault, PayloadSpec, RelayImpairmentSpec,
     RelayProtocolVersion, RelaySpec, SCENARIO_SCHEMA_VERSION, Scenario, ScenarioAction,
     ScenarioBudgets, ScenarioBuilder, ScenarioGenerator, ScenarioMetadata, ScenarioModelError,
-    ScenarioOperation, ScenarioRequirements, ScenarioTopology,
+    ScenarioOperation, ScenarioRequirements, ScenarioResourceLimits, ScenarioTopology,
 };
 pub use soak::{
     MAX_SOAK_BATCH_RUNS, MAX_SOAK_JOBS, MAX_SOAK_LANES, MAX_SOAK_RUNS, MAX_SOAK_WALL_MILLIS,

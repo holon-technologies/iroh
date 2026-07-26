@@ -34,6 +34,24 @@ pub enum ResourceKind {
     TraceBuffer,
 }
 
+impl ResourceKind {
+    /// Returns the stable diagnostic spelling of this resource family.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Task => "task",
+            Self::Timer => "timer",
+            Self::Socket => "socket",
+            Self::QueuedPacket => "queued_packet",
+            Self::Connection => "connection",
+            Self::Stream => "stream",
+            Self::Mapping => "mapping",
+            Self::DiscoveryRecord => "discovery_record",
+            Self::Relay => "relay",
+            Self::TraceBuffer => "trace_buffer",
+        }
+    }
+}
+
 /// Current and maximum simultaneous use of one resource family.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ResourceCount {

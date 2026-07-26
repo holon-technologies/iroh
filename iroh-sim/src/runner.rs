@@ -16,7 +16,8 @@ use iroh::{
     simulation::SimulationCryptoMaterial,
 };
 use iroh_runtime::{
-    RootSeed, TraceContext, TraceEventKind, TraceRecordError, TraceSink, UnsafeTestOnly,
+    ClockError, ClockSleep, RootSeed, TraceContext, TraceEventKind, TraceRecordError, TraceSink,
+    UnsafeTestOnly,
 };
 use serde::{Deserialize, Serialize};
 
@@ -305,7 +306,12 @@ impl<B: ScenarioBackend> ScenarioRunner<B> {
                 operation: operation.clone(),
             },
         )?;
-        if let ScenarioAction::AdvanceTime { by_nanos } = action.action {
+        let advance_by = match action.action {
+            ScenarioAction::AdvanceTime { by_nanos } => Some(by_nanos),
+            ScenarioAction::Sleep { duration_nanos } => Some(duration_nanos),
+            _ => None,
+        };
+        if let Some(by_nanos) = advance_by {
             let target = self
                 .backend
                 .virtual_time_nanos()?
@@ -777,6 +783,7 @@ impl ReferenceModel {
             | ScenarioAction::Heal { .. }
             | ScenarioAction::SetLink { .. }
             | ScenarioAction::AdvanceTime { .. }
+            | ScenarioAction::Sleep { .. }
             | ScenarioAction::ExpectFailure { .. }
             | ScenarioAction::NatChange { .. } => {
                 if !observations.is_empty() {
@@ -1053,24 +1060,6 @@ impl DeterministicScenarioBackend {
         trace: Arc<dyn TraceSink>,
         crypto_mode: iroh::simulation::SimulationCryptoMode,
     ) -> Result<Self, RunnerError> {
-        Self::new_with_resource_limits(
-            scenario,
-            root_seed,
-            wall_epoch,
-            trace,
-            crypto_mode,
-            scenario_kernel_resource_limits(scenario),
-        )
-    }
-
-    fn new_with_resource_limits(
-        scenario: &Scenario,
-        root_seed: RootSeed,
-        wall_epoch: SystemTime,
-        trace: Arc<dyn TraceSink>,
-        crypto_mode: iroh::simulation::SimulationCryptoMode,
-        resource_limits: KernelResourceLimits,
-    ) -> Result<Self, RunnerError> {
         let budgets = scenario.run_budgets();
         let backend = DeterministicBackend::new(
             DeterministicBackendConfig {
@@ -1078,11 +1067,11 @@ impl DeterministicScenarioBackend {
                 wall_epoch,
                 kernel: KernelConfig {
                     max_events: budgets.max_events,
-                    max_scheduled_events: budgets.max_events,
+                    max_scheduled_events: scenario.budgets.resources.max_scheduled_events,
                     max_virtual_time: Duration::from_nanos(budgets.max_virtual_time_nanos),
                     max_tasks: budgets.max_tasks,
-                    max_trace_events: scenario.budgets.max_trace_events,
-                    resource_limits,
+                    max_trace_events: scenario.budgets.resources.max_trace_events,
+                    resource_limits: scenario_kernel_resource_limits(scenario),
                 },
                 network: NetworkConfig {
                     max_packets: budgets.max_packets,
@@ -1098,7 +1087,6 @@ impl DeterministicScenarioBackend {
         capabilities.discovery = !scenario.topology.discovery.is_empty();
         capabilities.relay = !scenario.topology.relays.is_empty();
         capabilities.mobility = true;
-        let (relay, relay_resources) = initialize_relays(&backend, scenario)?;
         let discovery = scenario
             .topology
             .discovery
@@ -1132,9 +1120,9 @@ impl DeterministicScenarioBackend {
             endpoints: BTreeMap::new(),
             connections: BTreeMap::new(),
             discovery,
-            relay,
+            relay: None,
             relay_urls,
-            relay_resources,
+            relay_resources: Vec::new(),
             use_discovery: scenario.requirements.discovery,
             specs: scenario
                 .endpoints
@@ -1187,10 +1175,11 @@ impl DeterministicScenarioBackend {
         for provider in self.discovery.values() {
             builder = builder.address_lookup(provider.clone());
         }
-        builder
-            .bind()
-            .await
-            .map_err(|error| RunnerError::Endpoint(error.to_string()))
+        builder.bind().await.map_err(|error| {
+            ledger_error_from_bind(&error)
+                .map(RunnerError::Ledger)
+                .unwrap_or_else(|| RunnerError::Endpoint(error.to_string()))
+        })
     }
 
     async fn connect(
@@ -1552,6 +1541,9 @@ impl ScenarioBackend for DeterministicScenarioBackend {
 
     fn prepare<'a>(&'a mut self, scenario: &'a Scenario) -> BackendFuture<'a, ()> {
         Box::pin(async move {
+            let (relay, relay_resources) = initialize_relays(&self.backend, scenario)?;
+            self.relay = relay;
+            self.relay_resources = relay_resources;
             let network = self.backend.network();
             for host in &scenario.topology.hosts {
                 network.add_host(&host.id)?;
@@ -1708,6 +1700,14 @@ impl ScenarioBackend for DeterministicScenarioBackend {
                         .checked_add(*by_nanos)
                         .ok_or(RunnerError::TimelineOverflow)?;
                     self.advance_to(target).await?;
+                    Ok(Vec::new())
+                }
+                ScenarioAction::Sleep { duration_nanos } => {
+                    let sleep = ClockSleep::after(
+                        self.backend.runtime_context().clock(),
+                        Duration::from_nanos(*duration_nanos),
+                    )?;
+                    self.backend.driver().drive(sleep).await??;
                     Ok(Vec::new())
                 }
                 ScenarioAction::ExpectFailure { .. } => Ok(Vec::new()),
@@ -2123,6 +2123,7 @@ fn action_kind(action: &ScenarioAction) -> &'static str {
         ScenarioAction::Heal { .. } => "heal",
         ScenarioAction::SetLink { .. } => "set_link",
         ScenarioAction::AdvanceTime { .. } => "advance_time",
+        ScenarioAction::Sleep { .. } => "sleep",
         ScenarioAction::ExpectFailure { .. } => "expect_failure",
         ScenarioAction::NatChange { .. } => "nat_change",
         ScenarioAction::PortMap { .. } => "port_map",
@@ -2149,16 +2150,16 @@ const ALL_RESOURCE_KINDS: [ResourceKind; 10] = [
 ];
 
 fn resource_limit(scenario: &Scenario, kind: ResourceKind) -> u64 {
-    let runtime = scenario_kernel_resource_limits(scenario);
+    let resources = scenario.budgets.resources;
     match kind {
         ResourceKind::Task => scenario.budgets.max_tasks,
         ResourceKind::QueuedPacket => scenario.budgets.max_packets,
-        ResourceKind::TraceBuffer => scenario.budgets.max_trace_events,
-        ResourceKind::Timer => runtime.max_timers,
-        ResourceKind::Socket => runtime.max_sockets,
-        ResourceKind::Connection => runtime.max_connections,
-        ResourceKind::Stream => runtime.max_streams,
-        ResourceKind::Relay => runtime.max_relays,
+        ResourceKind::TraceBuffer => scenario.budgets.resources.max_trace_events,
+        ResourceKind::Timer => resources.max_timers,
+        ResourceKind::Socket => resources.max_sockets,
+        ResourceKind::Connection => resources.max_connections,
+        ResourceKind::Stream => resources.max_streams,
+        ResourceKind::Relay => resources.max_relays,
         ResourceKind::Mapping | ResourceKind::DiscoveryRecord => {
             scenario.budgets.max_actions.max(1)
         }
@@ -2166,15 +2167,41 @@ fn resource_limit(scenario: &Scenario, kind: ResourceKind) -> u64 {
 }
 
 fn scenario_kernel_resource_limits(scenario: &Scenario) -> KernelResourceLimits {
-    let max_relays = u64::try_from(scenario.topology.relays.len())
-        .expect("scenario relay count fits u64 on supported targets")
-        .max(1);
+    let resources = scenario.budgets.resources;
     KernelResourceLimits {
-        max_timers: scenario.budgets.max_events,
-        max_sockets: scenario.budgets.max_events,
-        max_connections: scenario.budgets.max_actions,
-        max_streams: scenario.budgets.max_actions,
-        max_relays,
+        max_timers: resources.max_timers,
+        max_sockets: resources.max_sockets,
+        max_connections: resources.max_connections,
+        max_streams: resources.max_streams,
+        max_relays: resources.max_relays,
+    }
+}
+
+fn ledger_error_in_source_chain(
+    error: &(dyn std::error::Error + 'static),
+) -> Option<crate::LedgerError> {
+    let mut current = Some(error);
+    while let Some(source) = current {
+        if let Some(error) = source.downcast_ref::<crate::LedgerError>() {
+            return Some(*error);
+        }
+        if let Some(crate::NetworkError::Ledger(error)) =
+            source.downcast_ref::<crate::NetworkError>()
+        {
+            return Some(*error);
+        }
+        current = source.source();
+    }
+    None
+}
+
+fn ledger_error_from_bind(error: &iroh::endpoint::BindError) -> Option<crate::LedgerError> {
+    match error {
+        iroh::endpoint::BindError::Sockets { source, .. } => source
+            .get_ref()
+            .and_then(|source| ledger_error_in_source_chain(source))
+            .or_else(|| ledger_error_in_source_chain(source)),
+        _ => ledger_error_in_source_chain(error),
     }
 }
 
@@ -2262,6 +2289,7 @@ pub enum RunnerError {
     Driver(crate::KernelDriverError),
     Kernel(crate::KernelError),
     Ledger(crate::LedgerError),
+    Clock(ClockError),
     Trace(TraceRecordError),
     Observation(crate::ObservationError),
     Discovery(crate::DiscoveryError),
@@ -2319,6 +2347,7 @@ impl fmt::Display for RunnerError {
             Self::Driver(error) => error.fmt(f),
             Self::Kernel(error) => error.fmt(f),
             Self::Ledger(error) => error.fmt(f),
+            Self::Clock(error) => error.fmt(f),
             Self::Trace(error) => error.fmt(f),
             Self::Observation(error) => error.fmt(f),
             Self::Discovery(error) => error.fmt(f),
@@ -2343,6 +2372,7 @@ from_error!(crate::NetworkError, Network);
 from_error!(crate::KernelDriverError, Driver);
 from_error!(crate::KernelError, Kernel);
 from_error!(crate::LedgerError, Ledger);
+from_error!(ClockError, Clock);
 from_error!(TraceRecordError, Trace);
 from_error!(crate::ObservationError, Observation);
 from_error!(crate::DiscoveryError, Discovery);
@@ -2387,7 +2417,7 @@ mod tests {
     }
 
     async fn connection_admission_evidence(seed: [u8; 32]) -> AdmissionEvidence {
-        let scenario = ScenarioBuilder::direct_ip_echo(
+        let mut scenario = ScenarioBuilder::direct_ip_echo(
             "runner/connection-admission",
             IpFamily::Ipv4,
             ScenarioOperation::Stream,
@@ -2395,16 +2425,14 @@ mod tests {
         .expect("standard scenario is valid")
         .build()
         .expect("standard scenario normalizes");
-        let mut resource_limits = scenario_kernel_resource_limits(&scenario);
-        resource_limits.max_connections = 1;
+        scenario.budgets.resources.max_connections = 1;
         let trace = TraceBuffer::default();
-        let mut backend = DeterministicScenarioBackend::new_with_resource_limits(
+        let mut backend = DeterministicScenarioBackend::new(
             &scenario,
             RootSeed::new(seed),
             SystemTime::UNIX_EPOCH,
             Arc::new(trace.clone()),
             iroh::simulation::SimulationCryptoMode::DeterministicTest,
-            resource_limits,
         )
         .expect("bounded deterministic backend constructs");
         backend
@@ -2490,15 +2518,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn relay_admission_rejects_before_construction_rolls_back_and_replays_identically() {
-        let first = relay_admission_evidence([82; 32]);
-        let replay = relay_admission_evidence([82; 32]);
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn relay_admission_rejects_before_construction_rolls_back_and_replays_identically() {
+        let first = relay_admission_evidence([82; 32]).await;
+        let replay = relay_admission_evidence([82; 32]).await;
 
         assert_eq!(first, replay);
     }
 
-    fn relay_admission_evidence(seed: [u8; 32]) -> AdmissionEvidence {
+    async fn relay_admission_evidence(seed: [u8; 32]) -> AdmissionEvidence {
         let mut builder = ScenarioBuilder::direct_ip_echo(
             "runner/relay-admission",
             IpFamily::Ipv4,
@@ -2512,37 +2540,23 @@ mod tests {
             // admission must return the typed ledger failure first.
             relay_spec("sentinel", "https://sentinel.invalid", 0),
         ]);
+        scenario.budgets.resources.max_relays = 1;
         let scenario = scenario.clone();
         let trace = TraceBuffer::default();
-        let mut resource_limits = scenario_kernel_resource_limits(&scenario);
-        resource_limits.max_relays = 1;
-        let budgets = scenario.run_budgets();
-        let backend = DeterministicBackend::new(
-            DeterministicBackendConfig {
-                root_seed: RootSeed::new(seed),
-                wall_epoch: SystemTime::UNIX_EPOCH,
-                kernel: KernelConfig {
-                    max_events: budgets.max_events,
-                    max_scheduled_events: budgets.max_events,
-                    max_virtual_time: Duration::from_nanos(budgets.max_virtual_time_nanos),
-                    max_tasks: budgets.max_tasks,
-                    max_trace_events: scenario.budgets.max_trace_events,
-                    resource_limits,
-                },
-                network: NetworkConfig {
-                    max_packets: budgets.max_packets,
-                    ephemeral_port_start: 40_000,
-                },
-                max_driver_turns: budgets.max_events.saturating_mul(8).max(1_000),
-                crypto_mode: iroh::simulation::SimulationCryptoMode::DeterministicTest,
-            },
+        let mut backend = DeterministicScenarioBackend::new(
+            &scenario,
+            RootSeed::new(seed),
+            SystemTime::UNIX_EPOCH,
             Arc::new(trace.clone()),
+            iroh::simulation::SimulationCryptoMode::DeterministicTest,
         )
         .expect("bounded deterministic backend constructs");
-        let scheduler_before = backend.kernel().scheduler_snapshot();
-        let tasks_before = backend.kernel().task_ownership_snapshot();
+        let scheduler_before = backend.backend.kernel().scheduler_snapshot();
+        let tasks_before = backend.backend.kernel().task_ownership_snapshot();
 
-        let error = initialize_relays(&backend, &scenario)
+        let error = backend
+            .prepare(&scenario)
+            .await
             .expect_err("second relay exceeds the configured ceiling");
 
         assert!(matches!(
@@ -2556,13 +2570,23 @@ mod tests {
             trace.events().is_empty(),
             "rejection must not construct relays"
         );
-        assert_eq!(backend.kernel().scheduler_snapshot(), scheduler_before);
-        assert_eq!(backend.kernel().task_ownership_snapshot(), tasks_before);
-        let resources_after_rejection = backend.kernel().ledger();
+        assert_eq!(
+            backend.backend.kernel().scheduler_snapshot(),
+            scheduler_before
+        );
+        assert_eq!(
+            backend.backend.kernel().task_ownership_snapshot(),
+            tasks_before
+        );
+        let resources_after_rejection = backend.resource_snapshot();
         assert!(resources_after_rejection.is_empty());
         assert_eq!(resources_after_rejection.current(ResourceKind::Relay), 0);
         assert_eq!(resources_after_rejection.high_water(ResourceKind::Relay), 1);
-        let resources_after_cleanup = resources_after_rejection.clone();
+        backend
+            .shutdown()
+            .await
+            .expect("failed preparation cleans up");
+        let resources_after_cleanup = backend.resource_snapshot();
 
         AdmissionEvidence {
             error: error.to_string(),

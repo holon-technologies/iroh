@@ -115,14 +115,6 @@ impl KernelResourceLimits {
         }
     }
 
-    const fn is_valid(self) -> bool {
-        self.max_timers > 0
-            && self.max_sockets > 0
-            && self.max_connections > 0
-            && self.max_streams > 0
-            && self.max_relays > 0
-    }
-
     const fn limit(self, kind: ResourceKind) -> Option<u64> {
         match kind {
             ResourceKind::Task => None,
@@ -225,7 +217,6 @@ impl Kernel {
             || config.max_virtual_time.is_zero()
             || config.max_tasks == 0
             || config.max_trace_events == 0
-            || !config.resource_limits.is_valid()
         {
             return Err(KernelError::InvalidConfig);
         }

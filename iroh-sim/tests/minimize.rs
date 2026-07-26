@@ -17,6 +17,8 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
     let scenario = builder.scenario_mut();
     scenario.metadata.description = "verbose diagnostic fixture".to_owned();
     scenario.metadata.tags = vec!["generated".to_owned(), "nightly".to_owned()];
+    scenario.budgets.resources.max_connections = 2;
+    scenario.budgets.resources.max_streams = 0;
     scenario.topology.hosts.push(iroh_sim::HostSpec {
         id: "noise-host".to_owned(),
         interfaces: vec![iroh_sim::InterfaceSpec {
@@ -66,6 +68,7 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
         },
     ]);
     let scenario = builder.build().unwrap();
+    let resource_limits = scenario.budgets.resources;
     let original_size = scenario.to_canonical_json().unwrap().len();
     let signature = fixture_signature();
     let mut evaluations = 0;
@@ -81,6 +84,7 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
         .minimize(scenario, signature.clone(), &mut evaluator)
         .unwrap();
     assert!(first.scenario.to_canonical_json().unwrap().len() < original_size);
+    assert_eq!(first.scenario.budgets.resources, resource_limits);
     assert!(first.scenario.actions.iter().any(|action| {
         matches!(&action.action, ScenarioAction::ExpectFailure { class } if class == "cause")
     }));
@@ -116,6 +120,7 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
         .minimize(first.scenario.clone(), signature.clone(), &mut evaluator)
         .unwrap();
     assert_eq!(second.scenario, first.scenario);
+    assert_eq!(second.scenario.budgets.resources, resource_limits);
     assert!(second.attempts.iter().all(|attempt| !attempt.accepted));
     assert!(evaluations > 0);
 }

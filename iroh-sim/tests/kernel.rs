@@ -352,6 +352,78 @@ fn scheduled_event_queue_rejects_admission_at_the_configured_limit() {
 }
 
 #[test]
+fn zero_live_resource_capacity_rejects_first_admission_without_accounting() {
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 32,
+            max_scheduled_events: 32,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 32,
+            resource_limits: KernelResourceLimits::uniform(0),
+        },
+        Arc::new(TraceBuffer::default()),
+    )
+    .unwrap();
+
+    for kind in [
+        ResourceKind::Timer,
+        ResourceKind::Socket,
+        ResourceKind::Connection,
+        ResourceKind::Stream,
+        ResourceKind::Relay,
+    ] {
+        assert_eq!(
+            kernel.acquire_resource(kind, None).unwrap_err(),
+            LedgerError::LimitExceeded { kind, limit: 0 }
+        );
+        assert_eq!(kernel.ledger().current(kind), 0);
+        assert_eq!(kernel.ledger().high_water(kind), 0);
+    }
+}
+
+#[test]
+fn zero_timer_capacity_rejects_before_trace_and_scheduled_event_admission() {
+    let trace = TraceBuffer::default();
+    let kernel = Kernel::new(
+        KernelConfig {
+            max_events: 4,
+            max_scheduled_events: 1,
+            max_virtual_time: Duration::from_secs(1),
+            max_tasks: 1,
+            max_trace_events: 16,
+            resource_limits: KernelResourceLimits {
+                max_timers: 0,
+                ..KernelResourceLimits::uniform(1)
+            },
+        },
+        Arc::new(trace.clone()),
+    )
+    .unwrap();
+    let context = kernel.runtime_context(RootSeed::new([39; 32]), SystemTime::UNIX_EPOCH);
+    let clock = context.clock();
+
+    assert_eq!(
+        clock.new_timer(clock.now()).unwrap_err(),
+        ClockError::ResourceLimit {
+            resource: ClockResource::Timer,
+            limit: 0,
+        }
+    );
+    assert_eq!(kernel.ledger().current(ResourceKind::Timer), 0);
+    assert_eq!(kernel.ledger().high_water(ResourceKind::Timer), 0);
+    assert!(
+        !trace
+            .events()
+            .iter()
+            .any(|event| matches!(event.event, TraceEventKind::TimerCreated { .. }))
+    );
+    kernel
+        .schedule_at(Duration::ZERO, EventClass::Infrastructure, || Ok(()))
+        .unwrap();
+}
+
+#[test]
 fn kernel_resource_limits_reject_admission_before_the_ledger_exceeds_them() {
     let kernel = Kernel::new(
         KernelConfig {

@@ -189,6 +189,14 @@ swarm bytes are schema-validated and digest-pinned before endpoint construction.
 serialize rare failure retention only and cannot affect simulation scheduling. The workflow is a
 checked service definition; only an uploaded run report is execution evidence.
 
+The 2026-07-25 declarative resource-exhaustion closure makes scheduled-event, trace, timer, socket,
+connection, stream, and relay ceilings explicit schema-v3 replay inputs. Zero capacity is valid
+only for live resources and rejects before side effects. A virtual-clock `sleep` action exercises
+timer admission without ambient time, while socket-bind source-chain recovery preserves the typed
+ledger failure without parsing display text. Six fixed-seed reviewed corpus cases replay their
+typed failures twice with empty live ledgers. The nightly matrix is a checked service definition;
+its hosted artifact is execution evidence, while local workflow validation is definition evidence.
+
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
 The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Iroh `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.

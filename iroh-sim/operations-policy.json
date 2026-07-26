@@ -51,7 +51,7 @@
   "replay": {
     "exact_source_required": true,
     "manifest_schema": 3,
-    "scenario_schema": 2,
+    "scenario_schema": 3,
     "trace_schema": 2,
     "compatibility_window_days": 30,
     "accepted_new_run_grades": [

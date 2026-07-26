@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
   "metadata": {
-    "id": "stage3-trigger-stall",
-    "description": "Minimized Stage 3 observation-trigger stall regression.",
+    "id": "resource/trace-limit",
+    "description": "Admit one operation trace and reject the next trace event.",
     "tags": [
-      "minimized",
-      "stage3"
+      "resource-exhaustion",
+      "stage7"
     ]
   },
   "requirements": {
@@ -18,41 +18,42 @@
     "mobility": false
   },
   "budgets": {
-    "max_events": 64,
-    "max_virtual_time_nanos": 1,
-    "max_tasks": 1,
-    "max_packets": 1,
-    "max_obligations": 1,
+    "max_events": 100000,
+    "max_virtual_time_nanos": 10,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_obligations": 1024,
     "max_actions": 1,
     "max_payload_bytes": 1,
     "resources": {
-      "max_scheduled_events": 64,
-      "max_trace_events": 64,
-      "max_timers": 64,
-      "max_sockets": 64,
-      "max_connections": 1,
-      "max_streams": 1,
+      "max_scheduled_events": 100000,
+      "max_trace_events": 1,
+      "max_timers": 100000,
+      "max_sockets": 100000,
+      "max_connections": 8,
+      "max_streams": 8,
       "max_relays": 1
     }
   },
   "topology": {
     "hosts": [],
-    "links": []
+    "links": [],
+    "nats": [],
+    "discovery": [],
+    "relays": [],
+    "relay_impairments": []
   },
   "endpoints": [],
   "actions": [
     {
-      "id": "cause",
+      "id": "01-trace-rejected",
       "schedule": {
-        "kind": "after_observation",
-        "observation": {
-          "kind": "invariant_satisfied",
-          "invariant": "delivery_integrity"
-        }
+        "kind": "at",
+        "nanos": 0
       },
       "action": {
         "kind": "expect_failure",
-        "class": "trigger_stall"
+        "class": "trace_limit"
       }
     }
   ],
@@ -60,14 +61,14 @@
   "fairness": [],
   "completion": {
     "kind": "all_actions",
-    "shutdown_deadline_nanos": 1
+    "shutdown_deadline_nanos": 10
   },
   "allowed_terminals": [
     "expected_failure"
   ],
   "invariants": [
     {
-      "name": "delivery_integrity",
+      "name": "resource_cleanup",
       "deadline_nanos": null,
       "max_events": null
     }

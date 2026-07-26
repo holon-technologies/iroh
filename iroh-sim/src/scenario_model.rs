@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::RunBudgets;
 
 /// Current canonical declarative scenario schema.
-pub const SCENARIO_SCHEMA_VERSION: u16 = 2;
+pub const SCENARIO_SCHEMA_VERSION: u16 = 3;
+const SCENARIO_V2_SCHEMA_VERSION: u16 = 2;
 const MAX_ITEMS: usize = 10_000;
 const MAX_TEXT: usize = 1_024;
 
@@ -48,7 +49,7 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    /// Parses the current schema or explicitly migrates a supported Stage 2 document.
+    /// Parses the current schema or explicitly migrates a supported older document.
     pub fn from_versioned_json(bytes: &[u8]) -> Result<Self, ScenarioModelError> {
         #[derive(Deserialize)]
         struct VersionProbe {
@@ -59,6 +60,11 @@ impl Scenario {
             .map_err(|error| ScenarioModelError::Json(error.to_string()))?;
         match probe.schema_version {
             SCENARIO_SCHEMA_VERSION => Self::from_json(bytes),
+            SCENARIO_V2_SCHEMA_VERSION => {
+                let scenario: ScenarioV2 = serde_json::from_slice(bytes)
+                    .map_err(|error| ScenarioModelError::Json(error.to_string()))?;
+                scenario.migrate()
+            }
             crate::STAGE2_SCENARIO_SCHEMA_VERSION => {
                 let legacy = crate::Stage2Scenario::from_json(bytes)
                     .map_err(|error| ScenarioModelError::Legacy(error.to_string()))?;
@@ -68,8 +74,18 @@ impl Scenario {
         }
     }
 
-    /// Strictly parses, normalizes, and validates a v2 JSON scenario.
+    /// Strictly parses, normalizes, and validates a current-version JSON scenario.
     pub fn from_json(bytes: &[u8]) -> Result<Self, ScenarioModelError> {
+        #[derive(Deserialize)]
+        struct VersionProbe {
+            schema_version: u16,
+        }
+
+        let probe: VersionProbe = serde_json::from_slice(bytes)
+            .map_err(|error| ScenarioModelError::Json(error.to_string()))?;
+        if probe.schema_version != SCENARIO_SCHEMA_VERSION {
+            return Err(ScenarioModelError::UnsupportedSchema(probe.schema_version));
+        }
         let scenario: Self = serde_json::from_slice(bytes)
             .map_err(|error| ScenarioModelError::Json(error.to_string()))?;
         scenario.normalized()
@@ -385,6 +401,7 @@ impl Scenario {
                 &discovery,
                 &interfaces,
                 self.budgets.max_payload_bytes,
+                self.budgets.max_virtual_time_nanos,
             )?;
             if let ActionSchedule::AfterObservation { observation } = &action.schedule {
                 validate_observation_reference(
@@ -460,6 +477,77 @@ impl Scenario {
     }
 }
 
+/// Strict decoder for the previous declarative schema.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScenarioV2 {
+    schema_version: u16,
+    metadata: ScenarioMetadata,
+    requirements: ScenarioRequirements,
+    budgets: ScenarioBudgetsV2,
+    topology: ScenarioTopology,
+    endpoints: Vec<EndpointSpec>,
+    actions: Vec<ActionSpec>,
+    fault_rules: Vec<FaultRule>,
+    fairness: Vec<FairnessAssumption>,
+    completion: CompletionPolicy,
+    allowed_terminals: Vec<AllowedTerminal>,
+    invariants: Vec<InvariantSpec>,
+}
+
+impl ScenarioV2 {
+    fn migrate(self) -> Result<Scenario, ScenarioModelError> {
+        if self.schema_version != SCENARIO_V2_SCHEMA_VERSION {
+            return Err(ScenarioModelError::UnsupportedSchema(self.schema_version));
+        }
+        let max_relays = u64::try_from(self.topology.relays.len())
+            .unwrap_or(u64::MAX)
+            .max(1);
+        let ScenarioBudgetsV2 {
+            max_events,
+            max_virtual_time_nanos,
+            max_tasks,
+            max_packets,
+            max_trace_events,
+            max_obligations,
+            max_actions,
+            max_payload_bytes,
+        } = self.budgets;
+        Scenario {
+            schema_version: SCENARIO_SCHEMA_VERSION,
+            metadata: self.metadata,
+            requirements: self.requirements,
+            budgets: ScenarioBudgets {
+                max_events,
+                max_virtual_time_nanos,
+                max_tasks,
+                max_packets,
+                max_obligations,
+                max_actions,
+                max_payload_bytes,
+                resources: ScenarioResourceLimits {
+                    max_scheduled_events: max_events,
+                    max_trace_events,
+                    max_timers: max_events,
+                    max_sockets: max_events,
+                    max_connections: max_actions,
+                    max_streams: max_actions,
+                    max_relays,
+                },
+            },
+            topology: self.topology,
+            endpoints: self.endpoints,
+            actions: self.actions,
+            fault_rules: self.fault_rules,
+            fairness: self.fairness,
+            completion: self.completion,
+            allowed_terminals: self.allowed_terminals,
+            invariants: self.invariants,
+        }
+        .normalized()
+    }
+}
+
 /// Human-facing scenario identity and tags.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -490,10 +578,10 @@ pub struct ScenarioBudgets {
     pub max_virtual_time_nanos: u64,
     pub max_tasks: u64,
     pub max_packets: u64,
-    pub max_trace_events: u64,
     pub max_obligations: u64,
     pub max_actions: u64,
     pub max_payload_bytes: u64,
+    pub resources: ScenarioResourceLimits,
 }
 
 impl ScenarioBudgets {
@@ -502,18 +590,54 @@ impl ScenarioBudgets {
             || self.max_virtual_time_nanos == 0
             || self.max_tasks == 0
             || self.max_packets == 0
-            || self.max_trace_events == 0
             || self.max_obligations == 0
             || self.max_actions == 0
             || self.max_payload_bytes == 0
             || usize::try_from(self.max_payload_bytes).is_err()
             || self.max_actions > u64::try_from(MAX_ITEMS).expect("MAX_ITEMS fits in u64")
+        {
+            return Err(ScenarioModelError::InvalidBudgets);
+        }
+        self.resources.validate()
+    }
+}
+
+/// Hard admission ceilings for deterministic kernel resources.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioResourceLimits {
+    pub max_scheduled_events: u64,
+    pub max_trace_events: u64,
+    pub max_timers: u64,
+    pub max_sockets: u64,
+    pub max_connections: u64,
+    pub max_streams: u64,
+    pub max_relays: u64,
+}
+
+impl ScenarioResourceLimits {
+    fn validate(self) -> Result<(), ScenarioModelError> {
+        if self.max_scheduled_events == 0
+            || self.max_trace_events == 0
             || self.max_trace_events > 10_000_000
         {
             return Err(ScenarioModelError::InvalidBudgets);
         }
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScenarioBudgetsV2 {
+    max_events: u64,
+    max_virtual_time_nanos: u64,
+    max_tasks: u64,
+    max_packets: u64,
+    max_trace_events: u64,
+    max_obligations: u64,
+    max_actions: u64,
+    max_payload_bytes: u64,
 }
 
 /// Network topology supported by the Stage 3 deterministic backend.
@@ -931,6 +1055,9 @@ pub enum ScenarioAction {
     AdvanceTime {
         by_nanos: u64,
     },
+    Sleep {
+        duration_nanos: u64,
+    },
     ExpectFailure {
         class: String,
     },
@@ -995,6 +1122,7 @@ impl ScenarioAction {
         discovery: &BTreeSet<&str>,
         interfaces: &BTreeSet<String>,
         max_payload: u64,
+        max_virtual_time: u64,
     ) -> Result<(), ScenarioModelError> {
         match self {
             Self::StartEndpoint { endpoint } | Self::StopEndpoint { endpoint } => {
@@ -1047,6 +1175,12 @@ impl ScenarioAction {
             }
             Self::AdvanceTime { by_nanos } if *by_nanos > 0 => Ok(()),
             Self::AdvanceTime { .. } => Err(ScenarioModelError::InvalidAction("advance_time")),
+            Self::Sleep { duration_nanos }
+                if *duration_nanos > 0 && *duration_nanos <= max_virtual_time =>
+            {
+                Ok(())
+            }
+            Self::Sleep { .. } => Err(ScenarioModelError::InvalidAction("sleep")),
             Self::ExpectFailure { class } => validate_id("failure_class", class),
             Self::NatChange {
                 nat,
@@ -1398,10 +1532,18 @@ impl ScenarioBuilder {
                     max_virtual_time_nanos: 60_000_000_000,
                     max_tasks: 1_024,
                     max_packets: 10_000,
-                    max_trace_events: 200_000,
                     max_obligations: 1_024,
                     max_actions: 64,
                     max_payload_bytes: 1_048_576,
+                    resources: ScenarioResourceLimits {
+                        max_scheduled_events: 100_000,
+                        max_trace_events: 200_000,
+                        max_timers: 100_000,
+                        max_sockets: 100_000,
+                        max_connections: 64,
+                        max_streams: 64,
+                        max_relays: 1,
+                    },
                 },
                 topology: ScenarioTopology {
                     hosts: vec![
@@ -1609,6 +1751,8 @@ impl ScenarioGenerator {
         let scenario = builder.scenario_mut();
         scenario.budgets.max_actions = self.config.max_actions;
         scenario.budgets.max_payload_bytes = self.config.max_payload_bytes;
+        scenario.budgets.resources.max_connections = self.config.max_actions;
+        scenario.budgets.resources.max_streams = self.config.max_actions;
         scenario.budgets.max_virtual_time_nanos = duration_nanos(self.config.max_virtual_time)?;
         scenario.completion = CompletionPolicy::AllActions {
             shutdown_deadline_nanos: scenario.budgets.max_virtual_time_nanos,

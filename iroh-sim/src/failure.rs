@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fmt, path::Path};
 
-use iroh_runtime::{TraceEvent, TraceEventKind, TraceSequence};
+use iroh_runtime::{ClockError, ClockResource, TraceEvent, TraceEventKind, TraceSequence};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -189,7 +189,11 @@ fn classify(error: &RunnerError) -> (TerminalFailureClass, Option<InvariantName>
             vec![entity.clone()],
         ),
         RunnerError::ResourceLeak(_) => (TerminalFailureClass::ResourceLeak, None, Vec::new()),
-        RunnerError::Ledger(_) => (TerminalFailureClass::KernelLimit, None, Vec::new()),
+        RunnerError::Ledger(error) => (
+            TerminalFailureClass::KernelLimit,
+            None,
+            ledger_resource_entity(error),
+        ),
         RunnerError::TerminalNotAllowed(terminal) => (
             TerminalFailureClass::Action,
             None,
@@ -198,11 +202,30 @@ fn classify(error: &RunnerError) -> (TerminalFailureClass, Option<InvariantName>
         RunnerError::CleanupAfterFailure { .. } => {
             (TerminalFailureClass::Cleanup, None, Vec::new())
         }
+        RunnerError::Clock(error) => (
+            TerminalFailureClass::KernelLimit,
+            None,
+            clock_resource_entity(error),
+        ),
+        RunnerError::Kernel(crate::KernelError::ScheduledEventLimitExceeded { .. }) => (
+            TerminalFailureClass::KernelLimit,
+            None,
+            vec!["scheduled_event".to_owned()],
+        ),
+        RunnerError::Network(crate::NetworkError::Ledger(error)) => (
+            TerminalFailureClass::KernelLimit,
+            None,
+            ledger_resource_entity(error),
+        ),
         RunnerError::Kernel(_) | RunnerError::Network(_) => {
             (TerminalFailureClass::KernelLimit, None, Vec::new())
         }
         RunnerError::Driver(_) => (TerminalFailureClass::BridgeWatchdog, None, Vec::new()),
-        RunnerError::Trace(_) => (TerminalFailureClass::Trace, None, Vec::new()),
+        RunnerError::Trace(_) => (
+            TerminalFailureClass::Trace,
+            None,
+            vec!["trace_buffer".to_owned()],
+        ),
         RunnerError::Encoding(_) => (TerminalFailureClass::ArtifactEncoding, None, Vec::new()),
         RunnerError::TimelineOverflow => (TerminalFailureClass::TimelineOverflow, None, Vec::new()),
         RunnerError::ObservationOverflow | RunnerError::PayloadOverflow => {
@@ -214,6 +237,27 @@ fn classify(error: &RunnerError) -> (TerminalFailureClass, Option<InvariantName>
         | RunnerError::Backend(_)
         | RunnerError::Discovery(_)
         | RunnerError::Observation(_) => (TerminalFailureClass::Action, None, Vec::new()),
+    }
+}
+
+fn ledger_resource_entity(error: &crate::LedgerError) -> Vec<String> {
+    match error {
+        crate::LedgerError::LimitExceeded { kind, .. } => vec![kind.as_str().to_owned()],
+        crate::LedgerError::Overflow => Vec::new(),
+    }
+}
+
+fn clock_resource_entity(error: &ClockError) -> Vec<String> {
+    match error {
+        ClockError::ResourceLimit { resource, .. } => vec![
+            match resource {
+                ClockResource::Timer => "timer",
+                ClockResource::ScheduledEvent => "scheduled_event",
+                _ => resource.as_str(),
+            }
+            .to_owned(),
+        ],
+        _ => Vec::new(),
     }
 }
 

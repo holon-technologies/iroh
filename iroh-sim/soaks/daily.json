@@ -5,73 +5,73 @@
     {
       "id": "direct/deterministic-test",
       "swarm": "iroh-sim/swarms/direct-smoke.json",
-      "swarm_blake3": "9ffa5b20872e49c5a85daa5226d8bd7b6f95317d1cb0d9a4fa8c452e4b26c7a3",
+      "swarm_blake3": "19a07d67146f1a1146652bb0772fcf3fc2ceceb668b61ba80c67716ae8f42a06",
       "crypto": "deterministic_test"
     },
     {
       "id": "direct/production-provider",
       "swarm": "iroh-sim/swarms/direct-smoke.json",
-      "swarm_blake3": "9ffa5b20872e49c5a85daa5226d8bd7b6f95317d1cb0d9a4fa8c452e4b26c7a3",
+      "swarm_blake3": "19a07d67146f1a1146652bb0772fcf3fc2ceceb668b61ba80c67716ae8f42a06",
       "crypto": "production_provider"
     },
     {
       "id": "discovery/deterministic-test",
       "swarm": "iroh-sim/swarms/discovery-timing.json",
-      "swarm_blake3": "e5dd067588c79fd8040e75179be7182590ba3998c478706df616757e2bc9d42d",
+      "swarm_blake3": "6044fbc162f60fc1f22dba781a3bcab91f8e2e5ba34c5b83e0274535c7c73493",
       "crypto": "deterministic_test"
     },
     {
       "id": "discovery/production-provider",
       "swarm": "iroh-sim/swarms/discovery-timing.json",
-      "swarm_blake3": "e5dd067588c79fd8040e75179be7182590ba3998c478706df616757e2bc9d42d",
+      "swarm_blake3": "6044fbc162f60fc1f22dba781a3bcab91f8e2e5ba34c5b83e0274535c7c73493",
       "crypto": "production_provider"
     },
     {
       "id": "mobility/deterministic-test",
       "swarm": "iroh-sim/swarms/mobility-timing.json",
-      "swarm_blake3": "b8abfb6532f2d593a107a80508b6f3a0cee43ca17a1dfb639c6c639f8161b05c",
+      "swarm_blake3": "80fac5cdfb75f638d8ba8312454bb8b41e7a4c76430c0c74968d3d3d5aa4c83a",
       "crypto": "deterministic_test"
     },
     {
       "id": "mobility/production-provider",
       "swarm": "iroh-sim/swarms/mobility-timing.json",
-      "swarm_blake3": "b8abfb6532f2d593a107a80508b6f3a0cee43ca17a1dfb639c6c639f8161b05c",
+      "swarm_blake3": "80fac5cdfb75f638d8ba8312454bb8b41e7a4c76430c0c74968d3d3d5aa4c83a",
       "crypto": "production_provider"
     },
     {
       "id": "nat/deterministic-test",
       "swarm": "iroh-sim/swarms/nat-behavior.json",
-      "swarm_blake3": "c0bddd65d1fa1f1574db06b0d93242e2632c13dfce135106cf4df01fcb44319f",
+      "swarm_blake3": "ba26789f7a8d2f3e82515a4ed83decabe0813fea9f5c6816f65d284a3c389886",
       "crypto": "deterministic_test"
     },
     {
       "id": "nat/production-provider",
       "swarm": "iroh-sim/swarms/nat-behavior.json",
-      "swarm_blake3": "c0bddd65d1fa1f1574db06b0d93242e2632c13dfce135106cf4df01fcb44319f",
+      "swarm_blake3": "ba26789f7a8d2f3e82515a4ed83decabe0813fea9f5c6816f65d284a3c389886",
       "crypto": "production_provider"
     },
     {
       "id": "ready-order/deterministic-test",
       "swarm": "iroh-sim/swarms/ready-order-pressure.json",
-      "swarm_blake3": "fa313db60861634f02b881f592f8b2c9a58783c39b7e59f99f023598f16da003",
+      "swarm_blake3": "340dba955a96892d3a3684bf5992e7bae4a5e77ad7a31b7eed59a1b6282c9034",
       "crypto": "deterministic_test"
     },
     {
       "id": "ready-order/production-provider",
       "swarm": "iroh-sim/swarms/ready-order-pressure.json",
-      "swarm_blake3": "fa313db60861634f02b881f592f8b2c9a58783c39b7e59f99f023598f16da003",
+      "swarm_blake3": "340dba955a96892d3a3684bf5992e7bae4a5e77ad7a31b7eed59a1b6282c9034",
       "crypto": "production_provider"
     },
     {
       "id": "relay/deterministic-test",
       "swarm": "iroh-sim/swarms/relay-lifecycle.json",
-      "swarm_blake3": "09d2e12a658f356ba9d284d93124aebd75196b7cf37a5397ee82a61df20470ea",
+      "swarm_blake3": "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4",
       "crypto": "deterministic_test"
     },
     {
       "id": "relay/production-provider",
       "swarm": "iroh-sim/swarms/relay-lifecycle.json",
-      "swarm_blake3": "09d2e12a658f356ba9d284d93124aebd75196b7cf37a5397ee82a61df20470ea",
+      "swarm_blake3": "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4",
       "crypto": "production_provider"
     }
   ]

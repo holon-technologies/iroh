@@ -327,9 +327,9 @@ fn execute_run(
 ) -> Result<(), CliError> {
     let scenario_bytes = read_file(scenario_path).map_err(CliError::Io)?;
     let schema_version = scenario_schema_version(&scenario_bytes)?;
-    if schema_version == SCENARIO_SCHEMA_VERSION {
+    if schema_version != crate::STAGE2_SCENARIO_SCHEMA_VERSION {
         return execute_declarative_run(
-            Scenario::from_json(&scenario_bytes)?,
+            Scenario::from_versioned_json(&scenario_bytes)?,
             seed_hex,
             artifact_override,
             crypto,
@@ -470,7 +470,7 @@ fn execute_declarative_run(
         wall_clock_epoch_secs: DEFAULT_WALL_EPOCH_SECS,
         backend: BackendCapabilities::deterministic_kernel(),
         budgets,
-        scheduling_profile: "seeded-fair-kernel+root-driver+declarative-v2".to_owned(),
+        scheduling_profile: "seeded-fair-kernel+root-driver+declarative-v3".to_owned(),
         fault_profile: identity.fault_profile,
         lockfile_digest: identity.lockfile_digest,
         crypto_mode: manifest_crypto_mode(crypto.simulation_mode()),
@@ -619,7 +619,7 @@ fn execute_declarative_replay(
         || manifest.determinism_grade != determinism_grade(simulation_crypto_mode)
         || manifest.trace_comparison != trace_comparison(simulation_crypto_mode)
         || manifest.fidelity_exceptions != fidelity_exceptions(simulation_crypto_mode)
-        || manifest.scheduling_profile != "seeded-fair-kernel+root-driver+declarative-v2"
+        || manifest.scheduling_profile != "seeded-fair-kernel+root-driver+declarative-v3"
         || manifest.fault_profile != identity.fault_profile
         || manifest.escapes != crypto_escapes(simulation_crypto_mode)
     {

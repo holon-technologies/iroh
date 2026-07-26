@@ -1,0 +1,76 @@
+{
+  "schema_version": 3,
+  "metadata": {
+    "id": "resource/timer-limit",
+    "description": "Reject the first declarative virtual-clock sleep timer.",
+    "tags": [
+      "resource-exhaustion",
+      "stage7"
+    ]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": false,
+    "relay": false,
+    "discovery": false,
+    "mobility": false
+  },
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 10,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_obligations": 1024,
+    "max_actions": 1,
+    "max_payload_bytes": 1,
+    "resources": {
+      "max_scheduled_events": 100000,
+      "max_trace_events": 200000,
+      "max_timers": 0,
+      "max_sockets": 100000,
+      "max_connections": 8,
+      "max_streams": 8,
+      "max_relays": 1
+    }
+  },
+  "topology": {
+    "hosts": [],
+    "links": [],
+    "nats": [],
+    "discovery": [],
+    "relays": [],
+    "relay_impairments": []
+  },
+  "endpoints": [],
+  "actions": [
+    {
+      "id": "01-sleep-rejected",
+      "schedule": {
+        "kind": "at",
+        "nanos": 0
+      },
+      "action": {
+        "kind": "sleep",
+        "duration_nanos": 1
+      }
+    }
+  ],
+  "fault_rules": [],
+  "fairness": [],
+  "completion": {
+    "kind": "all_actions",
+    "shutdown_deadline_nanos": 10
+  },
+  "allowed_terminals": [
+    "expected_failure"
+  ],
+  "invariants": [
+    {
+      "name": "resource_cleanup",
+      "deadline_nanos": null,
+      "max_events": null
+    }
+  ]
+}

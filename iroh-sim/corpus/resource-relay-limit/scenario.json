@@ -1,0 +1,81 @@
+{
+  "schema_version": 3,
+  "metadata": {
+    "id": "resource/relay-limit",
+    "description": "Admit one relay resource and reject the second before construction.",
+    "tags": [
+      "resource-exhaustion",
+      "stage7"
+    ]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": false,
+    "relay": true,
+    "discovery": false,
+    "mobility": false
+  },
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 10,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_obligations": 1024,
+    "max_actions": 1,
+    "max_payload_bytes": 1,
+    "resources": {
+      "max_scheduled_events": 100000,
+      "max_trace_events": 200000,
+      "max_timers": 100000,
+      "max_sockets": 100000,
+      "max_connections": 8,
+      "max_streams": 8,
+      "max_relays": 1
+    }
+  },
+  "topology": {
+    "hosts": [],
+    "links": [],
+    "nats": [],
+    "discovery": [],
+    "relays": [
+      {
+        "id": "first",
+        "url": "https://first.invalid",
+        "online": true,
+        "max_sessions": 8,
+        "byte_capacity": 65536,
+        "protocol_version": "v2"
+      },
+      {
+        "id": "second",
+        "url": "https://second.invalid",
+        "online": true,
+        "max_sessions": 8,
+        "byte_capacity": 65536,
+        "protocol_version": "v2"
+      }
+    ],
+    "relay_impairments": []
+  },
+  "endpoints": [],
+  "actions": [],
+  "fault_rules": [],
+  "fairness": [],
+  "completion": {
+    "kind": "all_actions",
+    "shutdown_deadline_nanos": 10
+  },
+  "allowed_terminals": [
+    "expected_failure"
+  ],
+  "invariants": [
+    {
+      "name": "resource_cleanup",
+      "deadline_nanos": null,
+      "max_events": null
+    }
+  ]
+}

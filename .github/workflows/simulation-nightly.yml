@@ -152,6 +152,44 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  resource_exhaustion:
+    name: Resource exhaustion ${{ matrix.resource }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - resource: connection
+          - resource: relay
+          - resource: socket
+          - resource: stream
+          - resource: timer
+          - resource: trace
+    env:
+      RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run expected resource-exhaustion failure
+        run: |
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
+            "iroh-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json" \
+            --seed "$RESOURCE_SEED" \
+            --artifacts "$RUNNER_TEMP/resource-${{ matrix.resource }}"
+      - name: Replay exact resource-exhaustion failure
+        run: |
+          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
+            "$RUNNER_TEMP/resource-${{ matrix.resource }}/manifest.json"
+      - name: Upload resource-exhaustion artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-resource-${{ matrix.resource }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/resource-${{ matrix.resource }}
+          if-no-files-found: error
+          retention-days: 14
+
   stage4_campaign:
     name: Stage 4 ${{ matrix.domain }} campaign ${{ matrix.seeds }}
     runs-on: ubuntu-latest

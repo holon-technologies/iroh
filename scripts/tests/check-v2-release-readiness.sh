@@ -123,6 +123,13 @@ quoted_seed_count=$(grep -Ec '^[[:space:]]+seed: "[0-9a-f]{64}"[[:space:]]*$' "$
 if ((quoted_seed_count != 5)); then
   fail ".github/workflows/simulation-nightly.yml must contain exactly five quoted replay seeds (found $quoted_seed_count)"
 fi
+require_text .github/workflows/simulation-nightly.yml 'resource_exhaustion:'
+require_text .github/workflows/simulation-nightly.yml 'RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
+for resource in connection relay socket stream timer trace; do
+  require_text .github/workflows/simulation-nightly.yml "resource: $resource"
+  require_file "iroh-sim/corpus/resource-$resource-limit/scenario.json"
+  require_file "iroh-sim/corpus/resource-$resource-limit/metadata.json"
+done
 
 release_workflow="$repo_root/.github/workflows/release.yml"
 for forbidden in \

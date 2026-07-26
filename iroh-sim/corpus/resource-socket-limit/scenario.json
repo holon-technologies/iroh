@@ -1,0 +1,129 @@
+{
+  "schema_version": 3,
+  "metadata": {
+    "id": "resource/socket-limit",
+    "description": "Retain the first endpoint socket and reject the second bind.",
+    "tags": [
+      "resource-exhaustion",
+      "stage7"
+    ]
+  },
+  "requirements": {
+    "controlled_runtime": true,
+    "virtual_time": true,
+    "synthetic_ip": true,
+    "nat": false,
+    "relay": false,
+    "discovery": false,
+    "mobility": false
+  },
+  "budgets": {
+    "max_events": 100000,
+    "max_virtual_time_nanos": 60000000000,
+    "max_tasks": 1024,
+    "max_packets": 10000,
+    "max_obligations": 1024,
+    "max_actions": 2,
+    "max_payload_bytes": 1048576,
+    "resources": {
+      "max_scheduled_events": 100000,
+      "max_trace_events": 200000,
+      "max_timers": 100000,
+      "max_sockets": 1,
+      "max_connections": 8,
+      "max_streams": 8,
+      "max_relays": 1
+    }
+  },
+  "topology": {
+    "hosts": [
+      {
+        "id": "client",
+        "interfaces": [
+          {
+            "id": "eth0",
+            "link": "lan",
+            "addresses": [
+              "192.0.2.1/24"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "server",
+        "interfaces": [
+          {
+            "id": "eth0",
+            "link": "lan",
+            "addresses": [
+              "192.0.2.2/24"
+            ]
+          }
+        ]
+      }
+    ],
+    "links": [
+      {
+        "id": "lan",
+        "latency_nanos": 1000000,
+        "bits_per_second": 1000000000,
+        "mtu": 1500,
+        "queue_packets": 1024
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "client",
+      "host": "client",
+      "bind": "192.0.2.1:31001",
+      "identity_ordinal": 1
+    },
+    {
+      "id": "server",
+      "host": "server",
+      "bind": "192.0.2.2:31002",
+      "identity_ordinal": 2
+    }
+  ],
+  "actions": [
+    {
+      "id": "01-start-client",
+      "schedule": {
+        "kind": "at",
+        "nanos": 0
+      },
+      "action": {
+        "kind": "start_endpoint",
+        "endpoint": "client"
+      }
+    },
+    {
+      "id": "02-start-server-rejected",
+      "schedule": {
+        "kind": "at",
+        "nanos": 0
+      },
+      "action": {
+        "kind": "start_endpoint",
+        "endpoint": "server"
+      }
+    }
+  ],
+  "fault_rules": [],
+  "fairness": [],
+  "completion": {
+    "kind": "all_actions",
+    "shutdown_deadline_nanos": 60000000000
+  },
+  "allowed_terminals": [
+    "expected_failure"
+  ],
+  "invariants": [
+    {
+      "name": "resource_cleanup",
+      "deadline_nanos": null,
+      "max_events": null
+    }
+  ]
+}

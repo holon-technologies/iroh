@@ -91,11 +91,15 @@ fn strict_schema_rejects_unknown_noncanonical_unbounded_and_dangling_input() {
 
 #[test]
 fn materialization_is_repeatable_domain_separated_and_covers_fixed_options() {
-    let spec = fixture();
+    let mut spec = fixture();
+    spec.base.budgets.resources.max_connections = 7;
+    spec.base.budgets.resources.max_streams = 3;
+    let resources = spec.base.budgets.resources;
     let first = spec.materialize(RootSeed::new([7; 32])).unwrap();
     let second = spec.materialize(RootSeed::new([7; 32])).unwrap();
     assert_eq!(first, second);
     assert_eq!(first.1.choices.len(), 2);
+    assert_eq!(first.0.budgets.resources, resources);
     assert!(
         first
             .0
