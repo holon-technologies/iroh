@@ -115,6 +115,7 @@ fn failure_bundle_is_immutable_and_detects_missing_or_truncated_chunks() {
         scenario: &scenario,
         error: &error,
         signature: &signature,
+        operational_outcome: None,
         invariants: &InvariantSnapshot::default(),
         resources: &ResourceLedgerSnapshot::default(),
         model: None,

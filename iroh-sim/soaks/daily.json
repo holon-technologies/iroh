@@ -1,6 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "daily",
+  "coverage_policy": "iroh-sim/coverage-policy.json",
+  "coverage_policy_blake3": "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
   "lanes": [
     {
       "id": "direct/deterministic-test",

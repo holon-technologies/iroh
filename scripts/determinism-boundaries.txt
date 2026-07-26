@@ -103,8 +103,8 @@ clock-timer	iroh-runtime/tests/time.rs:49	tokio::time::advance(Duration::from_se
 clock-timer	iroh-runtime/tests/time.rs:64	tokio::time::advance(Duration::from_secs(3)).await;
 clock-timer	iroh-runtime/tests/time.rs:84	let before = SystemTime::now();
 clock-timer	iroh-runtime/tests/time.rs:86	let after = SystemTime::now();
-clock-timer	iroh-sim/src/cli.rs:1285	let started = Instant::now();
-clock-timer	iroh-sim/src/cli.rs:861	let now_unix_secs = SystemTime::now()
+clock-timer	iroh-sim/src/cli.rs:1447	let started = Instant::now();
+clock-timer	iroh-sim/src/cli.rs:952	let now_unix_secs = SystemTime::now()
 clock-timer	iroh-sim/src/kernel.rs:238	origin: iroh_runtime::Instant::now(),
 clock-timer	iroh-sim/tests/deterministic_runtime.rs:44	tokio::time::advance(Duration::from_secs(5)).await;
 clock-timer	iroh-sim/tests/relay.rs:193	let started = tokio::time::Instant::now();
@@ -422,62 +422,65 @@ external-state	iroh-sim/src/artifact.rs:180	let mut file = OpenOptions::new()
 external-state	iroh-sim/src/artifact.rs:6	fs::{self, OpenOptions},
 external-state	iroh-sim/src/bin/cargo-sim.rs:4	let args: Vec<_> = std::env::args_os().collect();
 external-state	iroh-sim/src/bounded_io.rs:19	let file = File::open(path)?;
-external-state	iroh-sim/src/cli.rs:1727	let mut file = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:1925	let journal = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:1986	let mut file = OpenOptions::new()
-external-state	iroh-sim/src/cli.rs:2354	let output = ProcessCommand::new("git")
-external-state	iroh-sim/src/cli.rs:2371	let mut command = ProcessCommand::new("git");
-external-state	iroh-sim/src/cli.rs:2395	let mut current = std::env::current_dir().map_err(CliError::Io)?;
-external-state	iroh-sim/src/cli.rs:2445	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
+external-state	iroh-sim/src/cli.rs:1012	let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
+external-state	iroh-sim/src/cli.rs:1949	let mut file = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:2147	let journal = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:2208	let mut file = OpenOptions::new()
+external-state	iroh-sim/src/cli.rs:2576	let output = ProcessCommand::new("git")
+external-state	iroh-sim/src/cli.rs:2593	let mut command = ProcessCommand::new("git");
+external-state	iroh-sim/src/cli.rs:2617	let mut current = std::env::current_dir().map_err(CliError::Io)?;
+external-state	iroh-sim/src/cli.rs:2667	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
 external-state	iroh-sim/src/cli.rs:6	fs::{self, OpenOptions},
-external-state	iroh-sim/src/cli.rs:921	let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
-external-state	iroh-sim/src/corpus.rs:274	std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
-external-state	iroh-sim/src/corpus.rs:275	std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
-external-state	iroh-sim/src/corpus.rs:286	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
-external-state	iroh-sim/src/corpus.rs:287	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
-external-state	iroh-sim/src/corpus.rs:288	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
-external-state	iroh-sim/tests/cli.rs:100	let drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1065	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1099	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1152	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1195	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1208	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:1224	let path = std::env::temp_dir().join(format!(
-external-state	iroh-sim/tests/cli.rs:137	let digest_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:164	let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:205	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/src/corpus.rs:438	std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
+external-state	iroh-sim/src/corpus.rs:439	std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
+external-state	iroh-sim/src/corpus.rs:450	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
+external-state	iroh-sim/src/corpus.rs:451	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
+external-state	iroh-sim/src/corpus.rs:452	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
+external-state	iroh-sim/tests/cli.rs:1014	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1095	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1161	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:119	let drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1195	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1248	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1291	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1304	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:1320	let path = std::env::temp_dir().join(format!(
+external-state	iroh-sim/tests/cli.rs:156	let digest_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:193	let coverage_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	iroh-sim/tests/cli.rs:23	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:260	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:293	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:320	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:336	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:359	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:394	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:416	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:432	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:235	let domain_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:258	let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:301	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:356	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:389	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:416	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:432	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	iroh-sim/tests/cli.rs:44	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:450	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:468	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:503	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:526	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:550	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:581	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:606	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:625	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:658	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:683	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:700	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:718	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:742	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:769	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:803	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:829	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:854	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:897	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:918	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/cli.rs:999	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	iroh-sim/tests/corpus_campaign.rs:276	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
-external-state	iroh-sim/tests/failure_replay.rs:207	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/cli.rs:455	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:490	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:512	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:528	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:546	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:564	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:599	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:622	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:646	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:677	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:702	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:721	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:754	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:779	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:796	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:814	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:838	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:865	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:899	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:925	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:950	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/cli.rs:993	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	iroh-sim/tests/corpus_campaign.rs:283	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
+external-state	iroh-sim/tests/coverage.rs:548	std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative))
+external-state	iroh-sim/tests/failure_replay.rs:208	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
 external-state	iroh-sim/tests/trace.rs:182	let path = std::env::temp_dir().join(format!(
 external-state	iroh/bench/build.rs:3	use std::env;
 external-state	iroh/bench/build.rs:6	let profile = env::var("PROFILE").expect("Cargo always sets PROFILE for build scripts");

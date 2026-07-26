@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "policy_id": "iroh-change-impact-v1",
+  "maximum_changed_paths": 4096,
+  "domains": [
+    {
+      "id": "direct",
+      "swarm": "iroh-sim/swarms/direct-smoke.json"
+    },
+    {
+      "id": "discovery",
+      "swarm": "iroh-sim/swarms/discovery-timing.json"
+    },
+    {
+      "id": "mobility",
+      "swarm": "iroh-sim/swarms/mobility-timing.json"
+    },
+    {
+      "id": "nat",
+      "swarm": "iroh-sim/swarms/nat-behavior.json"
+    },
+    {
+      "id": "ready-order",
+      "swarm": "iroh-sim/swarms/ready-order-pressure.json"
+    },
+    {
+      "id": "relay",
+      "swarm": "iroh-sim/swarms/relay-lifecycle.json"
+    }
+  ],
+  "ignored_prefixes": [
+    ".github/ISSUE_TEMPLATE/",
+    "docs/"
+  ],
+  "global_prefixes": [
+    ".github/workflows/ci.yml",
+    "Cargo.lock",
+    "Cargo.toml",
+    "iroh-runtime/",
+    "iroh-sim/"
+  ],
+  "mappings": [
+    {
+      "prefix": "iroh-relay/",
+      "domains": [
+        "relay"
+      ]
+    },
+    {
+      "prefix": "iroh/src/discovery/",
+      "domains": [
+        "discovery"
+      ]
+    },
+    {
+      "prefix": "iroh/src/endpoint/",
+      "domains": [
+        "direct",
+        "discovery",
+        "mobility",
+        "nat",
+        "relay"
+      ]
+    },
+    {
+      "prefix": "iroh/src/socket/",
+      "domains": [
+        "direct",
+        "mobility",
+        "nat",
+        "ready-order",
+        "relay"
+      ]
+    }
+  ],
+  "tiers": [
+    {
+      "tier": "pull_request",
+      "targeted_runs_per_lane": 1,
+      "maximum_total_runs": 24
+    },
+    {
+      "tier": "main",
+      "targeted_runs_per_lane": 4,
+      "maximum_total_runs": 64
+    }
+  ]
+}

@@ -16,7 +16,105 @@ use crate::{
 pub const FAILURE_SIGNATURE_SCHEMA_VERSION: u16 = 1;
 /// Current failure-artifact index schema.
 pub const FAILURE_ARTIFACT_SCHEMA_VERSION: u16 = 3;
+/// Current typed operational-outcome schema.
+pub const OPERATIONAL_OUTCOME_SCHEMA_VERSION: u16 = 1;
 const MAX_CAUSAL_SUFFIX_EVENTS: usize = 256;
+const MAX_OPERATIONAL_EVIDENCE_BYTES: usize = 4_096;
+const MAX_OPERATIONAL_OUTCOME_BYTES: usize = 8_192;
+
+/// Service-level result classes kept separate across automation and release evidence.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationalOutcomeClass {
+    ProductCorrectness,
+    Infrastructure,
+    ExpectedResourceExhaustion,
+    Determinism,
+    Performance,
+}
+
+/// A bounded typed classification with a stable evidence summary.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperationalOutcome {
+    pub schema_version: u16,
+    pub class: OperationalOutcomeClass,
+    pub evidence: String,
+}
+
+impl OperationalOutcome {
+    pub fn new(
+        class: OperationalOutcomeClass,
+        evidence: impl Into<String>,
+    ) -> Result<Self, OperationalOutcomeError> {
+        let evidence = evidence.into();
+        let outcome = Self {
+            schema_version: OPERATIONAL_OUTCOME_SCHEMA_VERSION,
+            class,
+            evidence,
+        };
+        outcome.validate()?;
+        Ok(outcome)
+    }
+
+    pub fn from_json(bytes: &[u8]) -> Result<Self, OperationalOutcomeError> {
+        if bytes.len() > MAX_OPERATIONAL_OUTCOME_BYTES {
+            return Err(OperationalOutcomeError::InputTooLarge(bytes.len()));
+        }
+        let outcome: Self = serde_json::from_slice(bytes)
+            .map_err(|error| OperationalOutcomeError::Encoding(error.to_string()))?;
+        outcome.validate()?;
+        Ok(outcome)
+    }
+
+    pub fn to_canonical_json(&self) -> Result<Vec<u8>, OperationalOutcomeError> {
+        self.validate()?;
+        let mut bytes = serde_json::to_vec_pretty(self)
+            .map_err(|error| OperationalOutcomeError::Encoding(error.to_string()))?;
+        bytes.push(b'\n');
+        Ok(bytes)
+    }
+
+    pub const fn issue_eligible(&self) -> bool {
+        matches!(self.class, OperationalOutcomeClass::ProductCorrectness)
+    }
+
+    pub const fn requires_exact_replay(&self) -> bool {
+        matches!(self.class, OperationalOutcomeClass::ProductCorrectness)
+    }
+
+    fn validate(&self) -> Result<(), OperationalOutcomeError> {
+        if self.schema_version != OPERATIONAL_OUTCOME_SCHEMA_VERSION {
+            return Err(OperationalOutcomeError::UnsupportedSchema(
+                self.schema_version,
+            ));
+        }
+        if self.evidence.trim().is_empty()
+            || self.evidence.len() > MAX_OPERATIONAL_EVIDENCE_BYTES
+        {
+            return Err(OperationalOutcomeError::InvalidEvidenceLength(
+                self.evidence.len(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OperationalOutcomeError {
+    UnsupportedSchema(u16),
+    InvalidEvidenceLength(usize),
+    InputTooLarge(usize),
+    Encoding(String),
+}
+
+impl fmt::Display for OperationalOutcomeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for OperationalOutcomeError {}
 
 /// Typed terminal class used for signature matching rather than display text.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -329,6 +427,7 @@ pub struct FailureArtifactBundle<'a> {
     pub scenario: &'a Scenario,
     pub error: &'a RunnerError,
     pub signature: &'a FailureSignature,
+    pub operational_outcome: Option<&'a OperationalOutcome>,
     pub invariants: &'a InvariantSnapshot,
     pub resources: &'a ResourceLedgerSnapshot,
     pub model: Option<&'a ReferenceModelSnapshot>,
@@ -385,6 +484,16 @@ impl FailureArtifactBundle<'_> {
             ("trace.raw.jsonl", raw_trace),
         ] {
             write_indexed(store, &mut files, name, &bytes)?;
+        }
+        if let Some(outcome) = self.operational_outcome {
+            write_indexed(
+                store,
+                &mut files,
+                "operational-outcome.json",
+                &outcome
+                    .to_canonical_json()
+                    .map_err(|error| FailureError::Encoding(error.to_string()))?,
+            )?;
         }
         let mut trace_chunks = 0u64;
         for (ordinal, chunk) in self.trace.chunks(self.events_per_chunk).enumerate() {

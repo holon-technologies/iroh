@@ -96,8 +96,9 @@ fi
 jq -n \
   --argjson epoch "$epoch" \
   --argjson failed "$failed" \
+  --arg lane "${selected_lane:-direct/deterministic-test}" \
   '{
-    schema_version: 1,
+    schema_version: 2,
     epoch: $epoch,
     completed_runs: 1,
     successful_runs: (1 - $failed),
@@ -110,6 +111,38 @@ jq -n \
       retained_bytes: (128 * $failed),
       infrastructure_error: null
     },
+    coverage: {
+      schema_version: 2,
+      policy_id: "iroh-network-modes-v1",
+      policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+      rolling_window_days: 7,
+      completed_runs: 1,
+      observed_individuals: [],
+      missing_individuals: [],
+      observed_pairs: [],
+      missing_pairs: [],
+      observed_higher_order: [],
+      missing_higher_order: [],
+      observed_transitions: [],
+      missing_transitions: [],
+      observed_oracles: [],
+      missing_oracles: [],
+      observed_phases: [],
+      missing_phases: [],
+      known_gaps: []
+    },
+    seed_leases: [{
+      schema_version: 2,
+      policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+      plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      lane_id: $lane,
+      seed_window: 42,
+      epoch: $epoch,
+      lane_index: 0,
+      seed_start: ($epoch * 1000000),
+      seed_end_exclusive: (($epoch + 1) * 1000000),
+      consumed_runs: 1
+    }],
     unique_failures: []
   }' >"$artifact_root/.soak-summary.json.tmp"
 mv "$artifact_root/.soak-summary.json.tmp" "$artifact_root/soak-summary.json"
@@ -149,6 +182,9 @@ jq -e '
   and .totals.successful_runs == 1
   and .totals.failed_runs == 1
   and .totals.errored_runs == 0
+  and .coverage.policy_id == "iroh-network-modes-v1"
+  and .coverage.completed_runs == 2
+  and (.seed_leases | length) == 2
   and (.epochs | length) == 2
 ' "$report" >/dev/null
 

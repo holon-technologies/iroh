@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  issues: write
 
 concurrency:
   group: iroh-daily-simulation-soak
@@ -147,7 +149,7 @@ jobs:
     if: always()
     needs: [build_simulator, soak_lane]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - name: Download lane evidence
@@ -161,22 +163,185 @@ jobs:
         if: always()
         shell: bash
         run: |
+          observed_at=$(date -u '+%s')
           set +e
           scripts/aggregate-daily-simulation-soak.sh \
             --artifacts "$RUNNER_TEMP/lane-results" \
+            --source-revision "${{ github.sha }}" \
+            --workflow-run-id "${{ github.run_id }}" \
+            --observed-at-unix-secs "$observed_at" \
             --output "$RUNNER_TEMP/aggregate/daily-soak-aggregate.json"
           aggregate_status=$?
           set -e
           echo "status=$aggregate_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Build rolling coverage and next gap selection
+        id: coverage
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          aggregate_status="${{ steps.aggregate.outputs.status }}"
+          if [[ ! "$aggregate_status" =~ ^[0-2]$ || "$aggregate_status" == 2 ]]; then
+            echo "status=2" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          current="$RUNNER_TEMP/aggregate/daily-soak-aggregate.json"
+          policy_blake3=$(jq -er '.coverage.policy_blake3' "$current")
+          window_end=$(jq -er '.observed_at_unix_secs' "$current")
+          window_start=$((window_end > 604800 ? window_end - 604800 : 0))
+          history="$RUNNER_TEMP/coverage-history"
+
+          set +e
+          scripts/collect-simulation-coverage-history.sh \
+            --repository "${{ github.repository }}" \
+            --workflow simulation-daily-soak.yml \
+            --current-run-id "${{ github.run_id }}" \
+            --policy-blake3 "$policy_blake3" \
+            --window-start-unix-secs "$window_start" \
+            --window-end-unix-secs "$window_end" \
+            --output "$history"
+          history_status=$?
+          if [[ "$history_status" -eq 0 ]]; then
+            scripts/merge-simulation-coverage-history.sh \
+              --current "$current" \
+              --history "$history" \
+              --window-end-unix-secs "$window_end" \
+              --output "$RUNNER_TEMP/aggregate/rolling-coverage.json"
+            rolling_status=$?
+          else
+            rolling_status=2
+          fi
+          if [[ "$rolling_status" -eq 0 ]]; then
+            scripts/select-simulation-gaps.sh \
+              --rolling "$RUNNER_TEMP/aggregate/rolling-coverage.json" \
+              --plan iroh-sim/soaks/daily.json \
+              --max-lanes 12 \
+              --output "$RUNNER_TEMP/aggregate/gap-selection.json"
+            selection_status=$?
+          else
+            selection_status=2
+          fi
+          set -e
+
+          if [[ "$selection_status" -ne 0 ]]; then
+            echo "status=2" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "status=0" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Rolling deterministic simulation coverage"
+            echo
+            printf -- '- Window runs: `%s`\n' \
+              "$(jq -r '.included_runs | length' "$RUNNER_TEMP/aggregate/rolling-coverage.json")"
+            printf -- '- Uncovered obligations: `%s`\n' \
+              "$(jq -r '.gaps | length' "$RUNNER_TEMP/aggregate/rolling-coverage.json")"
+            printf -- '- Selected lanes: `%s`\n' \
+              "$(jq -r '.lanes | length' "$RUNNER_TEMP/aggregate/gap-selection.json")"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Download source-bound simulator for confirmed failures
+        if: always() && steps.aggregate.outputs.status == '1'
+        uses: actions/download-artifact@v8
+        with:
+          name: iroh-sim-cargo-sim-${{ github.sha }}
+          path: ${{ runner.temp }}/cargo-sim
+      - name: Replay and minimize unique product failures
+        id: triage
+        if: always()
+        shell: bash
+        run: |
+          aggregate_status="${{ steps.aggregate.outputs.status }}"
+          if [[ "$aggregate_status" == 1 ]]; then
+            cd "$RUNNER_TEMP/cargo-sim"
+            sha256sum --check cargo-sim.sha256
+            chmod +x cargo-sim
+            cd "$GITHUB_WORKSPACE"
+            set +e
+            scripts/triage-simulation-failures.sh \
+              --artifacts "$RUNNER_TEMP/lane-results" \
+              --aggregate "$RUNNER_TEMP/aggregate/daily-soak-aggregate.json" \
+              --sim-bin "$RUNNER_TEMP/cargo-sim/cargo-sim" \
+              --source-revision "${{ github.sha }}" \
+              --workflow-run-id "${{ github.run_id }}" \
+              --repository "${{ github.repository }}" \
+              --output "$RUNNER_TEMP/triage"
+            triage_status=$?
+            set -e
+          elif [[ "$aggregate_status" == 0 ]]; then
+            mkdir -p "$RUNNER_TEMP/triage/issue-records"
+            jq -n '{
+              schema_version: 1,
+              status: "no_failures",
+              discovered_signatures: 0,
+              confirmed_signatures: 0,
+              replay_mismatches: 0,
+              minimization_failures: 0,
+              omitted_signatures: 0,
+              maximum_signatures: 16,
+              minimization_attempts_per_signature: 512
+            }' >"$RUNNER_TEMP/triage/triage-summary.json"
+            triage_status=0
+          else
+            mkdir -p "$RUNNER_TEMP/triage/issue-records"
+            jq -n '{
+              schema_version: 1,
+              status: "triage_infrastructure_failure",
+              discovered_signatures: 0,
+              confirmed_signatures: 0,
+              replay_mismatches: 0,
+              minimization_failures: 0,
+              omitted_signatures: 0,
+              maximum_signatures: 16,
+              minimization_attempts_per_signature: 512
+            }' >"$RUNNER_TEMP/triage/triage-summary.json"
+            triage_status=2
+          fi
+          echo "status=$triage_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Create, update, or reopen confirmed failure issues
+        id: issues
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          triage_status="${{ steps.triage.outputs.status }}"
+          mkdir -p "$RUNNER_TEMP/triage/issue-records"
+          record_count=$(find "$RUNNER_TEMP/triage/issue-records" \
+            -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l)
+          if [[ "$triage_status" == 0 && "$record_count" -gt 0 ]]; then
+            set +e
+            scripts/upsert-simulation-issues.sh \
+              --records "$RUNNER_TEMP/triage/issue-records" \
+              --repository "${{ github.repository }}" \
+              --output "$RUNNER_TEMP/triage/issue-upsert-summary.json"
+            issue_status=$?
+            set -e
+          elif [[ "$triage_status" == 0 ]]; then
+            issue_status=0
+          else
+            issue_status=2
+          fi
+          echo "status=$issue_status" >> "$GITHUB_OUTPUT"
           exit 0
       - name: Upload aggregate report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: iroh-sim-soak-aggregate-${{ github.run_id }}
-          path: ${{ runner.temp }}/aggregate/daily-soak-aggregate.json
+          path: ${{ runner.temp }}/aggregate
           if-no-files-found: error
           retention-days: 14
+      - name: Upload replay, minimization, and issue evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-soak-triage-${{ github.run_id }}
+          path: ${{ runner.temp }}/triage
+          if-no-files-found: error
+          retention-days: 30
       - name: Propagate aggregate result
         if: always()
         shell: bash
@@ -184,6 +349,18 @@ jobs:
           aggregate_status="${{ steps.aggregate.outputs.status }}"
           if [[ ! "$aggregate_status" =~ ^[0-9]+$ ]]; then
             echo "aggregate did not publish a valid exit status" >&2
+            exit 2
+          fi
+          coverage_status="${{ steps.coverage.outputs.status }}"
+          if [[ ! "$coverage_status" =~ ^[0-9]+$ || "$coverage_status" -ne 0 ]]; then
+            echo "rolling coverage did not publish valid evidence" >&2
+            exit 2
+          fi
+          triage_status="${{ steps.triage.outputs.status }}"
+          issue_status="${{ steps.issues.outputs.status }}"
+          if [[ ! "$triage_status" =~ ^[0-9]+$ || "$triage_status" -ne 0 \
+                || ! "$issue_status" =~ ^[0-9]+$ || "$issue_status" -ne 0 ]]; then
+            echo "failure replay, minimization, or issue automation failed" >&2
             exit 2
           fi
           exit "$aggregate_status"

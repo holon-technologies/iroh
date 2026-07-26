@@ -18,6 +18,8 @@ required=(
   'workflow_dispatch:'
   'permissions:'
   'contents: read'
+  'actions: read'
+  'issues: write'
   'group: iroh-daily-simulation-soak'
   'cancel-in-progress: false'
   'build_simulator:'
@@ -42,7 +44,20 @@ required=(
   '--max-runs-per-epoch 10416'
   'pattern: iroh-sim-soak-*-${{ github.run_id }}'
   'scripts/aggregate-daily-simulation-soak.sh'
+  '--source-revision "${{ github.sha }}"'
+  '--workflow-run-id "${{ github.run_id }}"'
+  '--observed-at-unix-secs "$observed_at"'
+  'scripts/collect-simulation-coverage-history.sh'
+  'scripts/merge-simulation-coverage-history.sh'
+  'scripts/select-simulation-gaps.sh'
+  'scripts/triage-simulation-failures.sh'
+  'scripts/upsert-simulation-issues.sh'
+  'iroh-sim-soak-triage-${{ github.run_id }}'
+  'GH_TOKEN: ${{ github.token }}'
   'daily-soak-aggregate.json'
+  'rolling-coverage.json'
+  'gap-selection.json'
+  'GH_TOKEN: ${{ github.token }}'
   'actions/upload-artifact@v7'
   'if-no-files-found: error'
   'retention-days: 14'
@@ -106,12 +121,19 @@ lane_upload_line=$(grep -n -m1 'Upload lane report and failure artifacts' "$work
 lane_propagate_line=$(grep -n -m1 'Propagate lane result' "$workflow" | cut -d: -f1)
 aggregate_upload_line=$(grep -n -m1 'Upload aggregate report' "$workflow" | cut -d: -f1)
 aggregate_propagate_line=$(grep -n -m1 'Propagate aggregate result' "$workflow" | cut -d: -f1)
+history_line=$(grep -n -m1 'scripts/collect-simulation-coverage-history.sh' "$workflow" | cut -d: -f1)
+rolling_line=$(grep -n -m1 'scripts/merge-simulation-coverage-history.sh' "$workflow" | cut -d: -f1)
+selection_line=$(grep -n -m1 'scripts/select-simulation-gaps.sh' "$workflow" | cut -d: -f1)
 if ((lane_upload_line >= lane_propagate_line)); then
   echo "lane result must be propagated only after artifact upload" >&2
   exit 1
 fi
 if ((aggregate_upload_line >= aggregate_propagate_line)); then
   echo "aggregate result must be propagated only after artifact upload" >&2
+  exit 1
+fi
+if ((history_line >= rolling_line || rolling_line >= selection_line)); then
+  echo "history collection, rolling merge, and gap selection must remain ordered" >&2
   exit 1
 fi
 

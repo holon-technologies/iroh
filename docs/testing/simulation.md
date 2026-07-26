@@ -98,9 +98,10 @@ Build or inspect the command with:
 cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- --help
 ```
 
-The stable command surface is `run`, `campaign`, `soak`, `replay`, `minimize`, `corpus`, `explain`,
-and `parity`. Stage 6 activates deterministic execution across direct IP, NAT/firewall, discovery,
-mobility, relay lifecycle, relay/direct paths, and seeded production-task ready ordering.
+The stable command surface is `run`, `campaign`, `soak`, `gate-select`, `replay`, `minimize`,
+`corpus`, `explain`, and `parity`. Stage 6 activates deterministic execution across direct IP,
+NAT/firewall, discovery, mobility, relay lifecycle, relay/direct paths, and seeded production-task
+ready ordering.
 
 Run either checked-in Stage 2 scenario with an explicit behavioral seed:
 
@@ -173,11 +174,25 @@ The production service starts a window every six hours. It builds one source-bou
 fans the twelve lanes out to standard GitHub-hosted runners, and gives each lane eight 30-minute
 epochs, four workers, and 64 scenarios per deadline boundary. A lane is capped at 83,328 runs, so
 each window is capped at 999,936 runs and the four daily windows at 3,999,744. Each lane retains at
-most sixteen failures and 256 MiB of failure data. The final aggregate requires every lane exactly
-once with a distinct seed window and complete, counter-reconciled evidence for the configured eight
-epochs. It deduplicates signatures across lanes and distinguishes product/simulation failures from
-missing, malformed, underconfigured, or infrastructure-failed evidence before CI propagates
-failure.
+most sixteen failures and 256 MiB of failure data. Every epoch records a typed half-open seed lease
+bound to workflow run, policy digest, lane, and ordinal range. The final aggregate requires every
+lane exactly once, rejects lease overlap, reconciles all counters, and exposes configuration,
+transition, oracle, phase, and failure-signature coverage.
+
+The aggregate job merges compatible evidence into a rolling seven-day ledger, rejects duplicate
+run IDs or cross-run lease overlap, and reports every unmet obligation with a typed reason. It emits
+a bounded next-lane selection rather than hiding gaps behind run totals. A policy revision starts a
+new window: valid older-policy and pre-policy reports are ignored, while malformed current-policy
+evidence is infrastructure failure. Confirmed product failures carry an integrity-indexed,
+versioned operational outcome bound to the normalized signature digest, are exactly replayed,
+minimized with at most 512 attempts, and are deduplicated into GitHub issues by normalized
+signature. Non-product, unindexed, replay, minimization, issue API, or evidence failures stay
+infrastructure-classified.
+Tracked issue closure is separately fail-closed: the default-branch closure workflow reopens the
+issue unless exactly one reviewed minimized corpus entry matches its signature and both
+same-revision deterministic GitHub Actions checks succeeded. A promotion cannot retain the original
+product-failure signature as its expected terminal, and its scenario SHA-256 must match both the
+tracked issue and checked-in bytes.
 
 Scenario JSON is strict and currently supports `direct-ip/ipv4-stream`, `direct-ip/ipv4-stream-loss`, `direct-ip/ipv4-stream-corruption`, `direct-ip/ipv6-stream`, and `direct-ip/ipv6-datagram`. The checked-in loss fixture and seed demonstrate QUIC recovery after real packet loss. The corruption fixture requires the injected corruption to occur and treats the resulting authenticated-transport failure as its expected terminal result. Unknown fields, schemas, and scenario IDs fail closed. `run` writes the manifest before endpoint execution and prints one replay command. `replay` verifies source revision, dirty-tree digest, dependency lockfile, simulator/schema version, scenario digest, normalized configuration, features, backend identity, crypto/grade/comparison matrix, budgets, and seed before comparing the manifest-selected raw or semantic trace.
 
@@ -238,16 +253,57 @@ retains the best valid candidate.
 
 ### Corpus, campaigns, and triage
 
-Each directory below `iroh-sim/corpus` must contain exactly `metadata.json` and `scenario.json`. Metadata records seed, expected terminal/signature, provenance, issue, schema/simulator compatibility, review state, and an exact `ScenarioInventory`. Unenumerated files, duplicate IDs, incompatibility, missing provenance, changed domain counts, and changed signatures fail `corpus test`. The reviewed entries cover NAT rebind/expiry, discovery conflict/expiry/refresh, relay restart, direct-to-relay fallback, and a four-way production-task ready-order seed promoted from the Stage 6 scheduler campaign.
+Each directory below `iroh-sim/corpus` must contain exactly `metadata.json` and `scenario.json`.
+Corpus metadata schema v2 records seed, expected terminal/signature, provenance, issue,
+schema/simulator compatibility, review state, and an exact `ScenarioInventory`. Historical fixtures
+use a bounded symbolic issue reference. A real GitHub issue URL requires typed promotion evidence:
+the original signature digest, minimized-scenario SHA-256, discovery revision and workflow run,
+exact replay, and signature-preserving minimization. Unenumerated files, duplicate IDs,
+incompatibility, missing provenance, invalid promotion evidence, changed domain counts, and changed
+signatures fail `corpus test`. The reviewed entries cover NAT rebind/expiry, discovery
+conflict/expiry/refresh, relay restart, direct-to-relay fallback, and a four-way production-task
+ready-order seed promoted from the Stage 6 scheduler campaign.
 
-Campaigns execute half-open seed ranges in deterministic worker batches. Results are sorted by seed, failure signatures are deduplicated independent of completion order, fail-fast stops only at a stable batch boundary, and every run gets its own artifact directory. Campaign summaries retain the template inventory. PR CI runs the corpus, generated production-QUIC smoke, and bounded environment/relay campaigns. Nightly CI shards 256 seeds independently across the Stage 4 environment domains and both Stage 5 relay domains, retaining artifacts and unique-failure summaries.
+Campaigns execute half-open seed ranges in deterministic worker batches. Results are sorted by
+seed, failure signatures are deduplicated independent of completion order, fail-fast stops only at
+a stable batch boundary, and every run gets its own artifact directory. Campaign summaries retain
+the template inventory.
+
+PR and merge-queue CI run two required simulation checks. `Deterministic simulation contracts and
+corpus` executes the complete reviewed corpus plus model, property, replay, resource, workflow, and
+policy contracts. `Deterministic simulation change gate` always runs one canary for every one of the
+six domains under both cryptographic providers, then adds work selected by the versioned
+source-path impact map. BLAKE3 binds each seed to candidate revision, both policy digests,
+domain/provider lane, work kind, and ordinal. Unknown, global, or unavailable diffs fall back to
+all domains. Pull-request selection is capped at 24 runs and 15 minutes; main selection is capped at
+64 runs and 30 minutes.
+
+The weekly hosted service audits those wall-time targets against the latest 20 compatible
+successful executions per tier. It publishes explicit insufficient-history evidence during rollout
+and fails on a measured P95 breach instead of weakening the deterministic gate.
+
+Nightly no longer repeats fixed exploratory seed ranges. It consumes the latest compatible daily
+gap selection (at most eight selected gap lanes), falls back to the twelve universal canaries when
+fresh evidence is absent, and separately retains the five exact replay and six expected-resource
+audits as permanent tests. Weekly runs service/corpus/parity checks and correlated benchmarks; it
+does not run another deterministic seed-range explorer. Main also runs realistic Netsim, while the
+daily hosted Patchbay public case continuously executes the same canonical semantic workload as the
+deterministic parity exporter.
+
+The release workflow gates every pinned candidate before build or publication. It requires both
+same-revision deterministic checks, same-revision Netsim, no open confirmed simulation product
+failure, and fresh successful public Patchbay parity evidence. Every query and result set is
+bounded and produces a retained typed readiness report before propagating its status.
 
 The recurring soak uses the same deterministic batch semantics without retaining successful
 per-seed directories. Twelve standard GitHub-hosted lane jobs run independently, checkpoint after
 every batch, and each supply four internal workers. The workflow builds `cargo-sim` once, binds the
 uploaded binary to the source SHA with a checksum, assigns disjoint run-number-derived seed
 windows, and aggregates exact lane evidence after every matrix job has finished. Workflow
-concurrency one queues overlapping scheduled or manual windows instead of cancelling them.
+concurrency one queues overlapping scheduled or manual windows instead of cancelling them. The
+relay lifecycle swarm additionally declares separate fault and recovery phases: safety remains
+active during outage and a dependency-ordered, fairness-qualified connection probe must complete
+within virtual-time and event-count bounds after healing.
 The checked workflow and its seconds-long contract are definitions, not evidence that a hosted
 window completed.
 
@@ -274,6 +330,16 @@ scripts/tests/check-determinism-docs.sh
 scripts/tests/check-daily-simulation-soak.sh
 scripts/tests/check-daily-simulation-aggregate.sh
 scripts/tests/check-daily-simulation-workflow.sh
+scripts/tests/check-simulation-coverage-history.sh
+scripts/tests/check-simulation-coverage-collector.sh
+scripts/tests/check-latest-simulation-gap-collector.sh
+scripts/tests/check-simulation-gate-selector.sh
+scripts/tests/check-simulation-gate-runner.sh
+scripts/tests/check-simulation-gate-workflow.sh
+scripts/tests/check-simulation-failure-triage.sh
+scripts/tests/check-simulation-issue-upsert.sh
+scripts/tests/check-simulation-nightly-workflow.sh
+scripts/tests/check-simulation-weekly-workflow.sh
 cargo test -p iroh-runtime
 cargo test -p iroh-dns --lib
 cargo test -p iroh-relay --all-features

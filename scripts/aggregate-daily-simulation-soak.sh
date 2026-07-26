@@ -3,17 +3,32 @@
 set -euo pipefail
 
 artifact_root=
+source_revision=
+workflow_run_id=
+observed_at_unix_secs=
 output=
 
 usage() {
   printf '%s\n' \
-    'Usage: aggregate-daily-simulation-soak.sh --artifacts PATH --output PATH'
+    'Usage: aggregate-daily-simulation-soak.sh --artifacts PATH --source-revision HEX --workflow-run-id N --observed-at-unix-secs N --output PATH'
 }
 
 while (($# > 0)); do
   case "$1" in
     --artifacts)
       artifact_root=$2
+      shift 2
+      ;;
+    --source-revision)
+      source_revision=$2
+      shift 2
+      ;;
+    --workflow-run-id)
+      workflow_run_id=$2
+      shift 2
+      ;;
+    --observed-at-unix-secs)
+      observed_at_unix_secs=$2
       shift 2
       ;;
     --output)
@@ -32,11 +47,24 @@ while (($# > 0)); do
   esac
 done
 
-if [[ -z "$artifact_root" || -z "$output" ]]; then
-  echo "--artifacts and --output are required" >&2
+if [[ -z "$artifact_root" || -z "$source_revision" || -z "$workflow_run_id" \
+      || -z "$observed_at_unix_secs" || -z "$output" ]]; then
+  echo "all aggregate provenance and path arguments are required" >&2
   usage >&2
   exit 64
 fi
+if [[ ! "$source_revision" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "--source-revision must be exactly 40 lowercase hexadecimal characters" >&2
+  exit 64
+fi
+for value_name in workflow_run_id observed_at_unix_secs; do
+  value=${!value_name}
+  if [[ ! "$value" =~ ^[0-9]+$ ]] || ((10#$value > 9223372036854775807)); then
+    printf -- '--%s must be an unsigned 64-bit decimal integer\n' \
+      "${value_name//_/-}" >&2
+    exit 64
+  fi
+done
 
 if [[ "$artifact_root" != /* ]]; then
   artifact_root="$PWD/$artifact_root"
@@ -73,6 +101,49 @@ fi
 
 report_contract='
   def uint: type == "number" and . >= 0 and floor == .;
+  def digest:
+    type == "string"
+    and length == 64
+    and test("^[0-9a-f]{64}$");
+  def valid_counts:
+    type == "array"
+    and all(.[];
+      type == "object"
+      and (.bucket | type == "object")
+      and (.occurrences | uint and . > 0));
+  def valid_coverage($completed):
+    type == "object"
+    and .schema_version == 2
+    and (.policy_id | type == "string" and length > 0 and length <= 128)
+    and (.policy_blake3 | digest)
+    and .rolling_window_days == 7
+    and .completed_runs == $completed
+    and (.observed_individuals | valid_counts)
+    and (.missing_individuals | type == "array")
+    and (.observed_pairs | valid_counts)
+    and (.missing_pairs | type == "array")
+    and (.observed_higher_order | valid_counts)
+    and (.missing_higher_order | type == "array")
+    and (.observed_transitions | valid_counts)
+    and (.missing_transitions | type == "array")
+    and (.observed_oracles | valid_counts)
+    and (.missing_oracles | type == "array")
+    and (.observed_phases | valid_counts)
+    and (.missing_phases | type == "array")
+    and (.known_gaps | type == "array");
+  def valid_lease($epoch; $lane; $seed_window; $policy_blake3):
+    type == "object"
+    and .schema_version == 2
+    and .policy_blake3 == $policy_blake3
+    and (.plan_blake3 | digest)
+    and .lane_id == $lane
+    and .seed_window == $seed_window
+    and .epoch == $epoch
+    and (.lane_index | uint and . < 32)
+    and (.seed_start | uint)
+    and (.seed_end_exclusive | uint)
+    and .seed_end_exclusive == (.seed_start + 1000000)
+    and (.consumed_runs | uint and . <= 1000000);
   def valid_failure($lane):
     type == "object"
     and (.signature | type == "object")
@@ -80,8 +151,9 @@ report_contract='
     and (.first_seed | uint)
     and (.occurrences | uint and . > 0);
   def valid_summary($epoch; $lane; $seed_window):
-    type == "object"
-    and .schema_version == 1
+    . as $summary
+    | type == "object"
+    and .schema_version == 2
     and .plan_id == "daily"
     and .epoch == $epoch
     and .seed_window == $seed_window
@@ -103,6 +175,12 @@ report_contract='
     and (.completed_runs == (.successful_runs + .failed_runs + .errored_runs))
     and (.worker_panics <= .errored_runs)
     and (.completed_runs <= 10416)
+    and (.coverage | valid_coverage(.completed_runs))
+    and (.seed_leases | type == "array" and length == 1)
+    and (
+      .seed_leases[0]
+      | valid_lease($epoch; $lane; $seed_window; $summary.coverage.policy_blake3)
+    )
     and (
       .failure_artifacts
       | type == "object"
@@ -159,6 +237,12 @@ report_contract='
     == ($report.totals.successful_runs + $report.totals.failed_runs + $report.totals.errored_runs)
   )
   and ($report.totals.worker_panics <= $report.totals.errored_runs)
+  and ($report.coverage | valid_coverage($report.totals.completed_runs))
+  and ($report.seed_leases | type == "array" and length == 8)
+  and all(
+    $report.seed_leases[];
+    valid_lease(.epoch; $report.lane; $report.seed_window; $report.coverage.policy_blake3)
+  )
   and ($report.epochs | type == "array" and length == 8)
   and ([$report.epochs[].epoch] == [range(0; 8)])
   and all(
@@ -263,6 +347,10 @@ report_contract='
       | . + {epoch: $record.epoch}
     ]
   )
+  and (
+    $report.seed_leases
+    == [$report.epochs[].summary.seed_leases[]?]
+  )
 '
 
 for report in "${reports[@]}"; do
@@ -277,9 +365,30 @@ temporary="$output.tmp.$$"
 jq -s \
   --slurpfile initial_errors "$infrastructure_errors" \
   --argjson report_file_count "${#reports[@]}" \
+  --arg source_revision "$source_revision" \
+  --argjson workflow_run_id "$workflow_run_id" \
+  --argjson observed_at_unix_secs "$observed_at_unix_secs" \
   '
     def sum_field($field): map(.[$field]) | add // 0;
     def sum_total($field): map(.totals[$field]) | add // 0;
+    def merge_counts($reports; $field):
+      [$reports[][$field][]?]
+      | sort_by(.bucket | tojson)
+      | group_by(.bucket | tojson)
+      | map({
+          bucket: .[0].bucket,
+          occurrences: (map(.occurrences) | add)
+        });
+    def intersect_missing($reports; $field):
+      if ($reports | length) == 0 then []
+      else
+        reduce $reports[1:][] as $report
+          ($reports[0][$field];
+           . as $current
+           | [$current[]
+              | . as $candidate
+              | select(any($report[$field][]; . == $candidate))])
+      end;
 
     [
       "direct/deterministic-test",
@@ -296,6 +405,24 @@ jq -s \
       "relay/production-provider"
     ] as $expected
     | . as $reports
+    | ([$reports[].coverage]) as $coverage_reports
+    | ([$reports[].seed_leases[]] | sort_by(.policy_blake3, .seed_start)) as $seed_leases
+    | (
+        ([$coverage_reports[].policy_id] | unique | length) != 1
+        or ([$coverage_reports[].policy_blake3] | unique | length) != 1
+        or ([$coverage_reports[].rolling_window_days] | unique | length) != 1
+      ) as $coverage_policy_mismatch
+    | (if ($seed_leases | length) < 2 then [] else [
+        range(1; $seed_leases | length) as $index
+        | select(
+            $seed_leases[$index - 1].policy_blake3 == $seed_leases[$index].policy_blake3
+            and $seed_leases[$index - 1].seed_end_exclusive > $seed_leases[$index].seed_start
+          )
+        | {
+            first: $seed_leases[$index - 1],
+            second: $seed_leases[$index]
+          }
+      ] end) as $overlapping_seed_leases
     | ([$reports[].lane] | unique) as $observed_lanes
     | ($expected - $observed_lanes) as $missing_lanes
     | ($observed_lanes - $expected) as $unexpected_lanes
@@ -318,6 +445,9 @@ jq -s \
            else ["duplicate seed windows: \($duplicate_seed_windows | map(tostring) | join(", "))"] end)
         + (if ($infrastructure_failed_lanes | length) == 0 then []
            else ["infrastructure-failed lanes: \($infrastructure_failed_lanes | join(", "))"] end)
+        + (if $coverage_policy_mismatch then ["coverage policy identity mismatch"] else [] end)
+        + (if ($overlapping_seed_leases | length) == 0 then []
+           else ["overlapping seed leases: \($overlapping_seed_leases | length)"] end)
       ) as $infrastructure_errors
     | ([
         $reports[] as $report
@@ -333,6 +463,9 @@ jq -s \
         })) as $unique_failures
     | {
         schema_version: 1,
+        source_revision: $source_revision,
+        workflow_run_id: $workflow_run_id,
+        observed_at_unix_secs: $observed_at_unix_secs,
         status: (
           if ($infrastructure_errors | length) > 0 then "infrastructure_failure"
           elif any($reports[]; .status == "simulation_failure") then "simulation_failure"
@@ -357,6 +490,32 @@ jq -s \
             $reports | sum_total("retained_failure_artifact_bytes")
           )
         },
+        coverage: (
+          if ($coverage_reports | length) == 0 then null
+          else {
+            schema_version: 2,
+            policy_id: $coverage_reports[0].policy_id,
+            policy_blake3: $coverage_reports[0].policy_blake3,
+            rolling_window_days: $coverage_reports[0].rolling_window_days,
+            completed_runs: ([$coverage_reports[].completed_runs] | add),
+            observed_individuals: merge_counts($coverage_reports; "observed_individuals"),
+            missing_individuals: intersect_missing($coverage_reports; "missing_individuals"),
+            observed_pairs: merge_counts($coverage_reports; "observed_pairs"),
+            missing_pairs: intersect_missing($coverage_reports; "missing_pairs"),
+            observed_higher_order: merge_counts($coverage_reports; "observed_higher_order"),
+            missing_higher_order: intersect_missing($coverage_reports; "missing_higher_order"),
+            observed_transitions: merge_counts($coverage_reports; "observed_transitions"),
+            missing_transitions: intersect_missing($coverage_reports; "missing_transitions"),
+            observed_oracles: merge_counts($coverage_reports; "observed_oracles"),
+            missing_oracles: intersect_missing($coverage_reports; "missing_oracles"),
+            observed_phases: merge_counts($coverage_reports; "observed_phases"),
+            missing_phases: intersect_missing($coverage_reports; "missing_phases"),
+            known_gaps: $coverage_reports[0].known_gaps
+          }
+          end
+        ),
+        seed_leases: $seed_leases,
+        overlapping_seed_leases: $overlapping_seed_leases,
         unique_failures: $unique_failures,
         infrastructure_errors: $infrastructure_errors,
         lanes: (

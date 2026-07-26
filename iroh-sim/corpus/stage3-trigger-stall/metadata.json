@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "stage3-trigger-stall",
   "scenario_file": "scenario.json",
   "seed": "2424242424242424242424242424242424242424242424242424242424242424",

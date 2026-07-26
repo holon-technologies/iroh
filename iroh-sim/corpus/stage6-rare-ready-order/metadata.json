@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "stage6-rare-ready-order",
   "scenario_file": "scenario.json",
   "seed": "9b36bee1fa03258374d80340d7ad18d849164bf15abf2ddb859a42e9f131f434",

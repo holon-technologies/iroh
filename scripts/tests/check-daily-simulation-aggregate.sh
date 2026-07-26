@@ -12,6 +12,22 @@ fi
 
 bash -n "$aggregator"
 
+source_revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+workflow_run_id=123456
+observed_at_unix_secs=200000
+
+run_aggregator() {
+  local artifacts=$1
+  local output=$2
+
+  "$aggregator" \
+    --artifacts "$artifacts" \
+    --source-revision "$source_revision" \
+    --workflow-run-id "$workflow_run_id" \
+    --observed-at-unix-secs "$observed_at_unix_secs" \
+    --output "$output"
+}
+
 expected_lanes=(
   direct/deterministic-test
   direct/production-provider
@@ -72,6 +88,41 @@ write_report() {
         omitted_failure_artifacts: 0,
         retained_failure_artifact_bytes: (128 * $failed_runs)
       },
+      coverage: {
+        schema_version: 2,
+        policy_id: "iroh-network-modes-v1",
+        policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+        rolling_window_days: 7,
+        completed_runs: 10,
+        observed_individuals: [],
+        missing_individuals: [],
+        observed_pairs: [],
+        missing_pairs: [],
+        observed_higher_order: [],
+        missing_higher_order: [],
+        observed_transitions: [],
+        missing_transitions: [],
+        observed_oracles: [],
+        missing_oracles: [],
+        observed_phases: [],
+        missing_phases: [],
+        known_gaps: []
+      },
+      seed_leases: [
+        range(0; 8) as $epoch
+        | {
+            schema_version: 2,
+            policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+            plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            lane_id: $lane,
+            seed_window: $seed_window,
+            epoch: $epoch,
+            lane_index: 0,
+            seed_start: ((($seed_window * 8 + $epoch) * 32) * 1000000),
+            seed_end_exclusive: (((($seed_window * 8 + $epoch) * 32) + 1) * 1000000),
+            consumed_runs: (if $epoch == 0 then 10 else 0 end)
+          }
+      ],
       unique_failures: (
         if $failed_runs == 0 then []
         else [{
@@ -104,7 +155,39 @@ write_report() {
                 artifact_budget: 2,
                 infrastructure_error: null
               },
-              schema_version: 1,
+              coverage: {
+                schema_version: 2,
+                policy_id: "iroh-network-modes-v1",
+                policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+                rolling_window_days: 7,
+                completed_runs: (if $epoch == 0 then 10 else 0 end),
+                observed_individuals: [],
+                missing_individuals: [],
+                observed_pairs: [],
+                missing_pairs: [],
+                observed_higher_order: [],
+                missing_higher_order: [],
+                observed_transitions: [],
+                missing_transitions: [],
+                observed_oracles: [],
+                missing_oracles: [],
+                observed_phases: [],
+                missing_phases: [],
+                known_gaps: []
+              },
+              seed_leases: [{
+                schema_version: 2,
+                policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+                plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                lane_id: $lane,
+                seed_window: $seed_window,
+                epoch: $epoch,
+                lane_index: 0,
+                seed_start: ((($seed_window * 8 + $epoch) * 32) * 1000000),
+                seed_end_exclusive: (((($seed_window * 8 + $epoch) * 32) + 1) * 1000000),
+                consumed_runs: (if $epoch == 0 then 10 else 0 end)
+              }],
+              schema_version: 2,
               config: {
                 wall_budget_millis: 1800000,
                 jobs: 4,
@@ -149,9 +232,12 @@ for lane_index in "${!expected_lanes[@]}"; do
 done
 
 success_output="$fixture_root/success-aggregate.json"
-"$aggregator" --artifacts "$success_root" --output "$success_output"
+run_aggregator "$success_root" "$success_output"
 jq -e '
   .schema_version == 1
+  and .source_revision == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  and .workflow_run_id == 123456
+  and .observed_at_unix_secs == 200000
   and .status == "success"
   and .expected_lanes == 12
   and .completed_lanes == 12
@@ -160,6 +246,10 @@ jq -e '
   and .totals.completed_runs == 120
   and .totals.successful_runs == 120
   and .totals.failed_runs == 0
+  and .coverage.policy_id == "iroh-network-modes-v1"
+  and .coverage.completed_runs == 120
+  and (.seed_leases | length) == 96
+  and (.overlapping_seed_leases | length) == 0
   and (.unique_failures | length) == 0
   and (.lanes | length) == 12
   and (.infrastructure_errors | length) == 0
@@ -176,7 +266,7 @@ done
 
 failure_output="$fixture_root/failure-aggregate.json"
 set +e
-"$aggregator" --artifacts "$failure_root" --output "$failure_output"
+run_aggregator "$failure_root" "$failure_output"
 failure_status=$?
 set -e
 if [[ "$failure_status" -ne 1 ]]; then
@@ -198,7 +288,7 @@ done
 
 missing_output="$fixture_root/missing-aggregate.json"
 set +e
-"$aggregator" --artifacts "$missing_root" --output "$missing_output"
+run_aggregator "$missing_root" "$missing_output"
 missing_status=$?
 set -e
 if [[ "$missing_status" -ne 2 ]]; then
@@ -221,7 +311,7 @@ mv "$malformed_report.tmp" "$malformed_report"
 
 malformed_output="$fixture_root/malformed-aggregate.json"
 set +e
-"$aggregator" --artifacts "$malformed_root" --output "$malformed_output"
+run_aggregator "$malformed_root" "$malformed_output"
 malformed_status=$?
 set -e
 if [[ "$malformed_status" -ne 2 ]]; then
@@ -251,7 +341,7 @@ done
 
 underconfigured_output="$fixture_root/underconfigured-aggregate.json"
 set +e
-"$aggregator" --artifacts "$underconfigured_root" --output "$underconfigured_output"
+run_aggregator "$underconfigured_root" "$underconfigured_output"
 underconfigured_status=$?
 set -e
 if [[ "$underconfigured_status" -ne 2 ]]; then
@@ -274,7 +364,7 @@ done
 
 duplicate_seed_output="$fixture_root/duplicate-seed-aggregate.json"
 set +e
-"$aggregator" --artifacts "$duplicate_seed_root" --output "$duplicate_seed_output"
+run_aggregator "$duplicate_seed_root" "$duplicate_seed_output"
 duplicate_seed_status=$?
 set -e
 if [[ "$duplicate_seed_status" -ne 2 ]]; then
@@ -285,5 +375,34 @@ jq -e '
   .status == "infrastructure_failure"
   and (.infrastructure_errors | any(contains("duplicate seed windows")))
 ' "$duplicate_seed_output" >/dev/null
+
+overlap_root="$fixture_root/overlap"
+for lane_index in "${!expected_lanes[@]}"; do
+  write_report "$overlap_root" "${expected_lanes[$lane_index]}" "$((7000 + lane_index))" success
+done
+first_overlap="$overlap_root/direct-deterministic-test/daily-soak-summary.json"
+second_overlap="$overlap_root/direct-production-provider/daily-soak-summary.json"
+first_start=$(jq -r '.seed_leases[0].seed_start' "$first_overlap")
+jq --argjson start "$first_start" '
+  .seed_leases[0].seed_start = $start
+  | .seed_leases[0].seed_end_exclusive = ($start + 1000000)
+  | .epochs[0].summary.seed_leases[0].seed_start = $start
+  | .epochs[0].summary.seed_leases[0].seed_end_exclusive = ($start + 1000000)
+' "$second_overlap" >"$second_overlap.tmp"
+mv "$second_overlap.tmp" "$second_overlap"
+
+overlap_output="$fixture_root/overlap-aggregate.json"
+set +e
+run_aggregator "$overlap_root" "$overlap_output"
+overlap_status=$?
+set -e
+if [[ "$overlap_status" -ne 2 ]]; then
+  echo "aggregate runner must reject overlapping policy-bound seed leases" >&2
+  exit 1
+fi
+jq -e '
+  .status == "infrastructure_failure"
+  and (.infrastructure_errors | any(contains("overlapping seed leases")))
+' "$overlap_output" >/dev/null
 
 echo "daily simulation aggregate contract passed"

@@ -7,10 +7,12 @@ mod bounded_io;
 mod campaign;
 pub mod cli;
 mod corpus;
+mod coverage;
 mod deterministic_crypto;
 mod discovery;
 mod dns;
 mod failure;
+mod gate;
 mod invariant;
 mod inventory;
 mod kernel;
@@ -42,14 +44,30 @@ pub use campaign::{
 };
 pub use corpus::{
     CORPUS_SCHEMA_VERSION, Corpus, CorpusEntry, CorpusError, CorpusExpectation, CorpusMetadata,
-    CorpusReport, CorpusReviewState,
+    CorpusMinimizationEvidence, CorpusPromotionEvidence, CorpusReplayEvidence, CorpusReport,
+    CorpusReviewState,
+};
+pub use coverage::{
+    BehaviorTransition, COVERAGE_POLICY_SCHEMA_VERSION, COVERAGE_REPORT_SCHEMA_VERSION,
+    CoverageBucket, CoverageCombination, CoverageCount, CoverageDimensionPolicy,
+    CoverageDisposition, CoverageDomainBinding, CoverageDomainPolicy, CoverageError,
+    CoverageEvidence, CoverageHigherOrder, CoverageLane, CoverageLanePolicy, CoverageLedger,
+    CoverageObligations, CoverageObservation, CoveragePair, CoveragePhase, CoveragePolicy,
+    CoverageReport, CoverageSelection, CoverageValuePolicy, IndividualObligation, KnownCoverageGap,
+    OracleCoverage, PairwiseObligation, PhaseObligation, TransitionCoverage,
 };
 pub use discovery::{DeterministicDiscovery, DiscoveryError, DiscoveryRecordSnapshot};
 pub use dns::DeterministicDnsRuntime;
 pub use failure::{
-    FAILURE_ARTIFACT_SCHEMA_VERSION, FAILURE_SIGNATURE_SCHEMA_VERSION, FailureArtifactBundle,
-    FailureArtifactIndex, FailureError, FailureReplayError, FailureSignature, TerminalFailureClass,
-    compare_failure_replay, verify_failure_artifacts,
+    FAILURE_ARTIFACT_SCHEMA_VERSION, FAILURE_SIGNATURE_SCHEMA_VERSION,
+    OPERATIONAL_OUTCOME_SCHEMA_VERSION, FailureArtifactBundle, FailureArtifactIndex, FailureError,
+    FailureReplayError, FailureSignature, OperationalOutcome, OperationalOutcomeClass,
+    OperationalOutcomeError, TerminalFailureClass, compare_failure_replay, verify_failure_artifacts,
+};
+pub use gate::{
+    CHANGE_IMPACT_POLICY_SCHEMA_VERSION, ChangeImpactMapping, ChangeImpactPolicy, GateDomain,
+    GateError, GateSelection, GateSelectionMode, GateTierPolicy, GateWork, GateWorkKind,
+    SimulationGateTier,
 };
 pub use invariant::{
     InvariantClass, InvariantError, InvariantFailure, InvariantRegistry, InvariantSnapshot,
@@ -90,9 +108,9 @@ pub use observation::{
     StreamId,
 };
 pub use operations::{
-    CorpusPolicy, DailySoakPolicy, OPERATIONS_POLICY_SCHEMA_VERSION, OperationsPolicy,
-    OperationsPolicyError, ParityPolicy, ReplayPolicy, SimulationTier, SimulationTierPolicy,
-    SwarmPolicy,
+    AutomationPolicy, CorpusPolicy, DailySoakPolicy, GateRuntimeSloPolicy,
+    OPERATIONS_POLICY_SCHEMA_VERSION, OperationsPolicy, OperationsPolicyError, ParityPolicy,
+    ReleasePolicy, ReplayPolicy, SimulationTier, SimulationTierPolicy, SwarmPolicy,
 };
 pub use parity::{
     PARITY_FIXTURE_SCHEMA_VERSION, PATCHBAY_RECEIPT_SCHEMA_VERSION, ParityBackend,
@@ -128,9 +146,9 @@ pub use scenario_model::{
 };
 pub use soak::{
     MAX_SOAK_BATCH_RUNS, MAX_SOAK_JOBS, MAX_SOAK_LANES, MAX_SOAK_RUNS, MAX_SOAK_WALL_MILLIS,
-    SOAK_EPOCHS_PER_WINDOW, SOAK_SCHEMA_VERSION, SoakConfig, SoakCryptoLane, SoakError, SoakLane,
-    SoakLaneSummary, SoakPlan, SoakPlanError, SoakPlanLane, SoakRunner, SoakStopReason,
-    SoakSummary, UniqueSoakFailure, derive_soak_seed_start,
+    SOAK_EPOCHS_PER_WINDOW, SOAK_SCHEMA_VERSION, SeedLease, SeedLeaseError, SoakConfig,
+    SoakCryptoLane, SoakError, SoakLane, SoakLaneSummary, SoakPlan, SoakPlanError, SoakPlanLane,
+    SoakRunner, SoakStopReason, SoakSummary, UniqueSoakFailure, derive_soak_seed_start,
 };
 pub use swarm::{
     ReferencedSwarmSpec, SWARM_SCHEMA_VERSION, SafetyLivenessPhases, SwarmChoice, SwarmError,

@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: iroh-deterministic-simulation-weekly
+  cancel-in-progress: false
+
 env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
@@ -57,37 +61,76 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  schedule_soak:
-    name: ${{ matrix.domain }} ${{ matrix.crypto }} soak ${{ matrix.seeds }}
+  gate_runtime_slo:
+    name: Audit PR and main simulation P95 runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        domain: [direct, relay]
-        crypto: [deterministic-test, production-provider]
-        seeds: ["0..256", "256..512", "512..768", "768..1024"]
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Execute bounded weekly campaign shard
+      - name: Audit latest compatible successful simulation gates
+        id: runtime_slo
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          case "${{ matrix.domain }}" in
-            direct) swarm="iroh-sim/swarms/ready-order-pressure.json" ;;
-            relay) swarm="iroh-sim/swarms/relay-lifecycle.json" ;;
-          esac
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm "$swarm" --crypto "${{ matrix.crypto }}" \
-            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
-            --max-runs 256 --artifacts "$RUNNER_TEMP/campaign"
-      - name: Upload soak artifacts
+          report_root="$RUNNER_TEMP/gate-runtime-slo"
+          report="$report_root/report.json"
+          mkdir -p "$report_root"
+          now_unix_secs=$(date +%s)
+          set +e
+          scripts/audit-simulation-gate-runtime-slo.sh \
+            --repository "${{ github.repository }}" \
+            --now-unix-secs "$now_unix_secs" \
+            --policy iroh-sim/operations-policy.json \
+            --output "$report"
+          runtime_status=$?
+          set -e
+          if [[ ! -f "$report" ]]; then
+            jq -n \
+              --argjson observed_at_unix_secs "$now_unix_secs" \
+              --argjson exit_code "$runtime_status" \
+              '{
+                schema_version: 1,
+                status: "infrastructure_failure",
+                reason: "runtime SLO auditor exited before publishing its typed report",
+                observed_at_unix_secs: $observed_at_unix_secs,
+                auditor_exit_code: $exit_code
+              }' >"$report"
+            runtime_status=2
+          fi
+          echo "status=$runtime_status" >>"$GITHUB_OUTPUT"
+          exit 0
+      - name: Retain simulation gate runtime evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: iroh-sim-weekly-${{ matrix.domain }}-${{ matrix.crypto }}-${{ strategy.job-index }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/campaign
+          name: iroh-sim-gate-runtime-slo-${{ github.run_id }}
+          path: ${{ runner.temp }}/gate-runtime-slo/report.json
           if-no-files-found: error
           retention-days: 30
+      - name: Propagate simulation gate runtime SLO
+        if: always()
+        shell: bash
+        run: |
+          runtime_status="${{ steps.runtime_slo.outputs.status }}"
+          report="$RUNNER_TEMP/gate-runtime-slo/report.json"
+          if [[ ! "$runtime_status" =~ ^[0-2]$ ]] \
+            || ! jq -e '.schema_version == 1' "$report" >/dev/null; then
+            echo "simulation gate runtime SLO did not publish valid evidence" >&2
+            exit 2
+          fi
+          if [[ "$runtime_status" -eq 0 ]]; then
+            jq -e '.status == "within_slo" or .status == "insufficient_history"' \
+              "$report" >/dev/null
+          elif [[ "$runtime_status" -eq 1 ]]; then
+            jq -e '.status == "slo_breach"' "$report" >/dev/null
+          else
+            jq -e '.status == "infrastructure_failure"' "$report" >/dev/null
+          fi
+          exit "$runtime_status"
 
   performance_correlation:
     name: Simulator component performance correlation
@@ -107,6 +150,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: iroh-sim-weekly-performance-${{ github.run_id }}
-          path: target/criterion
+          path: iroh-sim/target/criterion
           if-no-files-found: error
           retention-days: 30

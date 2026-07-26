@@ -69,12 +69,31 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     let summary: serde_json::Value =
         serde_json::from_slice(&fs::read(artifact_root.join("soak-summary.json")).unwrap())
             .unwrap();
-    assert_eq!(summary["schema_version"], 1);
+    assert_eq!(summary["schema_version"], 2);
     assert_eq!(summary["completed_runs"], 1);
     assert_eq!(summary["successful_runs"], 1);
     assert_eq!(summary["failed_runs"], 0);
     assert_eq!(summary["lanes"].as_array().unwrap().len(), 1);
     assert_eq!(summary["lanes"][0]["id"], "relay/production-provider");
+    assert_eq!(summary["coverage"]["schema_version"], 2);
+    assert_eq!(summary["coverage"]["policy_id"], "iroh-network-modes-v1");
+    assert_eq!(summary["coverage"]["completed_runs"], 1);
+    assert!(
+        !summary["coverage"]["observed_individuals"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(summary["seed_leases"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        summary["seed_leases"][0]["lane_id"],
+        "relay/production-provider"
+    );
+    assert_eq!(summary["seed_leases"][0]["consumed_runs"], 1);
+    assert_eq!(
+        summary["seed_leases"][0]["policy_blake3"],
+        "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0"
+    );
     assert_eq!(
         fs::read_dir(&artifact_root)
             .unwrap()
@@ -160,6 +179,81 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     );
     assert!(!digest_drifted_artifact_root.exists());
 
+    let mut coverage_drifted_plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+            .unwrap();
+    coverage_drifted_plan["coverage_policy_blake3"] = serde_json::Value::String("a".repeat(64));
+    let coverage_drifted_plan_path = root.join("coverage-drifted-plan.json");
+    fs::write(
+        &coverage_drifted_plan_path,
+        serde_json::to_vec_pretty(&coverage_drifted_plan).unwrap(),
+    )
+    .unwrap();
+    let coverage_drifted_artifact_root = root.join("coverage-drifted-soak");
+    let coverage_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .arg("--plan")
+        .arg(&coverage_drifted_plan_path)
+        .args(["--lane", "relay/production-provider"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&coverage_drifted_artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(coverage_drifted.status.code(), Some(74));
+    assert!(!coverage_drifted_artifact_root.exists());
+
+    let mut domain_drifted_plan: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+            .unwrap();
+    domain_drifted_plan["lanes"][0]["swarm"] =
+        serde_json::Value::String("iroh-sim/swarms/relay-lifecycle.json".to_owned());
+    domain_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
+        "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4".to_owned(),
+    );
+    domain_drifted_plan["lanes"][10]["swarm"] =
+        serde_json::Value::String("iroh-sim/swarms/direct-smoke.json".to_owned());
+    domain_drifted_plan["lanes"][10]["swarm_blake3"] = serde_json::Value::String(
+        "19a07d67146f1a1146652bb0772fcf3fc2ceceb668b61ba80c67716ae8f42a06".to_owned(),
+    );
+    let domain_drifted_plan_path = root.join("domain-drifted-plan.json");
+    fs::write(
+        &domain_drifted_plan_path,
+        serde_json::to_vec_pretty(&domain_drifted_plan).unwrap(),
+    )
+    .unwrap();
+    let domain_drifted_artifact_root = root.join("domain-drifted-soak");
+    let domain_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+        .current_dir(workspace)
+        .arg("soak")
+        .arg("--plan")
+        .arg(&domain_drifted_plan_path)
+        .args(["--lane", "relay/production-provider"])
+        .args(["--epoch", "0", "--seed-window", "1"])
+        .args(["--wall-seconds", "1", "--jobs", "1"])
+        .args(["--batch-runs", "1", "--max-runs", "1"])
+        .args([
+            "--max-failure-artifacts",
+            "1",
+            "--max-artifact-bytes",
+            "1048576",
+        ])
+        .arg("--artifacts")
+        .arg(&domain_drifted_artifact_root)
+        .output()
+        .unwrap();
+    assert_eq!(domain_drifted.status.code(), Some(74));
+    assert!(!domain_drifted_artifact_root.exists());
+
     let unknown_artifact_root = root.join("unknown-lane-soak");
     let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
@@ -194,11 +288,13 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
     let mut plan: serde_json::Value =
         serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
             .unwrap();
-    plan["lanes"][0]["swarm"] =
-        serde_json::Value::String("iroh-sim/tests/fixtures/soak-failure-swarm.json".to_owned());
-    plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
-        "e1d0d2581fcff21ec47d3643360c47d2993a5b9b517bbbe6a4d3656e2c38bd5c".to_owned(),
-    );
+    for lane_index in [0, 1] {
+        plan["lanes"][lane_index]["swarm"] =
+            serde_json::Value::String("iroh-sim/tests/fixtures/soak-failure-swarm.json".to_owned());
+        plan["lanes"][lane_index]["swarm_blake3"] = serde_json::Value::String(
+            "b52aed003f2de3c2126ea11db29bd939915d2c4338336302f77fb77e71cb0673".to_owned(),
+        );
+    }
     let plan_path = root.join("failure-plan.json");
     fs::write(&plan_path, serde_json::to_vec_pretty(&plan).unwrap()).unwrap();
     let artifact_root = root.join("soak");
@@ -244,6 +340,7 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
         "scenario.json",
         "failure-signature.json",
         "failure-artifacts.json",
+        "operational-outcome.json",
         "seed.txt",
         "seed-ordinal.txt",
         "lane-id.txt",
@@ -254,6 +351,29 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
     ] {
         assert!(failure_root.join(name).is_file(), "missing {name}");
     }
+    let terminal: serde_json::Value = serde_json::from_slice(
+        &fs::read(failure_root.join("terminal-report.json")).unwrap(),
+    )
+    .unwrap();
+    let operational_outcome: serde_json::Value = serde_json::from_slice(
+        &fs::read(failure_root.join("operational-outcome.json")).unwrap(),
+    )
+    .unwrap();
+    let artifact_index: serde_json::Value = serde_json::from_slice(
+        &fs::read(failure_root.join("failure-artifacts.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(operational_outcome["schema_version"], 1);
+    assert_eq!(operational_outcome["class"], "product_correctness");
+    assert_eq!(
+        operational_outcome["evidence"],
+        terminal["signature_digest"]
+    );
+    assert!(
+        artifact_index["files"]["operational-outcome.json"]
+            .as_str()
+            .is_some_and(|digest| digest.len() == 64)
+    );
 
     let replay_root = failure_root.join("replay");
     let seed = fs::read_to_string(failure_root.join("seed.txt")).unwrap();

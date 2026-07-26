@@ -14,7 +14,7 @@ use crate::{
     bounded_io::read_file,
 };
 
-pub const CORPUS_SCHEMA_VERSION: u16 = 1;
+pub const CORPUS_SCHEMA_VERSION: u16 = 2;
 const MAX_CORPUS_ENTRIES: usize = 4_096;
 const FILES_PER_CORPUS_ENTRY: usize = 2;
 
@@ -23,6 +23,30 @@ const FILES_PER_CORPUS_ENTRY: usize = 2;
 pub enum CorpusReviewState {
     Pending,
     Reviewed,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CorpusReplayEvidence {
+    ConfirmedExact,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CorpusMinimizationEvidence {
+    SignaturePreserving,
+}
+
+/// Immutable evidence required when a discovered GitHub issue is promoted into the corpus.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorpusPromotionEvidence {
+    pub signature_digest: String,
+    pub minimized_scenario_sha256: String,
+    pub source_revision: String,
+    pub workflow_run_id: u64,
+    pub replay: CorpusReplayEvidence,
+    pub minimization: CorpusMinimizationEvidence,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -42,6 +66,8 @@ pub struct CorpusMetadata {
     pub expectation: CorpusExpectation,
     pub provenance: String,
     pub issue: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub promotion: Option<CorpusPromotionEvidence>,
     pub minimum_scenario_schema: u16,
     pub maximum_scenario_schema: u16,
     pub minimum_simulator_version: String,
@@ -191,9 +217,19 @@ impl CorpusMetadata {
             || self.scenario_file != "scenario.json"
             || self.provenance.is_empty()
             || self.minimum_simulator_version.is_empty()
-            || self.issue.as_ref().is_some_and(String::is_empty)
+            || !self.issue.as_ref().is_some_and(|issue| !issue.is_empty())
         {
             return Err(CorpusError::InvalidMetadata(self.id.clone()));
+        }
+        let issue = self
+            .issue
+            .as_deref()
+            .expect("metadata validation requires issue evidence");
+        let github_issue = is_github_issue_url(issue);
+        match (github_issue, &self.promotion) {
+            (true, Some(promotion)) if promotion.is_valid() => {}
+            (false, None) if is_historical_issue_reference(issue) => {}
+            _ => return Err(CorpusError::InvalidPromotion(self.id.clone())),
         }
         if self.seed.len() != 64
             || !self
@@ -215,9 +251,15 @@ impl CorpusMetadata {
             return Err(CorpusError::Incompatible(self.id.clone()));
         }
         if let CorpusExpectation::ExpectedFailure { signature } = &self.expectation {
-            signature
+            let canonical_signature = signature
                 .to_canonical_json()
                 .map_err(|error| CorpusError::InvalidMetadata(error.to_string()))?;
+            if self.promotion.as_ref().is_some_and(|promotion| {
+                blake3::hash(&canonical_signature).to_hex().as_str()
+                    == promotion.signature_digest.as_str()
+            }) {
+                return Err(CorpusError::InvalidPromotion(self.id.clone()));
+            }
         }
         Ok(())
     }
@@ -242,6 +284,7 @@ pub enum CorpusError {
         directory: String,
     },
     InvalidMetadata(String),
+    InvalidPromotion(String),
     InvalidSeed(String),
     Incompatible(String),
     InventoryMismatch {
@@ -256,6 +299,52 @@ pub enum CorpusError {
     ExpectationMismatch(String),
 }
 
+impl CorpusPromotionEvidence {
+    fn is_valid(&self) -> bool {
+        is_lower_hex(&self.signature_digest, 64)
+            && is_lower_hex(&self.minimized_scenario_sha256, 64)
+            && is_lower_hex(&self.source_revision, 40)
+            && self.workflow_run_id > 0
+    }
+}
+
+fn is_lower_hex(value: &str, length: usize) -> bool {
+    value.len() == length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_historical_issue_reference(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_' | b'.')
+        })
+}
+
+fn is_github_issue_url(value: &str) -> bool {
+    let Some(path) = value.strip_prefix("https://github.com/") else {
+        return false;
+    };
+    let parts = path.split('/').collect::<Vec<_>>();
+    parts.len() == 4
+        && is_github_path_component(parts[0])
+        && is_github_path_component(parts[1])
+        && parts[2] == "issues"
+        && parts[3]
+            .parse::<u64>()
+            .is_ok_and(|issue_number| issue_number > 0)
+}
+
+fn is_github_path_component(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 100
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
 impl fmt::Display for CorpusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self:?}")
@@ -267,6 +356,81 @@ impl std::error::Error for CorpusError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn valid_metadata() -> CorpusMetadata {
+        CorpusMetadata {
+            schema_version: CORPUS_SCHEMA_VERSION,
+            id: "regression".to_owned(),
+            scenario_file: "scenario.json".to_owned(),
+            seed: "1".repeat(64),
+            expectation: CorpusExpectation::Success,
+            provenance: "reviewed regression".to_owned(),
+            issue: Some("historical-regression".to_owned()),
+            promotion: None,
+            minimum_scenario_schema: SCENARIO_SCHEMA_VERSION,
+            maximum_scenario_schema: SCENARIO_SCHEMA_VERSION,
+            minimum_simulator_version: SIMULATOR_VERSION.to_owned(),
+            maximum_simulator_version: None,
+            review_state: CorpusReviewState::Reviewed,
+            inventory: ScenarioInventory::default(),
+        }
+    }
+
+    #[test]
+    fn github_issue_requires_typed_promotion_evidence() {
+        let mut metadata = valid_metadata();
+        metadata.issue = Some("https://github.com/holon-technologies/iroh/issues/42".to_owned());
+        assert!(matches!(
+            metadata.validate(),
+            Err(CorpusError::InvalidPromotion(_))
+        ));
+
+        metadata.promotion = Some(CorpusPromotionEvidence {
+            signature_digest: "2".repeat(64),
+            minimized_scenario_sha256: "3".repeat(64),
+            source_revision: "4".repeat(40),
+            workflow_run_id: 42,
+            replay: CorpusReplayEvidence::ConfirmedExact,
+            minimization: CorpusMinimizationEvidence::SignaturePreserving,
+        });
+        metadata.validate().expect("typed promotion evidence");
+
+        let original_signature = FailureSignature {
+            schema_version: crate::FAILURE_SIGNATURE_SCHEMA_VERSION,
+            invariant: None,
+            entities: Vec::new(),
+            terminal_class: crate::TerminalFailureClass::InvariantSafety,
+            causal_event_count: 0,
+            causal_suffix_digest: "5".repeat(64),
+        };
+        let original_digest = blake3::hash(
+            &original_signature
+                .to_canonical_json()
+                .expect("valid original signature"),
+        )
+        .to_hex()
+        .to_string();
+        metadata.expectation = CorpusExpectation::ExpectedFailure {
+            signature: original_signature,
+        };
+        metadata
+            .promotion
+            .as_mut()
+            .expect("GitHub promotion evidence")
+            .signature_digest = original_digest;
+        assert!(matches!(
+            metadata.validate(),
+            Err(CorpusError::InvalidPromotion(_))
+        ));
+
+        metadata.expectation = CorpusExpectation::Success;
+
+        metadata.issue = Some("historical-regression".to_owned());
+        assert!(matches!(
+            metadata.validate(),
+            Err(CorpusError::InvalidPromotion(_))
+        ));
+    }
 
     #[test]
     fn corpus_directory_scan_rejects_before_exceeding_the_limit() {

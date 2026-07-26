@@ -159,6 +159,56 @@ jobs:
         cp -r .github/sims/integration/ ../chuck/netsim/sims/integration/
         cp -r .github/sims/paused/ ../chuck/netsim/sims/paused/
 
+    - name: Validate bounded execution inputs
+      env:
+        MAX_WORKERS: ${{ inputs.max_workers }}
+        SIM_PATHS_INPUT: ${{ inputs.sim_paths }}
+      run: |
+        if [[ ! "$MAX_WORKERS" =~ ^[0-9]+$ ]] \
+          || ((MAX_WORKERS < 1 || MAX_WORKERS > 6)); then
+          echo "::error::max_workers must be in 1..=6"
+          exit 2
+        fi
+        IFS=',' read -r -a sim_paths <<< "$SIM_PATHS_INPUT"
+        if ((${#sim_paths[@]} < 1 || ${#sim_paths[@]} > 3)); then
+          echo "::error::sim_paths must contain one to three bounded path sets"
+          exit 2
+        fi
+        declare -A seen_paths=()
+        config_files=()
+        for sim_path in "${sim_paths[@]}"; do
+          if [[ ! "$sim_path" =~ ^sims/(iroh|integration|paused)$ ]]; then
+            echo "::error::unsupported Netsim path set: $sim_path"
+            exit 2
+          fi
+          if [[ -n "${seen_paths[$sim_path]:-}" ]]; then
+            echo "::error::duplicate Netsim path set: $sim_path"
+            exit 2
+          fi
+          seen_paths[$sim_path]=1
+          mapfile -d '' selected_configs < <(
+            find "../chuck/netsim/$sim_path" \
+              -maxdepth 1 -type f -name '*.json' -print0 | sort -z
+          )
+          config_files+=("${selected_configs[@]}")
+        done
+        maximum_cases=64
+        if ((${#config_files[@]} == 0)); then
+          echo "::error::selected Netsim path sets contain no configurations"
+          exit 2
+        fi
+        case_count=$(jq -s '
+          [.[].cases | if type == "array" then length else error("cases must be an array") end]
+          | add // 0
+        ' "${config_files[@]}")
+        if [[ ! "$case_count" =~ ^[0-9]+$ ]] \
+          || ((case_count < 1 || case_count > maximum_cases)); then
+          echo "::error::selected Netsim cases must be in 1..=$maximum_cases (found $case_count)"
+          exit 2
+        fi
+        printf 'Netsim execution bound: paths=%s cases=%s workers=%s\n' \
+          "${#sim_paths[@]}" "$case_count" "$MAX_WORKERS"
+
     - name: Copy binaries to right location
       run: |
         cp target/${{inputs.build_profile}}/examples/* ../chuck/netsim/bins/

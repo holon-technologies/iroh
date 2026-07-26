@@ -184,12 +184,41 @@ publish_report() {
     --argjson max_runs_per_epoch "$max_runs_per_epoch" \
     --argjson configured_max_runs "$((epochs * max_runs_per_epoch))" \
     '
+      def merge_counts($reports; $field):
+        [$reports[][$field][]?]
+        | sort_by(.bucket | tojson)
+        | group_by(.bucket | tojson)
+        | map({
+            bucket: .[0].bucket,
+            occurrences: (map(.occurrences) | add)
+          });
+      def intersect_missing($reports; $field):
+        if ($reports | length) == 0 then []
+        else
+          reduce $reports[1:][] as $report
+            ($reports[0][$field];
+             . as $current
+             | [$current[]
+                | . as $candidate
+                | select(any($report[$field][]; . == $candidate))])
+        end;
+
       . as $records
+      | ([$records[] | .summary.coverage? // empty]) as $coverage_reports
+      | (
+          ($coverage_reports | length)
+          == ([$records[] | select(.summary != null)] | length)
+          and ([$coverage_reports[].schema_version] | unique) == [2]
+          and ([$coverage_reports[].policy_id] | unique | length) == 1
+          and ([$coverage_reports[].policy_blake3] | unique | length) == 1
+          and ([$coverage_reports[].rolling_window_days] | unique | length) == 1
+        ) as $coverage_valid
       | ([$records[]
           | select(
               .summary == null
               or (.summary.failure_artifacts.infrastructure_error // null) != null
-            )] | length) as $infrastructure_failures
+            )] | length
+          + (if $coverage_valid then 0 else 1 end)) as $infrastructure_failures
       | ([$records[]
           | select(
               .summary != null
@@ -231,6 +260,31 @@ publish_report() {
               [$records[].summary.failure_artifacts.retained_bytes // 0] | add // 0
             )
           },
+          coverage: (
+            if ($coverage_reports | length) == 0 then null
+            else {
+              schema_version: 2,
+              policy_id: $coverage_reports[0].policy_id,
+              policy_blake3: $coverage_reports[0].policy_blake3,
+              rolling_window_days: $coverage_reports[0].rolling_window_days,
+              completed_runs: ([$coverage_reports[].completed_runs] | add),
+              observed_individuals: merge_counts($coverage_reports; "observed_individuals"),
+              missing_individuals: intersect_missing($coverage_reports; "missing_individuals"),
+              observed_pairs: merge_counts($coverage_reports; "observed_pairs"),
+              missing_pairs: intersect_missing($coverage_reports; "missing_pairs"),
+              observed_higher_order: merge_counts($coverage_reports; "observed_higher_order"),
+              missing_higher_order: intersect_missing($coverage_reports; "missing_higher_order"),
+              observed_transitions: merge_counts($coverage_reports; "observed_transitions"),
+              missing_transitions: intersect_missing($coverage_reports; "missing_transitions"),
+              observed_oracles: merge_counts($coverage_reports; "observed_oracles"),
+              missing_oracles: intersect_missing($coverage_reports; "missing_oracles"),
+              observed_phases: merge_counts($coverage_reports; "observed_phases"),
+              missing_phases: intersect_missing($coverage_reports; "missing_phases"),
+              known_gaps: $coverage_reports[0].known_gaps
+            }
+            end
+          ),
+          seed_leases: [$records[].summary.seed_leases[]?],
           unique_failures: [
             $records[] as $record
             | $record.summary.unique_failures[]?

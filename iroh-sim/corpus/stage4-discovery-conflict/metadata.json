@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "id": "stage4-discovery-conflict",
   "scenario_file": "scenario.json",
   "seed": "5454545454545454545454545454545454545454545454545454545454545454",

@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Current soak-summary schema.
-pub const SOAK_SCHEMA_VERSION: u16 = 1;
+pub const SOAK_SCHEMA_VERSION: u16 = 2;
 /// Longest supported wall budget, kept below GitHub's six-hour job limit.
 pub const MAX_SOAK_WALL_MILLIS: u64 = 6 * 60 * 60 * 1_000;
 /// Maximum parallel workers in one soak process.
@@ -51,6 +51,8 @@ pub struct SoakPlanLane {
 pub struct SoakPlan {
     pub schema_version: u16,
     pub id: String,
+    pub coverage_policy: PathBuf,
+    pub coverage_policy_blake3: String,
     pub lanes: Vec<SoakPlanLane>,
 }
 
@@ -68,6 +70,14 @@ impl SoakPlan {
         }
         if self.id.is_empty() || self.id.len() > 128 {
             return Err(SoakPlanError::InvalidPlanId);
+        }
+        if !is_workspace_relative_path(&self.coverage_policy) {
+            return Err(SoakPlanError::InvalidCoveragePolicyPath(
+                self.coverage_policy.clone(),
+            ));
+        }
+        if !is_lower_hex_digest(&self.coverage_policy_blake3) {
+            return Err(SoakPlanError::InvalidCoveragePolicyDigest);
         }
         if self.lanes.is_empty() || self.lanes.len() > MAX_SOAK_LANES {
             return Err(SoakPlanError::InvalidLaneCount(self.lanes.len()));
@@ -142,12 +152,111 @@ pub fn derive_soak_seed_start(
         .ok_or(SoakPlanError::SeedWindowOverflow)
 }
 
+/// One immutable half-open seed reservation for a policy revision and soak lane.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SeedLease {
+    pub schema_version: u16,
+    pub policy_blake3: String,
+    pub plan_blake3: String,
+    pub lane_id: String,
+    pub seed_window: u64,
+    pub epoch: u8,
+    pub lane_index: usize,
+    pub seed_start: u64,
+    pub seed_end_exclusive: u64,
+    pub consumed_runs: u64,
+}
+
+impl SeedLease {
+    /// Reserves the complete hard-bounded lane block, independent of a run's smaller work budget.
+    pub fn reserve(
+        policy_blake3: &str,
+        plan_blake3: &str,
+        lane_id: &str,
+        seed_window: u64,
+        epoch: u8,
+        lane_index: usize,
+    ) -> Result<Self, SeedLeaseError> {
+        if !is_lower_hex_digest(policy_blake3) {
+            return Err(SeedLeaseError::InvalidPolicyDigest);
+        }
+        if !is_lower_hex_digest(plan_blake3) {
+            return Err(SeedLeaseError::InvalidPlanDigest);
+        }
+        if lane_id.is_empty() || lane_id.len() > 128 {
+            return Err(SeedLeaseError::InvalidLaneId);
+        }
+        let seed_start =
+            derive_soak_seed_start(seed_window, epoch, lane_index).map_err(SeedLeaseError::Plan)?;
+        let seed_end_exclusive = seed_start
+            .checked_add(MAX_SOAK_RUNS)
+            .ok_or(SeedLeaseError::RangeOverflow)?;
+        Ok(Self {
+            schema_version: SOAK_SCHEMA_VERSION,
+            policy_blake3: policy_blake3.to_owned(),
+            plan_blake3: plan_blake3.to_owned(),
+            lane_id: lane_id.to_owned(),
+            seed_window,
+            epoch,
+            lane_index,
+            seed_start,
+            seed_end_exclusive,
+            consumed_runs: 0,
+        })
+    }
+
+    /// Records actual consumption while preserving the immutable reservation.
+    pub fn with_consumed_runs(mut self, consumed_runs: u64) -> Result<Self, SeedLeaseError> {
+        let reserved = self
+            .seed_end_exclusive
+            .checked_sub(self.seed_start)
+            .ok_or(SeedLeaseError::RangeOverflow)?;
+        if consumed_runs > reserved {
+            return Err(SeedLeaseError::ConsumptionExceedsReservation {
+                consumed: consumed_runs,
+                reserved,
+            });
+        }
+        self.consumed_runs = consumed_runs;
+        Ok(self)
+    }
+
+    /// Returns whether two leases reuse seed ordinals under the same coverage policy revision.
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.policy_blake3 == other.policy_blake3
+            && self.seed_start < other.seed_end_exclusive
+            && other.seed_start < self.seed_end_exclusive
+    }
+}
+
+/// Typed seed-reservation construction and accounting failures.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SeedLeaseError {
+    InvalidPolicyDigest,
+    InvalidPlanDigest,
+    InvalidLaneId,
+    Plan(SoakPlanError),
+    RangeOverflow,
+    ConsumptionExceedsReservation { consumed: u64, reserved: u64 },
+}
+
+impl fmt::Display for SeedLeaseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for SeedLeaseError {}
+
 /// Strict plan parsing and deterministic seed-window errors.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SoakPlanError {
     Encoding(String),
     UnsupportedSchema(u16),
     InvalidPlanId,
+    InvalidCoveragePolicyPath(PathBuf),
+    InvalidCoveragePolicyDigest,
     InvalidLaneCount(usize),
     NonCanonicalLaneOrder,
     InvalidLaneId(String),

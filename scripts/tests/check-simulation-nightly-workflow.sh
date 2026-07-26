@@ -24,6 +24,14 @@ if grep -Eq '^[[:space:]]+seed: [0-9a-f]{64}[[:space:]]*$' "$workflow"; then
 fi
 
 required=(
+  'actions: read'
+  'gap_directed_campaign:'
+  'scripts/collect-latest-simulation-gap-selection.sh'
+  'simulation-gap-source.json'
+  'degraded=true'
+  'gate-select'
+  'scripts/run-simulation-gate.sh'
+  'name: Replay gap-directed manifests'
   'mkdir -p "$RUNNER_TEMP/${{ matrix.scenario }}"'
   'environment.txt'
   '--seed "${{ matrix.seed }}"'
@@ -50,17 +58,16 @@ for resource in connection relay socket stream timer trace; do
   fi
 done
 
-criterion_report_count=$(grep -Fc 'path: iroh-sim/target/criterion' "$workflow" || true)
-if ((criterion_report_count != 3)); then
-  printf 'nightly benchmark jobs must upload three crate-local Criterion reports; found %d\n' \
-    "$criterion_report_count" >&2
+if grep -Eq 'seeds: \["[0-9]+\.\.[0-9]+"' "$workflow"; then
+  echo 'nightly workflow must not repeat fixed exploratory seed ranges' >&2
   exit 1
 fi
-
-if grep -Eq '^[[:space:]]+path: target/criterion[[:space:]]*$' "$workflow"; then
-  printf '%s\n' 'nightly benchmark job uses the workspace-root Criterion path' >&2
-  exit 1
-fi
+for removed_job in swarm_campaign stage4_campaign stage5_campaign stage6_schedule_campaign; do
+  if grep -Eq "^[[:space:]]{2}${removed_job}:" "$workflow"; then
+    printf 'nightly workflow still owns duplicate exploratory job: %s\n' "$removed_job" >&2
+    exit 1
+  fi
+done
 
 prepare_line=$(grep -n -m1 'mkdir -p "$RUNNER_TEMP/${{ matrix.scenario }}"' "$workflow" | cut -d: -f1)
 run_line=$(grep -n -m1 'name: Run named scenario' "$workflow" | cut -d: -f1)

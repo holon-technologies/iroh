@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use iroh_sim::{
-    CampaignTerminal, FailureSignature, MinimizationConfig, RunnerError, Scenario, SoakConfig,
-    SoakCryptoLane, SoakError, SoakLane, SoakPlan, SoakPlanError, SoakRunner, SoakStopReason,
-    derive_soak_seed_start,
+    CampaignTerminal, FailureSignature, MinimizationConfig, RunnerError, Scenario, SeedLease,
+    SeedLeaseError, SoakConfig, SoakCryptoLane, SoakError, SoakLane, SoakPlan, SoakPlanError,
+    SoakRunner, SoakStopReason, derive_soak_seed_start,
 };
 
 fn scenario() -> Scenario {
@@ -192,8 +192,10 @@ fn soak_rejects_invalid_bounds_lanes_overflow_and_checkpoint_failure() {
 #[test]
 fn soak_plan_is_strict_ordered_and_seed_windows_do_not_overlap() {
     let valid = br#"{
-      "schema_version": 1,
+      "schema_version": 2,
       "id": "fixture",
+      "coverage_policy": "iroh-sim/coverage-policy.json",
+      "coverage_policy_blake3": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "lanes": [
         {
           "id": "direct/deterministic-test",
@@ -235,5 +237,41 @@ fn soak_plan_is_strict_ordered_and_seed_windows_do_not_overlap() {
     assert_eq!(
         SoakPlan::from_json(out_of_order.as_bytes()),
         Err(SoakPlanError::NonCanonicalLaneOrder)
+    );
+}
+
+#[test]
+fn seed_leases_are_policy_bound_disjoint_and_consumption_bounded() {
+    let first = SeedLease::reserve(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "direct/deterministic-test",
+        7,
+        0,
+        0,
+    )
+    .unwrap();
+    let second = SeedLease::reserve(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "direct/production-provider",
+        7,
+        0,
+        1,
+    )
+    .unwrap();
+
+    assert!(!first.overlaps(&second));
+    assert_eq!(first.seed_end_exclusive - first.seed_start, 1_000_000);
+    assert_eq!(
+        first.clone().with_consumed_runs(10).unwrap().consumed_runs,
+        10
+    );
+    assert_eq!(
+        first.with_consumed_runs(1_000_001),
+        Err(SeedLeaseError::ConsumptionExceedsReservation {
+            consumed: 1_000_001,
+            reserved: 1_000_000,
+        })
     );
 }

@@ -25,6 +25,13 @@ fn permanent_corpus_is_strict_enumerated_and_expected_signatures_match() {
             .iter()
             .all(|entry| entry.metadata.review_state == CorpusReviewState::Reviewed)
     );
+    assert!(corpus.entries().iter().all(|entry| {
+        entry
+            .metadata
+            .issue
+            .as_ref()
+            .is_some_and(|issue| !issue.is_empty())
+    }));
     let reports = corpus
         .test(|entry| match &entry.metadata.expectation {
             CorpusExpectation::Success => Ok(None),

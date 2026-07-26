@@ -1,0 +1,109 @@
+name: Simulation Issue Closure Guard
+
+on:
+  issues:
+    types: [closed]
+
+concurrency:
+  group: simulation-issue-closure-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  checks: read
+  issues: write
+
+jobs:
+  guard:
+    name: Require promoted passing simulation regression
+    if: >-
+      contains(github.event.issue.labels.*.name, 'simulation') &&
+      contains(github.event.issue.body || '', '<!-- iroh-sim-signature:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout protected default branch
+        id: checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+
+      - name: Install Rust stable
+        id: rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build source-bound simulator
+        id: build
+        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+
+      - name: Validate closure prerequisites
+        id: closure
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          if [[ "${{ steps.checkout.outcome }}" != success \
+                || "${{ steps.rust.outcome }}" != success \
+                || "${{ steps.build.outcome }}" != success ]]; then
+            closure_status=2
+          else
+            revision=$(git rev-parse HEAD)
+            gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${{ github.repository }}/commits/$revision/check-runs?per_page=100" \
+              >"$RUNNER_TEMP/check-runs.json"
+            checks_status=$?
+            if [[ "$checks_status" -eq 0 ]]; then
+              scripts/check-simulation-issue-closure.sh \
+                --event "$GITHUB_EVENT_PATH" \
+                --repository "${{ github.repository }}" \
+                --revision "$revision" \
+                --corpus iroh-sim/corpus \
+                --checks "$RUNNER_TEMP/check-runs.json" \
+                --sim-bin iroh-sim/target/release/cargo-sim \
+                --output "$RUNNER_TEMP/simulation-issue-closure.json"
+              closure_status=$?
+            else
+              closure_status=2
+            fi
+          fi
+          set -e
+          echo "status=$closure_status" >>"$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Reopen closure that lacks passing promotion evidence
+        id: enforce
+        if: always() && steps.closure.outputs.status != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue reopen "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}"
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "Closure was reverted because the reviewed minimized corpus entry and successful deterministic default-branch checks were not both proven. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+
+      - name: Retain closure evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: simulation-issue-closure-${{ github.event.issue.number }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/simulation-issue-closure.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Propagate closure guard result
+        if: always()
+        shell: bash
+        run: |
+          closure_status="${{ steps.closure.outputs.status }}"
+          if [[ "$closure_status" != 0 ]]; then
+            echo "simulation issue closure was rejected and reopened" >&2
+            exit 1
+          fi

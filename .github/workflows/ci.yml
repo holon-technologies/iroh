@@ -74,7 +74,7 @@ jobs:
           retention-days: 7
 
   simulation_contracts:
-    name: Deterministic simulation contracts
+    name: Deterministic simulation contracts and corpus
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -100,10 +100,33 @@ jobs:
         run: scripts/tests/check-daily-simulation-aggregate.sh
       - name: Check daily simulation soak workflow
         run: scripts/tests/check-daily-simulation-workflow.sh
+      - name: Check rolling simulation coverage contracts
+        run: |
+          scripts/tests/check-simulation-coverage-history.sh
+          scripts/tests/check-simulation-coverage-collector.sh
+          scripts/tests/check-latest-simulation-gap-collector.sh
+      - name: Check change-targeted simulation gate contracts
+        run: |
+          scripts/tests/check-simulation-gate-selector.sh
+          scripts/tests/check-simulation-gate-runner.sh
+          scripts/tests/check-simulation-gate-workflow.sh
+      - name: Check simulation failure lifecycle contracts
+        run: |
+          scripts/tests/check-simulation-failure-triage.sh
+          scripts/tests/check-simulation-issue-upsert.sh
+          scripts/tests/check-simulation-issue-closure.sh
+          scripts/tests/check-simulation-issue-closure-workflow.sh
+          scripts/tests/check-simulation-release-readiness.sh
+          scripts/tests/check-simulation-release-workflow.sh
+          scripts/tests/check-simulation-gate-runtime-slo.sh
       - name: Check deterministic simulation nightly workflow
-        run: scripts/tests/check-simulation-nightly-workflow.sh
+        run: |
+          scripts/tests/check-simulation-nightly-workflow.sh
+          scripts/tests/check-simulation-weekly-workflow.sh
       - name: Check GitHub-hosted Patchbay smoke workflow
-        run: scripts/tests/check-patchbay-hosted-smoke-workflow.sh
+        run: |
+          scripts/tests/check-patchbay-hosted-smoke-workflow.sh
+          scripts/tests/check-netsim-workflow-bounds.sh
       - name: Check v2 release-readiness source contract
         run: scripts/tests/check-v2-release-readiness.sh
       - name: Check release dependency-fork boundary
@@ -114,76 +137,8 @@ jobs:
         run: cargo test --manifest-path iroh-sim/Cargo.toml
       - name: Validate simulation operations and cross-backend parity policy
         run: cargo test --manifest-path iroh-sim/Cargo.toml --test operations --test parity
-      - name: Run and replay Stage 2 production-IP smoke scenario
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            iroh-sim/tests/fixtures/ipv4-stream.json \
-            --seed 1111111111111111111111111111111111111111111111111111111111111111 \
-            --artifacts "$RUNNER_TEMP/iroh-sim-smoke"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
-            "$RUNNER_TEMP/iroh-sim-smoke/manifest.json"
-      - name: Run and replay Stage 3 declarative production-IP smoke scenario
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
-            --seed 1212121212121212121212121212121212121212121212121212121212121212 \
-            --artifacts "$RUNNER_TEMP/iroh-sim-declarative"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
-            "$RUNNER_TEMP/iroh-sim-declarative/manifest.json"
-      - name: Run and replay production-crypto semantic smoke scenario
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
-            --seed 1313131313131313131313131313131313131313131313131313131313131313 \
-            --crypto production-provider \
-            --artifacts "$RUNNER_TEMP/iroh-sim-production-crypto"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
-            "$RUNNER_TEMP/iroh-sim-production-crypto/manifest.json"
-      - name: Test reviewed corpus and bounded generated campaign
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
-            --seeds 0..4 --jobs 2 --generated --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-campaign"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/direct-smoke.json \
-            --seeds 0..4 --jobs 2 --continue-on-failure --max-runs 4 \
-            --artifacts "$RUNNER_TEMP/iroh-sim-swarm"
-      - name: Run Stage 4 NAT, discovery, and mobility smoke campaigns
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/nat-behavior.json \
-            --seeds 0..2 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-nat"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/discovery-timing.json \
-            --seeds 0..2 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-discovery"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/mobility-timing.json \
-            --seeds 0..2 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage4-mobility"
-      - name: Run Stage 5 relay restart and fallback smoke campaigns
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/relay-lifecycle.json \
-            --seeds 0..3 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-restart"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            iroh-sim/corpus/stage5-direct-relay-fallback/scenario.json \
-            --seeds 0..3 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage5-relay-fallback"
-      - name: Run Stage 6 rare ready-order replay smoke campaigns
-        run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm iroh-sim/swarms/ready-order-pressure.json \
-            --seeds 0..8 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage6-direct-schedules"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            iroh-sim/corpus/stage5-relay-restart/scenario.json \
-            --seeds 0..8 --jobs 2 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/iroh-sim-stage6-relay-schedules"
+      - name: Execute the complete reviewed regression corpus
+        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
       - name: Test Iroh runtime adapter
         run: cargo test -p iroh --lib runtime --all-features
       - name: Check native minimal feature graph
@@ -192,6 +147,70 @@ jobs:
         run: |
           cargo clippy -p iroh-runtime -p iroh --all-targets --all-features -- -D warnings
           cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings
+
+  simulation_gate:
+    name: Deterministic simulation change gate
+    timeout-minutes: ${{ github.event_name == 'push' && 30 || 15 }}
+    runs-on: ubuntu-latest
+    env:
+      BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
+      CANDIDATE_REVISION: ${{ github.sha }}
+      GATE_TIER: ${{ github.event_name == 'push' && 'main' || 'pull-request' }}
+    steps:
+      - name: Checkout complete change history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build source-bound simulation binary
+        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+      - name: Select immutable universal and change-targeted work
+        run: |
+          scripts/select-simulation-gate.sh \
+            --base-revision "$BASE_REVISION" \
+            --candidate-revision "$CANDIDATE_REVISION" \
+            --tier "$GATE_TIER" \
+            --impact-policy iroh-sim/change-impact-policy.json \
+            --coverage-policy iroh-sim/coverage-policy.json \
+            --sim-bin iroh-sim/target/release/cargo-sim \
+            --output "$RUNNER_TEMP/simulation-gate-selection.json"
+      - name: Execute complete reviewed regression corpus
+        run: iroh-sim/target/release/cargo-sim corpus test iroh-sim/corpus
+      - name: Execute bounded selected simulation work
+        id: gate
+        shell: bash
+        run: |
+          set +e
+          scripts/run-simulation-gate.sh \
+            --selection "$RUNNER_TEMP/simulation-gate-selection.json" \
+            --sim-bin iroh-sim/target/release/cargo-sim \
+            --artifacts "$RUNNER_TEMP/simulation-gate" \
+            --jobs 2
+          gate_status=$?
+          set -e
+          echo "status=$gate_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload deterministic gate evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iroh-sim-change-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/simulation-gate-selection.json
+            ${{ runner.temp }}/simulation-gate
+          if-no-files-found: error
+          retention-days: 14
+      - name: Propagate deterministic gate result
+        if: always()
+        shell: bash
+        run: |
+          gate_status="${{ steps.gate.outputs.status }}"
+          if [[ ! "$gate_status" =~ ^[0-2]$ ]]; then
+            echo "deterministic gate did not publish a valid typed status" >&2
+            exit 2
+          fi
+          exit "$gate_status"
 
   cross_build:
     name: Cross Build Only

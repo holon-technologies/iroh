@@ -1,11 +1,25 @@
 {
-  "schema_version": 3,
+  "schema_version": 7,
   "owner": "Iroh connectivity and simulation maintainers",
   "failure_triage_slo_hours": 24,
+  "automation": {
+    "maximum_retry_attempts": 0,
+    "shutdown_on_timeout": true,
+    "publish_evidence_before_status": true
+  },
+  "gate_runtime_slo": {
+    "workflow": "ci.yml",
+    "sample_size": 20,
+    "percentile": 95,
+    "pull_request_maximum_minutes": 15,
+    "main_maximum_minutes": 30,
+    "maximum_candidate_runs_per_tier": 40,
+    "maximum_jobs_per_run": 100
+  },
   "tiers": [
     {
       "tier": "pull_request",
-      "maximum_campaign_runs": 8,
+      "maximum_campaign_runs": 24,
       "maximum_wall_minutes": 15,
       "workers": 2,
       "artifact_retention_days": 14
@@ -71,7 +85,27 @@
     "review_required": true,
     "provenance_required": true,
     "issue_required_for_failures": true,
+    "metadata_schema": 2,
+    "typed_promotion_evidence_required": true,
+    "reopen_invalid_closure": true,
+    "required_closure_checks": [
+      "Deterministic simulation change gate",
+      "Deterministic simulation contracts and corpus"
+    ],
     "maximum_pending_days": 14
+  },
+  "release": {
+    "required_same_revision_checks": [
+      "Deterministic simulation change gate",
+      "Deterministic simulation contracts and corpus",
+      "netsim-release / Netsim"
+    ],
+    "maximum_open_product_failures": 0,
+    "parity_workflow": "patchbay-hosted-smoke.yml",
+    "maximum_parity_age_hours": 744,
+    "maximum_check_runs": 100,
+    "maximum_issue_results": 100,
+    "maximum_parity_runs": 8
   },
   "swarm": {
     "schema": 1,

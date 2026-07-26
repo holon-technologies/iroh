@@ -1,212 +1,251 @@
 # Deterministic simulation operations
 
-This runbook turns `iroh-sim` into an owned engineering service. The machine-readable authority is
-`iroh-sim/operations-policy.json`; changes to budgets, retention, replay rules, or corpus review
-must update that file, its validation tests, workflows, and this document together.
+This runbook treats `iroh-sim` as an owned engineering service. The machine-readable authorities
+are:
 
-## Service objectives and ownership
+- `iroh-sim/operations-policy.json` for ownership, execution, retry, shutdown, retention, replay,
+  and corpus bounds;
+- `iroh-sim/coverage-policy.json` for network-mode coverage obligations and lane ownership;
+- `iroh-sim/change-impact-policy.json` for source-path-to-domain gate selection; and
+- `iroh-sim/soaks/daily.json` for the twelve source-bound continuous lanes and their seed leases.
 
-The Iroh connectivity and simulation maintainers own deterministic failures, fixture schemas, and
-campaign health. A new unique failure must receive an initial classification within 24 hours.
-Pull-request, main, nightly, and daily deterministic-soak artifacts are retained for 14 days.
-Weekly soak, parity, and performance evidence is retained for 30 days. Exact-source replay is
-required throughout that window; cross-version replay is never inferred from matching schema
-numbers alone.
+Changes to those files must update their validation tests, workflows, and this runbook together.
+The Iroh connectivity and simulation maintainers own campaign health and must initially classify a
+new signature within 24 hours.
 
-The service reports four distinct classes:
+## Outcome classes
 
-- product failure: a production invariant or liveness guarantee failed under a valid scenario;
-- simulator failure: model, scheduler, replay, artifact, or resource accounting is inconsistent;
-- realistic-backend difference: Patchbay/platform semantics differ on a declared common dimension;
-- infrastructure failure: a runner, privileged namespace, disk, compiler, or artifact service failed.
+Automation uses five non-overlapping `OperationalOutcomeClass` values:
 
-Do not convert an infrastructure failure or capability skip into a parity match.
+- `product_correctness`: a valid scenario violated a production safety or bounded-liveness
+  guarantee; only this class is eligible for automatic issue creation;
+- `infrastructure`: setup, checkout, compilation, runner, artifact, GitHub API, malformed evidence,
+  replay mismatch, or minimization execution failed;
+- `expected_resource_exhaustion`: a declared finite resource ceiling was reached with the expected
+  typed signature and cleanup behavior;
+- `determinism`: repeated execution or cross-provider comparison disagreed with its declared raw or
+  semantic replay contract; and
+- `performance`: a comparable benchmark regressed; performance is never silently converted into a
+  deterministic correctness result.
 
-## Fresh-checkout workflow
+The daily aggregate's `simulation_failure` is a discovery state, not permission to open an issue.
+Each retained soak failure carries a versioned `operational-outcome.json` inside the immutable
+failure-artifact index. Triage requires its class and evidence to be `product_correctness` and the
+exact normalized signature digest before replay or minimization can produce an issue record. It
+then confirms the classification only after immutable-artifact validation and exact replay
+preserve that signature. Missing, unindexed, invalid, or non-product typed campaign evidence is
+infrastructure even when a subprocess happened to return the simulator's general failure exit
+code.
 
-From the repository root:
+## Execution lanes
+
+| Lane | Purpose | Deterministic work | Bound and evidence |
+| --- | --- | --- | --- |
+| Pull request / merge queue | Block known regressions and likely change impacts | Full reviewed corpus, all contract/model/property tests, 12 universal domain/provider canaries, then commit-derived targeted work | Required checks `Deterministic simulation contracts and corpus` and `Deterministic simulation change gate`; at most 24 selected runs and 15 minutes |
+| Main | Broader candidate confidence | The same universal canary plus four targeted seeds per impacted lane, with all-domain fallback when the diff is unavailable or global | At most 64 selected runs and 30 minutes; `netsim-CI / netsim-release` supplies realistic main evidence |
+| Continuous | Discover new network behavior | Twelve domain/provider lanes, eight fresh bounded epochs per lane, coverage and signature aggregation | Four scheduled windows per day; one queued workflow at a time; each lane has 240 simulation minutes, at most 83,328 runs, 16 retained failures, and 256 MiB |
+| Nightly | Spend capacity on current gaps and permanent audits | Latest compatible gap-directed lanes, or the 12 universal canaries when no fresh evidence exists; fixed replay and expected-resource audits remain permanent regression checks | At most 64 selected runs, 30-minute gap job, 14-day artifacts; no duplicate fixed exploratory seed ranges |
+| Weekly | Service, parity, and performance evidence | Corpus/replay service audit, canonical semantic parity, and correlated component benchmarks | 20-minute service job, 60-minute performance job, 30-day artifacts; no deterministic seed-range explorer |
+| Reality | Validate model limits | Daily hosted Patchbay public parity and main Netsim workloads | Patchbay 15 minutes/7 days; Netsim at most 64 cases, 6 workers, 45 minutes, and 3-day artifacts; backend failures remain infrastructure evidence |
+
+GitHub Actions does not automatically retry these jobs (`maximum_retry_attempts` is zero). Every job
+has a timeout, timeout is a terminal shutdown condition, and source scripts have finite loop/run
+bounds. Concurrency groups serialize recurring services without cancelling evidence-bearing runs;
+PR CI cancels superseded revisions. Artifact upload occurs before the final typed status is
+propagated. A human may manually dispatch a new run after diagnosing infrastructure, but that run
+does not overwrite or reinterpret the failed attempt.
+
+The weekly runtime-SLO audit queries at most 40 successful CI candidates for each of pull-request
+and main events, then inspects at most 100 jobs per run. It selects the latest 20 runs containing
+both current deterministic simulation jobs and computes nearest-rank P95 over their combined wall
+interval. Pull requests must remain at or below 900 seconds and main at or below 1,800 seconds. A
+measured breach fails the weekly job; fewer than 20 post-rollout compatible samples publishes
+`insufficient_history` without inventing a percentile. Malformed or failed GitHub API evidence is
+an infrastructure failure. The report is retained for 30 days before status propagation.
+
+The check names above are the intended branch-protection inputs. Repository administrators must
+configure them as required checks; source-controlled workflow names cannot prove the external
+branch-rule setting.
+
+## Coverage and seed leases
+
+Coverage is measured from semantic configuration buckets, required cross-choice pairs, selected
+higher-order interactions, behavioral state transitions, safety/liveness/cleanup/model oracles,
+and normalized failure signatures. Source line coverage is supplemental.
+
+The daily workflow derives a `SeedLease` from coverage-policy digest, workflow run number, lane,
+epoch, and half-open ordinal range. Aggregation rejects overlap within the run. The rolling
+seven-day merger rejects duplicate run IDs and overlapping compatible leases across runs. A policy
+digest change starts a new window; well-formed reports for another policy and legacy reports that
+predate policy provenance are skipped, while malformed current-policy evidence is infrastructure.
+
+Coverage-policy schema v2 also enumerates every promised addressing, topology, middlebox,
+impairment, discovery, lifecycle, scheduling, resource, and cryptography value. Each value has
+bounded typed evidence identifying its swarm option, domain-qualified behavior transition,
+provider, permanent case, or known gap. A known gap must appear exactly once. Transition evidence
+is provider-qualified, so one provider cannot accidentally satisfy another provider's obligation.
+
+`rolling-coverage.json` reports every unmet individual, pairwise, higher-order, transition, oracle,
+and phase obligation with a typed reason. `gap-selection.json` maps those gaps back to at most twelve lanes.
+Nightly uses the latest compatible selection no older than 48 hours; absent evidence deliberately
+falls back to the universal canary, while GitHub API or malformed-artifact failures fail the job.
+
+The relay lifecycle swarm declares the currently applicable disruptive phase contract: continuous
+safety during relay outage, an explicit matching recovery, then a dependency-ordered connection
+probe bounded by virtual time and event count. Other swarms report configuration and transition
+coverage without pretending to have a fault/recovery phase they do not declare.
+
+## Local gate and replay
+
+Build once and derive exactly the gate selection CI would use:
 
 ```bash
-cargo test -p iroh-runtime
-cargo test --manifest-path iroh-sim/Cargo.toml
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
+cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+base_revision="$(git rev-parse HEAD^)"
+candidate_revision="$(git rev-parse HEAD)"
+gate_root="$(mktemp -d /tmp/iroh-sim-gate.XXXXXX)"
 
-run_dir="$(mktemp -d /tmp/iroh-sim-run.XXXXXX)"
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-  iroh-sim/corpus/stage6-rare-ready-order/scenario.json \
-  --seed 9b36bee1fa03258374d80340d7ad18d849164bf15abf2ddb859a42e9f131f434 \
-  --artifacts "$run_dir"
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$run_dir/manifest.json"
+scripts/select-simulation-gate.sh \
+  --base-revision "$base_revision" \
+  --candidate-revision "$candidate_revision" \
+  --tier pull-request \
+  --impact-policy iroh-sim/change-impact-policy.json \
+  --coverage-policy iroh-sim/coverage-policy.json \
+  --sim-bin iroh-sim/target/release/cargo-sim \
+  --output "$gate_root/selection.json"
+
+iroh-sim/target/release/cargo-sim corpus test iroh-sim/corpus
+scripts/run-simulation-gate.sh \
+  --selection "$gate_root/selection.json" \
+  --sim-bin iroh-sim/target/release/cargo-sim \
+  --artifacts "$gate_root/artifacts" \
+  --jobs 2
 ```
 
-The run prints the only supported replay command. Do not edit a run directory: artifacts are
-immutable and indexed. Copy it before exploratory analysis.
+The selector reads forward and reverse NUL-delimited Git diffs so renames and deletes are included.
+Documentation-only paths are ignored; unknown, global, or unavailable diffs select every domain.
+BLAKE3 domain separation binds every seed to candidate revision, coverage and impact policy,
+domain/provider lane, work kind, and ordinal. Rerunning the same selection is identical.
 
-## Failure triage
+For one immutable artifact:
 
-1. Preserve the complete artifact directory and source revision. Run `cargo sim explain` on its
-   manifest or failure directory and record the terminal class, invariant, entities, scheduler
-   snapshot, task graph, resource ledger, and first divergence.
-2. At the recorded checkout, run `cargo sim replay <manifest>` for a manifest-backed run. For a
-   daily-soak failure, stay in the exact source checkout and run the retained `replay.sh` as shown
-   in `replay-command.txt`. A replay mismatch is a simulator or source-identity incident before it
-   is evidence of a product failure.
-3. For a replaying failure, run `cargo sim minimize <manifest> --output <new-directory>`. Review the
-   journal; minimization must preserve the exact normalized failure signature. The original root
-   seed remains fixed.
-4. Classify the failure using the four service classes above. File an issue for product,
-   simulator, or unexplained parity failures. Include no private keys, environment variables, or
-   raw external credentials.
-5. Promote a minimized, reviewed scenario into `iroh-sim/corpus/<stable-id>/`. Metadata must include
-   the seed, exact expectation/signature, provenance, issue, compatibility bounds, reviewed state,
-   and exact inventory. `cargo sim corpus test` must pass before merge.
+```bash
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
+  explain /tmp/iroh-sim-failure/manifest.json
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
+  replay /tmp/iroh-sim-failure/manifest.json
+cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
+  minimize /tmp/iroh-sim-failure/manifest.json \
+  --output /tmp/iroh-sim-minimized --max-attempts 512
+```
 
-Removing or weakening a corpus entry requires the same review as adding it and an explanation in
-the associated issue. A pending entry may remain pending for at most 14 days.
+Never edit the original artifact directory. Replay requires its exact source identity, simulator,
+schemas, scenario digest, Cargo lockfile, feature/configuration identity, provider lane, budgets,
+and comparison mode.
+
+## Automated failure lifecycle
+
+The daily aggregate performs this bounded sequence after all lanes finish:
+
+1. Discover at most 16 distinct retained signatures. Signatures beyond the retention bound remain
+   counted in aggregate evidence.
+2. Require an indexed, versioned `operational-outcome.json` whose `product_correctness` evidence is
+   the failure-signature digest, validate the complete bundle with `cargo sim explain`, then invoke
+   the source-SHA-bound binary directly. Artifact-provided shell scripts are evidence only and are
+   never executed by hosted triage.
+3. Replay once and require the exact normalized `failure-signature.json`. Disappearance, changed
+   signature, invalid evidence, or a replay execution error is infrastructure/determinism triage,
+   not a confirmed product failure.
+4. Minimize with at most 512 candidates, require `best.scenario.json`, and record its SHA-256.
+5. Emit one bounded issue record per confirmed signature. `upsert-simulation-issues.sh` performs
+   one signature-scoped search per record, examines fewer than 100 results, and creates, updates, or
+   reopens exactly one issue carrying
+   `<!-- iroh-sim-signature:<digest> -->`. Duplicate markers or GitHub API failures are
+   infrastructure failures. A search that reaches its 100-result limit is treated as possibly
+   truncated and fails closed. The bot never closes issues.
+6. A maintainer reviews the minimized case, adds it with its issue URL to
+   `iroh-sim/corpus/<stable-id>/`, and opens a fix. Corpus schema v2 distinguishes historical fixture
+   references from GitHub issue URLs. A GitHub-linked entry additionally requires the normalized
+   signature, minimized-scenario SHA-256, discovery revision and workflow run, exact-replay state,
+   and signature-preserving minimization state.
+7. Closing a tracked simulation issue invokes `Simulation Issue Closure Guard` on the protected
+   default branch. It requires exactly one reviewed corpus entry linked to the issue and signature,
+   verifies the minimized scenario digest, executes the complete corpus, and requires successful
+   same-revision `Deterministic simulation contracts and corpus` and `Deterministic simulation
+   change gate` checks from GitHub Actions. Missing, duplicate, stale, or unsuccessful evidence
+   reopens the issue. The promoted expectation must not preserve the original normalized product
+   failure, and the corpus bytes must match the SHA-256 recorded in the issue. A recurrence also
+   reopens the same signature issue.
+
+Run the two hosted automation stages locally against downloaded evidence with:
+
+```bash
+triage_root="$(mktemp -d /tmp/iroh-sim-triage.XXXXXX)"
+scripts/triage-simulation-failures.sh \
+  --artifacts /tmp/downloaded-lanes \
+  --aggregate /tmp/downloaded-aggregate/daily-soak-aggregate.json \
+  --sim-bin iroh-sim/target/release/cargo-sim \
+  --source-revision "$(git rev-parse HEAD)" \
+  --workflow-run-id 123456 \
+  --repository OWNER/REPO \
+  --output "$triage_root"
+
+GH_TOKEN=... scripts/upsert-simulation-issues.sh \
+  --records "$triage_root/issue-records" \
+  --repository OWNER/REPO \
+  --output "$triage_root/issue-upsert-summary.json"
+```
+
+The second command mutates GitHub issues; inspect the records before running it outside CI.
+
+## Infrastructure recovery and release blocking
+
+For infrastructure failure, preserve the failed run and diagnose checkout/source identity,
+artifact availability and size, runner disk, compilation, GitHub API response, and workflow
+permissions. Retry only as a separate attempt after the cause is understood. Do not copy successful
+evidence from another source revision, extend a lease, or relabel the result as product success.
+
+Pull-request product failures block immediately. The `Release candidate` workflow runs
+`check-simulation-release-readiness.sh` before starting any build or package job. For the exact
+pinned release revision it requires successful GitHub Actions checks named `Deterministic
+simulation contracts and corpus`, `Deterministic simulation change gate`, and `netsim-release /
+Netsim`. It also requires zero open simulation issues carrying a normalized failure marker and one
+successful public Patchbay parity run no older than 744 hours. Queries are bounded to 100 latest
+check runs, 100 issue results, and eight parity runs; truncated, duplicate, malformed, missing, or
+API-failed evidence is infrastructure failure rather than release approval. The typed report is
+uploaded before its status is propagated.
+
+Performance and broad realistic results remain separately reviewed release evidence, not
+deterministic correctness failures.
 
 ## Cross-backend parity
 
-Backend jobs emit strict `ParityFixture` documents. Generate deterministic evidence and compare it
-without packet-timeline coupling:
+Patchbay jobs emit strict `ParityFixture` documents and compare only their declared capability
+intersection with a same-revision deterministic fixture:
 
 ```bash
-parity_dir="$(mktemp -d /tmp/iroh-parity.XXXXXX)"
+parity_root="$(mktemp -d /tmp/iroh-parity.XXXXXX)"
 cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
   --seed 7777777777777777777777777777777777777777777777777777777777777777 \
   --source-revision "$(git rev-parse HEAD)" \
   --observed-at-unix-secs "$(date +%s)" \
-  --output "$parity_dir/deterministic.json"
+  --output "$parity_root/deterministic.json"
 cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
-  "$parity_dir/deterministic.json" \
+  "$parity_root/deterministic.json" \
   iroh-sim/tests/fixtures/patchbay-public.json \
-  --output "$parity_dir/comparison.json"
+  --output "$parity_root/comparison.json"
 ```
 
-Comparison is case-scoped, freshness-checked, and uses only the sorted capability intersection. A
-semantic difference exits 66. A declared capability skip remains `skipped` and the strict command
-also exits nonzero. The privileged Patchbay workflow first imports the receipt emitted by the
-successful test with `cargo sim parity import-patchbay`; a scenario-digest mismatch fails before
-semantic comparison. Patchbay,
-local-OS, platform, interoperability, and real-router jobs may publish the same envelope, but they
-retain their own setup/timeout failure classes.
+A capability skip remains a skip and strict comparison exits nonzero. Realistic backends do not
+promise virtual timestamps, packet-decision identity, or kernel scheduling equality. Netsim,
+Patchbay, supported platforms, Android, Wine, interoperability, scale, fuzz, and production
+telemetry remain necessary because the deterministic model cannot validate every operating-system,
+router, or internet behavior.
 
-Realistic backends deliberately do not promise virtual timestamps, packet decision identity, or
-kernel scheduling equality. Current checked evidence covers representative Patchbay NAT and
-mobility classes plus relay semantic mappings. Double-NAT, multi-relay deployments, diverse home
-routers, captive portals, and IPv6 transition networks require additional realistic fixtures before
-their simulator results can be treated as predictive.
+## Schema migration
 
-## Schema and replay migration
-
-Manifest, scenario, trace, failure, corpus, parity, and operations-policy schemas are independent.
-When one changes:
-
-1. bump only the affected schema constant;
-2. update its golden round-trip and unknown-field rejection tests;
-3. keep exact-source replay fail-closed;
-4. if old artifacts must migrate, add an explicit one-way converter with source/target versions and
-   fixture tests—never reinterpret old JSON in place;
-5. update corpus minimum/maximum compatibility and the operations policy;
-6. retain the old source checkout or binary for the 30-day compatibility window.
-
-Opaque encrypted packet hashes are the only normalized trace masking currently permitted. Adding a
-normalization rule requires a schema review proving it cannot hide a protocol, scheduling, routing,
-or invariant difference.
-
-## Campaign and performance operation
-
-PR campaigns are capped at 8 runs, main at 64, nightly at 256, and weekly at 1024 per declared
-domain. Workers and crypto lanes may change throughput but not sorted results, seed identity,
-fail-fast batch boundaries, or failure deduplication. The weekly workflow shards direct and relay
-ready-order soaks under both `deterministic-test` and `production-provider`, records
-`crypto-mode.txt`, and retains every per-seed report. Strict swarm materialization is capped at 128
-choices and 128 options per choice; PR runs four materializations and nightly runs 256 per shard,
-retaining every selection. Checked direct, NAT, discovery, mobility, relay-lifecycle, and
-ready-order templates are under `iroh-sim/swarms/`. Compact templates bind workspace-relative
-scenarios by BLAKE3; traversal, absolute/host paths, digest drift, and symlink escape fail before
-endpoint construction.
-
-The relay-lifecycle template declares an explicit safety-to-liveness transition: relay outage,
-matching recovery, and a dependency-ordered connect probe. Validation requires continuous safety
-invariants, FIFO/reachable-network fairness, and a connect obligation bounded by both virtual time
-and event count. Every run retains this declaration in `swarm-selection.json`.
-
-Criterion measurements isolate environment dispatch, production relay routing, seeded scheduler,
-swarm materialization, root-driver, injected-timer, and deterministic/production TLS scenario
-overhead. Correlate a regression only on the same runner class, compiler, feature set, command, and
-base revision. The 2026-07-21 local ten-sample closure baseline was approximately 6.44 µs for
-materialization, 351 ns for a ready root, 935 ns for an injected timer, 1.19 ms for deterministic
-TLS scenario setup/handshake, and 1.17 ms for the production-provider equivalent. These are
-evidence, not thresholds. Simulator component speed does not replace Iroh endpoint/throughput, Patchbay,
-interoperability, or internet-canary measurements. Treat a statistically meaningful regression in
-either layer as its own issue; do not tune correctness budgets to conceal it.
-
-## Daily deterministic soak operation
-
-`.github/workflows/simulation-daily-soak.yml` is the free-capacity simulation service. At minute 23
-every six hours, or on manual dispatch, it builds `cargo-sim` once and uploads the source-SHA-bound
-binary and checksum. Twelve standard `ubuntu-latest` jobs verify that binary and independently run
-the pinned direct, NAT, discovery, mobility, ready-order, and relay lanes across both crypto modes.
-Each lane starts eight sequential, fresh 30-minute processes using four workers and fixed 64-run
-batches. The workflow run number and lane index reserve distinct seed windows; the epoch and
-lane-local ordinals remain deterministic inside each window.
-
-Each lane is capped at 83,328 completed runs, sixteen retained failure directories, and 256 MiB of
-retained failure data. Each window is therefore capped at 999,936 runs, and all four scheduled
-windows at 3,999,744 runs per day. Upload retention is 14 days. Successful runs retain counters
-only. Every completed batch atomically replaces `soak-summary.json`; every epoch updates the
-lane's `daily-soak-summary.json`. A product failure does not stop later epochs or sibling lanes.
-Each lane uploads its evidence before propagating status.
-
-The always-running aggregate job downloads lane artifacts by run ID and discovers reports by
-content rather than directory name. `daily-soak-aggregate.json` requires the exact twelve lanes
-once each, distinct seed windows, the production 8 × 10,416 configuration, all epoch ordinals, and
-counter-reconciled summaries with no infrastructure-failed lane. It sums run and artifact counters
-and deduplicates normalized signatures across lanes. Missing, duplicate, malformed, or
-underconfigured evidence is an infrastructure failure; otherwise any failed lane is a simulation
-failure. The aggregate is uploaded before its status is propagated. Workflow concurrency one and
-`cancel-in-progress: false` queue overlapping scheduled or manual windows.
-
-Use `daily-soak-summary.json` first. `infrastructure_failure` means an epoch failed to publish a
-summary or failure retention failed; do not classify it as a product result.
-`simulation_failure` means at least one valid run failed or errored. Each retained failure
-directory contains the exact lane, seed ordinal, behavioral seed, selected swarm choices,
-canonical materialized scenario, normalized signature, bounded diagnostic bundle, and
-`replay.sh` plus `replay-command.txt`. `omitted_failure_artifacts` records failures beyond the
-count or byte budget; the deduplicated signature and first seed remain in the epoch summary.
-
-For a seconds-long local contract—not production evidence—build the binary and reduce the bounded
-process counts:
-
-```bash
-cargo build --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
-soak_root="$(mktemp -d /tmp/iroh-daily-soak.XXXXXX)"
-scripts/run-daily-simulation-soak.sh \
-  --lane direct/deterministic-test \
-  --seed-window 1 \
-  --artifacts "$soak_root/run" \
-  --sim-bin iroh-sim/target/debug/cargo-sim \
-  --epochs 2 \
-  --epoch-seconds 1 \
-  --jobs 1 \
-  --batch-runs 1 \
-  --max-runs-per-epoch 1
-```
-
-This validates one lane's orchestration, plan digest, reporting, and process freshness. It does not
-claim that a checked four-hour GitHub window ran, does not exercise real networking, and does not
-replace Patchbay, interoperability, production capacity, or resource-canary evidence.
-
-## Recurring gates
-
-- PR: boundary policy, runtime/simulator tests, corpus, bounded campaigns, minimal build, Clippy.
-- Nightly: 256-seed direct/NAT/discovery/mobility/relay/ready-order swarm shards and component benchmarks.
-- Recurring soak: four daily four-hour windows, each with twelve GitHub-hosted lane jobs, eight
-  fresh deterministic epochs per lane, exact aggregation, and bounded failure-only retention.
-- Weekly: 1024-seed direct/relay schedule soaks under both crypto lanes, strict parity export/compare, and correlated
-  component benchmarks.
-- Patchbay: privileged namespace tests, fresh receipt import, and same-revision semantic comparison,
-  with infrastructure failures kept separate from deterministic runner failures.
-
-The platform complements existing unit, property, fuzz, Patchbay, cross-platform,
-interoperability, benchmark, soak, and production-assertion layers; it does not waive any of them.
+Manifest, scenario, trace, failure, coverage, gate-selection, corpus, parity, and operations-policy
+schemas are independent. Bump only the changed schema, keep unknown-field rejection and
+exact-source replay fail-closed, add fixture tests, and use an explicit one-way converter when an
+old artifact must migrate. Never reinterpret old JSON in place. Preserve the source checkout or
+binary for the 30-day replay compatibility window.

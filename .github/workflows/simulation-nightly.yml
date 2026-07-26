@@ -7,102 +7,140 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: iroh-deterministic-simulation-nightly
+  cancel-in-progress: false
 
 env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  swarm_campaign:
-    name: ${{ matrix.domain }} swarm campaign ${{ matrix.seeds }}
+  gap_directed_campaign:
+    name: Gap-directed deterministic campaign and replay audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        domain: [direct, nat, discovery, mobility, relay, ready-order]
-        seeds: ["0..64", "64..128", "128..192", "192..256"]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: Materialize and execute strict swarm shard
+      - name: Build source-bound simulator
+        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+      - name: Collect latest compatible daily gap evidence
+        id: gaps
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          case "${{ matrix.domain }}" in
-            direct) swarm="iroh-sim/swarms/direct-smoke.json" ;;
-            nat) swarm="iroh-sim/swarms/nat-behavior.json" ;;
-            discovery) swarm="iroh-sim/swarms/discovery-timing.json" ;;
-            mobility) swarm="iroh-sim/swarms/mobility-timing.json" ;;
-            relay) swarm="iroh-sim/swarms/relay-lifecycle.json" ;;
-            ready-order) swarm="iroh-sim/swarms/ready-order-pressure.json" ;;
-          esac
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            --swarm "$swarm" \
-            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure --max-runs 64 \
-            --artifacts "$RUNNER_TEMP/campaign"
-      - name: Upload swarm selections and run artifacts
+          policy_blake3=$(jq -er '.coverage_policy_blake3' iroh-sim/soaks/daily.json)
+          now_unix_secs=$(date -u '+%s')
+          set +e
+          scripts/collect-latest-simulation-gap-selection.sh \
+            --repository "${{ github.repository }}" \
+            --workflow simulation-daily-soak.yml \
+            --policy-blake3 "$policy_blake3" \
+            --now-unix-secs "$now_unix_secs" \
+            --output "$RUNNER_TEMP/simulation-gap-source.json"
+          collection_status=$?
+          set -e
+          if [[ "$collection_status" -eq 0 ]]; then
+            degraded=false
+          elif [[ "$collection_status" -eq 3 ]]; then
+            degraded=true
+            jq -n --arg policy_blake3 "$policy_blake3" '{
+              schema_version: 1,
+              source_workflow_run_id: null,
+              source_revision: null,
+              policy_blake3: $policy_blake3,
+              lanes: [],
+              gap_count: 0
+            }' >"$RUNNER_TEMP/simulation-gap-source.json"
+          else
+            exit 2
+          fi
+          echo "degraded=$degraded" >> "$GITHUB_OUTPUT"
+      - name: Materialize bounded gap-directed work
+        shell: bash
+        run: |
+          printf '%s\n' '[]' >"$RUNNER_TEMP/no-changes.json"
+          iroh-sim/target/release/cargo-sim gate-select \
+            --impact-policy iroh-sim/change-impact-policy.json \
+            --coverage-policy iroh-sim/coverage-policy.json \
+            --base-revision 0000000000000000000000000000000000000000 \
+            --candidate-revision "${{ github.sha }}" \
+            --tier main \
+            --changes "$RUNNER_TEMP/no-changes.json" \
+            --diff-unavailable \
+            --output "$RUNNER_TEMP/all-nightly-work.json"
+          if [[ "${{ steps.gaps.outputs.degraded }}" == true ]]; then
+            jq '.targeted = []' \
+              "$RUNNER_TEMP/all-nightly-work.json" \
+              >"$RUNNER_TEMP/nightly-selection.json"
+          else
+            jq --slurpfile gaps "$RUNNER_TEMP/simulation-gap-source.json" '
+              .targeted = [
+                .targeted[]
+                | . as $work
+                | select(any($gaps[0].lanes[]; . == $work.lane))
+              ]
+            ' "$RUNNER_TEMP/all-nightly-work.json" \
+              >"$RUNNER_TEMP/nightly-selection.json"
+          fi
+      - name: Run bounded canary and gap-directed campaigns
+        id: campaign
+        shell: bash
+        run: |
+          set +e
+          scripts/run-simulation-gate.sh \
+            --selection "$RUNNER_TEMP/nightly-selection.json" \
+            --sim-bin iroh-sim/target/release/cargo-sim \
+            --artifacts "$RUNNER_TEMP/nightly-campaign" \
+            --jobs 4
+          campaign_status=$?
+          set -e
+          echo "status=$campaign_status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Replay gap-directed manifests
+        shell: bash
+        run: |
+          mapfile -d '' manifests < <(
+            find "$RUNNER_TEMP/nightly-campaign" -type f -name manifest.json -print0 | sort -z
+          )
+          if ((${#manifests[@]} > 64)); then
+            echo "nightly replay manifest bound exceeded" >&2
+            exit 2
+          fi
+          for manifest in "${manifests[@]}"; do
+            iroh-sim/target/release/cargo-sim replay "$manifest"
+          done
+      - name: Upload nightly gap and replay evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: iroh-sim-${{ matrix.domain }}-swarm-${{ strategy.job-index }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/campaign
+          name: iroh-sim-nightly-gaps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/simulation-gap-source.json
+            ${{ runner.temp }}/nightly-selection.json
+            ${{ runner.temp }}/nightly-campaign
           if-no-files-found: error
           retention-days: 14
-
-  stage4_benchmarks:
-    name: Stage 4 environment benchmarks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Measure NAT, firewall, discovery, and disabled production path
-        run: cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage4_environment
-      - name: Upload Criterion reports
+      - name: Propagate gap-directed campaign result
         if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-stage4-benchmarks-${{ github.run_id }}
-          path: iroh-sim/target/criterion
-          if-no-files-found: error
-          retention-days: 30
-
-  stage5_benchmarks:
-    name: Stage 5 production relay benchmarks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Measure disabled connector, authentication, and routing
-        run: cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage5_relay
-      - name: Upload Criterion reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-stage5-benchmarks-${{ github.run_id }}
-          path: iroh-sim/target/criterion
-          if-no-files-found: error
-          retention-days: 30
-
-  stage6_benchmarks:
-    name: Stage 6 seeded scheduler benchmarks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Measure FIFO baseline and seeded fair ready-task scheduling
+        shell: bash
         run: |
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench deterministic_closure
-      - name: Upload Criterion reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-stage6-benchmarks-${{ github.run_id }}
-          path: iroh-sim/target/criterion
-          if-no-files-found: error
-          retention-days: 30
+          campaign_status="${{ steps.campaign.outputs.status }}"
+          if [[ ! "$campaign_status" =~ ^[0-2]$ ]]; then
+            echo "nightly gap campaign did not publish a typed status" >&2
+            exit 2
+          fi
+          {
+            echo "## Nightly deterministic gap audit"
+            echo
+            printf -- '- Degraded fallback: `%s`\n' "${{ steps.gaps.outputs.degraded }}"
+            printf -- '- Status: `%s`\n' "$campaign_status"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$campaign_status"
 
   stage2_replay_matrix:
     name: Stage 2 ${{ matrix.scenario }}
@@ -110,6 +148,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 5
       matrix:
         include:
           - scenario: ipv4-stream
@@ -158,6 +197,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 6
       matrix:
         include:
           - resource: connection
@@ -187,103 +227,5 @@ jobs:
         with:
           name: iroh-sim-resource-${{ matrix.resource }}-${{ github.run_id }}
           path: ${{ runner.temp }}/resource-${{ matrix.resource }}
-          if-no-files-found: error
-          retention-days: 14
-
-  stage4_campaign:
-    name: Stage 4 ${{ matrix.domain }} campaign ${{ matrix.seeds }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        domain: [nat, discovery, mobility]
-        seeds: ["0..64", "64..128", "128..192", "192..256"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Test permanent regression corpus
-        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
-      - name: Run deterministic declarative campaign shard
-        run: |
-          case "${{ matrix.domain }}" in
-            nat) scenario="iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json" ;;
-            discovery) scenario="iroh-sim/corpus/stage4-discovery-conflict/scenario.json" ;;
-            mobility) scenario="iroh-sim/tests/fixtures/stage4-mobility.json" ;;
-          esac
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            "$scenario" \
-            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/campaign"
-      - name: Upload campaign artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-${{ matrix.domain }}-campaign-${{ strategy.job-index }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/campaign
-          if-no-files-found: error
-          retention-days: 14
-
-  stage5_campaign:
-    name: Stage 5 ${{ matrix.domain }} campaign ${{ matrix.seeds }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        domain: [relay-restart, direct-relay-fallback]
-        seeds: ["0..64", "64..128", "128..192", "192..256"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Test permanent regression corpus
-        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
-      - name: Run deterministic relay campaign shard
-        run: |
-          case "${{ matrix.domain }}" in
-            relay-restart) scenario="iroh-sim/corpus/stage5-relay-restart/scenario.json" ;;
-            direct-relay-fallback) scenario="iroh-sim/corpus/stage5-direct-relay-fallback/scenario.json" ;;
-          esac
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            "$scenario" \
-            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/campaign"
-      - name: Upload campaign artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-${{ matrix.domain }}-campaign-${{ strategy.job-index }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/campaign
-          if-no-files-found: error
-          retention-days: 14
-
-  stage6_schedule_campaign:
-    name: Stage 6 ${{ matrix.domain }} ready-order campaign ${{ matrix.seeds }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        domain: [direct, relay]
-        seeds: ["0..64", "64..128", "128..192", "192..256"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run seeded scheduler campaign shard
-        run: |
-          case "${{ matrix.domain }}" in
-            direct) scenario="iroh-sim/tests/fixtures/v2-ipv4-stream.json" ;;
-            relay) scenario="iroh-sim/corpus/stage5-relay-restart/scenario.json" ;;
-          esac
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-            "$scenario" \
-            --seeds "${{ matrix.seeds }}" --jobs 4 --continue-on-failure \
-            --artifacts "$RUNNER_TEMP/campaign"
-      - name: Upload scheduler campaign artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: iroh-sim-stage6-${{ matrix.domain }}-${{ strategy.job-index }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/campaign
           if-no-files-found: error
           retention-days: 14

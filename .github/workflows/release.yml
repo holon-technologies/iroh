@@ -101,9 +101,94 @@ jobs:
             exit 2
           fi
 
+  simulation_release_readiness:
+    name: Require simulation release evidence
+    needs: preflight
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout pinned commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.base_hash }}
+
+      - name: Check candidate simulation release evidence
+        id: readiness
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          report_root="$RUNNER_TEMP/simulation-release"
+          report="$report_root/release-readiness.json"
+          mkdir -p "$report_root"
+          now_unix_secs=$(date +%s)
+          set +e
+          scripts/check-simulation-release-readiness.sh \
+            --repository "${{ github.repository }}" \
+            --revision "${{ needs.preflight.outputs.base_hash }}" \
+            --now-unix-secs "$now_unix_secs" \
+            --policy iroh-sim/operations-policy.json \
+            --output "$report"
+          readiness_status=$?
+          set -e
+          if [[ ! -f "$report" ]]; then
+            jq -n \
+              --arg revision "${{ needs.preflight.outputs.base_hash }}" \
+              --argjson observed_at_unix_secs "$now_unix_secs" \
+              --argjson exit_code "$readiness_status" \
+              '{
+                schema_version: 1,
+                status: "infrastructure_failure",
+                reason: "readiness checker exited before publishing its typed report",
+                revision: $revision,
+                observed_at_unix_secs: $observed_at_unix_secs,
+                checker_exit_code: $exit_code
+              }' >"$report"
+            readiness_status=2
+          fi
+          echo "status=$readiness_status" >>"$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Retain simulation release evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: simulation-release-readiness-${{ github.run_id }}
+          path: ${{ runner.temp }}/simulation-release/release-readiness.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Propagate simulation release readiness
+        if: always()
+        shell: bash
+        run: |
+          readiness_status="${{ steps.readiness.outputs.status }}"
+          report="$RUNNER_TEMP/simulation-release/release-readiness.json"
+          if [[ ! "$readiness_status" =~ ^[0-2]$ ]] \
+            || ! jq -e \
+              --arg revision "${{ needs.preflight.outputs.base_hash }}" \
+              '.schema_version == 1 and .revision == $revision' \
+              "$report" >/dev/null; then
+            echo "simulation release readiness did not publish valid evidence" >&2
+            exit 2
+          fi
+          if [[ "$readiness_status" -eq 0 ]]; then
+            jq -e '.status == "release_ready"' "$report" >/dev/null
+          elif [[ "$readiness_status" -eq 1 ]]; then
+            jq -e '.status == "release_blocked"' "$report" >/dev/null
+          else
+            jq -e '.status == "infrastructure_failure"' "$report" >/dev/null
+          fi
+          exit "$readiness_status"
+
   build_release:
     name: Build ${{ matrix.target }}
-    needs: preflight
+    needs: [preflight, simulation_release_readiness]
     timeout-minutes: 90
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -235,7 +320,7 @@ jobs:
 
   package_release:
     name: Verify publishable crate packages
-    needs: preflight
+    needs: [preflight, simulation_release_readiness]
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:

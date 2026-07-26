@@ -17,18 +17,20 @@ use iroh_runtime::{RootSeed, TraceEvent, TraceSink, TraceSinkError};
 use crate::{
     ArtifactError, ArtifactStore, ArtifactTraceWriter, BackendCapabilities, CampaignConfig,
     CampaignError, CampaignRunner, CampaignTerminal, CompatibilityError, Corpus, CorpusError,
-    CorpusExpectation, DeterminismGrade, FailureArtifactBundle, FailureError, FailureReplayError,
-    FailureSignature, GeneratorConfig, MANIFEST_SCHEMA_VERSION, ManifestError, MinimizationAttempt,
-    MinimizationConfig, MinimizationError, Minimizer, PARITY_FIXTURE_SCHEMA_VERSION, ParityBackend,
-    ParityComparisonStatus, ParityError, ParityEvidence, ParityFixture, ParityFixtureResult,
-    PatchbayReceipt, ReplayIdentity, RunBudgets, RunManifest, SCENARIO_SCHEMA_VERSION,
-    SIMULATOR_VERSION, Scenario, ScenarioError, ScenarioGenerator, ScenarioHarness,
-    ScenarioInventory, ScenarioModelError, ScenarioRunner, SoakConfig, SoakCryptoLane, SoakError,
-    SoakLane, SoakPlan, SoakPlanError, SoakRunner, SoakSummary, SourceIdentity, Stage2Scenario,
-    SwarmError, SwarmSpec, SwarmTemplate, TraceBuffer, bounded_io::read_file,
-    canonical_patchbay_scenarios, compare_failure_replay, compare_parity_fixtures_at,
-    derive_soak_seed_start, deterministic_semantic_outcome, normalized_trace_json,
-    verify_failure_artifacts,
+    CorpusExpectation, CoverageError, CoverageLedger, CoverageObservation, CoveragePolicy,
+    CoverageReport, DeterminismGrade, FailureArtifactBundle, FailureError, FailureReplayError,
+    FailureSignature, GateError, GateSelection, GeneratorConfig, MANIFEST_SCHEMA_VERSION,
+    ManifestError, MinimizationAttempt, MinimizationConfig, MinimizationError, Minimizer,
+    OperationalOutcome, OperationalOutcomeClass,
+    PARITY_FIXTURE_SCHEMA_VERSION, ParityBackend, ParityComparisonStatus, ParityError,
+    ParityEvidence, ParityFixture, ParityFixtureResult, PatchbayReceipt, ReplayIdentity,
+    RunBudgets, RunManifest, SCENARIO_SCHEMA_VERSION, SIMULATOR_VERSION, Scenario, ScenarioError,
+    ScenarioGenerator, ScenarioHarness, ScenarioInventory, ScenarioModelError, ScenarioRunner,
+    SeedLease, SeedLeaseError, SimulationGateTier, SoakConfig, SoakCryptoLane, SoakError, SoakLane,
+    SoakPlan, SoakPlanError, SoakRunner, SoakSummary, SourceIdentity, Stage2Scenario, SwarmError,
+    SwarmSpec, SwarmTemplate, TraceBuffer, bounded_io::read_file, canonical_patchbay_scenarios,
+    compare_failure_replay, compare_parity_fixtures_at, derive_soak_seed_start,
+    deterministic_semantic_outcome, normalized_trace_json, verify_failure_artifacts,
 };
 
 /// Exit code used when a requested later-stage backend is intentionally unavailable.
@@ -148,6 +150,33 @@ enum Command {
         /// Fresh artifact directory for checkpoints and failures.
         #[arg(long)]
         artifacts: PathBuf,
+    },
+    /// Select bounded commit-derived pull-request or main gate work.
+    GateSelect {
+        /// Strict source-controlled path-to-domain policy.
+        #[arg(long)]
+        impact_policy: PathBuf,
+        /// Coverage policy whose revision binds every derived seed.
+        #[arg(long)]
+        coverage_policy: PathBuf,
+        /// Base Git revision; omit only when it cannot be resolved.
+        #[arg(long)]
+        base_revision: Option<String>,
+        /// Exact candidate Git revision.
+        #[arg(long)]
+        candidate_revision: String,
+        /// Pull-request or main budget tier.
+        #[arg(long, value_enum)]
+        tier: SimulationGateTier,
+        /// Strict JSON array containing canonical changed paths.
+        #[arg(long)]
+        changes: PathBuf,
+        /// Force the conservative all-domain fallback because no trustworthy diff exists.
+        #[arg(long)]
+        diff_unavailable: bool,
+        /// Immutable gate-selection output.
+        #[arg(long)]
+        output: PathBuf,
     },
     /// Replay an exact versioned run manifest.
     Replay { manifest: PathBuf },
@@ -285,6 +314,25 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
             max_artifact_bytes,
             artifact_root: &artifacts,
         }),
+        Command::GateSelect {
+            impact_policy,
+            coverage_policy,
+            base_revision,
+            candidate_revision,
+            tier,
+            changes,
+            diff_unavailable,
+            output,
+        } => execute_gate_select(
+            &impact_policy,
+            &coverage_policy,
+            base_revision.as_deref(),
+            &candidate_revision,
+            tier,
+            &changes,
+            diff_unavailable,
+            &output,
+        ),
         Command::Minimize {
             manifest,
             output,
@@ -322,6 +370,48 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
             } => execute_parity_compare(&expected, &actual, output.as_deref()),
         },
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_gate_select(
+    impact_policy_path: &Path,
+    coverage_policy_path: &Path,
+    base_revision: Option<&str>,
+    candidate_revision: &str,
+    tier: SimulationGateTier,
+    changes_path: &Path,
+    diff_unavailable: bool,
+    output: &Path,
+) -> Result<(), CliError> {
+    let impact_policy = crate::ChangeImpactPolicy::from_json(
+        &read_file(impact_policy_path).map_err(CliError::Io)?,
+    )?;
+    let coverage_policy_bytes = read_file(coverage_policy_path).map_err(CliError::Io)?;
+    CoveragePolicy::from_json(&coverage_policy_bytes)?;
+    let coverage_policy_blake3 = blake3::hash(&coverage_policy_bytes).to_hex().to_string();
+    let changed_paths: Vec<String> =
+        serde_json::from_slice(&read_file(changes_path).map_err(CliError::Io)?)
+            .map_err(|error| GateError::Encoding(error.to_string()))?;
+    let selection = GateSelection::build(
+        &impact_policy,
+        &coverage_policy_blake3,
+        base_revision,
+        candidate_revision,
+        tier,
+        &changed_paths,
+        !diff_unavailable,
+    )?;
+    if let Some(parent) = absolutize(output)?.parent() {
+        fs::create_dir_all(parent).map_err(CliError::Io)?;
+    }
+    write_immutable(output, &selection.to_canonical_json()?)?;
+    println!(
+        "status=gate_selected mode={:?} runs={} output={}",
+        selection.mode,
+        selection.total_runs(),
+        output.display()
+    );
+    Ok(())
 }
 
 fn execute_run(
@@ -563,6 +653,7 @@ fn execute_declarative_run(
                 scenario: &scenario,
                 error: &failure.error,
                 signature: &signature,
+                operational_outcome: None,
                 invariants: &failure.invariants,
                 resources: &failure.resources,
                 model: Some(&failure.model),
@@ -1097,6 +1188,7 @@ fn execute_campaign(options: CampaignOptions<'_>) -> Result<(), CliError> {
                     scenario: &candidate,
                     error: &failure.error,
                     signature: &signature,
+                    operational_outcome: None,
                     invariants: &failure.invariants,
                     resources: &failure.resources,
                     model: Some(&failure.model),
@@ -1182,6 +1274,7 @@ struct SoakOptions<'a> {
 }
 
 struct LoadedSoakLane {
+    domain: String,
     swarm: SwarmSpec,
     crypto: CryptoLane,
 }
@@ -1192,6 +1285,25 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
     let plan_bytes = read_file(options.plan_path)?;
     let plan = SoakPlan::from_json(&plan_bytes)?;
     validate_daily_soak_plan(&plan)?;
+    let plan_blake3 = blake3::hash(&plan_bytes).to_hex().to_string();
+    let canonical_workspace = workspace.canonicalize().map_err(CliError::Io)?;
+    let coverage_policy_path = workspace.join(&plan.coverage_policy);
+    let canonical_coverage_policy = coverage_policy_path.canonicalize().map_err(CliError::Io)?;
+    if !canonical_coverage_policy.starts_with(&canonical_workspace) {
+        return Err(CliError::Usage(format!(
+            "soak coverage policy resolves outside the workspace: {}",
+            plan.coverage_policy.display()
+        )));
+    }
+    let coverage_policy_bytes = read_file(&canonical_coverage_policy)?;
+    let actual_coverage_policy_blake3 = blake3::hash(&coverage_policy_bytes).to_hex().to_string();
+    if actual_coverage_policy_blake3 != plan.coverage_policy_blake3 {
+        return Err(CliError::SoakCoveragePolicyDigest {
+            expected: plan.coverage_policy_blake3.clone(),
+            actual: actual_coverage_policy_blake3,
+        });
+    }
+    let coverage_policy = CoveragePolicy::from_json(&coverage_policy_bytes)?;
     let selected_lane_index = match options.lane {
         Some(requested_lane) => Some(
             plan.lanes
@@ -1207,9 +1319,9 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
     };
 
     let mut loaded = BTreeMap::new();
+    let mut coverage_swarms = BTreeMap::new();
     for plan_lane in &plan.lanes {
         let swarm_path = workspace.join(&plan_lane.swarm);
-        let canonical_workspace = workspace.canonicalize().map_err(CliError::Io)?;
         let canonical_swarm = swarm_path.canonicalize().map_err(CliError::Io)?;
         if !canonical_swarm.starts_with(&canonical_workspace) {
             return Err(CliError::Usage(format!(
@@ -1227,9 +1339,32 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
             });
         }
         let (swarm, _) = load_swarm_template(&canonical_swarm, &workspace)?;
+        let domain = plan_lane
+            .id
+            .split_once('/')
+            .map(|(domain, _)| domain)
+            .ok_or_else(|| {
+                CliError::Usage(format!(
+                    "daily soak lane must have domain/provider identity: {}",
+                    plan_lane.id
+                ))
+            })?;
+        match coverage_swarms.entry(swarm.id.clone()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(swarm.clone());
+            }
+            std::collections::btree_map::Entry::Occupied(entry) if entry.get() == &swarm => {}
+            std::collections::btree_map::Entry::Occupied(_) => {
+                return Err(CliError::Usage(format!(
+                    "daily soak swarm identity resolves to conflicting definitions: {}",
+                    swarm.id
+                )));
+            }
+        }
         loaded.insert(
             plan_lane.id.clone(),
             LoadedSoakLane {
+                domain: domain.to_owned(),
                 swarm,
                 crypto: match plan_lane.crypto {
                     SoakCryptoLane::DeterministicTest => CryptoLane::DeterministicTest,
@@ -1238,6 +1373,14 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
             },
         );
     }
+    let coverage_obligations = coverage_policy.obligations(&coverage_swarms)?;
+    for lane in loaded.values() {
+        coverage_obligations.validate_binding(
+            &lane.domain,
+            &lane.swarm.id,
+            manifest_crypto_mode(lane.crypto.simulation_mode()),
+        )?;
+    }
 
     let lane_capacity = if selected_lane_index.is_some() {
         1
@@ -1245,6 +1388,7 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
         plan.lanes.len()
     };
     let mut lanes = Vec::with_capacity(lane_capacity);
+    let mut seed_leases = Vec::with_capacity(lane_capacity);
     for (lane_index, plan_lane) in plan.lanes.iter().enumerate() {
         if selected_lane_index.is_some_and(|selected| selected != lane_index) {
             continue;
@@ -1253,11 +1397,24 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
             .get(&plan_lane.id)
             .expect("validated canonical soak lanes must have loaded state");
         let seed_start = derive_soak_seed_start(options.seed_window, options.epoch, lane_index)?;
+        let seed_lease = SeedLease::reserve(
+            &plan.coverage_policy_blake3,
+            &plan_blake3,
+            &plan_lane.id,
+            options.seed_window,
+            options.epoch,
+            lane_index,
+        )?;
+        assert_eq!(
+            seed_start, seed_lease.seed_start,
+            "seed lease and soak scheduler must share one derivation"
+        );
         lanes.push(SoakLane {
             id: plan_lane.id.clone(),
             scenario: loaded_lane.swarm.base.clone(),
             seed_start,
         });
+        seed_leases.push(seed_lease);
     }
 
     let requested_root = absolutize(options.artifact_root)?;
@@ -1276,6 +1433,11 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
         "plan.blake3",
         format!("{}\n", blake3::hash(&plan_bytes).to_hex()).as_bytes(),
     )?;
+    artifact_store.write_atomic("coverage-policy.json", &coverage_policy_bytes)?;
+    artifact_store.write_atomic(
+        "coverage-policy.blake3",
+        format!("{}\n", plan.coverage_policy_blake3).as_bytes(),
+    )?;
 
     let retention = FailureRetention::new(
         artifact_root.clone(),
@@ -1289,6 +1451,7 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
         options.epoch,
         options.seed_window,
     );
+    let coverage_ledger = Arc::new(Mutex::new(CoverageLedger::new(coverage_obligations)));
     let execute = |lane_id: &str, seed_ordinal: u64, _template: &Scenario| {
         let lane = loaded
             .get(lane_id)
@@ -1310,8 +1473,19 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
         let result = simulation_runtime()
             .map_err(|error| error.to_string())?
             .block_on(runner.run_detailed());
-        match result {
-            Ok(_) => Ok(CampaignTerminal::Success),
+        let coverage = CoverageObservation::from_run(
+            &lane.domain,
+            manifest_crypto_mode(lane.crypto.simulation_mode()),
+            &selection,
+            &candidate,
+            match &result {
+                Ok(report) => &report.observations,
+                Err(failure) => &failure.observations,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let terminal = match result {
+            Ok(_) => CampaignTerminal::Success,
             Err(failure) => {
                 let events = trace.events();
                 let signature = FailureSignature::from_runner_error(&failure.error, &events, 64)
@@ -1327,9 +1501,15 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
                     signature: &signature,
                     trace: &events,
                 });
-                Ok(CampaignTerminal::Failure(signature))
+                CampaignTerminal::Failure(signature)
             }
-        }
+        };
+        coverage_ledger
+            .lock()
+            .map_err(|_| "coverage ledger lock poisoned".to_owned())?
+            .observe(&coverage)
+            .map_err(|error| error.to_string())?;
+        Ok(terminal)
     };
     let elapsed_millis = || u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     let wall_budget_millis = options
@@ -1346,14 +1526,22 @@ fn execute_soak(options: SoakOptions<'_>) -> Result<(), CliError> {
         lanes,
         elapsed_millis,
         |summary| {
+            let coverage = coverage_ledger
+                .lock()
+                .map_err(|_| "coverage ledger lock poisoned".to_owned())?
+                .report();
             publisher
-                .publish(summary, retention.snapshot())
+                .publish(summary, retention.snapshot(), &coverage, &seed_leases)
                 .map_err(|error| error.to_string())
         },
         execute,
     )?;
     let retention_summary = retention.snapshot();
-    publisher.publish(&summary, retention_summary.clone())?;
+    let coverage = coverage_ledger
+        .lock()
+        .map_err(|_| CliError::CoverageTrackerPoisoned)?
+        .report();
+    publisher.publish(&summary, retention_summary.clone(), &coverage, &seed_leases)?;
 
     let infrastructure_error = retention_summary.infrastructure_error.clone();
     if summary.failed_runs != 0 || summary.errored_runs != 0 || infrastructure_error.is_some() {
@@ -1553,10 +1741,24 @@ impl FailureRetention {
                     .write_atomic("swarm-selection.json", &bytes)
                     .map_err(|error| error.to_string())?;
             }
+            let signature_digest = blake3::hash(
+                &input
+                    .signature
+                    .to_canonical_json()
+                    .map_err(|error| error.to_string())?,
+            )
+            .to_hex()
+            .to_string();
+            let operational_outcome = OperationalOutcome::new(
+                OperationalOutcomeClass::ProductCorrectness,
+                signature_digest,
+            )
+            .map_err(|error| error.to_string())?;
             FailureArtifactBundle {
                 scenario: input.scenario,
                 error: &input.failure.error,
                 signature: input.signature,
+                operational_outcome: Some(&operational_outcome),
                 invariants: &input.failure.invariants,
                 resources: &input.failure.resources,
                 model: Some(&input.failure.model),
@@ -1677,6 +1879,8 @@ struct SoakEpochReport<'a> {
     epoch: u8,
     seed_window: u64,
     failure_artifacts: FailureRetentionSummary,
+    coverage: &'a CoverageReport,
+    seed_leases: Vec<SeedLease>,
     #[serde(flatten)]
     summary: &'a SoakSummary,
 }
@@ -1704,12 +1908,30 @@ impl SoakReportPublisher {
         &mut self,
         summary: &SoakSummary,
         failure_artifacts: FailureRetentionSummary,
+        coverage: &CoverageReport,
+        seed_leases: &[SeedLease],
     ) -> Result<(), CliError> {
+        let mut consumed_leases = Vec::with_capacity(seed_leases.len());
+        for lease in seed_leases {
+            let lane = summary
+                .lanes
+                .iter()
+                .find(|lane| lane.id == lease.lane_id)
+                .ok_or_else(|| {
+                    CliError::Trace(format!(
+                        "seed lease has no matching soak lane: {}",
+                        lease.lane_id
+                    ))
+                })?;
+            consumed_leases.push(lease.clone().with_consumed_runs(lane.completed_runs)?);
+        }
         let report = SoakEpochReport {
             plan_id: &self.plan_id,
             epoch: self.epoch,
             seed_window: self.seed_window,
             failure_artifacts,
+            coverage,
+            seed_leases: consumed_leases,
             summary,
         };
         let mut bytes = serde_json::to_vec_pretty(&report)
@@ -2523,7 +2745,15 @@ pub enum CliError {
     Swarm(SwarmError),
     Soak(SoakError),
     SoakPlan(SoakPlanError),
+    Coverage(CoverageError),
+    Gate(GateError),
+    SeedLease(SeedLeaseError),
+    CoverageTrackerPoisoned,
     SoakOutputExists(PathBuf),
+    SoakCoveragePolicyDigest {
+        expected: String,
+        actual: String,
+    },
     SoakSwarmDigest {
         lane: String,
         expected: String,
@@ -2585,6 +2815,11 @@ impl CliError {
             | Self::Swarm(_)
             | Self::Soak(_)
             | Self::SoakPlan(_)
+            | Self::Coverage(_)
+            | Self::Gate(_)
+            | Self::SeedLease(_)
+            | Self::CoverageTrackerPoisoned
+            | Self::SoakCoveragePolicyDigest { .. }
             | Self::SoakSwarmDigest { .. }
             | Self::SoakRunFailures { .. }
             | Self::CampaignRunFailures(_)
@@ -2596,6 +2831,12 @@ impl CliError {
             | Self::ManifestHasNoParent => 65,
             Self::BackendUnavailable { .. } => BACKEND_UNAVAILABLE_EXIT,
         }
+    }
+}
+
+impl From<GateError> for CliError {
+    fn from(error: GateError) -> Self {
+        Self::Gate(error)
     }
 }
 
@@ -2643,9 +2884,17 @@ impl std::fmt::Display for CliError {
             Self::Swarm(error) => error.fmt(f),
             Self::Soak(error) => error.fmt(f),
             Self::SoakPlan(error) => error.fmt(f),
+            Self::Coverage(error) => error.fmt(f),
+            Self::Gate(error) => error.fmt(f),
+            Self::SeedLease(error) => error.fmt(f),
+            Self::CoverageTrackerPoisoned => f.write_str("coverage tracker lock poisoned"),
             Self::SoakOutputExists(path) => {
                 write!(f, "soak artifact root already exists: {}", path.display())
             }
+            Self::SoakCoveragePolicyDigest { expected, actual } => write!(
+                f,
+                "soak coverage policy digest mismatch: expected {expected}, actual {actual}"
+            ),
             Self::SoakSwarmDigest {
                 lane,
                 expected,
@@ -2779,6 +3028,16 @@ impl From<SoakError> for CliError {
 impl From<SoakPlanError> for CliError {
     fn from(value: SoakPlanError) -> Self {
         Self::SoakPlan(value)
+    }
+}
+impl From<CoverageError> for CliError {
+    fn from(value: CoverageError) -> Self {
+        Self::Coverage(value)
+    }
+}
+impl From<SeedLeaseError> for CliError {
+    fn from(value: SeedLeaseError) -> Self {
+        Self::SeedLease(value)
     }
 }
 impl From<ParityError> for CliError {

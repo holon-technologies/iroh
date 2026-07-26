@@ -434,6 +434,8 @@ external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints
 external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	2
 external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	3
 external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	4
+external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	5
+external-state	iroh-sim/tests/cli.rs	soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts	std::process::Command::new	6
 external-state	iroh-sim/tests/cli.rs	soak_retains_a_bounded_replayable_failure_bundle	std::process::Command::new	1
 external-state	iroh-sim/tests/cli.rs	soak_retains_a_bounded_replayable_failure_bundle	std::process::Command::new	2
 external-state	iroh-sim/tests/cli.rs	stage_two_run_writes_immutable_artifacts_and_replays_exactly	std::process::Command::new	1

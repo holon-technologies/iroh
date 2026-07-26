@@ -9,7 +9,7 @@ use crate::{
     TraceComparisonMode,
 };
 
-pub const OPERATIONS_POLICY_SCHEMA_VERSION: u16 = 3;
+pub const OPERATIONS_POLICY_SCHEMA_VERSION: u16 = 7;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -17,12 +17,37 @@ pub struct OperationsPolicy {
     pub schema_version: u16,
     pub owner: String,
     pub failure_triage_slo_hours: u16,
+    pub automation: AutomationPolicy,
+    pub gate_runtime_slo: GateRuntimeSloPolicy,
     pub tiers: Vec<SimulationTierPolicy>,
     pub daily_soak: DailySoakPolicy,
     pub replay: ReplayPolicy,
     pub corpus: CorpusPolicy,
+    pub release: ReleasePolicy,
     pub swarm: SwarmPolicy,
     pub parity: ParityPolicy,
+}
+
+/// Cross-workflow rules that prevent retries or status propagation from hiding evidence.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutomationPolicy {
+    pub maximum_retry_attempts: u8,
+    pub shutdown_on_timeout: bool,
+    pub publish_evidence_before_status: bool,
+}
+
+/// Bounded hosted-history audit for pull-request and main simulation wall time.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GateRuntimeSloPolicy {
+    pub workflow: String,
+    pub sample_size: usize,
+    pub percentile: u8,
+    pub pull_request_maximum_minutes: u16,
+    pub main_maximum_minutes: u16,
+    pub maximum_candidate_runs_per_tier: usize,
+    pub maximum_jobs_per_run: usize,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -82,7 +107,24 @@ pub struct CorpusPolicy {
     pub review_required: bool,
     pub provenance_required: bool,
     pub issue_required_for_failures: bool,
+    pub metadata_schema: u16,
+    pub typed_promotion_evidence_required: bool,
+    pub reopen_invalid_closure: bool,
+    pub required_closure_checks: Vec<String>,
     pub maximum_pending_days: u16,
+}
+
+/// Bounded evidence queried before any release build or publication work begins.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleasePolicy {
+    pub required_same_revision_checks: Vec<String>,
+    pub maximum_open_product_failures: usize,
+    pub parity_workflow: String,
+    pub maximum_parity_age_hours: u16,
+    pub maximum_check_runs: usize,
+    pub maximum_issue_results: usize,
+    pub maximum_parity_runs: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -130,6 +172,22 @@ impl OperationsPolicy {
             || self.failure_triage_slo_hours > 168
         {
             return Err(OperationsPolicyError::InvalidServiceIdentity);
+        }
+        if self.automation.maximum_retry_attempts != 0
+            || !self.automation.shutdown_on_timeout
+            || !self.automation.publish_evidence_before_status
+        {
+            return Err(OperationsPolicyError::UnsafeAutomationPolicy);
+        }
+        if self.gate_runtime_slo.workflow != "ci.yml"
+            || self.gate_runtime_slo.sample_size != 20
+            || self.gate_runtime_slo.percentile != 95
+            || self.gate_runtime_slo.pull_request_maximum_minutes != 15
+            || self.gate_runtime_slo.main_maximum_minutes != 30
+            || self.gate_runtime_slo.maximum_candidate_runs_per_tier != 40
+            || self.gate_runtime_slo.maximum_jobs_per_run != 100
+        {
+            return Err(OperationsPolicyError::UnsafeGateRuntimeSloPolicy);
         }
         let expected = [
             SimulationTier::PullRequest,
@@ -193,9 +251,33 @@ impl OperationsPolicy {
         }
         if !self.corpus.review_required
             || !self.corpus.provenance_required
+            || !self.corpus.issue_required_for_failures
+            || self.corpus.metadata_schema != crate::CORPUS_SCHEMA_VERSION
+            || !self.corpus.typed_promotion_evidence_required
+            || !self.corpus.reopen_invalid_closure
+            || self.corpus.required_closure_checks
+                != [
+                    "Deterministic simulation change gate",
+                    "Deterministic simulation contracts and corpus",
+                ]
             || self.corpus.maximum_pending_days == 0
         {
             return Err(OperationsPolicyError::UnsafeCorpusPolicy);
+        }
+        if self.release.required_same_revision_checks
+            != [
+                "Deterministic simulation change gate",
+                "Deterministic simulation contracts and corpus",
+                "netsim-release / Netsim",
+            ]
+            || self.release.maximum_open_product_failures != 0
+            || self.release.parity_workflow != "patchbay-hosted-smoke.yml"
+            || self.release.maximum_parity_age_hours != self.parity.maximum_evidence_age_hours
+            || self.release.maximum_check_runs != 100
+            || self.release.maximum_issue_results != 100
+            || self.release.maximum_parity_runs != 8
+        {
+            return Err(OperationsPolicyError::UnsafeReleasePolicy);
         }
         if self.swarm.schema != crate::SWARM_SCHEMA_VERSION
             || self.swarm.maximum_choices == 0
@@ -224,10 +306,13 @@ pub enum OperationsPolicyError {
     Json(String),
     UnsupportedSchema(u16),
     InvalidServiceIdentity,
+    UnsafeAutomationPolicy,
+    UnsafeGateRuntimeSloPolicy,
     NonCanonicalTiers,
     InvalidTier(SimulationTier),
     UnsafeReplayPolicy,
     UnsafeCorpusPolicy,
+    UnsafeReleasePolicy,
     UnsafeSwarmPolicy,
     UnsafeParityPolicy,
     UnsafeDailySoakPolicy,

@@ -28,6 +28,10 @@ on:
         type: string
         default: ""
 
+concurrency:
+  group: iroh-netsim-${{ github.ref || inputs.iroh_ref }}
+  cancel-in-progress: false
+
 env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings

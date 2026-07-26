@@ -206,6 +206,24 @@ orchestration**. The inventory refresh also incorporates line movement from the 
 typed runtime-clock and resource-exhaustion changes, the renamed versioned CLI replay test, and its
 new resource-corpus process invocations; these retain their classifications above.
 
+The 2026-07-26 coverage-driven service adds strict coverage and change-impact policy reads to the
+simulator CLI and checked fixture reads to its integration tests. These are **Acceptable
+nondeterminism in executable or regression-test orchestration**: bounded canonical files are
+validated and hashed before selection, and their digest becomes explicit seed and evidence
+identity. They cannot introduce ambient input after a scenario starts. Gate tests invoke the
+source-bound CLI in temporary directories, while added CLI `Instant`/`SystemTime`, Git, current
+directory, and atomic-file rows are line movement of the already classified wall-budget,
+realistic-evidence, source-identity, path-resolution, and artifact-publication boundaries. No new
+behavioral clock, entropy, scheduler, network-environment, or unordered-iteration escape is
+accepted by this inventory refresh.
+
+Coverage-policy schema v2 and corpus-metadata schema v2 add only bounded canonical metadata reads
+before execution. Domain/provider-qualified transition obligations and typed corpus-promotion
+evidence do not influence the simulated scheduler, clock, entropy, or network. The issue closure
+guard performs host filesystem hashing, child-process corpus execution, and GitHub check lookup in
+workflow orchestration after simulation; these are **Acceptable nondeterminism in executable
+orchestration** and cannot change a scenario outcome.
+
 The 2026-07-26 hosted CI portability review moves four existing paused-Tokio timer occurrences in
 the resource-canary regression tests while making artifact permission assertions portable to
 Windows. They remain **Acceptable nondeterminism in regression-test orchestration** and do not add
