@@ -89,9 +89,7 @@ impl OperationalOutcome {
                 self.schema_version,
             ));
         }
-        if self.evidence.trim().is_empty()
-            || self.evidence.len() > MAX_OPERATIONAL_EVIDENCE_BYTES
-        {
+        if self.evidence.trim().is_empty() || self.evidence.len() > MAX_OPERATIONAL_EVIDENCE_BYTES {
             return Err(OperationalOutcomeError::InvalidEvidenceLength(
                 self.evidence.len(),
             ));

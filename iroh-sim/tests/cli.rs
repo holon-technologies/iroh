@@ -351,18 +351,15 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
     ] {
         assert!(failure_root.join(name).is_file(), "missing {name}");
     }
-    let terminal: serde_json::Value = serde_json::from_slice(
-        &fs::read(failure_root.join("terminal-report.json")).unwrap(),
-    )
-    .unwrap();
-    let operational_outcome: serde_json::Value = serde_json::from_slice(
-        &fs::read(failure_root.join("operational-outcome.json")).unwrap(),
-    )
-    .unwrap();
-    let artifact_index: serde_json::Value = serde_json::from_slice(
-        &fs::read(failure_root.join("failure-artifacts.json")).unwrap(),
-    )
-    .unwrap();
+    let terminal: serde_json::Value =
+        serde_json::from_slice(&fs::read(failure_root.join("terminal-report.json")).unwrap())
+            .unwrap();
+    let operational_outcome: serde_json::Value =
+        serde_json::from_slice(&fs::read(failure_root.join("operational-outcome.json")).unwrap())
+            .unwrap();
+    let artifact_index: serde_json::Value =
+        serde_json::from_slice(&fs::read(failure_root.join("failure-artifacts.json")).unwrap())
+            .unwrap();
     assert_eq!(operational_outcome["schema_version"], 1);
     assert_eq!(operational_outcome["class"], "product_correctness");
     assert_eq!(

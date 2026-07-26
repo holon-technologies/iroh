@@ -59,10 +59,11 @@ pub use coverage::{
 pub use discovery::{DeterministicDiscovery, DiscoveryError, DiscoveryRecordSnapshot};
 pub use dns::DeterministicDnsRuntime;
 pub use failure::{
-    FAILURE_ARTIFACT_SCHEMA_VERSION, FAILURE_SIGNATURE_SCHEMA_VERSION,
-    OPERATIONAL_OUTCOME_SCHEMA_VERSION, FailureArtifactBundle, FailureArtifactIndex, FailureError,
-    FailureReplayError, FailureSignature, OperationalOutcome, OperationalOutcomeClass,
-    OperationalOutcomeError, TerminalFailureClass, compare_failure_replay, verify_failure_artifacts,
+    FAILURE_ARTIFACT_SCHEMA_VERSION, FAILURE_SIGNATURE_SCHEMA_VERSION, FailureArtifactBundle,
+    FailureArtifactIndex, FailureError, FailureReplayError, FailureSignature,
+    OPERATIONAL_OUTCOME_SCHEMA_VERSION, OperationalOutcome, OperationalOutcomeClass,
+    OperationalOutcomeError, TerminalFailureClass, compare_failure_replay,
+    verify_failure_artifacts,
 };
 pub use gate::{
     CHANGE_IMPACT_POLICY_SCHEMA_VERSION, ChangeImpactMapping, ChangeImpactPolicy, GateDomain,
