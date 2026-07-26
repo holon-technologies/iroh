@@ -1,6 +1,6 @@
 # Goal: Coverage-Driven Distributed-Network Testing
 
-- Status: Active — external gates enforced; scheduled and runtime-history evidence accruing
+- Status: Active — hosted gates and simulation services green; runtime-history evidence accruing
 - Defined: 2026-07-26
 
 ## Scope
@@ -191,12 +191,23 @@ This goal is complete when all of the following are true:
 - Retained explorer failures carry an integrity-indexed, versioned operational outcome bound to the
   normalized signature digest; triage fixtures prove that a non-product class cannot create an
   issue and that replay directories are excluded from source-failure discovery.
-- Current-revision hosted evidence is green for commit `ebaf23437437039cafa2b5b7f1f5a77042a235e1`:
-  [CI run 30214682866](https://github.com/holon-technologies/iroh/actions/runs/30214682866)
+- Current simulator-revision hosted evidence is green for commit
+  `069ae65167d657d29ec4c22dbdf20fb495f19308`:
+  [CI run 30220336402](https://github.com/holon-technologies/iroh/actions/runs/30220336402)
   completed all 34 jobs successfully, including both deterministic simulation checks and the main
-  Netsim integration suite; [Netsim release run
-  30214682876](https://github.com/holon-technologies/iroh/actions/runs/30214682876) and [Wine run
-  30214682813](https://github.com/holon-technologies/iroh/actions/runs/30214682813) also succeeded.
+  Netsim integration suite, after an intermittent Android emulator timeout passed on the failed-job
+  rerun; [Wine run 30220336324](https://github.com/holon-technologies/iroh/actions/runs/30220336324)
+  also succeeded.
+- The GitHub-hosted simulation services have completed successfully on the activated
+  coverage-driven implementation: [nightly run
+  30218967522](https://github.com/holon-technologies/iroh/actions/runs/30218967522) and [Patchbay run
+  30218967570](https://github.com/holon-technologies/iroh/actions/runs/30218967570) succeeded on the
+  first merged revision, while [daily run
+  30220349905](https://github.com/holon-technologies/iroh/actions/runs/30220349905) and [weekly run
+  30220349987](https://github.com/holon-technologies/iroh/actions/runs/30220349987) succeeded on the
+  current corrective revision. The first daily and weekly executions exposed a legacy aggregate-
+  artifact naming incompatibility and a stale Patchbay fixture; both regressions were repaired and
+  protected by tests in [PR #2](https://github.com/holon-technologies/iroh/pull/2).
 - Repository ruleset [Required deterministic simulation gates
   19774422](https://github.com/holon-technologies/iroh/rules/19774422) actively targets `main` with
   no bypass actors. It requires up-to-date successful GitHub Actions checks named `Deterministic
@@ -205,12 +216,10 @@ This goal is complete when all of the following are true:
 
 ### Remaining external acceptance
 
-- Daily, nightly, weekly, and Patchbay workflows have not yet completed against the activated
-  coverage-driven revision. Their next scheduled or manually dispatched runs must supply that
-  hosted service evidence.
-- The live runtime-SLO history has one compatible successful main execution and no compatible pull-
-  request execution yet. Twenty successful compatible executions per tier are required before the
-  documented P95 targets can be measured rather than reported as `insufficient_history`.
+- The live runtime-SLO audit has three compatible successful main executions and two compatible
+  successful pull-request executions. Twenty successful compatible executions per tier are required
+  before the documented P95 targets can be measured rather than reported as
+  `insufficient_history`; this evidence must accrue from real change-gate runs.
 
 ## Resolved Implementation Decisions
 
