@@ -52,9 +52,9 @@ jobs:
       sim_paths: "sims/iroh,sims/integration"
       pr_number: ""
       build_profile: "optimized-release"
-      # Ten simultaneous 10 GiB transfers exceed Chuck's fixed 300-second
-      # per-case deadline on GitHub-hosted runners; the smaller 10 GiB fan-outs remain covered.
-      filter: "skip:iroh_cust_10gb__1_to_10"
+      # The 10 GiB performance profile is soak-grade: serial execution cannot fit
+      # this job, while concurrent cases exceed Chuck's 300-second per-case deadline.
+      filter: "skip:iroh_cust_10gb"
 
   netsim-perf:
     permissions:
