@@ -50,6 +50,18 @@ for resource in connection relay socket stream timer trace; do
   fi
 done
 
+criterion_report_count=$(grep -Fc 'path: iroh-sim/target/criterion' "$workflow" || true)
+if ((criterion_report_count != 3)); then
+  printf 'nightly benchmark jobs must upload three crate-local Criterion reports; found %d\n' \
+    "$criterion_report_count" >&2
+  exit 1
+fi
+
+if grep -Eq '^[[:space:]]+path: target/criterion[[:space:]]*$' "$workflow"; then
+  printf '%s\n' 'nightly benchmark job uses the workspace-root Criterion path' >&2
+  exit 1
+fi
+
 prepare_line=$(grep -n -m1 'mkdir -p "$RUNNER_TEMP/${{ matrix.scenario }}"' "$workflow" | cut -d: -f1)
 run_line=$(grep -n -m1 'name: Run named scenario' "$workflow" | cut -d: -f1)
 if ((prepare_line >= run_line)); then

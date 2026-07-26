@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: iroh-sim-stage4-benchmarks-${{ github.run_id }}
-          path: target/criterion
+          path: iroh-sim/target/criterion
           if-no-files-found: error
           retention-days: 30
 
@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: iroh-sim-stage5-benchmarks-${{ github.run_id }}
-          path: target/criterion
+          path: iroh-sim/target/criterion
           if-no-files-found: error
           retention-days: 30
 
@@ -100,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: iroh-sim-stage6-benchmarks-${{ github.run_id }}
-          path: target/criterion
+          path: iroh-sim/target/criterion
           if-no-files-found: error
           retention-days: 30
 

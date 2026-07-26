@@ -1,6 +1,6 @@
 use std::{hint::black_box, net::Ipv4Addr, sync::Arc, time::Duration};
 
-use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 use iroh::{SecretKey, endpoint::PortmapperConfig};
 use iroh_runtime::{NoopTraceSink, RootSeed};
 use iroh_sim::{
@@ -13,52 +13,60 @@ fn stage4_environment(c: &mut Criterion) {
     let mut group = c.benchmark_group("stage4_environment");
     group.throughput(Throughput::Elements(1));
 
-    let mut nat = nat_table();
     let internal = "10.0.0.2:5000".parse().unwrap();
     let remote = "198.51.100.1:6000".parse().unwrap();
-    nat.translate_outbound(0, internal, remote).unwrap();
     group.bench_function("nat_mapping_reuse", |b| {
-        let mut now = 1u64;
-        b.iter(|| {
-            now += 1;
-            black_box(nat.translate_outbound(now, internal, remote).unwrap());
-        });
+        b.iter_batched(
+            || {
+                let mut nat = nat_table();
+                nat.translate_outbound(0, internal, remote).unwrap();
+                nat
+            },
+            |mut nat| black_box(nat.translate_outbound(1, internal, remote).unwrap()),
+            BatchSize::SmallInput,
+        );
     });
 
-    let (_firewall_kernel, mut firewall) = firewall();
     let packet = FirewallPacket {
         source: internal,
         destination: remote,
     };
     group.bench_function("firewall_ordered_allow", |b| {
-        b.iter(|| {
-            black_box(
-                firewall
-                    .evaluate(FirewallDirection::Outbound, packet)
-                    .unwrap(),
-            );
-        });
+        b.iter_batched(
+            firewall,
+            |(_kernel, mut firewall)| {
+                black_box(
+                    firewall
+                        .evaluate(FirewallDirection::Outbound, packet)
+                        .unwrap(),
+                );
+            },
+            BatchSize::SmallInput,
+        );
     });
 
-    let (discovery, endpoint) = discovery();
     let address = "192.0.2.2:31002".parse().unwrap();
     group.bench_function("discovery_replace_and_withdraw", |b| {
-        b.iter(|| {
-            black_box(
-                discovery
-                    .publish(
-                        "server",
-                        "server",
-                        endpoint,
-                        vec![address],
-                        0,
-                        1_000_000_000,
-                        false,
-                    )
-                    .unwrap(),
-            );
-            black_box(discovery.withdraw("server", "server").unwrap());
-        });
+        b.iter_batched(
+            discovery,
+            |(discovery, endpoint)| {
+                black_box(
+                    discovery
+                        .publish(
+                            "server",
+                            "server",
+                            endpoint,
+                            vec![address],
+                            0,
+                            1_000_000_000,
+                            false,
+                        )
+                        .unwrap(),
+                );
+                black_box(discovery.withdraw("server", "server").unwrap());
+            },
+            BatchSize::SmallInput,
+        );
     });
 
     // Production defaults retain `None` for every simulation-only hook. Keep this constructor
