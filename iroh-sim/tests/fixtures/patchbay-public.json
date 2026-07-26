@@ -2,22 +2,24 @@
   "schema_version": 2,
   "case_id": "parity/patchbay-public",
   "backend": "patchbay",
-  "source_revision": "iroh/tests/patchbay/nat.rs:nat_none_x_none",
+  "source_revision": "10937f4025bfeb25f291098304ee4049e0916f3a",
   "evidence": {
-    "run_id": "e13f57acd5b5cca1b7f63e5ea753c826c25f75a3ed741354008fb26e1356ca76",
-    "scenario_hash": "78e2694b7679390ef21220eb16b72f00e333b88a8e2f140c5e836329dcd3373b",
-    "observed_at_unix_secs": 1784592000,
-    "valid_for_secs": 2678400
+    "run_id": "22636627550a60ba5b84f7949f3cbc6660a8dfa7e95851fcf8b90ea5ca4ac46e",
+    "scenario_hash": "f0f2fd9c0eeac40645e8d813c1a3cbfc6fa4e7dfd0250b0b877388611b3784e7",
+    "observed_at_unix_secs": 1785097671,
+    "valid_for_secs": 2592000
   },
   "capabilities": [
     "terminal",
     "authentication",
-    "delivery"
+    "delivery",
+    "path"
   ],
   "observed_dimensions": [
     "terminal",
     "authentication",
-    "delivery"
+    "delivery",
+    "path"
   ],
   "result": {
     "status": "completed",

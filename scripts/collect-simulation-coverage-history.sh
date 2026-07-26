@@ -162,6 +162,16 @@ while IFS=$'\t' read -r run_id head_sha created_at; do
     --repo "$repository" \
     --name "iroh-sim-soak-aggregate-$run_id" \
     --dir "$download_root"; then
+    legacy_download_root="$scratch_root/legacy-run-$run_id"
+    mkdir -p "$legacy_download_root"
+    if gh run download "$run_id" \
+      --repo "$repository" \
+      --name "iroh-sim-daily-soak-$run_id" \
+      --dir "$legacy_download_root"; then
+      printf 'Skipping pre-coverage aggregate artifact for run %s\n' \
+        "$run_id" >&2
+      continue
+    fi
     printf 'GitHub aggregate artifact download failed for run %s\n' "$run_id" >&2
     exit 2
   fi
