@@ -115,10 +115,10 @@ clock-timer	iroh/bench/src/bin/resource_canary.rs:1017	let mut ticker = tokio::t
 clock-timer	iroh/bench/src/bin/resource_canary.rs:1018	ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 clock-timer	iroh/bench/src/bin/resource_canary.rs:1500	tokio::time::sleep(baseline).await;
 clock-timer	iroh/bench/src/bin/resource_canary.rs:1850	Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1915	tokio::time::advance(Duration::from_secs(3)).await;
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1918	let before = tokio::time::Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1925	let started = tokio::time::Instant::now();
-clock-timer	iroh/bench/src/bin/resource_canary.rs:1931	tokio::time::advance(Duration::from_millis(10)).await;
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1939	tokio::time::advance(Duration::from_secs(3)).await;
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1942	let before = tokio::time::Instant::now();
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1949	let started = tokio::time::Instant::now();
+clock-timer	iroh/bench/src/bin/resource_canary.rs:1955	tokio::time::advance(Duration::from_millis(10)).await;
 clock-timer	iroh/bench/src/bin/resource_canary.rs:940	let started = Instant::now();
 clock-timer	iroh/bench/src/bin/resource_canary.rs:972	let started = Instant::now();
 clock-timer	iroh/bench/src/canary/workloads.rs:1010	StdInstant::now()

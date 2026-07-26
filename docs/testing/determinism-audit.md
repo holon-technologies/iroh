@@ -206,6 +206,11 @@ orchestration**. The inventory refresh also incorporates line movement from the 
 typed runtime-clock and resource-exhaustion changes, the renamed versioned CLI replay test, and its
 new resource-corpus process invocations; these retain their classifications above.
 
+The 2026-07-26 hosted CI portability review moves four existing paused-Tokio timer occurrences in
+the resource-canary regression tests while making artifact permission assertions portable to
+Windows. They remain **Acceptable nondeterminism in regression-test orchestration** and do not add
+or change any production or simulation clock boundary.
+
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
 The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Iroh `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.
