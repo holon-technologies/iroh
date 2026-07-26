@@ -51,6 +51,9 @@ jobs:
       sim_paths: "sims/iroh,sims/integration"
       pr_number: ""
       build_profile: "optimized-release"
+      # Ten simultaneous 10 GiB transfers exceed Chuck's fixed 300-second
+      # per-case deadline on GitHub-hosted runners; the smaller 10 GiB fan-outs remain covered.
+      filter: "skip:iroh_cust_10gb__1_to_10"
 
   netsim-perf:
     permissions:

@@ -205,6 +205,9 @@ for permission in 'contents: read' 'issues: write' 'pull-requests: write'; do
     fail ".github/workflows/netsim.yml netsim-release is missing called-workflow permission: $permission"
   fi
 done
+if ! grep -Fq -- 'filter: "skip:iroh_cust_10gb__1_to_10"' <<< "$netsim_release_job"; then
+  fail '.github/workflows/netsim.yml netsim-release must exclude the oversized hosted-runner case'
+fi
 
 semver_job=$(sed -n '/^  check_semver:/,/^  check_external_types:/p' "$repo_root/.github/workflows/ci.yml")
 if ! grep -Fq -- 'RUSTFLAGS: ""' <<< "$semver_job"; then
