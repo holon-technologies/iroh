@@ -83,7 +83,7 @@ if [[ -n "${EXPECTED_LANE:-}" ]]; then
   [[ "$selected_lane" == "$EXPECTED_LANE" ]]
   jq -e \
     --arg lane "$EXPECTED_LANE" \
-    '.lanes | length == 12 and any(.[]; .id == $lane)' \
+    '.lanes | length == 14 and any(.[]; .id == $lane)' \
     "$selected_plan" >/dev/null
 fi
 mkdir -p "$artifact_root"
@@ -114,7 +114,7 @@ jq -n \
     coverage: {
       schema_version: 2,
       policy_id: "iroh-network-modes-v1",
-      policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+      policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
       rolling_window_days: 7,
       completed_runs: 1,
       observed_individuals: [],
@@ -133,7 +133,7 @@ jq -n \
     },
     seed_leases: [{
       schema_version: 2,
-      policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+      policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
       plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       lane_id: $lane,
       seed_window: 42,

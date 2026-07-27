@@ -3,11 +3,12 @@ use std::{sync::Arc, time::SystemTime};
 use iroh_runtime::RootSeed;
 use iroh_sim::{
     ActionSchedule, ActionSpec, DiscoveryProviderSpec, DiscoveryRecordState, FailureSignature,
-    FirewallAction, FirewallConnectionState, FirewallDirection, FirewallProtocol, FirewallRuleSpec,
-    FirewallSpec, InvariantName, InvariantSpec, IpFamily, NatFilteringBehavior, NatMappingBehavior,
-    NatSpec, ReferenceModel, RelayImpairmentSpec, RelayProtocolVersion, RelaySpec, ResourceKind,
-    RunnerError, Scenario, ScenarioAction, ScenarioBuilder, ScenarioOperation, ScenarioRunner,
-    TerminalFailureClass, TraceBuffer, first_trace_divergence,
+    FaultRule, FirewallAction, FirewallConnectionState, FirewallDirection, FirewallProtocol,
+    FirewallRuleSpec, FirewallSpec, InvariantName, InvariantSpec, IpFamily, NatFilteringBehavior,
+    NatMappingBehavior, NatSpec, PacketFault, ReferenceModel, RelayImpairmentSpec,
+    RelayProtocolVersion, RelaySpec, ResourceKind, RunnerError, Scenario, ScenarioAction,
+    ScenarioBuilder, ScenarioOperation, ScenarioRunner, TerminalFailureClass, TraceBuffer,
+    first_trace_divergence,
 };
 
 fn enable_relay_routing_invariant(scenario: &mut Scenario) {
@@ -157,6 +158,28 @@ fn direct_scenario(id: &str) -> Scenario {
         .unwrap()
         .build()
         .unwrap()
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn zero_probability_reordering_is_disabled() {
+    let mut scenario = direct_scenario("runner/reordering-disabled");
+    scenario.fault_rules.push(FaultRule {
+        id: "reordering".to_owned(),
+        link: "lan".to_owned(),
+        effect: PacketFault::Reorder,
+        probability_per_million: 0,
+        start_nanos: 0,
+        end_nanos: scenario.budgets.max_virtual_time_nanos,
+        max_applications: u64::MAX,
+    });
+    let scenario = scenario.normalized().unwrap();
+
+    let (_, trace) = run(scenario, [19; 32]).await;
+    assert!(!trace.iter().any(|event| matches!(
+        &event.event,
+        iroh_runtime::TraceEventKind::FaultInjected { rule, .. }
+            if rule == "network/reorder"
+    )));
 }
 
 fn resource_relay(id: &str, url: &str) -> RelaySpec {

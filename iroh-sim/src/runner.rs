@@ -2067,7 +2067,11 @@ fn link_config(
             PacketFault::Corruption => {
                 config.corrupt_per_million = rule.probability_per_million;
             }
-            PacketFault::Reorder => config.reorder_window = Duration::from_millis(5),
+            PacketFault::Reorder => {
+                if rule.probability_per_million > 0 {
+                    config.reorder_window = Duration::from_millis(5);
+                }
+            }
             PacketFault::Delay | PacketFault::MtuReduction => {
                 return Err(RunnerError::UnsupportedFaultRule(rule.id.clone()));
             }

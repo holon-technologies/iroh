@@ -146,7 +146,7 @@ This goal is complete when all of the following are true:
 - The target deterministic architecture and its production boundaries are documented in [`docs/testing/deterministic-simulation-architecture.md`](docs/testing/deterministic-simulation-architecture.md).
 - Simulation use, replay, campaigns, and corpus workflows are documented in [`docs/testing/simulation.md`](docs/testing/simulation.md).
 - Determinism requirements and known escape audits are documented in [`docs/testing/determinism-audit.md`](docs/testing/determinism-audit.md).
-- The hosted continuous soak already runs twelve domain/provider lanes four times per day in [`.github/workflows/simulation-daily-soak.yml`](.github/workflows/simulation-daily-soak.yml) and [`iroh-sim/soaks/daily.json`](iroh-sim/soaks/daily.json).
+- The hosted continuous soak already runs fourteen domain/provider lanes four times per day in [`.github/workflows/simulation-daily-soak.yml`](.github/workflows/simulation-daily-soak.yml) and [`iroh-sim/soaks/daily.json`](iroh-sim/soaks/daily.json), including dedicated link-impairment exploration under both cryptographic providers.
 - Nightly and weekly roles are separated from continuous exploration in [`.github/workflows/simulation-nightly.yml`](.github/workflows/simulation-nightly.yml) and [`.github/workflows/simulation-weekly.yml`](.github/workflows/simulation-weekly.yml).
 - Current retention, replay, corpus, and operational bounds are checked through [`iroh-sim/operations-policy.json`](iroh-sim/operations-policy.json) and documented in [`docs/simulation/operations.md`](docs/simulation/operations.md).
 - [`.github/workflows/simulation-issue-closure.yml`](.github/workflows/simulation-issue-closure.yml)

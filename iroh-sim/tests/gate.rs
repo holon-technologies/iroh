@@ -1,7 +1,7 @@
 use iroh_sim::{ChangeImpactPolicy, GateSelection, GateSelectionMode, SimulationGateTier};
 
 const COVERAGE_POLICY_BLAKE3: &str =
-    "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0";
+    "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2";
 const BASE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CANDIDATE: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 

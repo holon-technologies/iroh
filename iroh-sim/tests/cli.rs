@@ -92,7 +92,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert_eq!(summary["seed_leases"][0]["consumed_runs"], 1);
     assert_eq!(
         summary["seed_leases"][0]["policy_blake3"],
-        "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0"
+        "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2"
     );
     assert_eq!(
         fs::read_dir(&artifact_root)
@@ -220,9 +220,9 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     domain_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
         "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4".to_owned(),
     );
-    domain_drifted_plan["lanes"][10]["swarm"] =
+    domain_drifted_plan["lanes"][12]["swarm"] =
         serde_json::Value::String("iroh-sim/swarms/direct-smoke.json".to_owned());
-    domain_drifted_plan["lanes"][10]["swarm_blake3"] = serde_json::Value::String(
+    domain_drifted_plan["lanes"][12]["swarm_blake3"] = serde_json::Value::String(
         "19a07d67146f1a1146652bb0772fcf3fc2ceceb668b61ba80c67716ae8f42a06".to_owned(),
     );
     let domain_drifted_plan_path = root.join("domain-drifted-plan.json");

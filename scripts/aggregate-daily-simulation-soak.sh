@@ -395,6 +395,8 @@ jq -s \
       "direct/production-provider",
       "discovery/deterministic-test",
       "discovery/production-provider",
+      "impairment/deterministic-test",
+      "impairment/production-provider",
       "mobility/deterministic-test",
       "mobility/production-provider",
       "nat/deterministic-test",
@@ -433,8 +435,8 @@ jq -s \
       as $infrastructure_failed_lanes
     | (
         $initial_errors
-        + (if $report_file_count == 12 then []
-           else ["expected 12 reports, received \($report_file_count)"] end)
+        + (if $report_file_count == 14 then []
+           else ["expected 14 reports, received \($report_file_count)"] end)
         + (if ($missing_lanes | length) == 0 then []
            else ["missing lanes: \($missing_lanes | join(", "))"] end)
         + (if ($unexpected_lanes | length) == 0 then []

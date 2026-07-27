@@ -336,6 +336,10 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
             include_bytes!("../swarms/discovery-timing.json").as_slice(),
         ),
         (
+            "link-impairment",
+            include_bytes!("../swarms/link-impairment.json").as_slice(),
+        ),
+        (
             "mobility-timing",
             include_bytes!("../swarms/mobility-timing.json").as_slice(),
         ),
@@ -367,6 +371,7 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
         std::collections::BTreeSet::from([
             "direct",
             "discovery",
+            "impairment",
             "mobility",
             "nat",
             "ready-order",
@@ -516,6 +521,26 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
             .map(|gap| gap.id.as_str())
             .collect()
     );
+    assert_eq!(policy.known_gaps.len(), 13);
+    for promoted_value in ["bandwidth", "duplication", "queueing", "reordering"] {
+        let value = policy
+            .dimensions
+            .iter()
+            .find(|dimension| dimension.id == "impairment")
+            .and_then(|dimension| {
+                dimension
+                    .values
+                    .iter()
+                    .find(|value| value.id == promoted_value)
+            })
+            .expect("promoted impairment value must remain declared");
+        assert_eq!(value.disposition, iroh_sim::CoverageDisposition::Continuous);
+        assert!(value.evidence.iter().any(|evidence| matches!(
+            evidence,
+            iroh_sim::CoverageEvidence::SwarmOption { domain, .. }
+                if domain == "impairment"
+        )));
+    }
 }
 
 fn observation(sequence: u64, kind: ObservationKind) -> Observation {

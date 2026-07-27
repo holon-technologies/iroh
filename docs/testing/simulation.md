@@ -156,7 +156,7 @@ cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
   --artifacts /tmp/iroh-sim-swarm-campaign
 ```
 
-The strict daily plan at `iroh-sim/soaks/daily.json` pins twelve domain/crypto lanes and each swarm
+The strict daily plan at `iroh-sim/soaks/daily.json` pins fourteen domain/crypto lanes and each swarm
 template digest. `cargo sim soak` executes one bounded epoch, checks wall time only between
 fixed-size batches, atomically checkpoints aggregate and per-lane counters, and retains no
 successful trace. The daily shell runner starts eight fresh processes so process-global leakage
@@ -171,9 +171,9 @@ scripts/run-daily-simulation-soak.sh \
 ```
 
 The production service starts a window every six hours. It builds one source-bound simulator,
-fans the twelve lanes out to standard GitHub-hosted runners, and gives each lane eight 30-minute
+fans the fourteen lanes out to standard GitHub-hosted runners, and gives each lane eight 30-minute
 epochs, four workers, and 64 scenarios per deadline boundary. A lane is capped at 83,328 runs, so
-each window is capped at 999,936 runs and the four daily windows at 3,999,744. Each lane retains at
+each window is capped at 1,166,592 runs and the four daily windows at 4,666,368. Each lane retains at
 most sixteen failures and 256 MiB of failure data. Every epoch records a typed half-open seed lease
 bound to workflow run, policy digest, lane, and ordinal range. The final aggregate requires every
 lane exactly once, rejects lease overlap, reconciles all counters, and exposes configuration,
@@ -219,14 +219,18 @@ retains their artifacts for 14 days.
 
 Swarm schema v1 embeds a canonical scenario or references a workspace-relative, BLAKE3-bound base
 and declares a sorted, bounded set of weighted choices. Supported mutations cover payload size,
-link latency and MTU, packet-fault probability, relay availability/impairment, NAT behavior,
+link latency, bandwidth, MTU, and queue capacity, packet-fault probability, relay availability/impairment, NAT behavior,
 discovery timing/state, mobility action timing, and co-scheduled ready pressure. Empty choices,
 zero or excessive weights, invalid bounds, dangling targets, path traversal, digest drift, unknown
 fields, and noncanonical ordering fail before backend construction. The materialization
-seed is domain-separated from the runtime seed. Each campaign run stores its selected option for
+seed is domain-separated from the runtime seed. Bandwidth and queue mutations may only tighten the
+validated base-link bounds. A zero-probability reordering rule is disabled rather than creating a
+reorder window. Each campaign run stores its selected option for
 every choice in `swarm-selection.json` beside the fully materialized `scenario.json`; replay and
 triage therefore consume the artifact rather than regenerating it. Checked templates cover direct,
-NAT, discovery, mobility, relay lifecycle, and ready-order pressure. The relay template records an
+link impairment, NAT, discovery, mobility, relay lifecycle, and ready-order pressure. The link-
+impairment template continuously selects bounded bandwidth, queue pressure, duplication, and
+reordering values. The relay template records an
 explicit outage-to-recovery transition and dependency-ordered, fairness-qualified bounded liveness
 probe. Campaigns accept either crypto lane and retain the selection in `crypto-mode.txt`.
 
