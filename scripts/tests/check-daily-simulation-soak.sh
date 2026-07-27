@@ -114,7 +114,7 @@ jq -n \
     coverage: {
       schema_version: 2,
       policy_id: "iroh-network-modes-v1",
-      policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
+      policy_blake3: "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978",
       rolling_window_days: 7,
       completed_runs: 1,
       observed_individuals: [],
@@ -133,7 +133,7 @@ jq -n \
     },
     seed_leases: [{
       schema_version: 2,
-      policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
+      policy_blake3: "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978",
       plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       lane_id: $lane,
       seed_window: 42,

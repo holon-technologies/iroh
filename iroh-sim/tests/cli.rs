@@ -92,7 +92,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert_eq!(summary["seed_leases"][0]["consumed_runs"], 1);
     assert_eq!(
         summary["seed_leases"][0]["policy_blake3"],
-        "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2"
+        "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978"
     );
     assert_eq!(
         fs::read_dir(&artifact_root)

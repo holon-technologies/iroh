@@ -128,6 +128,10 @@ pub enum SwarmMutation {
         action: String,
         nanos: u64,
     },
+    SleepDurationNanos {
+        action: String,
+        duration_nanos: u64,
+    },
     RelayImpairment {
         relay: String,
         connection_delay_nanos: u64,
@@ -583,6 +587,7 @@ fn validate_mutation(base: &Scenario, mutation: &SwarmMutation) -> Result<(), Sw
                         item.action,
                         ScenarioAction::StreamRoundTrip { .. }
                             | ScenarioAction::DatagramRoundTrip { .. }
+                            | ScenarioAction::SendDatagram { .. }
                     )
             });
             found
@@ -700,6 +705,21 @@ fn validate_mutation(base: &Scenario, mutation: &SwarmMutation) -> Result<(), Sw
                 .then_some(())
                 .ok_or_else(|| SwarmError::Dangling(action.clone()))
         }
+        SwarmMutation::SleepDurationNanos {
+            action,
+            duration_nanos,
+        } => {
+            if *duration_nanos == 0 || *duration_nanos > base.budgets.max_virtual_time_nanos {
+                return Err(SwarmError::InvalidBounds);
+            }
+            base.actions
+                .iter()
+                .any(|item| {
+                    item.id == *action && matches!(item.action, ScenarioAction::Sleep { .. })
+                })
+                .then_some(())
+                .ok_or_else(|| SwarmError::Dangling(action.clone()))
+        }
         SwarmMutation::RelayImpairment {
             relay,
             connection_delay_nanos,
@@ -750,7 +770,8 @@ fn apply_mutation(scenario: &mut Scenario, mutation: &SwarmMutation) -> Result<(
                 .unwrap();
             match &mut item.action {
                 ScenarioAction::StreamRoundTrip { payload, .. }
-                | ScenarioAction::DatagramRoundTrip { payload, .. } => payload.bytes = *bytes,
+                | ScenarioAction::DatagramRoundTrip { payload, .. }
+                | ScenarioAction::SendDatagram { payload, .. } => payload.bytes = *bytes,
                 _ => unreachable!("validated payload action"),
             }
         }
@@ -855,6 +876,23 @@ fn apply_mutation(scenario: &mut Scenario, mutation: &SwarmMutation) -> Result<(
                 .find(|item| item.id == *action)
                 .expect("validated action-time mutation must reference an existing action")
                 .schedule = ActionSchedule::At { nanos: *nanos };
+        }
+        SwarmMutation::SleepDurationNanos {
+            action,
+            duration_nanos,
+        } => {
+            let item = scenario
+                .actions
+                .iter_mut()
+                .find(|item| item.id == *action)
+                .expect("validated sleep-duration mutation must reference an existing action");
+            let ScenarioAction::Sleep {
+                duration_nanos: current_duration,
+            } = &mut item.action
+            else {
+                unreachable!("validated sleep-duration mutation must target a sleep action");
+            };
+            *current_duration = *duration_nanos;
         }
         SwarmMutation::RelayImpairment {
             relay,

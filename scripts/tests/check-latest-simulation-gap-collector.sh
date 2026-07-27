@@ -31,7 +31,7 @@ exit 64
 FAKE_GH
 chmod +x "$fixture_root/bin/gh"
 
-policy=8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2
+policy=7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978
 jq -n --arg policy "$policy" '{
   schema_version: 1,
   source_revision: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

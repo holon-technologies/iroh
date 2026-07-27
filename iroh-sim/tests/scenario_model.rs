@@ -138,6 +138,85 @@ fn sleep_actions_are_positive_bounded_and_counted_in_inventory() {
 }
 
 #[test]
+fn datagram_probe_actions_validate_connection_payload_and_round_trip() {
+    let mut scenario = ScenarioBuilder::direct_ip_echo(
+        "schema/datagram-probe",
+        IpFamily::Ipv4,
+        ScenarioOperation::Stream,
+    )
+    .unwrap()
+    .build()
+    .unwrap();
+    scenario.actions.extend([
+        ActionSpec {
+            id: "08-send-datagram".to_owned(),
+            schedule: ActionSchedule::AfterAction {
+                action: "03-connect".to_owned(),
+            },
+            action: ScenarioAction::SendDatagram {
+                connection: "c1".to_owned(),
+                payload: iroh_sim::PayloadSpec { bytes: 64, fill: 7 },
+            },
+        },
+        ActionSpec {
+            id: "09-assert-no-datagram".to_owned(),
+            schedule: ActionSchedule::AfterAction {
+                action: "08-send-datagram".to_owned(),
+            },
+            action: ScenarioAction::AssertNoDatagram {
+                connection: "c1".to_owned(),
+                duration_nanos: 10_000_000,
+            },
+        },
+    ]);
+    scenario.validate().unwrap();
+    let encoded = scenario.to_canonical_json().unwrap();
+    assert_eq!(Scenario::from_json(&encoded).unwrap(), scenario);
+
+    let mut invalid_payload = scenario.clone();
+    let ScenarioAction::SendDatagram { payload, .. } = &mut invalid_payload.actions[7].action
+    else {
+        panic!("datagram probe action ordering changed");
+    };
+    payload.bytes = 0;
+    assert!(matches!(
+        invalid_payload.validate(),
+        Err(ScenarioModelError::InvalidPayload(0))
+    ));
+
+    for duration_nanos in [0, scenario.budgets.max_virtual_time_nanos + 1] {
+        let mut invalid_duration = scenario.clone();
+        let ScenarioAction::AssertNoDatagram {
+            duration_nanos: candidate,
+            ..
+        } = &mut invalid_duration.actions[8].action
+        else {
+            panic!("datagram probe action ordering changed");
+        };
+        *candidate = duration_nanos;
+        assert!(matches!(
+            invalid_duration.validate(),
+            Err(ScenarioModelError::InvalidAction("assert_no_datagram"))
+        ));
+    }
+
+    for index in [7, 8] {
+        let mut dangling = scenario.clone();
+        match &mut dangling.actions[index].action {
+            ScenarioAction::SendDatagram { connection, .. }
+            | ScenarioAction::AssertNoDatagram { connection, .. } => {
+                *connection = "missing".to_owned();
+            }
+            _ => panic!("datagram probe action ordering changed"),
+        }
+        assert!(matches!(
+            dangling.validate(),
+            Err(ScenarioModelError::UnknownConnection(_))
+        ));
+    }
+}
+
+#[test]
 fn relay_schema_requires_declared_bounded_relays_and_resolves_lifecycle_actions() {
     let mut scenario =
         ScenarioBuilder::direct_ip_echo("schema/relay", IpFamily::Ipv4, ScenarioOperation::Stream)

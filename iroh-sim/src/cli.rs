@@ -2392,7 +2392,8 @@ fn declarative_scenario_identity(
     for action in &scenario.actions {
         let feature = match action.action {
             crate::ScenarioAction::StreamRoundTrip { .. } => Some("quic-stream"),
-            crate::ScenarioAction::DatagramRoundTrip { .. } => Some("quic-datagram"),
+            crate::ScenarioAction::DatagramRoundTrip { .. }
+            | crate::ScenarioAction::SendDatagram { .. } => Some("quic-datagram"),
             crate::ScenarioAction::Partition { .. } | crate::ScenarioAction::Heal { .. } => {
                 Some("partition")
             }

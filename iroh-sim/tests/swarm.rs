@@ -1,11 +1,12 @@
 use std::{collections::BTreeSet, sync::Arc, time::SystemTime};
 
-use iroh_runtime::RootSeed;
+use iroh_runtime::{RootSeed, TraceEventKind};
 use iroh_sim::{
-    ActionSchedule, DiscoveryRecordState, InvariantName, IpFamily, NatFilteringBehavior,
-    NatMappingBehavior, ReferencedSwarmSpec, SWARM_SCHEMA_VERSION, SafetyLivenessPhases, Scenario,
-    ScenarioAction, ScenarioBuilder, ScenarioOperation, ScenarioRunner, SwarmChoice, SwarmMutation,
-    SwarmOption, SwarmSpec, SwarmTemplate, TraceBuffer,
+    ActionSchedule, ActionSpec, DiscoveryRecordState, InvariantName, IpFamily,
+    NatFilteringBehavior, NatMappingBehavior, ReferencedSwarmSpec, RunnerError,
+    SWARM_SCHEMA_VERSION, SafetyLivenessPhases, Scenario, ScenarioAction, ScenarioBuilder,
+    ScenarioOperation, ScenarioRunner, SwarmChoice, SwarmMutation, SwarmOption, SwarmSpec,
+    SwarmTemplate, TraceBuffer,
 };
 
 fn fixture() -> SwarmSpec {
@@ -139,6 +140,63 @@ fn link_capacity_mutations_materialize_and_cannot_expand_base_bounds() {
 }
 
 #[test]
+fn sleep_duration_mutation_is_bounded_and_targets_sleep_actions() {
+    let mut base = fixture().base;
+    base.actions.push(ActionSpec {
+        id: "08-blackhole-hold".into(),
+        schedule: ActionSchedule::AfterAction {
+            action: "07-stop-server".into(),
+        },
+        action: ScenarioAction::Sleep { duration_nanos: 1 },
+    });
+    let base = base.normalized().unwrap();
+
+    let materialized = materialize_one(
+        base.clone(),
+        SwarmMutation::SleepDurationNanos {
+            action: "08-blackhole-hold".into(),
+            duration_nanos: 5_000_000,
+        },
+    );
+    assert!(matches!(
+        materialized
+            .actions
+            .iter()
+            .find(|action| action.id == "08-blackhole-hold")
+            .unwrap()
+            .action,
+        ScenarioAction::Sleep {
+            duration_nanos: 5_000_000
+        }
+    ));
+
+    for mutation in [
+        SwarmMutation::SleepDurationNanos {
+            action: "08-blackhole-hold".into(),
+            duration_nanos: 0,
+        },
+        SwarmMutation::SleepDurationNanos {
+            action: "08-blackhole-hold".into(),
+            duration_nanos: base.budgets.max_virtual_time_nanos + 1,
+        },
+        SwarmMutation::SleepDurationNanos {
+            action: "missing".into(),
+            duration_nanos: 1,
+        },
+        SwarmMutation::SleepDurationNanos {
+            action: "04-stream".into(),
+            duration_nanos: 1,
+        },
+    ] {
+        assert!(
+            single_option_spec(base.clone(), mutation)
+                .validate()
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn materialization_is_repeatable_domain_separated_and_covers_fixed_options() {
     let mut spec = fixture();
     spec.base.budgets.resources.max_connections = 7;
@@ -177,6 +235,215 @@ fn checked_direct_swarm_is_valid_and_bounded() {
         let (scenario, selection) = spec.materialize(RootSeed::new([ordinal; 32])).unwrap();
         assert_eq!(selection.choices.len(), spec.choices.len());
         scenario.validate().unwrap();
+    }
+}
+
+#[test]
+fn checked_link_impairment_swarm_declares_explicit_blackhole_recovery() {
+    let spec = SwarmSpec::from_json(include_bytes!("../swarms/link-impairment.json")).unwrap();
+    assert_eq!(
+        spec.safety_liveness,
+        Some(SafetyLivenessPhases {
+            safety_action: "04-partition".into(),
+            recovery_action: "08-heal".into(),
+            liveness_probe_action: "10-connect-recovered".into(),
+        })
+    );
+    assert!(spec.base.invariants.iter().any(|invariant| {
+        invariant.name == InvariantName::ReachableConnectLiveness
+            && invariant.deadline_nanos == Some(10_000_000_000)
+            && invariant.max_events == Some(50_000)
+    }));
+
+    let action = |id: &str| {
+        spec.base
+            .actions
+            .iter()
+            .find(|action| action.id == id)
+            .unwrap()
+    };
+    assert!(matches!(
+        action("04-partition").action,
+        ScenarioAction::Partition {
+            ref link,
+            ref from,
+            ref to,
+        } if link == "lan" && from == "client" && to == "server"
+    ));
+    assert_eq!(
+        action("05-send-blackholed").schedule,
+        ActionSchedule::AfterAction {
+            action: "04-partition".into(),
+        }
+    );
+    assert!(matches!(
+        action("05-send-blackholed").action,
+        ScenarioAction::SendDatagram {
+            ref connection,
+            payload: iroh_sim::PayloadSpec { bytes: 64, fill: 165 },
+        } if connection == "c1"
+    ));
+    assert_eq!(
+        action("06-blackhole-hold").schedule,
+        ActionSchedule::AfterAction {
+            action: "05-send-blackholed".into(),
+        }
+    );
+    assert!(matches!(
+        action("06-blackhole-hold").action,
+        ScenarioAction::Sleep {
+            duration_nanos: 5_000_000
+        }
+    ));
+    assert_eq!(
+        action("07-assert-blackholed").schedule,
+        ActionSchedule::AfterAction {
+            action: "06-blackhole-hold".into(),
+        }
+    );
+    assert!(matches!(
+        action("07-assert-blackholed").action,
+        ScenarioAction::AssertNoDatagram {
+            ref connection,
+            duration_nanos: 10_000_000,
+        } if connection == "c1"
+    ));
+    assert_eq!(
+        action("08-heal").schedule,
+        ActionSchedule::AfterAction {
+            action: "07-assert-blackholed".into(),
+        }
+    );
+    assert!(matches!(
+        action("08-heal").action,
+        ScenarioAction::Heal {
+            ref link,
+            ref from,
+            ref to,
+        } if link == "lan" && from == "client" && to == "server"
+    ));
+    assert_eq!(
+        action("09-stream-restored").schedule,
+        ActionSchedule::AfterAction {
+            action: "08-heal".into(),
+        }
+    );
+    assert!(matches!(
+        action("09-stream-restored").action,
+        ScenarioAction::StreamRoundTrip {
+            ref connection,
+            payload: iroh_sim::PayloadSpec {
+                bytes: 65_536,
+                fill: 165,
+            },
+        } if connection == "c1"
+    ));
+    assert_eq!(
+        action("10-connect-recovered").schedule,
+        ActionSchedule::AfterAction {
+            action: "09-stream-restored".into(),
+        }
+    );
+    assert!(matches!(
+        action("10-connect-recovered").action,
+        ScenarioAction::Connect { ref connection, .. } if connection == "c2"
+    ));
+    assert_eq!(
+        action("11-stream-recovered").schedule,
+        ActionSchedule::AfterAction {
+            action: "10-connect-recovered".into(),
+        }
+    );
+    assert!(matches!(
+        action("11-stream-recovered").action,
+        ScenarioAction::StreamRoundTrip { ref connection, .. } if connection == "c2"
+    ));
+
+    let duration = spec
+        .choices
+        .iter()
+        .find(|choice| choice.id == "blackhole-duration")
+        .unwrap();
+    assert_eq!(
+        duration
+            .options
+            .iter()
+            .map(|option| (option.id.as_str(), option.weight, &option.mutation))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "brief",
+                3,
+                &SwarmMutation::SleepDurationNanos {
+                    action: "06-blackhole-hold".into(),
+                    duration_nanos: 5_000_000,
+                },
+            ),
+            (
+                "sustained",
+                1,
+                &SwarmMutation::SleepDurationNanos {
+                    action: "06-blackhole-hold".into(),
+                    duration_nanos: 250_000_000,
+                },
+            ),
+        ]
+    );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn checked_link_impairment_blackhole_drops_real_traffic_and_fails_open() {
+    let spec = SwarmSpec::from_json(include_bytes!("../swarms/link-impairment.json")).unwrap();
+    let trace = Arc::new(TraceBuffer::default());
+    ScenarioRunner::deterministic(
+        spec.base.clone(),
+        RootSeed::new([71; 32]),
+        SystemTime::UNIX_EPOCH,
+        trace.clone(),
+    )
+    .unwrap()
+    .run()
+    .await
+    .unwrap();
+    assert!(trace.events().iter().any(|event| matches!(
+        &event.event,
+        TraceEventKind::PacketOutcome { outcome } if outcome == "dropped:partition"
+    )));
+
+    let mut fails_open = spec.base;
+    fails_open
+        .actions
+        .iter_mut()
+        .find(|action| action.id == "04-partition")
+        .unwrap()
+        .action = ScenarioAction::Heal {
+        link: "lan".into(),
+        from: "client".into(),
+        to: "server".into(),
+    };
+    fails_open
+        .fault_rules
+        .iter_mut()
+        .find(|rule| rule.id == "reordering")
+        .unwrap()
+        .probability_per_million = 1_000_000;
+    for ordinal in 0..64u32 {
+        let mut seed_bytes = [0; 32];
+        seed_bytes[..4].copy_from_slice(&ordinal.to_le_bytes());
+        let error = ScenarioRunner::deterministic(
+            fails_open.clone(),
+            RootSeed::new(seed_bytes),
+            SystemTime::UNIX_EPOCH,
+            Arc::new(TraceBuffer::default()),
+        )
+        .unwrap()
+        .run()
+        .await
+        .unwrap_err();
+        assert!(
+            matches!(error, RunnerError::Operation(message) if message.contains("unexpected datagram delivery")),
+            "fail-open seed ordinal {ordinal} did not report unexpected datagram delivery"
+        );
     }
 }
 
@@ -223,16 +490,23 @@ async fn every_checked_domain_option_executes_to_success() {
             .unwrap()
             .resolve(base_bytes)
             .unwrap();
+        let expected_combinations: usize = spec
+            .choices
+            .iter()
+            .map(|choice| choice.options.len())
+            .product();
         let mut executed = BTreeSet::new();
-        for byte in 0..=u8::MAX {
-            let seed = RootSeed::new([byte; 32]);
+        for ordinal in 0..4096u32 {
+            let mut seed_bytes = [0; 32];
+            seed_bytes[..4].copy_from_slice(&ordinal.to_le_bytes());
+            let seed = RootSeed::new(seed_bytes);
             let (scenario, selection) = spec.materialize(seed).unwrap();
             let selection_key = selection
                 .choices
                 .iter()
                 .map(|choice| format!("{}/{}", choice.choice_id, choice.option_id))
                 .collect::<Vec<_>>();
-            if !executed.insert(selection_key) {
+            if !executed.insert(selection_key.clone()) {
                 continue;
             }
             let trace = Arc::new(TraceBuffer::default());
@@ -240,13 +514,16 @@ async fn every_checked_domain_option_executes_to_success() {
                 .unwrap()
                 .run()
                 .await
-                .unwrap_or_else(|error| panic!("{} option failed: {error}", spec.id));
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{} combination {selection_key:?} selected by seed ordinal {ordinal} failed: {error}",
+                        spec.id
+                    )
+                });
+            if executed.len() == expected_combinations {
+                break;
+            }
         }
-        let expected_combinations: usize = spec
-            .choices
-            .iter()
-            .map(|choice| choice.options.len())
-            .product();
         assert_eq!(
             executed.len(),
             expected_combinations,

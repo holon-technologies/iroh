@@ -43,7 +43,7 @@ code.
 | --- | --- | --- | --- |
 | Pull request / merge queue | Block known regressions and likely change impacts | Full reviewed corpus, all contract/model/property tests, 12 universal domain/provider canaries, then commit-derived targeted work | Required checks `Deterministic simulation contracts and corpus` and `Deterministic simulation change gate`; at most 24 selected runs and 15 minutes |
 | Main | Broader candidate confidence | The same universal canary plus four targeted seeds per impacted lane, with all-domain fallback when the diff is unavailable or global | At most 64 selected runs and 30 minutes; `netsim-CI / netsim-release` supplies realistic main evidence |
-| Continuous | Discover new network behavior | Fourteen domain/provider lanes, including bounded link-impairment choices, with eight fresh epochs per lane, coverage and signature aggregation | Four scheduled windows per day; one queued workflow at a time; each lane has 240 simulation minutes, at most 83,328 runs, 16 retained failures, and 256 MiB |
+| Continuous | Discover new network behavior | Fourteen domain/provider lanes, including bounded bandwidth, queueing, duplication, reordering, and blackhole-duration choices, with eight fresh epochs per lane, coverage and signature aggregation | Four scheduled windows per day; one queued workflow at a time; each lane has 240 simulation minutes, at most 83,328 runs, 16 retained failures, and 256 MiB |
 | Nightly | Spend capacity on current gaps and permanent audits | Latest compatible gap-directed lanes, or the 12 universal canaries when no fresh evidence exists; fixed replay and expected-resource audits remain permanent regression checks | At most 64 selected runs, 30-minute gap job, 14-day artifacts; no duplicate fixed exploratory seed ranges |
 | Weekly | Service, parity, and performance evidence | Corpus/replay service audit, canonical semantic parity, and correlated component benchmarks | 20-minute service job, 60-minute performance job, 30-day artifacts; no deterministic seed-range explorer |
 | Reality | Validate model limits | Daily hosted Patchbay public parity and main Netsim workloads | Patchbay 15 minutes/7 days; Netsim at most 64 cases, 6 workers, 45 minutes, and 3-day artifacts; backend failures remain infrastructure evidence |
@@ -90,10 +90,14 @@ and phase obligation with a typed reason. `gap-selection.json` maps those gaps b
 Nightly uses the latest compatible selection no older than 48 hours; absent evidence deliberately
 falls back to the universal canary, while GitHub API or malformed-artifact failures fail the job.
 
-The relay lifecycle swarm declares the currently applicable disruptive phase contract: continuous
-safety during relay outage, an explicit matching recovery, then a dependency-ordered connection
-probe bounded by virtual time and event count. Other swarms report configuration and transition
-coverage without pretending to have a fault/recovery phase they do not declare.
+The relay lifecycle and link-impairment swarms declare disruptive phase contracts. Relay coverage
+requires continuous safety during outage, an explicit matching recovery, then a dependency-ordered
+connection probe. Impairment coverage keeps a production QUIC connection owned across an explicit
+directional partition, sends a one-way datagram, selects a brief or sustained bounded hold, and
+fails if that datagram arrives. After healing, the same connection carries a 64 KiB stream before a
+fresh connection and stream round trip. Both probes are bounded by virtual time and event count.
+Other swarms report configuration and transition coverage without pretending to have a
+fault/recovery phase they do not declare.
 
 ## Local gate and replay
 
