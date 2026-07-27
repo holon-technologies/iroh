@@ -1,6 +1,6 @@
 # Goal: Coverage-Driven Distributed-Network Testing
 
-- Status: Active — hosted gates and simulation services green; runtime-history evidence accruing
+- Status: Active — hosted gates and simulation services green; runtime history at 5 main / 4 PR
 - Defined: 2026-07-26
 
 ## Scope
@@ -214,9 +214,30 @@ This goal is complete when all of the following are true:
   simulation contracts and corpus` and `Deterministic simulation change gate`; GitHub's effective
   branch-rule response contains both checks and reports `main` as protected.
 
+### Verification on 2026-07-27
+
+- [PR #4](https://github.com/holon-technologies/iroh/pull/4) added the bounded link-impairment
+  swarm under both cryptographic providers and passed [pull-request CI run
+  30237760490](https://github.com/holon-technologies/iroh/actions/runs/30237760490). Its merged
+  revision `749221a530bb128c7bea71604d994f26e70f11d6` passed [main CI run
+  30238362389](https://github.com/holon-technologies/iroh/actions/runs/30238362389), [Netsim run
+  30238362340](https://github.com/holon-technologies/iroh/actions/runs/30238362340), and [Wine run
+  30238362192](https://github.com/holon-technologies/iroh/actions/runs/30238362192).
+- The expanded fourteen-lane explorer passed [daily run
+  30238451926](https://github.com/holon-technologies/iroh/actions/runs/30238451926), and the
+  gap-directed service passed [nightly run
+  30243621177](https://github.com/holon-technologies/iroh/actions/runs/30243621177) on that same
+  merged revision.
+- Local verification passed the complete `iroh-sim` test suite, strict all-target/all-feature
+  Clippy, formatting, and all six source contracts changed by the impairment campaign.
+- The runtime-SLO job in [weekly run
+  30248158565](https://github.com/holon-technologies/iroh/actions/runs/30248158565) succeeded and
+  retained typed `insufficient_history` evidence reporting five compatible main samples and four
+  compatible pull-request samples.
+
 ### Remaining external acceptance
 
-- The live runtime-SLO audit has three compatible successful main executions and two compatible
+- The live runtime-SLO audit has five compatible successful main executions and four compatible
   successful pull-request executions. Twenty successful compatible executions per tier are required
   before the documented P95 targets can be measured rather than reported as
   `insufficient_history`; this evidence must accrue from real change-gate runs.
