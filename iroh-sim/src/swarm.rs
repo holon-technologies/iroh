@@ -97,6 +97,14 @@ pub enum SwarmMutation {
         link: String,
         mtu: usize,
     },
+    LinkBandwidthBitsPerSecond {
+        link: String,
+        bits_per_second: u64,
+    },
+    LinkQueuePackets {
+        link: String,
+        packets: u64,
+    },
     FaultProbabilityPerMillion {
         rule: String,
         probability: u32,
@@ -603,6 +611,33 @@ fn validate_mutation(base: &Scenario, mutation: &SwarmMutation) -> Result<(), Sw
                 .then_some(())
                 .ok_or_else(|| SwarmError::Dangling(link.clone()))
         }
+        SwarmMutation::LinkBandwidthBitsPerSecond {
+            link,
+            bits_per_second,
+        } => {
+            let base_link = base
+                .topology
+                .links
+                .iter()
+                .find(|item| item.id == *link)
+                .ok_or_else(|| SwarmError::Dangling(link.clone()))?;
+            if *bits_per_second == 0 || *bits_per_second > base_link.bits_per_second {
+                return Err(SwarmError::InvalidBounds);
+            }
+            Ok(())
+        }
+        SwarmMutation::LinkQueuePackets { link, packets } => {
+            let base_link = base
+                .topology
+                .links
+                .iter()
+                .find(|item| item.id == *link)
+                .ok_or_else(|| SwarmError::Dangling(link.clone()))?;
+            if *packets == 0 || *packets > base_link.queue_packets {
+                return Err(SwarmError::InvalidBounds);
+            }
+            Ok(())
+        }
         SwarmMutation::FaultProbabilityPerMillion { rule, probability } => {
             if *probability > 1_000_000 {
                 return Err(SwarmError::InvalidBounds);
@@ -736,6 +771,27 @@ fn apply_mutation(scenario: &mut Scenario, mutation: &SwarmMutation) -> Result<(
                 .find(|item| item.id == *link)
                 .unwrap()
                 .mtu = *mtu;
+        }
+        SwarmMutation::LinkBandwidthBitsPerSecond {
+            link,
+            bits_per_second,
+        } => {
+            scenario
+                .topology
+                .links
+                .iter_mut()
+                .find(|item| item.id == *link)
+                .expect("validated link-bandwidth mutation must reference an existing link")
+                .bits_per_second = *bits_per_second;
+        }
+        SwarmMutation::LinkQueuePackets { link, packets } => {
+            scenario
+                .topology
+                .links
+                .iter_mut()
+                .find(|item| item.id == *link)
+                .expect("validated link-queue mutation must reference an existing link")
+                .queue_packets = *packets;
         }
         SwarmMutation::FaultProbabilityPerMillion { rule, probability } => {
             scenario

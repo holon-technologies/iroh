@@ -91,6 +91,8 @@ expected_lanes=(
   direct/production-provider
   discovery/deterministic-test
   discovery/production-provider
+  impairment/deterministic-test
+  impairment/production-provider
   mobility/deterministic-test
   mobility/production-provider
   nat/deterministic-test
@@ -104,16 +106,16 @@ mapfile -t actual_lanes < <(
   sed -n 's/^[[:space:]]*- lane: \([^[:space:]]*\)$/\1/p' "$workflow"
 )
 if [[ "${actual_lanes[*]}" != "${expected_lanes[*]}" ]]; then
-  echo "daily simulation matrix must contain the exact twelve soak lanes in plan order" >&2
+  echo "daily simulation matrix must contain the exact fourteen soak lanes in plan order" >&2
   exit 1
 fi
 
-expected_indexes=(0 1 2 3 4 5 6 7 8 9 10 11)
+expected_indexes=(0 1 2 3 4 5 6 7 8 9 10 11 12 13)
 mapfile -t actual_indexes < <(
   sed -n 's/^[[:space:]]*lane_index: \([0-9][0-9]*\)$/\1/p' "$workflow"
 )
 if [[ "${actual_indexes[*]}" != "${expected_indexes[*]}" ]]; then
-  echo "daily simulation matrix must assign exact unique lane indexes 0 through 11" >&2
+  echo "daily simulation matrix must assign exact unique lane indexes 0 through 13" >&2
   exit 1
 fi
 

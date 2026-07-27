@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "link-impairment",
+  "base": {
+    "schema_version": 3,
+    "metadata": {
+      "id": "swarm/link-impairment",
+      "description": "Production QUIC stream transfer across bounded deterministic link impairments",
+      "tags": ["impairment", "stage3", "swarm"]
+    },
+    "requirements": {
+      "controlled_runtime": true,
+      "virtual_time": true,
+      "synthetic_ip": true,
+      "nat": false,
+      "relay": false,
+      "discovery": false,
+      "mobility": false
+    },
+    "budgets": {
+      "max_events": 100000,
+      "max_virtual_time_nanos": 60000000000,
+      "max_tasks": 1024,
+      "max_packets": 10000,
+      "max_obligations": 1024,
+      "max_actions": 64,
+      "max_payload_bytes": 1048576,
+      "resources": {
+        "max_scheduled_events": 100000,
+        "max_trace_events": 200000,
+        "max_timers": 100000,
+        "max_sockets": 100000,
+        "max_connections": 64,
+        "max_streams": 64,
+        "max_relays": 1
+      }
+    },
+    "topology": {
+      "hosts": [
+        {"id": "client", "interfaces": [{"id": "eth0", "link": "lan", "addresses": ["192.0.2.1/24"]}]},
+        {"id": "server", "interfaces": [{"id": "eth0", "link": "lan", "addresses": ["192.0.2.2/24"]}]}
+      ],
+      "links": [
+        {"id": "lan", "latency_nanos": 1000000, "bits_per_second": 1000000000, "mtu": 1500, "queue_packets": 1024}
+      ],
+      "nats": [],
+      "discovery": [],
+      "relays": [],
+      "relay_impairments": []
+    },
+    "endpoints": [
+      {"id": "client", "host": "client", "bind": "192.0.2.1:31001", "identity_ordinal": 1, "direct": true, "relay": null},
+      {"id": "server", "host": "server", "bind": "192.0.2.2:31002", "identity_ordinal": 2, "direct": true, "relay": null}
+    ],
+    "actions": [
+      {"id": "01-start-client", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "start_endpoint", "endpoint": "client"}},
+      {"id": "02-start-server", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "start_endpoint", "endpoint": "server"}},
+      {"id": "03-connect", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "connect", "client": "client", "server": "server", "connection": "c1"}},
+      {"id": "04-stream", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "stream_round_trip", "connection": "c1", "payload": {"bytes": 65536, "fill": 165}}},
+      {"id": "05-close", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "close_connection", "connection": "c1"}},
+      {"id": "06-stop-client", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "stop_endpoint", "endpoint": "client"}},
+      {"id": "07-stop-server", "schedule": {"kind": "at", "nanos": 0}, "action": {"kind": "stop_endpoint", "endpoint": "server"}}
+    ],
+    "fault_rules": [
+      {"id": "duplication", "link": "lan", "effect": "duplication", "probability_per_million": 0, "start_nanos": 0, "end_nanos": 60000000000, "max_applications": 18446744073709551615},
+      {"id": "reordering", "link": "lan", "effect": "reorder", "probability_per_million": 0, "start_nanos": 0, "end_nanos": 60000000000, "max_applications": 18446744073709551615}
+    ],
+    "fairness": ["fifo_progress", "reachable_network"],
+    "completion": {"kind": "all_actions", "shutdown_deadline_nanos": 60000000000},
+    "allowed_terminals": ["success"],
+    "invariants": [
+      {"name": "authentication_identity", "deadline_nanos": null, "max_events": null},
+      {"name": "delivery_integrity", "deadline_nanos": null, "max_events": null},
+      {"name": "monotonic_lifecycle", "deadline_nanos": null, "max_events": null},
+      {"name": "resource_cleanup", "deadline_nanos": 60000000000, "max_events": 100000}
+    ]
+  },
+  "choices": [
+    {
+      "id": "bandwidth",
+      "options": [
+        {"id": "constrained", "weight": 1, "mutation": {"kind": "link_bandwidth_bits_per_second", "link": "lan", "bits_per_second": 10000000}},
+        {"id": "nominal", "weight": 3, "mutation": {"kind": "link_bandwidth_bits_per_second", "link": "lan", "bits_per_second": 1000000000}}
+      ]
+    },
+    {
+      "id": "duplication",
+      "options": [
+        {"id": "disabled", "weight": 3, "mutation": {"kind": "fault_probability_per_million", "rule": "duplication", "probability": 0}},
+        {"id": "moderate", "weight": 1, "mutation": {"kind": "fault_probability_per_million", "rule": "duplication", "probability": 10000}}
+      ]
+    },
+    {
+      "id": "queueing",
+      "options": [
+        {"id": "constrained", "weight": 1, "mutation": {"kind": "link_queue_packets", "link": "lan", "packets": 32}},
+        {"id": "nominal", "weight": 3, "mutation": {"kind": "link_queue_packets", "link": "lan", "packets": 1024}}
+      ]
+    },
+    {
+      "id": "reordering",
+      "options": [
+        {"id": "disabled", "weight": 3, "mutation": {"kind": "fault_probability_per_million", "rule": "reordering", "probability": 0}},
+        {"id": "enabled", "weight": 1, "mutation": {"kind": "fault_probability_per_million", "rule": "reordering", "probability": 1000000}}
+      ]
+    }
+  ]
+}

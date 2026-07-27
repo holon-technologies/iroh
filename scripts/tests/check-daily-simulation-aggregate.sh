@@ -33,6 +33,8 @@ expected_lanes=(
   direct/production-provider
   discovery/deterministic-test
   discovery/production-provider
+  impairment/deterministic-test
+  impairment/production-provider
   mobility/deterministic-test
   mobility/production-provider
   nat/deterministic-test
@@ -91,7 +93,7 @@ write_report() {
       coverage: {
         schema_version: 2,
         policy_id: "iroh-network-modes-v1",
-        policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+        policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
         rolling_window_days: 7,
         completed_runs: 10,
         observed_individuals: [],
@@ -112,7 +114,7 @@ write_report() {
         range(0; 8) as $epoch
         | {
             schema_version: 2,
-            policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+            policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
             plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             lane_id: $lane,
             seed_window: $seed_window,
@@ -158,7 +160,7 @@ write_report() {
               coverage: {
                 schema_version: 2,
                 policy_id: "iroh-network-modes-v1",
-                policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+                policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
                 rolling_window_days: 7,
                 completed_runs: (if $epoch == 0 then 10 else 0 end),
                 observed_individuals: [],
@@ -177,7 +179,7 @@ write_report() {
               },
               seed_leases: [{
                 schema_version: 2,
-                policy_blake3: "03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0",
+                policy_blake3: "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
                 plan_blake3: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 lane_id: $lane,
                 seed_window: $seed_window,
@@ -239,19 +241,19 @@ jq -e '
   and .workflow_run_id == 123456
   and .observed_at_unix_secs == 200000
   and .status == "success"
-  and .expected_lanes == 12
-  and .completed_lanes == 12
-  and .received_reports == 12
-  and .configured_max_runs == 999936
-  and .totals.completed_runs == 120
-  and .totals.successful_runs == 120
+  and .expected_lanes == 14
+  and .completed_lanes == 14
+  and .received_reports == 14
+  and .configured_max_runs == 1166592
+  and .totals.completed_runs == 140
+  and .totals.successful_runs == 140
   and .totals.failed_runs == 0
   and .coverage.policy_id == "iroh-network-modes-v1"
-  and .coverage.completed_runs == 120
-  and (.seed_leases | length) == 96
+  and .coverage.completed_runs == 140
+  and (.seed_leases | length) == 112
   and (.overlapping_seed_leases | length) == 0
   and (.unique_failures | length) == 0
-  and (.lanes | length) == 12
+  and (.lanes | length) == 14
   and (.infrastructure_errors | length) == 0
 ' "$success_output" >/dev/null
 
@@ -282,7 +284,7 @@ jq -e '
 ' "$failure_output" >/dev/null
 
 missing_root="$fixture_root/missing"
-for ((lane_index = 0; lane_index < 11; lane_index++)); do
+for ((lane_index = 0; lane_index < 13; lane_index++)); do
   write_report "$missing_root" "${expected_lanes[$lane_index]}" "$((3000 + lane_index))" success
 done
 
@@ -297,7 +299,7 @@ if [[ "$missing_status" -ne 2 ]]; then
 fi
 jq -e '
   .status == "infrastructure_failure"
-  and .completed_lanes == 11
+  and .completed_lanes == 13
   and (.infrastructure_errors | any(contains("missing lanes")))
 ' "$missing_output" >/dev/null
 

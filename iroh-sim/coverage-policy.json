@@ -263,15 +263,17 @@
       "values": [
         {
           "id": "bandwidth",
-          "disposition": "known_gap",
+          "disposition": "continuous",
           "owners": [
             "continuous",
             "nightly"
           ],
           "evidence": [
             {
-              "kind": "known_gap",
-              "id": "impairment-bandwidth"
+              "kind": "swarm_option",
+              "domain": "impairment",
+              "choice_id": "bandwidth",
+              "option_id": "constrained"
             }
           ]
         },
@@ -306,15 +308,17 @@
         },
         {
           "id": "duplication",
-          "disposition": "known_gap",
+          "disposition": "continuous",
           "owners": [
             "continuous",
             "nightly"
           ],
           "evidence": [
             {
-              "kind": "known_gap",
-              "id": "impairment-duplication"
+              "kind": "swarm_option",
+              "domain": "impairment",
+              "choice_id": "duplication",
+              "option_id": "moderate"
             }
           ]
         },
@@ -386,15 +390,17 @@
         },
         {
           "id": "queueing",
-          "disposition": "known_gap",
+          "disposition": "continuous",
           "owners": [
             "continuous",
             "nightly"
           ],
           "evidence": [
             {
-              "kind": "known_gap",
-              "id": "impairment-queueing"
+              "kind": "swarm_option",
+              "domain": "impairment",
+              "choice_id": "queueing",
+              "option_id": "constrained"
             }
           ]
         },
@@ -414,15 +420,17 @@
         },
         {
           "id": "reordering",
-          "disposition": "known_gap",
+          "disposition": "continuous",
           "owners": [
             "continuous",
             "nightly"
           ],
           "evidence": [
             {
-              "kind": "known_gap",
-              "id": "impairment-reordering"
+              "kind": "swarm_option",
+              "domain": "impairment",
+              "choice_id": "reordering",
+              "option_id": "enabled"
             }
           ]
         }
@@ -1002,6 +1010,38 @@
       ]
     },
     {
+      "id": "impairment",
+      "swarm_id": "link-impairment",
+      "individual_obligation": "all_options",
+      "pairwise_obligation": "all_cross_choice_pairs",
+      "higher_order": [
+        {
+          "selections": [
+            {
+              "choice_id": "bandwidth",
+              "option_id": "constrained"
+            },
+            {
+              "choice_id": "duplication",
+              "option_id": "moderate"
+            },
+            {
+              "choice_id": "queueing",
+              "option_id": "constrained"
+            },
+            {
+              "choice_id": "reordering",
+              "option_id": "enabled"
+            }
+          ]
+        }
+      ],
+      "owners": [
+        "continuous",
+        "nightly"
+      ]
+    },
+    {
       "id": "mobility",
       "swarm_id": "mobility-timing",
       "individual_obligation": "all_options",
@@ -1076,19 +1116,9 @@
       "reason": "UDP blocking and transport fallback are not yet represented as continuous swarm choices."
     },
     {
-      "id": "impairment-bandwidth",
-      "dimension": "impairment",
-      "reason": "Bandwidth limits are not yet varied by a continuous swarm."
-    },
-    {
       "id": "impairment-blackhole",
       "dimension": "impairment",
       "reason": "Silent packet blackholes are not yet independently selectable by a continuous swarm."
-    },
-    {
-      "id": "impairment-duplication",
-      "dimension": "impairment",
-      "reason": "Packet duplication is not yet modeled by a swarm mutation."
     },
     {
       "id": "impairment-jitter",
@@ -1096,19 +1126,9 @@
       "reason": "Seeded per-packet jitter is not yet modeled by a swarm mutation."
     },
     {
-      "id": "impairment-queueing",
-      "dimension": "impairment",
-      "reason": "Queue depth and bufferbloat interactions are not yet varied by a continuous swarm."
-    },
-    {
       "id": "impairment-rejection",
       "dimension": "impairment",
       "reason": "Explicit packet rejection is not yet independently selectable by a continuous swarm."
-    },
-    {
-      "id": "impairment-reordering",
-      "dimension": "impairment",
-      "reason": "Explicit packet reordering is not yet modeled by a swarm mutation."
     },
     {
       "id": "nat-nested",

@@ -90,6 +90,55 @@ fn strict_schema_rejects_unknown_noncanonical_unbounded_and_dangling_input() {
 }
 
 #[test]
+fn link_capacity_mutations_materialize_and_cannot_expand_base_bounds() {
+    let mut spec = fixture();
+    let base_link = spec.base.topology.links[0].clone();
+    spec.choices = vec![
+        SwarmChoice {
+            id: "bandwidth".into(),
+            options: vec![SwarmOption {
+                id: "constrained".into(),
+                weight: 1,
+                mutation: SwarmMutation::LinkBandwidthBitsPerSecond {
+                    link: base_link.id.clone(),
+                    bits_per_second: 10_000_000,
+                },
+            }],
+        },
+        SwarmChoice {
+            id: "queueing".into(),
+            options: vec![SwarmOption {
+                id: "constrained".into(),
+                weight: 1,
+                mutation: SwarmMutation::LinkQueuePackets {
+                    link: base_link.id.clone(),
+                    packets: 32,
+                },
+            }],
+        },
+    ];
+
+    spec.validate().unwrap();
+    let (scenario, _) = spec.materialize(RootSeed::new([17; 32])).unwrap();
+    assert_eq!(scenario.topology.links[0].bits_per_second, 10_000_000);
+    assert_eq!(scenario.topology.links[0].queue_packets, 32);
+
+    let mut expanded_bandwidth = spec.clone();
+    expanded_bandwidth.choices[0].options[0].mutation = SwarmMutation::LinkBandwidthBitsPerSecond {
+        link: base_link.id.clone(),
+        bits_per_second: base_link.bits_per_second + 1,
+    };
+    assert!(expanded_bandwidth.validate().is_err());
+
+    let mut expanded_queue = spec.clone();
+    expanded_queue.choices[1].options[0].mutation = SwarmMutation::LinkQueuePackets {
+        link: base_link.id,
+        packets: base_link.queue_packets + 1,
+    };
+    assert!(expanded_queue.validate().is_err());
+}
+
+#[test]
 fn materialization_is_repeatable_domain_separated_and_covers_fixed_options() {
     let mut spec = fixture();
     spec.base.budgets.resources.max_connections = 7;
@@ -193,13 +242,23 @@ async fn every_checked_domain_option_executes_to_success() {
                 .await
                 .unwrap_or_else(|error| panic!("{} option failed: {error}", spec.id));
         }
-        let expected_options: usize = spec.choices.iter().map(|choice| choice.options.len()).sum();
-        assert_eq!(executed.len(), expected_options, "{} option runs", spec.id);
+        let expected_combinations: usize = spec
+            .choices
+            .iter()
+            .map(|choice| choice.options.len())
+            .product();
+        assert_eq!(
+            executed.len(),
+            expected_combinations,
+            "{} option-combination runs",
+            spec.id
+        );
     }
 }
 
-fn domain_template_fixtures() -> [(&'static [u8], &'static [u8]); 5] {
+fn domain_template_fixtures() -> [(&'static [u8], &'static [u8]); 6] {
     [
+        (include_bytes!("../swarms/link-impairment.json"), &[]),
         (
             include_bytes!("../swarms/nat-behavior.json"),
             include_bytes!("../corpus/stage4-nat-rebind-expiry/scenario.json"),

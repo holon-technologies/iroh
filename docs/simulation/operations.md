@@ -7,7 +7,7 @@ are:
   and corpus bounds;
 - `iroh-sim/coverage-policy.json` for network-mode coverage obligations and lane ownership;
 - `iroh-sim/change-impact-policy.json` for source-path-to-domain gate selection; and
-- `iroh-sim/soaks/daily.json` for the twelve source-bound continuous lanes and their seed leases.
+- `iroh-sim/soaks/daily.json` for the fourteen source-bound continuous lanes and their seed leases.
 
 Changes to those files must update their validation tests, workflows, and this runbook together.
 The Iroh connectivity and simulation maintainers own campaign health and must initially classify a
@@ -43,7 +43,7 @@ code.
 | --- | --- | --- | --- |
 | Pull request / merge queue | Block known regressions and likely change impacts | Full reviewed corpus, all contract/model/property tests, 12 universal domain/provider canaries, then commit-derived targeted work | Required checks `Deterministic simulation contracts and corpus` and `Deterministic simulation change gate`; at most 24 selected runs and 15 minutes |
 | Main | Broader candidate confidence | The same universal canary plus four targeted seeds per impacted lane, with all-domain fallback when the diff is unavailable or global | At most 64 selected runs and 30 minutes; `netsim-CI / netsim-release` supplies realistic main evidence |
-| Continuous | Discover new network behavior | Twelve domain/provider lanes, eight fresh bounded epochs per lane, coverage and signature aggregation | Four scheduled windows per day; one queued workflow at a time; each lane has 240 simulation minutes, at most 83,328 runs, 16 retained failures, and 256 MiB |
+| Continuous | Discover new network behavior | Fourteen domain/provider lanes, including bounded link-impairment choices, with eight fresh epochs per lane, coverage and signature aggregation | Four scheduled windows per day; one queued workflow at a time; each lane has 240 simulation minutes, at most 83,328 runs, 16 retained failures, and 256 MiB |
 | Nightly | Spend capacity on current gaps and permanent audits | Latest compatible gap-directed lanes, or the 12 universal canaries when no fresh evidence exists; fixed replay and expected-resource audits remain permanent regression checks | At most 64 selected runs, 30-minute gap job, 14-day artifacts; no duplicate fixed exploratory seed ranges |
 | Weekly | Service, parity, and performance evidence | Corpus/replay service audit, canonical semantic parity, and correlated component benchmarks | 20-minute service job, 60-minute performance job, 30-day artifacts; no deterministic seed-range explorer |
 | Reality | Validate model limits | Daily hosted Patchbay public parity and main Netsim workloads | Patchbay 15 minutes/7 days; Netsim at most 64 cases, 6 workers, 45 minutes, and 3-day artifacts; backend failures remain infrastructure evidence |

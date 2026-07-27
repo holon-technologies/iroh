@@ -1240,11 +1240,13 @@ fn execute_campaign(options: CampaignOptions<'_>) -> Result<(), CliError> {
     Ok(())
 }
 
-const DAILY_SOAK_LANE_IDS: [&str; 12] = [
+const DAILY_SOAK_LANE_IDS: [&str; 14] = [
     "direct/deterministic-test",
     "direct/production-provider",
     "discovery/deterministic-test",
     "discovery/production-provider",
+    "impairment/deterministic-test",
+    "impairment/production-provider",
     "mobility/deterministic-test",
     "mobility/production-provider",
     "nat/deterministic-test",
@@ -1613,7 +1615,7 @@ fn validate_daily_soak_plan(plan: &SoakPlan) -> Result<(), CliError> {
             });
     if !is_canonical {
         return Err(CliError::Usage(
-            "daily soak plan must contain the canonical twelve lane definitions".to_owned(),
+            "daily soak plan must contain the canonical fourteen lane definitions".to_owned(),
         ));
     }
     Ok(())

@@ -60,7 +60,7 @@ exit 64
 FAKE_GH
 chmod +x "$fake_bin/gh"
 
-policy_digest=03cedfb477850423191b22663090d6d49bc8a4276b56c16ec018c6567e36a9a0
+policy_digest=8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2
 write_report() {
   local output=$1
   local run_id=$2

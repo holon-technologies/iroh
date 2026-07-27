@@ -198,7 +198,7 @@ typed failures twice with empty live ledgers. The nightly matrix is a checked se
 its hosted artifact is execution evidence, while local workflow validation is definition evidence.
 
 The 2026-07-26 GitHub-hosted soak fan-out adds an optional CLI lane selector only after the full
-twelve-lane plan has passed its existing schema, ordering, path, and digest checks. The selector
+fourteen-lane plan has passed its existing schema, ordering, path, and digest checks. The selector
 does not introduce an effect source: it bounds execution to one declared lane while retaining that
 lane's canonical index in deterministic seed derivation. The related `Command::new`, temporary
 directory, and filesystem occurrences are **Acceptable nondeterminism in regression-test
