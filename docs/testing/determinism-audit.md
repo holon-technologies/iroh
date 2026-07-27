@@ -239,6 +239,14 @@ behavior. The shared endpoint fixture also injects a fixed loopback DNS nameserv
 test's ambient Android JNI/DNS dependency. Remaining address-lookup manifest changes are reviewed
 line movement caused by this test-only synchronization and fixture plumbing.
 
+The 2026-07-27 continuous blackhole campaign adds a bounded datagram-absence action driven by the
+existing injected simulator clock. Its timeout duration is validated as positive and within the
+scenario virtual-time budget, so it adds no ambient clock or scheduler input. The lexical inventory
+changes are line movement in the already classified CLI Git/current-directory orchestration,
+coverage-fixture filesystem read, and disabled production port-mapper construction. No new
+external-state or network-environment boundary is introduced, and the syntax-aware inventory is
+unchanged.
+
 The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
 The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Iroh `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.
