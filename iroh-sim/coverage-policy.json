@@ -279,15 +279,17 @@
         },
         {
           "id": "blackhole",
-          "disposition": "known_gap",
+          "disposition": "continuous",
           "owners": [
             "continuous",
             "nightly"
           ],
           "evidence": [
             {
-              "kind": "known_gap",
-              "id": "impairment-blackhole"
+              "kind": "swarm_option",
+              "domain": "impairment",
+              "choice_id": "blackhole-duration",
+              "option_id": "sustained"
             }
           ]
         },
@@ -1022,6 +1024,10 @@
               "option_id": "constrained"
             },
             {
+              "choice_id": "blackhole-duration",
+              "option_id": "sustained"
+            },
+            {
               "choice_id": "duplication",
               "option_id": "moderate"
             },
@@ -1114,11 +1120,6 @@
       "id": "firewall-udp-blocked",
       "dimension": "middlebox",
       "reason": "UDP blocking and transport fallback are not yet represented as continuous swarm choices."
-    },
-    {
-      "id": "impairment-blackhole",
-      "dimension": "impairment",
-      "reason": "Silent packet blackholes are not yet independently selectable by a continuous swarm."
     },
     {
       "id": "impairment-jitter",

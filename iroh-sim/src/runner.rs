@@ -16,8 +16,8 @@ use iroh::{
     simulation::SimulationCryptoMaterial,
 };
 use iroh_runtime::{
-    ClockError, ClockSleep, RootSeed, TraceContext, TraceEventKind, TraceRecordError, TraceSink,
-    UnsafeTestOnly,
+    ClockError, ClockSleep, ClockTimeout, RootSeed, TimeoutError, TraceContext, TraceEventKind,
+    TraceRecordError, TraceSink, UnsafeTestOnly,
 };
 use serde::{Deserialize, Serialize};
 
@@ -309,6 +309,7 @@ impl<B: ScenarioBackend> ScenarioRunner<B> {
         let advance_by = match action.action {
             ScenarioAction::AdvanceTime { by_nanos } => Some(by_nanos),
             ScenarioAction::Sleep { duration_nanos } => Some(duration_nanos),
+            ScenarioAction::AssertNoDatagram { duration_nanos, .. } => Some(duration_nanos),
             _ => None,
         };
         if let Some(by_nanos) = advance_by {
@@ -762,6 +763,13 @@ impl ReferenceModel {
                     !matches!(observation, ObservationKind::Delivery { expected: observed, .. } if observed == &expected)
                 }) {
                     return model_mismatch(action, "delivery digest matching the declared payload", observations);
+                }
+            }
+            ScenarioAction::SendDatagram { connection, .. }
+            | ScenarioAction::AssertNoDatagram { connection, .. } => {
+                self.require_connection(connection, ConnectionState::Connected)?;
+                if !observations.is_empty() {
+                    return model_mismatch(action, "no component observation", observations);
                 }
             }
             ScenarioAction::CloseConnection { connection } => {
@@ -1669,6 +1677,46 @@ impl ScenarioBackend for DeterministicScenarioBackend {
                     self.exchange(&action.id, connection, payload.bytes, payload.fill, true)
                         .await
                 }
+                ScenarioAction::SendDatagram {
+                    connection,
+                    payload,
+                } => {
+                    let pair = self
+                        .connections
+                        .get(connection)
+                        .ok_or_else(|| RunnerError::MissingRuntimeEntity(connection.to_owned()))?;
+                    let payload_len =
+                        usize::try_from(payload.bytes).map_err(|_| RunnerError::PayloadOverflow)?;
+                    pair.client
+                        .send_datagram(vec![payload.fill; payload_len].into())
+                        .map_err(|error| RunnerError::Operation(error.to_string()))?;
+                    Ok(Vec::new())
+                }
+                ScenarioAction::AssertNoDatagram {
+                    connection,
+                    duration_nanos,
+                } => {
+                    let pair = self
+                        .connections
+                        .get(connection)
+                        .ok_or_else(|| RunnerError::MissingRuntimeEntity(connection.to_owned()))?;
+                    let receive = ClockTimeout::after(
+                        self.backend.runtime_context().clock(),
+                        Duration::from_nanos(*duration_nanos),
+                        pair.server.read_datagram(),
+                    )?;
+                    match self.backend.driver().drive(receive).await? {
+                        Err(TimeoutError::Elapsed) => Ok(Vec::new()),
+                        Err(TimeoutError::Clock(error)) => Err(RunnerError::Clock(error)),
+                        Ok(Ok(payload)) => Err(RunnerError::Operation(format!(
+                            "unexpected datagram delivery on {connection:?}: {} bytes",
+                            payload.len()
+                        ))),
+                        Ok(Err(error)) => Err(RunnerError::Operation(format!(
+                            "datagram absence check failed on {connection:?}: {error}"
+                        ))),
+                    }
+                }
                 ScenarioAction::CloseConnection { connection } => {
                     self.close_connection(connection).await
                 }
@@ -2122,6 +2170,8 @@ fn action_kind(action: &ScenarioAction) -> &'static str {
         ScenarioAction::Connect { .. } => "connect",
         ScenarioAction::StreamRoundTrip { .. } => "stream_round_trip",
         ScenarioAction::DatagramRoundTrip { .. } => "datagram_round_trip",
+        ScenarioAction::SendDatagram { .. } => "send_datagram",
+        ScenarioAction::AssertNoDatagram { .. } => "assert_no_datagram",
         ScenarioAction::CloseConnection { .. } => "close_connection",
         ScenarioAction::Partition { .. } => "partition",
         ScenarioAction::Heal { .. } => "heal",

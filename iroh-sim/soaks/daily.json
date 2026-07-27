@@ -2,7 +2,7 @@
   "schema_version": 2,
   "id": "daily",
   "coverage_policy": "iroh-sim/coverage-policy.json",
-  "coverage_policy_blake3": "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2",
+  "coverage_policy_blake3": "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978",
   "lanes": [
     {
       "id": "direct/deterministic-test",
@@ -31,13 +31,13 @@
     {
       "id": "impairment/deterministic-test",
       "swarm": "iroh-sim/swarms/link-impairment.json",
-      "swarm_blake3": "980dda9599c9df3af57d6b8c68f2cadc111a38386d5c74ab42ed995a2ff06932",
+      "swarm_blake3": "3516113df84ae953947bb83a0dce8a6f6de35b66b49b3bd171d1b0fbcfe4a666",
       "crypto": "deterministic_test"
     },
     {
       "id": "impairment/production-provider",
       "swarm": "iroh-sim/swarms/link-impairment.json",
-      "swarm_blake3": "980dda9599c9df3af57d6b8c68f2cadc111a38386d5c74ab42ed995a2ff06932",
+      "swarm_blake3": "3516113df84ae953947bb83a0dce8a6f6de35b66b49b3bd171d1b0fbcfe4a666",
       "crypto": "production_provider"
     },
     {

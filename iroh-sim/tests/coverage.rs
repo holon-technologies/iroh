@@ -521,8 +521,14 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
             .map(|gap| gap.id.as_str())
             .collect()
     );
-    assert_eq!(policy.known_gaps.len(), 13);
-    for promoted_value in ["bandwidth", "duplication", "queueing", "reordering"] {
+    assert_eq!(policy.known_gaps.len(), 12);
+    for promoted_value in [
+        "bandwidth",
+        "blackhole",
+        "duplication",
+        "queueing",
+        "reordering",
+    ] {
         let value = policy
             .dimensions
             .iter()
@@ -541,6 +547,37 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
                 if domain == "impairment"
         )));
     }
+    let blackhole = policy
+        .dimensions
+        .iter()
+        .find(|dimension| dimension.id == "impairment")
+        .and_then(|dimension| {
+            dimension
+                .values
+                .iter()
+                .find(|value| value.id == "blackhole")
+        })
+        .expect("promoted blackhole value must remain declared");
+    assert!(blackhole.evidence.iter().any(|evidence| matches!(
+        evidence,
+        iroh_sim::CoverageEvidence::SwarmOption {
+            domain,
+            choice_id,
+            option_id,
+        } if domain == "impairment"
+            && choice_id == "blackhole-duration"
+            && option_id == "sustained"
+    )));
+    let impairment = policy
+        .domains
+        .iter()
+        .find(|domain| domain.id == "impairment")
+        .expect("impairment policy domain must remain declared");
+    assert!(impairment.higher_order.iter().any(|combination| {
+        combination.selections.iter().any(|selection| {
+            selection.choice_id == "blackhole-duration" && selection.option_id == "sustained"
+        })
+    }));
 }
 
 fn observation(sequence: u64, kind: ObservationKind) -> Observation {

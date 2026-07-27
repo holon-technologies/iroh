@@ -1034,6 +1034,14 @@ pub enum ScenarioAction {
         connection: String,
         payload: PayloadSpec,
     },
+    SendDatagram {
+        connection: String,
+        payload: PayloadSpec,
+    },
+    AssertNoDatagram {
+        connection: String,
+        duration_nanos: u64,
+    },
     CloseConnection {
         connection: String,
     },
@@ -1144,6 +1152,10 @@ impl ScenarioAction {
             | Self::DatagramRoundTrip {
                 connection,
                 payload,
+            }
+            | Self::SendDatagram {
+                connection,
+                payload,
             } => {
                 require_reference(
                     connections,
@@ -1151,6 +1163,20 @@ impl ScenarioAction {
                     ScenarioModelError::UnknownConnection,
                 )?;
                 payload.validate(max_payload)
+            }
+            Self::AssertNoDatagram {
+                connection,
+                duration_nanos,
+            } => {
+                require_reference(
+                    connections,
+                    connection,
+                    ScenarioModelError::UnknownConnection,
+                )?;
+                if *duration_nanos == 0 || *duration_nanos > max_virtual_time {
+                    return Err(ScenarioModelError::InvalidAction("assert_no_datagram"));
+                }
+                Ok(())
             }
             Self::CloseConnection { connection } => require_reference(
                 connections,

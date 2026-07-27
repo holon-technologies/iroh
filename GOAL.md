@@ -1,6 +1,6 @@
 # Goal: Coverage-Driven Distributed-Network Testing
 
-- Status: Active — hosted gates and simulation services green; runtime history at 5 main / 4 PR
+- Status: Active — hosted gates and simulation services green; runtime history at 6 main / 5 PR
 - Defined: 2026-07-26
 
 ## Scope
@@ -234,10 +234,22 @@ This goal is complete when all of the following are true:
   30248158565](https://github.com/holon-technologies/iroh/actions/runs/30248158565) succeeded and
   retained typed `insufficient_history` evidence reporting five compatible main samples and four
   compatible pull-request samples.
+- [PR #5](https://github.com/holon-technologies/iroh/pull/5) passed [pull-request CI run
+  30248349849](https://github.com/holon-technologies/iroh/actions/runs/30248349849). Its merged
+  revision `8da610ab2d79981c6233b2472b73f503d9dc7054` passed [main CI run
+  30249061460](https://github.com/holon-technologies/iroh/actions/runs/30249061460), [Netsim run
+  30249061364](https://github.com/holon-technologies/iroh/actions/runs/30249061364), and [Wine run
+  30249061148](https://github.com/holon-technologies/iroh/actions/runs/30249061148).
+- The link-impairment policy now independently selects brief and sustained blackhole holds between
+  explicit partition and heal actions. A production QUIC datagram records `dropped:partition`, an
+  absence assertion observes a bounded 10 ms receive window and fails if the partition is removed,
+  including across 64 guaranteed-reordering seeds. The same connection carries 64 KiB after
+  healing, and a fresh bounded connection/stream proves recovery. The exhaustive contract executes
+  all 32 impairment option combinations.
 
 ### Remaining external acceptance
 
-- The live runtime-SLO audit has five compatible successful main executions and four compatible
+- The live runtime-SLO audit has six compatible successful main executions and five compatible
   successful pull-request executions. Twenty successful compatible executions per tier are required
   before the documented P95 targets can be measured rather than reported as
   `insufficient_history`; this evidence must accrue from real change-gate runs.

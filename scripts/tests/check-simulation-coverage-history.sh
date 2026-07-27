@@ -126,7 +126,7 @@ write_aggregate() {
     }' >"$output"
 }
 
-policy_digest=8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2
+policy_digest=7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978
 write_aggregate "$fixture_root/current.json" 300 200000 "$policy_digest" 300000000 fast slow minimum
 write_aggregate "$history_root/previous.json" 299 150000 "$policy_digest" 299000000 slow fast minimum
 write_aggregate \
@@ -174,7 +174,7 @@ selection="$fixture_root/gap-selection.json"
 
 jq -e '
   .schema_version == 1
-  and .policy_blake3 == "8e275709a3bb949f570c51abf184e023bb8a618f3d8aa8cbbfa737d9cdfe52c2"
+  and .policy_blake3 == "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978"
   and .maximum_lanes == 4
   and (.lanes | map(.lane)) == [
     "direct/deterministic-test",

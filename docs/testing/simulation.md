@@ -219,18 +219,26 @@ retains their artifacts for 14 days.
 
 Swarm schema v1 embeds a canonical scenario or references a workspace-relative, BLAKE3-bound base
 and declares a sorted, bounded set of weighted choices. Supported mutations cover payload size,
-link latency, bandwidth, MTU, and queue capacity, packet-fault probability, relay availability/impairment, NAT behavior,
-discovery timing/state, mobility action timing, and co-scheduled ready pressure. Empty choices,
+sleep-action duration, link latency, bandwidth, MTU, and queue capacity, packet-fault probability,
+relay availability/impairment, NAT behavior, discovery timing/state, mobility action timing, and
+co-scheduled ready pressure. Empty choices,
 zero or excessive weights, invalid bounds, dangling targets, path traversal, digest drift, unknown
 fields, and noncanonical ordering fail before backend construction. The materialization
 seed is domain-separated from the runtime seed. Bandwidth and queue mutations may only tighten the
-validated base-link bounds. A zero-probability reordering rule is disabled rather than creating a
-reorder window. Each campaign run stores its selected option for
+validated base-link bounds. A sleep-duration mutation must target an existing sleep action and stay
+positive and within the scenario's maximum virtual time. A zero-probability reordering rule is
+disabled rather than creating a reorder window. Each campaign run stores its selected option for
 every choice in `swarm-selection.json` beside the fully materialized `scenario.json`; replay and
 triage therefore consume the artifact rather than regenerating it. Checked templates cover direct,
-link impairment, NAT, discovery, mobility, relay lifecycle, and ready-order pressure. The link-
-impairment template continuously selects bounded bandwidth, queue pressure, duplication, and
-reordering values. The relay template records an
+link impairment, NAT, discovery, mobility, relay lifecycle, and ready-order pressure. Under both
+cryptographic providers, the link-impairment template continuously selects bounded bandwidth,
+queue pressure, duplication, reordering, and brief or sustained blackhole duration. It sends a
+production QUIC datagram into an explicit directional partition, advances the selected duration,
+observes a bounded 10 ms receive window for nondelivery, and requires the trace to record
+`dropped:partition`. The window exceeds the fixture's maximum modeled one-way latency plus reorder
+delay, and the fail-open regression exercises 64 guaranteed-reordering seeds. After healing, the same
+connection carries the original 64 KiB stream workload before a fresh connection and stream round
+trip satisfy the bounded liveness oracle. The relay template records an
 explicit outage-to-recovery transition and dependency-ordered, fairness-qualified bounded liveness
 probe. Campaigns accept either crypto lane and retain the selection in `crypto-mode.txt`.
 
@@ -305,9 +313,10 @@ every batch, and each supply four internal workers. The workflow builds `cargo-s
 uploaded binary to the source SHA with a checksum, assigns disjoint run-number-derived seed
 windows, and aggregates exact lane evidence after every matrix job has finished. Workflow
 concurrency one queues overlapping scheduled or manual windows instead of cancelling them. The
-relay lifecycle swarm additionally declares separate fault and recovery phases: safety remains
-active during outage and a dependency-ordered, fairness-qualified connection probe must complete
-within virtual-time and event-count bounds after healing.
+relay lifecycle and link-impairment swarms additionally declare separate fault and recovery phases:
+safety remains active during the bounded disruption and a dependency-ordered,
+fairness-qualified connection probe must complete within virtual-time and event-count bounds after
+healing.
 The checked workflow and its seconds-long contract are definitions, not evidence that a hosted
 window completed.
 

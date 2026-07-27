@@ -407,7 +407,8 @@ where
             let id = candidate.actions[index].id.clone();
             let changed = match &mut candidate.actions[index].action {
                 ScenarioAction::StreamRoundTrip { payload, .. }
-                | ScenarioAction::DatagramRoundTrip { payload, .. } => {
+                | ScenarioAction::DatagramRoundTrip { payload, .. }
+                | ScenarioAction::SendDatagram { payload, .. } => {
                     let changed = payload.bytes != 1 || payload.fill != 0;
                     payload.bytes = 1;
                     payload.fill = 0;
@@ -610,7 +611,8 @@ where
             .iter()
             .filter_map(|action| match &action.action {
                 ScenarioAction::StreamRoundTrip { payload, .. }
-                | ScenarioAction::DatagramRoundTrip { payload, .. } => Some(payload.bytes),
+                | ScenarioAction::DatagramRoundTrip { payload, .. }
+                | ScenarioAction::SendDatagram { payload, .. } => Some(payload.bytes),
                 _ => None,
             })
             .max()
