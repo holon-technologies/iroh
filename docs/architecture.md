@@ -47,8 +47,9 @@ workspace.
 The layer order is `foundation` → `platform` → `protocol`/`service` → `documents` → `framework`.
 Dependencies may remain within a layer or point left, never right. Tooling sits outside the
 production layering and may consume the lower layers it validates, while production packages may
-not depend on tooling. Protocol packages are added to the policy when their imported sources are
-admitted to a workspace; a `protocols/*/Cargo.toml` without a policy owner is rejected.
+not depend on tooling. Protocol packages are added to the policy when their sources are imported;
+the policy records whether each package is still excluded or admitted to a workspace. A
+`protocols/*/Cargo.toml` without a policy owner is rejected.
 
 ## Dependency rules
 

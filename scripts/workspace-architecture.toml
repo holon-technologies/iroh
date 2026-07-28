@@ -107,3 +107,11 @@ workspace = "sim"
 layer = "tooling"
 allowed_normal = ["iroh", "iroh-relay", "iroh-runtime"]
 allowed_dev = []
+
+[[packages]]
+name = "iroh-blobs"
+path = "protocols/iroh-blobs"
+workspace = "excluded"
+layer = "protocol"
+allowed_normal = ["iroh", "iroh-base"]
+allowed_dev = ["iroh"]

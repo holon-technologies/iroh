@@ -7,7 +7,7 @@ tag = "v0.103.0"
 source_commit = "e82cbdcbdac9a78033174aad55e3199b2cf4c0dc"
 resolved_tag_commit = "e82cbdcbdac9a78033174aad55e3199b2cf4c0dc"
 import_prefix = "protocols/iroh-blobs"
-state = "pending"
+state = "imported"
 expected_license = "MIT OR Apache-2.0"
 license_files = ["LICENSE-MIT", "LICENSE-APACHE"]
 

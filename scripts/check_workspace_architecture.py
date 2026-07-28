@@ -67,8 +67,10 @@ def validate_architecture(
         if path in paths:
             failures.append(f"duplicate package path {path!r}: {paths[path]}, {name}")
             continue
-        if record.get("workspace") not in {"root", "sim"}:
-            failures.append(f"package {name}.workspace must be 'root' or 'sim'")
+        if record.get("workspace") not in {"root", "sim", "excluded"}:
+            failures.append(
+                f"package {name}.workspace must be 'root', 'sim', or 'excluded'"
+            )
         layer = record.get("layer")
         if layer not in layers:
             failures.append(f"package {name}.layer references unknown layer {layer!r}")
