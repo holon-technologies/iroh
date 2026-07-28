@@ -35,7 +35,6 @@ http-body-util = "0.1.0"
 hyper = { version = "1", features = ["server", "client", "http1"] }
 hyper-util = "0.1.1"
 iroh-base = { workspace = true, default-features = false, features = ["key", "relay"] }
-iroh-resolver.workspace = true
 iroh-metrics = { version = "1.0.1", default-features = false }
 iroh-runtime.workspace = true
 lru = "0.18.0"
@@ -89,6 +88,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 # non-wasm-in-browser dependencies
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
+iroh-resolver.workspace = true
 tokio = { version = "1", features = [
     "io-util",
     "macros",

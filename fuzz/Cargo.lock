@@ -1557,21 +1557,15 @@ dependencies = [
 name = "iroh-dns"
 version = "2.0.0"
 dependencies = [
- "arc-swap",
  "cfg_aliases",
  "derive_more",
- "hickory-resolver",
  "iroh-base",
+ "iroh-resolver",
  "n0-error",
  "n0-future",
- "ndk-context",
  "portable-atomic",
- "rand",
- "rustls",
  "simple-dns",
  "strum",
- "tokio",
- "tracing",
  "url",
 ]
 
@@ -1597,6 +1591,7 @@ dependencies = [
  "iroh-dns",
  "iroh-hickory-server",
  "iroh-metrics",
+ "iroh-resolver",
  "lru 0.18.1",
  "mainline",
  "n0-error",
@@ -1722,15 +1717,14 @@ dependencies = [
  "data-encoding",
  "derive_more",
  "getrandom 0.4.3",
- "hickory-resolver",
  "http",
  "http-body-util",
  "hyper",
  "hyper-util",
  "iroh-base",
- "iroh-dns",
  "iroh-metrics",
  "iroh-noq",
+ "iroh-resolver",
  "iroh-runtime",
  "lru 0.18.1",
  "n0-error",
@@ -1754,6 +1748,23 @@ dependencies = [
  "url",
  "webpki-roots",
  "ws_stream_wasm",
+]
+
+[[package]]
+name = "iroh-resolver"
+version = "2.0.0"
+dependencies = [
+ "arc-swap",
+ "cfg_aliases",
+ "hickory-resolver",
+ "n0-error",
+ "n0-future",
+ "ndk-context",
+ "rand",
+ "rustls",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -2620,7 +2631,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.41"
+version = "0.23.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c54fcab019b409d04215d3a17cb438fd7fbf192ee61461f20f4fe18704bc138"
 dependencies = [
  "log",
  "once_cell",
