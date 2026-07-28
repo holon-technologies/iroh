@@ -80,7 +80,8 @@ The Rust source hard cut replaces Iroh 1.x endpoint calls with the local v2 endp
 localizes the former `iroh-util` connection pool, and removes `iroh-tickets` from the production
 graph while retaining its exact blob-ticket codec. Imported examples now use bounded v2
 `EndpointAddr` construction; the old mDNS example documents direct-address discovery because the
-external adapter still targets Iroh 1.x.
+external adapter still targets Iroh 1.x. The transfer example's Cargo target is
+`blobs-transfer` so it cannot collide with the platform's `transfer` example in this workspace.
 
 The port also adds named limits for decoded requests, range transitions and boundaries, multi-blob
 requests, provider connections, store tasks, imports, downloads, child fan-out, RPC/progress

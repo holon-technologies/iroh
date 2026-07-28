@@ -1,0 +1,28 @@
+schema_version = 1
+status = "blocked"
+
+[approvals]
+package_naming = false
+registry_ownership = false
+public_api_baseline = false
+data_schema_support = false
+
+[[packages]]
+order = 1
+name = "iroh-blobs"
+path = "protocols/iroh-blobs"
+
+[[packages]]
+order = 2
+name = "iroh-gossip"
+path = "protocols/iroh-gossip"
+
+[[packages]]
+order = 3
+name = "iroh-docs"
+path = "protocols/iroh-docs"
+
+[[packages]]
+order = 4
+name = "iroh-app"
+path = "framework/app"

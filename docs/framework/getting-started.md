@@ -73,3 +73,18 @@ See [`examples/local-first-notes`](../../examples/local-first-notes/README.md) f
 two-node flow. The acceptance package runs that architecture directly and through a local relay,
 including restart, read-capability enforcement, content verification, idempotent resync, and a
 custom ALPN.
+
+## Lower-level composition
+
+Applications that need a different lifecycle may use `iroh-blobs`, `iroh-gossip`, or `iroh-docs`
+directly. In that case the application owns endpoint construction, ALPN registration, startup
+rollback, task supervision, health reporting, and bounded shutdown. It must also preserve the same
+storage lease and migration rules described above. The `iroh-app` standard bundle is the supported
+experimental composition for applications that do not need to own those concerns themselves.
+
+These four packages are intentionally unpublished while their names, registry ownership, public
+API baseline, and persistent-data support commitment are reviewed. The machine-readable
+[`release gate`](../../framework/release-gate.toml) prevents them from entering the platform
+release accidentally. When importing an upstream maintenance change, follow the
+[`exact-tag provenance and compatibility runbook`](upstream-sync.md); never merge an unpinned
+upstream branch into these packages.

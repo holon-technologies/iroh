@@ -6,8 +6,8 @@
 //!
 //! ```rust
 //! # async fn example() -> n0_error::Result<()> {
-//! use iroh::{protocol::Router, Endpoint, endpoint::presets};
-//! use iroh_blobs::{store, ticket::BlobTicket, BlobsProtocol};
+//! use iroh::{Endpoint, endpoint::presets, protocol::Router};
+//! use iroh_blobs::{BlobsProtocol, store, ticket::BlobTicket};
 //!
 //! // create a store
 //! let store = store::fs::FsStore::load("blobs").await?;

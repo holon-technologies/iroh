@@ -81,6 +81,10 @@ rpc = ["dep:noq", "irpc/rpc", "iroh-blobs/rpc"]
 fs-store = ["iroh-blobs/fs-store"]
 redb-v2-migration = ["dep:redb_v3"]
 
+[[example]]
+name = "docs-setup"
+path = "examples/setup.rs"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "iroh_docsrs"]

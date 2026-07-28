@@ -102,6 +102,9 @@ jobs:
             exit 2
           fi
 
+      - name: Prove provisional framework packages are excluded from publication
+        run: python3 scripts/check-framework-release-gate.py --expect-closed
+
   simulation_release_readiness:
     name: Require simulation release evidence
     needs: preflight

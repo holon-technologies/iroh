@@ -1,8 +1,7 @@
 # Local-First Application Framework Monorepo Implementation Plan
 
-**Status:** In progress from merge commit
-`caa3e5632ce2ce46a6bd0cf8d608c4ee63db7999` on branch
-`codex/local-first-framework-monorepo`
+**Status:** Local implementation complete on branch `codex/local-first-framework-monorepo`;
+immutable hosted validation and owner-controlled publication decisions remain pending.
 
 **Governing decision:**
 [`ADR-0001`](../../adr/0001-local-first-application-framework-monorepo.md)
@@ -523,15 +522,15 @@ for package names and registry ownership before removing `publish = false` or ta
 ## Final acceptance checklist
 
 - [x] PR #7 is merged and its hosted architecture/compatibility evidence is green.
-- [ ] Exact upstream tags, commits, licenses, rewritten histories, and commit maps are verified.
-- [ ] Blobs, gossip, and docs are root workspace members with enforced inward-only dependencies.
-- [ ] Imported wire, ticket, and persistent-state fixtures pass after the v2 ports.
-- [ ] All peer-controlled work and all framework task/shutdown paths have named bounds and owners.
-- [ ] Framework startup is atomic and lifecycle transitions are exhaustively tested.
-- [ ] Two persisted nodes synchronize and recover the vertical slice directly and through relay.
-- [ ] Custom ALPN registration works without weakening standard-bundle ownership or bounds.
-- [ ] Deterministic, fuzz, fault, crash/restart, migration, and resource gates pass.
-- [ ] Relay golden/live interoperability remains green against upstream v1.0.3.
+- [x] Exact upstream tags, commits, licenses, rewritten histories, and commit maps are verified.
+- [x] Blobs, gossip, and docs are root workspace members with enforced inward-only dependencies.
+- [x] Imported wire, ticket, and persistent-state fixtures pass after the v2 ports.
+- [x] All peer-controlled work and all framework task/shutdown paths have named bounds and owners.
+- [x] Framework startup is atomic and lifecycle transitions are exhaustively tested.
+- [x] Two persisted nodes synchronize and recover the vertical slice directly and through relay.
+- [x] Custom ALPN registration works without weakening standard-bundle ownership or bounds.
+- [x] Deterministic, fuzz, fault, crash/restart, migration, and resource gates pass.
+- [x] Relay golden/live interoperability remains green against upstream v1.0.3.
 - [ ] Public product/package names and registry ownership are approved before publication.
 - [ ] Full platform, package, security/license, SBOM/provenance, and dry-run release evidence is tied
       to one clean immutable candidate.
@@ -551,8 +550,9 @@ workspace, execute them sequentially in one integration branch or use isolated w
   [`docs/architecture-baselines/2026-07-28-v2-platform.md`](../../architecture-baselines/2026-07-28-v2-platform.md).
 - Upstream repository/tag/commit evidence was captured on 2026-07-28 from the three official
   n0-computer repositories.
-- `git-filter-repo` is not installed in the current environment; Task 3 must provision exact
-  v2.47.0 in an isolated tool environment and record its checksum/version before import.
-- The only blocking product decision is the public product and Cargo package namespace. It does not
-  block the provisional unpublished framework or vertical slice, but it must be resolved before
-  Task 13 freezes the public API/package identity or any package is published.
+- All three histories were rewritten with exact `git-filter-repo` v2.47.0 in disposable mirrors;
+  each `UPSTREAM.md` records its source/rewrite commits, tree fingerprints, import merge, and
+  commit-map checksum.
+- `framework/release-gate.toml` keeps the four provisional packages unpublished and outside the
+  platform release order. Package naming, registry ownership, public API baseline, and persistent
+  data support remain explicit owner decisions rather than implementation defaults.

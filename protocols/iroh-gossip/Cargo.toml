@@ -142,7 +142,8 @@ name = "chat"
 required-features = ["examples"]
 
 [[example]]
-name = "setup"
+name = "gossip-setup"
+path = "examples/setup.rs"
 required-features = ["examples"]
 
 [package.metadata.docs.rs]

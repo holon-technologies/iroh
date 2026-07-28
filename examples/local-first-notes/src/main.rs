@@ -7,7 +7,13 @@ use iroh::{
     protocol::{AcceptError, ProtocolHandler},
 };
 use iroh_app::{Application, StandardBundle};
-use iroh_docs::{AuthorId, api::Doc, api::protocol::AddrInfoOptions, api::protocol::ShareMode};
+use iroh_docs::{
+    AuthorId,
+    api::{
+        Doc,
+        protocol::{AddrInfoOptions, ShareMode},
+    },
+};
 use tokio::io::AsyncReadExt;
 
 const ECHO_ALPN: &[u8] = b"/holon/local-first/notes-echo/1";

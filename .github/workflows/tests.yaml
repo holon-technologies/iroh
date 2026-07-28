@@ -23,7 +23,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   SCCACHE_CACHE_SIZE: "10G"
-  CRATES_LIST: "iroh,iroh-bench,iroh-dns-server,iroh-relay,iroh-resolver"
+  CRATES_LIST: "iroh,iroh-app,iroh-base,iroh-bench,iroh-blobs,iroh-dns,iroh-dns-server,iroh-docs,iroh-gossip,iroh-relay,iroh-resolver,iroh-runtime"
   IROH_FORCE_STAGING_RELAYS: "1"
   NEXTEST_VERSION: "0.9.80"
 

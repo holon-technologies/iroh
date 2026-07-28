@@ -246,8 +246,9 @@ impl ConfiguredApp {
 
 #[cfg(test)]
 mod tests {
-    use super::LifecycleState;
     use proptest::prelude::*;
+
+    use super::LifecycleState;
 
     proptest! {
         #[test]

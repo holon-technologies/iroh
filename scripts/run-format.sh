@@ -25,3 +25,4 @@ format_config=(
 cd "$repo_root"
 cargo fmt --all "${check[@]}" -- "${format_config[@]}"
 cargo fmt --manifest-path iroh-sim/Cargo.toml --all "${check[@]}" -- "${format_config[@]}"
+cargo fmt --manifest-path fuzz/Cargo.toml --all "${check[@]}" -- "${format_config[@]}"

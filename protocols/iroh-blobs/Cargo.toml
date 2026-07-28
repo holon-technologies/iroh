@@ -96,3 +96,7 @@ required-features = ["fs-store"]
 [[example]]
 name = "random_store"
 required-features = ["fs-store"]
+
+[[example]]
+name = "blobs-transfer"
+path = "examples/transfer.rs"

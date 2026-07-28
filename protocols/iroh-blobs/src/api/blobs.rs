@@ -589,7 +589,7 @@ impl<'a> BatchAddProgress<'a> {
 /// # Example
 ///
 /// ```rust
-/// use iroh_blobs::{store::mem::MemStore, Hash};
+/// use iroh_blobs::{Hash, store::mem::MemStore};
 ///
 /// # async fn example() -> n0_error::Result<()> {
 /// let store = MemStore::new();

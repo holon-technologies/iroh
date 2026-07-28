@@ -82,4 +82,5 @@ The port centralizes and enforces named limits for sync frames, reconciliation p
 tickets, peers, active documents, peer history, sessions, subscribers, pending content, actor/RPC
 queues, transaction age, and graceful shutdown. Endpoint addresses are validated at ticket and
 start-sync boundaries; oversized peer state and malicious frames are rejected without changing a
-document's capability.
+document's capability. The setup example's Cargo target is `docs-setup` so it remains unique in the
+monorepo.

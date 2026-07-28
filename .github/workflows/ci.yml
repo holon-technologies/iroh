@@ -29,6 +29,34 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/tests.yaml"
 
+  local_first_framework:
+    name: Local-first framework and protocol compatibility
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Prove experimental publication gate is closed
+        run: python3 scripts/check-framework-release-gate.py --expect-closed
+      - name: Inspect provisional package layouts
+        run: scripts/check-framework-package-layout.sh
+      - name: Test framework lifecycle, persistence, and fuzz facades
+        run: cargo test -p iroh-app --all-features
+      - name: Replay imported persistent-store migrations
+        run: cargo test -p iroh-docs migration
+      - name: Test direct and local-relay two-node acceptance
+        run: cargo test -p iroh-local-first-app-tests --test two_node
+      - name: Check blobs v0.103 bidirectional interoperability
+        run: scripts/tests/check-blobs-v0-interop.sh
+      - name: Check gossip v0.101 bidirectional interoperability
+        run: scripts/tests/check-gossip-v0-interop.sh
+      - name: Check local-first CI contract
+        run: scripts/tests/check-local-first-framework-ci.sh
+
   fuzz_smoke:
     name: Fuzz smoke (${{ matrix.target }})
     timeout-minutes: 15
@@ -142,6 +170,8 @@ jobs:
           scripts/tests/check-netsim-workflow-bounds.sh
       - name: Check v2 release-readiness source contract
         run: scripts/tests/check-v2-release-readiness.sh
+      - name: Check local-first framework release boundary
+        run: scripts/tests/check-local-first-framework-ci.sh
       - name: Check release dependency-fork boundary
         run: scripts/tests/check-release-fork-boundary.sh
       - name: Check relay V1/V2 golden compatibility

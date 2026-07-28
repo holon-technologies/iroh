@@ -71,4 +71,4 @@ Iroh 1.x dependency.
 The port adds named resource limits for protocol and network state and a live excluded interop
 driver under `compat/iroh-gossip-v0-101-interop`. That driver forms a mixed-version mesh and
 broadcasts in both directions between exact Iroh v1.0.3/upstream gossip v0.101.0 and the local v2
-stack.
+stack. The setup example's Cargo target is `gossip-setup` so it remains unique in the monorepo.

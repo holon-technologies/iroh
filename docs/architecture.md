@@ -37,6 +37,10 @@ workspace.
 | `iroh-relay` | Relay client, server, shared wire protocol, and sessions | `iroh-base`, `iroh-resolver`, `iroh-runtime` |
 | `iroh` | Public endpoint and connection orchestration | `iroh-base`, `iroh-dns`, `iroh-resolver`, `iroh-relay`, `iroh-runtime` |
 | `iroh-dns-server` | Deployable endpoint DNS and pkarr service | `iroh-base`, `iroh-dns`, `iroh-resolver`; `iroh` only for dev/tests |
+| `iroh-blobs` | Content-addressed storage and transfer protocol | `iroh` |
+| `iroh-gossip` | Topic-based broadcast protocol | `iroh-base`, optionally `iroh` |
+| `iroh-docs` | Local-first documents, capabilities, persistence, and synchronization | `iroh`, `iroh-base`, `iroh-blobs`, `iroh-gossip` |
+| `iroh-app` | Experimental application lifecycle and standard local-first bundle | `iroh`, `iroh-base`, `iroh-blobs`, `iroh-gossip`, `iroh-docs` |
 | `iroh-bench` | Non-published benchmarks and resource canaries | public packages it exercises |
 | `determinism-checker` | Non-published source-boundary checker | no production package may depend on it |
 | `iroh-sim` | Deterministic model, execution, evidence, and operations | production packages; never the reverse |
@@ -134,6 +138,14 @@ First-party publishable crates move in lockstep on the v2 line. Package order pl
 before consumers. A release is blocked by an undocumented Rust API break, a forbidden dependency
 edge, provider leakage, a failed deterministic replay, or a relay compatibility failure. This
 architecture work does not itself authorize tagging or publication.
+
+The imported protocol and framework packages form a separate, experimental release set. Their
+dependency order is `iroh-blobs` → `iroh-gossip` → `iroh-docs` → `iroh-app`; the first two are
+independent siblings in the graph, while this order gives packaging a stable sequence. They remain
+`publish = false` and outside the platform package verifier until
+[`framework/release-gate.toml`](../framework/release-gate.toml) records separate approval for
+package naming, registry ownership, a public API baseline, and the supported persistent-data
+schema. A platform v2 release cannot open this gate as a side effect.
 
 `iroh-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`, and
 `key` also enables `relay` because key-facing endpoint/address types require relay URL support.

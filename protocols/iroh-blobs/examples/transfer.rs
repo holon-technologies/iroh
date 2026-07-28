@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
             println!("File hashed. Fetch this file by running:");
             println!(
-                "cargo run --example transfer -- receive {ticket} {}",
+                "cargo run --example blobs-transfer -- receive {ticket} {}",
                 filename.display()
             );
 
@@ -81,11 +81,11 @@ async fn main() -> anyhow::Result<()> {
             println!("Couldn't parse command line arguments: {args:?}");
             println!("Usage:");
             println!("    # to send:");
-            println!("    cargo run --example transfer -- send [FILE]");
+            println!("    cargo run --example blobs-transfer -- send [FILE]");
             println!("    # this will print a ticket.");
             println!();
             println!("    # to receive:");
-            println!("    cargo run --example transfer -- receive [TICKET] [FILE]");
+            println!("    cargo run --example blobs-transfer -- receive [TICKET] [FILE]");
         }
     }
 
