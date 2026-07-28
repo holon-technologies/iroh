@@ -18,7 +18,7 @@ tag = "v0.101.0"
 source_commit = "2ce78afe09d89d41d123f28eac19bdc831609cc8"
 resolved_tag_commit = "2ce78afe09d89d41d123f28eac19bdc831609cc8"
 import_prefix = "protocols/iroh-gossip"
-state = "pending"
+state = "imported"
 expected_license = "MIT OR Apache-2.0"
 license_files = ["LICENSE-MIT", "LICENSE-APACHE"]
 

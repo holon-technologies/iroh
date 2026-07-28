@@ -16,6 +16,7 @@ exclude = [
   "compat/relay-v1-interop",
   "fuzz",
   "iroh-sim",
+  "protocols/iroh-gossip",
   "vendor/hickory-server-0.26.1",
   "vendor/noq-1.1.0",
   "vendor/rustls-0.23.41",
