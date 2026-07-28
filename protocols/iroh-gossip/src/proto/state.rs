@@ -379,3 +379,26 @@ fn track_in_event<PI: Serialize>(event: &InEvent<PI>, metrics: &Metrics) {
         }
     }
 }
+
+#[cfg(test)]
+mod wire_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn topic_and_envelope_match_v0_101_0() {
+        let topic = TopicId::from([0xabu8; 32]);
+        let message = Message::<u64> {
+            topic,
+            message: topic::Message::Gossip(super::super::plumtree::Message::Prune),
+        };
+
+        assert_eq!(
+            hex::encode(postcard::to_stdvec(&topic).unwrap()),
+            "abababababababababababababababababababababababababababababababab"
+        );
+        assert_eq!(
+            hex::encode(postcard::to_stdvec(&message).unwrap()),
+            "abababababababababababababababababababababababababababababababab0101"
+        );
+    }
+}

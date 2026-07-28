@@ -738,6 +738,43 @@ impl<PI: PeerIdentity> State<PI> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn wire_messages_match_v0_101_0() {
+        let content = Bytes::from_static(b"wire fixture");
+        let id = MessageId::from_content(&content);
+        let messages = [
+            Message::Gossip(Gossip {
+                id,
+                content,
+                scope: DeliveryScope::Swarm(Round(2)),
+            }),
+            Message::Prune,
+            Message::IHave(vec![IHave {
+                id,
+                round: Round(3),
+            }]),
+            Message::Graft(Graft {
+                id: Some(id),
+                round: Round(4),
+            }),
+        ];
+        let actual: Vec<_> = messages
+            .iter()
+            .map(|message| hex::encode(postcard::to_stdvec(message).unwrap()))
+            .collect();
+
+        assert_eq!(
+            actual,
+            [
+                "00ef6228157e41acb05059701e441795cfff52c30a975320476c0f21cb2f6871550c7769726520666978747572650002",
+                "01",
+                "0301ef6228157e41acb05059701e441795cfff52c30a975320476c0f21cb2f68715503",
+                "0201ef6228157e41acb05059701e441795cfff52c30a975320476c0f21cb2f68715504",
+            ]
+        );
+    }
+
     #[test]
     fn optimize_tree() {
         let mut io = VecDeque::new();

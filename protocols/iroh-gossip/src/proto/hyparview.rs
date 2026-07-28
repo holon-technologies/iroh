@@ -762,3 +762,53 @@ enum RemovalReason {
     /// A peer is removed after random selection to make room for a newly joined peer.
     Random,
 }
+
+#[cfg(test)]
+mod wire_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn wire_messages_match_v0_101_0() {
+        let peer = PeerInfo {
+            id: 7_u64,
+            data: Some(PeerData::new(b"peer-data".as_slice())),
+        };
+        let messages = [
+            Message::Join(Some(PeerData::new(b"join-data".as_slice()))),
+            Message::ForwardJoin(ForwardJoin {
+                peer: peer.clone(),
+                ttl: Ttl(6),
+            }),
+            Message::Shuffle(Shuffle {
+                origin: 9,
+                nodes: vec![peer.clone()],
+                ttl: Ttl(3),
+            }),
+            Message::ShuffleReply(ShuffleReply { nodes: vec![peer] }),
+            Message::Neighbor(Neighbor {
+                priority: Priority::High,
+                data: None,
+            }),
+            Message::Disconnect(Disconnect {
+                alive: true,
+                _respond: false,
+            }),
+        ];
+        let actual: Vec<_> = messages
+            .iter()
+            .map(|message| hex::encode(postcard::to_stdvec(message).unwrap()))
+            .collect();
+
+        assert_eq!(
+            actual,
+            [
+                "0001096a6f696e2d64617461",
+                "01070109706565722d6461746106",
+                "020901070109706565722d6461746103",
+                "0301070109706565722d64617461",
+                "040000",
+                "050100",
+            ]
+        );
+    }
+}

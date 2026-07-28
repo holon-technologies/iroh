@@ -44,6 +44,9 @@ mod util;
 /// ALPN protocol name
 pub const GOSSIP_ALPN: &[u8] = b"/iroh-gossip/1";
 
+#[cfg(test)]
+const _: () = assert!(GOSSIP_ALPN.len() == 14);
+
 /// Channel capacity for the send queue (one per connection)
 const SEND_QUEUE_CAP: usize = 64;
 /// Channel capacity for the ToActor message queue (single)
