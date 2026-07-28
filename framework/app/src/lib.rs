@@ -15,6 +15,9 @@ mod protocol_registry;
 mod standard_bundle;
 mod supervisor;
 
+#[cfg(feature = "fuzzing")]
+pub mod fuzz;
+
 pub use application::{Application, ApplicationHealth, ApplicationMetrics};
 pub use config::AppConfig;
 pub use data_root::DataRoot;

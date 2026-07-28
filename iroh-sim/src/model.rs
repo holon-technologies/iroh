@@ -1,5 +1,11 @@
 //! Scenario schemas, observations, inventory, and invariants.
 
+pub use crate::application::{
+    ApplicationError, ApplicationModel, ApplicationModelConfig, ApplicationOperation,
+    ApplicationRun, ApplicationScenario, ApplicationSnapshot, BlobHash, Capability, DeliveryFault,
+    DocumentEntry, DocumentId, NodeId,
+};
+
 pub use crate::{
     invariant::{
         InvariantClass, InvariantError, InvariantFailure, InvariantRegistry, InvariantSnapshot,

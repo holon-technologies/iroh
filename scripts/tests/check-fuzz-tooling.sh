@@ -12,6 +12,10 @@ readonly -a targets=(
   relay_segmentation
   config_deserialize
   gossip_message
+  app_manifest
+  app_protocol_registration
+  blob_ticket
+  doc_ticket
 )
 
 [[ -x "$runner" ]] || {

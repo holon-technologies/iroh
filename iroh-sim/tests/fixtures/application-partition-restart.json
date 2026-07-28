@@ -1,0 +1,26 @@
+{
+  "seed": 7771,
+  "candidate_sha": "fixture-local-first-v1",
+  "artifact_version": 1,
+  "operations": [
+    { "operation": "start_node", "node": "alice" },
+    { "operation": "start_node", "node": "bob" },
+    { "operation": "create_document", "node": "alice", "document": "notes" },
+    {
+      "operation": "share",
+      "from": "alice",
+      "to": "bob",
+      "document": "notes",
+      "capability": "read"
+    },
+    { "operation": "partition", "left": "alice", "right": "bob" },
+    { "operation": "deliver_all" },
+    { "operation": "stop_node", "node": "bob" },
+    { "operation": "restart_node", "node": "bob" },
+    { "operation": "heal", "left": "alice", "right": "bob" },
+    { "operation": "deliver_all" },
+    { "operation": "migrate", "node": "alice", "target_schema": 1 },
+    { "operation": "shutdown", "node": "alice" },
+    { "operation": "shutdown", "node": "bob" }
+  ]
+}

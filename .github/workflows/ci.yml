@@ -46,6 +46,10 @@ jobs:
           - relay_segmentation
           - config_deserialize
           - gossip_message
+          - app_manifest
+          - app_protocol_registration
+          - blob_ticket
+          - doc_ticket
     steps:
       - name: Checkout
         uses: actions/checkout@v7

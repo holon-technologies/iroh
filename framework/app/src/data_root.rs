@@ -25,7 +25,7 @@ static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Manifest {
+pub(crate) struct Manifest {
     schema_version: u32,
     framework: String,
 }
@@ -166,7 +166,18 @@ fn read_manifest(path: &Path) -> Result<Manifest, DataRootError> {
     let bytes = fs::read(path).map_err(|_| DataRootError::Unavailable {
         operation: "read-manifest",
     })?;
-    serde_json::from_slice(&bytes).map_err(|_| DataRootError::InvalidManifest)
+    validate_manifest_bytes(&bytes)
+}
+
+pub(crate) fn validate_manifest_bytes(bytes: &[u8]) -> Result<Manifest, DataRootError> {
+    if bytes.len() > MAX_MANIFEST_SIZE {
+        return Err(DataRootError::ManifestTooLarge {
+            limit: MAX_MANIFEST_SIZE,
+        });
+    }
+    let manifest = serde_json::from_slice(bytes).map_err(|_| DataRootError::InvalidManifest)?;
+    validate_manifest(&manifest)?;
+    Ok(manifest)
 }
 
 fn validate_manifest(manifest: &Manifest) -> Result<(), DataRootError> {

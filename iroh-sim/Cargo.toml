@@ -44,6 +44,7 @@ noq-udp = { version = "1.1.0", default-features = false }
 rustls = { version = "0.23.33", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
 zeroize = "1.9"
 
