@@ -234,7 +234,7 @@ impl DocsApi {
     pub async fn import_and_subscribe(
         &self,
         ticket: DocTicket,
-    ) -> Result<(Doc, impl Stream<Item = Result<LiveEvent>>)> {
+    ) -> Result<(Doc, impl Stream<Item = Result<LiveEvent>> + use<>)> {
         ticket.validate()?;
         let DocTicket { capability, nodes } = ticket;
         let response = self.inner.rpc(ImportRequest { capability }).await??;

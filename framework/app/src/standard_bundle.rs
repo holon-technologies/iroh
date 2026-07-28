@@ -6,9 +6,10 @@ use std::{
 };
 
 use iroh::{
-    Endpoint,
+    Endpoint, RelayMap, RelayMode,
     endpoint::presets,
     protocol::{ProtocolHandler, Router},
+    tls::CaTlsConfig,
 };
 use iroh_blobs::{BlobsProtocol, api::Store as BlobsStore};
 use iroh_docs::protocol::Docs;
@@ -48,10 +49,11 @@ enum Storage {
     Persistent(PathBuf),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum NetworkProfile {
     SharedInfrastructure,
     LocalOnly,
+    CustomRelay(RelayMap),
 }
 
 /// Builder for one endpoint, blobs, gossip, docs, router, and supervisor bundle.
@@ -60,6 +62,7 @@ pub struct StandardBundleBuilder {
     storage: Storage,
     network: NetworkProfile,
     bind_addr: Option<SocketAddr>,
+    ca_tls_config: Option<CaTlsConfig>,
     config: AppConfig,
     custom_protocols: ProtocolRegistry,
 }
@@ -74,6 +77,7 @@ impl StandardBundleBuilder {
             storage,
             network: NetworkProfile::SharedInfrastructure,
             bind_addr: None,
+            ca_tls_config: None,
             config,
             custom_protocols,
         }
@@ -83,6 +87,16 @@ impl StandardBundleBuilder {
     #[must_use]
     pub fn local_only(mut self) -> Self {
         self.network = NetworkProfile::LocalOnly;
+        self
+    }
+
+    /// Uses the supplied compatible relay map instead of the default shared infrastructure.
+    ///
+    /// This is useful for private infrastructure and for verifying relay-only behavior. The relay
+    /// protocol remains compatible with the frozen upstream v1.0.3 baseline.
+    #[must_use]
+    pub fn relay_map(mut self, relay_map: RelayMap) -> Self {
+        self.network = NetworkProfile::CustomRelay(relay_map);
         self
     }
 
@@ -97,6 +111,16 @@ impl StandardBundleBuilder {
     #[must_use]
     pub fn bind_addr(mut self, address: SocketAddr) -> Self {
         self.bind_addr = Some(address);
+        self
+    }
+
+    /// Replaces relay HTTPS certificate verification configuration.
+    ///
+    /// Production applications should provide trusted roots. Skipping verification is intended
+    /// only for isolated test relays with ephemeral self-signed certificates.
+    #[must_use]
+    pub fn tls_ca_config(mut self, config: CaTlsConfig) -> Self {
+        self.ca_tls_config = Some(config);
         self
     }
 
@@ -178,13 +202,14 @@ impl StandardBundleBuilder {
             }
         };
 
-        let endpoint = match bind_endpoint(self.network, self.bind_addr, identity).await {
-            Ok(endpoint) => endpoint,
-            Err(error) => {
-                let _ = blobs.shutdown().await;
-                return Err(error);
-            }
-        };
+        let endpoint =
+            match bind_endpoint(self.network, self.bind_addr, self.ca_tls_config, identity).await {
+                Ok(endpoint) => endpoint,
+                Err(error) => {
+                    let _ = blobs.shutdown().await;
+                    return Err(error);
+                }
+            };
         let gossip = Gossip::builder().spawn(endpoint.clone());
         let docs_builder = match &data_root {
             Some(data_root) => Docs::persistent(data_root.docs_path()),
@@ -319,13 +344,20 @@ fn register_all_protocols(
 async fn bind_endpoint(
     profile: NetworkProfile,
     bind_addr: Option<SocketAddr>,
+    ca_tls_config: Option<CaTlsConfig>,
     identity: iroh_base::SecretKey,
 ) -> Result<Endpoint, StandardStartError> {
     let mut builder = match profile {
         NetworkProfile::SharedInfrastructure => Endpoint::builder(presets::N0),
         NetworkProfile::LocalOnly => Endpoint::builder(presets::Minimal),
+        NetworkProfile::CustomRelay(relay_map) => {
+            Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Custom(relay_map))
+        }
     }
     .secret_key(identity);
+    if let Some(ca_tls_config) = ca_tls_config {
+        builder = builder.ca_tls_config(ca_tls_config);
+    }
     if let Some(bind_addr) = bind_addr {
         builder = builder.bind_addr(bind_addr).map_err(|_| {
             StandardStartError::new(
@@ -412,6 +444,7 @@ impl fmt::Display for NetworkProfile {
         formatter.write_str(match self {
             Self::SharedInfrastructure => "shared-infrastructure",
             Self::LocalOnly => "local-only",
+            Self::CustomRelay(_) => "custom-relay",
         })
     }
 }

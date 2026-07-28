@@ -9,6 +9,8 @@ members = [
   "iroh-relay",
   "iroh-runtime",
   "framework/app",
+  "examples/local-first-notes",
+  "integration-tests/local-first-app",
   "protocols/iroh-blobs",
   "protocols/iroh-docs",
   "protocols/iroh-gossip",

@@ -139,3 +139,19 @@ workspace = "root"
 layer = "framework"
 allowed_normal = ["iroh", "iroh-base", "iroh-blobs", "iroh-docs", "iroh-gossip"]
 allowed_dev = []
+
+[[packages]]
+name = "iroh-local-first-app-tests"
+path = "integration-tests/local-first-app"
+workspace = "root"
+layer = "tooling"
+allowed_normal = ["iroh", "iroh-app", "iroh-blobs", "iroh-docs"]
+allowed_dev = []
+
+[[packages]]
+name = "local-first-notes"
+path = "examples/local-first-notes"
+workspace = "root"
+layer = "tooling"
+allowed_normal = ["iroh", "iroh-app", "iroh-blobs", "iroh-docs"]
+allowed_dev = []

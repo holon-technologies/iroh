@@ -1,0 +1,25 @@
+[package]
+name = "iroh-local-first-app-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+futures-util = "0.3"
+iroh = { workspace = true, default-features = false, features = ["test-utils", "tls-ring"] }
+iroh-app.workspace = true
+iroh-blobs = { workspace = true, default-features = false }
+iroh-docs.workspace = true
+tempfile = "3.27.0"
+tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time"] }
+
+[dev-dependencies]
+testresult = "0.4"
