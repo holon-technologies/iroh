@@ -583,48 +583,48 @@ network-environment	iroh-relay/src/test_utils.rs:23	fn lookup_ipv6(&self, _host:
 network-environment	iroh-relay/src/test_utils.rs:28	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
 network-environment	iroh-relay/tests/relay_axum.rs:77	let listener = TcpListener::bind("127.0.0.1:0").await?;
 network-environment	iroh-relay/tests/relay_hyper.rs:66	let listener = TcpListener::bind("127.0.0.1:0").await?;
-network-environment	iroh-resolver/src/dns.rs:259	pub async fn lookup_txt<T: ToString>(
-network-environment	iroh-resolver/src/dns.rs:267	.op(timeout, move |resolver| resolver.lookup_txt(host.clone()))
-network-environment	iroh-resolver/src/dns.rs:273	pub async fn lookup_ipv4<T: ToString>(
-network-environment	iroh-resolver/src/dns.rs:281	.op(timeout, move |resolver| resolver.lookup_ipv4(host.clone()))
-network-environment	iroh-resolver/src/dns.rs:290	pub async fn lookup_ipv6<T: ToString>(
-network-environment	iroh-resolver/src/dns.rs:298	.op(timeout, move |resolver| resolver.lookup_ipv6(host.clone()))
-network-environment	iroh-resolver/src/dns.rs:311	pub async fn lookup_ipv4_ipv6<T: ToString>(
-network-environment	iroh-resolver/src/dns.rs:318	self.lookup_ipv4(host.clone(), timeout),
-network-environment	iroh-resolver/src/dns.rs:319	self.lookup_ipv6(host, timeout)
-network-environment	iroh-resolver/src/dns.rs:334	pub async fn resolve_host(
-network-environment	iroh-resolver/src/dns.rs:345	self.lookup_ipv4(domain, timeout),
-network-environment	iroh-resolver/src/dns.rs:346	self.lookup_ipv6(domain, timeout)
-network-environment	iroh-resolver/src/dns.rs:381	pub fn resolve_host_all<'a>(
-network-environment	iroh-resolver/src/dns.rs:415	self.inner.op(timeout, move |r| r.lookup_ipv4(host.clone()))
-network-environment	iroh-resolver/src/dns.rs:419	self.inner.op(timeout, move |r| r.lookup_ipv6(host.clone()))
-network-environment	iroh-resolver/src/dns.rs:42	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>>;
-network-environment	iroh-resolver/src/dns.rs:45	fn lookup_ipv6(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>>;
-network-environment	iroh-resolver/src/dns.rs:48	fn lookup_txt(&self, host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>>;
-network-environment	iroh-resolver/src/dns.rs:488	pub async fn lookup_ipv4_staggered(
-network-environment	iroh-resolver/src/dns.rs:495	let f = || self.lookup_ipv4(host.clone(), timeout);
-network-environment	iroh-resolver/src/dns.rs:505	pub async fn lookup_ipv6_staggered(
-network-environment	iroh-resolver/src/dns.rs:512	let f = || self.lookup_ipv6(host.clone(), timeout);
-network-environment	iroh-resolver/src/dns.rs:521	/// [`Self::lookup_ipv4_ipv6`]. The result of the first successful call is returned, or a
-network-environment	iroh-resolver/src/dns.rs:523	pub async fn lookup_ipv4_ipv6_staggered(
-network-environment	iroh-resolver/src/dns.rs:530	let f = || self.lookup_ipv4_ipv6(host.clone(), timeout);
-network-environment	iroh-resolver/src/dns.rs:601	/// Helper enum to give a unified type to the iterators of [`DnsResolver::lookup_ipv4_ipv6`].
-network-environment	iroh-resolver/src/dns.rs:684	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:696	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:700	fn lookup_txt(
-network-environment	iroh-resolver/src/dns.rs:718	.lookup_ipv4("foo.example", Duration::from_secs(1))
-network-environment	iroh-resolver/src/dns.rs:725	.lookup_ipv4("bar.example", Duration::from_secs(1))
-network-environment	iroh-resolver/src/dns.rs:736	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:741	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:747	fn lookup_txt(
-network-environment	iroh-resolver/src/dns.rs:763	.lookup_ipv4("example.test", DNS_TIMEOUT)
-network-environment	iroh-resolver/src/dns.rs:768	.lookup_ipv6("example.test", DNS_TIMEOUT)
-network-environment	iroh-resolver/src/dns.rs:776	let all = resolver.resolve_host_all(&url, DNS_TIMEOUT);
-network-environment	iroh-resolver/src/dns.rs:801	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:806	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
-network-environment	iroh-resolver/src/dns.rs:810	fn lookup_txt(
-network-environment	iroh-resolver/src/dns.rs:835	.lookup_ipv4("peer.test", DNS_TIMEOUT)
-network-environment	iroh-resolver/src/dns.rs:842	.lookup_ipv4("peer.test", DNS_TIMEOUT)
+network-environment	iroh-resolver/src/dns.rs:257	pub async fn lookup_txt<T: ToString>(
+network-environment	iroh-resolver/src/dns.rs:265	.op(timeout, move |resolver| resolver.lookup_txt(host.clone()))
+network-environment	iroh-resolver/src/dns.rs:271	pub async fn lookup_ipv4<T: ToString>(
+network-environment	iroh-resolver/src/dns.rs:279	.op(timeout, move |resolver| resolver.lookup_ipv4(host.clone()))
+network-environment	iroh-resolver/src/dns.rs:288	pub async fn lookup_ipv6<T: ToString>(
+network-environment	iroh-resolver/src/dns.rs:296	.op(timeout, move |resolver| resolver.lookup_ipv6(host.clone()))
+network-environment	iroh-resolver/src/dns.rs:309	pub async fn lookup_ipv4_ipv6<T: ToString>(
+network-environment	iroh-resolver/src/dns.rs:316	self.lookup_ipv4(host.clone(), timeout),
+network-environment	iroh-resolver/src/dns.rs:317	self.lookup_ipv6(host, timeout)
+network-environment	iroh-resolver/src/dns.rs:332	pub async fn resolve_host(
+network-environment	iroh-resolver/src/dns.rs:343	self.lookup_ipv4(domain, timeout),
+network-environment	iroh-resolver/src/dns.rs:344	self.lookup_ipv6(domain, timeout)
+network-environment	iroh-resolver/src/dns.rs:379	pub fn resolve_host_all<'a>(
+network-environment	iroh-resolver/src/dns.rs:40	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>>;
+network-environment	iroh-resolver/src/dns.rs:413	self.inner.op(timeout, move |r| r.lookup_ipv4(host.clone()))
+network-environment	iroh-resolver/src/dns.rs:417	self.inner.op(timeout, move |r| r.lookup_ipv6(host.clone()))
+network-environment	iroh-resolver/src/dns.rs:43	fn lookup_ipv6(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>>;
+network-environment	iroh-resolver/src/dns.rs:46	fn lookup_txt(&self, host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>>;
+network-environment	iroh-resolver/src/dns.rs:486	pub async fn lookup_ipv4_staggered(
+network-environment	iroh-resolver/src/dns.rs:493	let f = || self.lookup_ipv4(host.clone(), timeout);
+network-environment	iroh-resolver/src/dns.rs:503	pub async fn lookup_ipv6_staggered(
+network-environment	iroh-resolver/src/dns.rs:510	let f = || self.lookup_ipv6(host.clone(), timeout);
+network-environment	iroh-resolver/src/dns.rs:519	/// [`Self::lookup_ipv4_ipv6`]. The result of the first successful call is returned, or a
+network-environment	iroh-resolver/src/dns.rs:521	pub async fn lookup_ipv4_ipv6_staggered(
+network-environment	iroh-resolver/src/dns.rs:528	let f = || self.lookup_ipv4_ipv6(host.clone(), timeout);
+network-environment	iroh-resolver/src/dns.rs:599	/// Helper enum to give a unified type to the iterators of [`DnsResolver::lookup_ipv4_ipv6`].
+network-environment	iroh-resolver/src/dns.rs:682	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:694	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:698	fn lookup_txt(
+network-environment	iroh-resolver/src/dns.rs:716	.lookup_ipv4("foo.example", Duration::from_secs(1))
+network-environment	iroh-resolver/src/dns.rs:723	.lookup_ipv4("bar.example", Duration::from_secs(1))
+network-environment	iroh-resolver/src/dns.rs:734	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:739	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:745	fn lookup_txt(
+network-environment	iroh-resolver/src/dns.rs:761	.lookup_ipv4("example.test", DNS_TIMEOUT)
+network-environment	iroh-resolver/src/dns.rs:766	.lookup_ipv6("example.test", DNS_TIMEOUT)
+network-environment	iroh-resolver/src/dns.rs:774	let all = resolver.resolve_host_all(&url, DNS_TIMEOUT);
+network-environment	iroh-resolver/src/dns.rs:799	fn lookup_ipv4(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:804	fn lookup_ipv6(&self, _host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
+network-environment	iroh-resolver/src/dns.rs:808	fn lookup_txt(
+network-environment	iroh-resolver/src/dns.rs:833	.lookup_ipv4("peer.test", DNS_TIMEOUT)
+network-environment	iroh-resolver/src/dns.rs:840	.lookup_ipv4("peer.test", DNS_TIMEOUT)
 network-environment	iroh-resolver/src/hickory.rs:186	fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>> {
 network-environment	iroh-resolver/src/hickory.rs:203	fn lookup_ipv6(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv6Addr>, DnsError>> {
 network-environment	iroh-resolver/src/hickory.rs:220	fn lookup_txt(&self, host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
