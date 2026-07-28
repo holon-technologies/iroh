@@ -88,6 +88,10 @@ jobs:
           sudo apt-get install --yes ripgrep
       - name: Check workspace architecture contract
         run: scripts/tests/check-workspace-architecture.sh
+      - name: Check architecture policy failure fixtures
+        run: scripts/tests/check-workspace-architecture-fixtures.sh
+      - name: Check protocol upstream provenance
+        run: scripts/tests/check-protocol-provenance.sh
       - name: Check exact relay TLS provider bundles
         run: scripts/tests/check-relay-tls-features.sh
       - name: Check boundary checker contract

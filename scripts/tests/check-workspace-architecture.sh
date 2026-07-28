@@ -10,6 +10,12 @@ trap 'rm -f "$metadata" "$sim_metadata"' EXIT
 (cd "$repo_root" && cargo metadata --no-deps --format-version 1 >"$metadata")
 (cd "$repo_root" && cargo metadata --manifest-path iroh-sim/Cargo.toml --no-deps --format-version 1 >"$sim_metadata")
 
+python3 "$repo_root/scripts/check_workspace_architecture.py" \
+  --policy "$repo_root/scripts/workspace-architecture.toml" \
+  --root-metadata "$metadata" \
+  --sim-metadata "$sim_metadata" \
+  --repo-root "$repo_root"
+
 python3 - "$repo_root" "$metadata" "$sim_metadata" <<'PY'
 import json
 from pathlib import Path
@@ -113,37 +119,6 @@ if "rustls" in root_manifest.get("patch", {}).get("crates-io", {}):
 packages = {package["name"]: package for package in metadata["packages"]}
 workspace_names = set(packages)
 first_party = {name for name in workspace_names if name.startswith("iroh") or name == "determinism-checker"}
-
-normal_allowed = {
-    "iroh-base": set(),
-    "iroh-runtime": set(),
-    "iroh-dns": {"iroh-base"},
-    "iroh-relay": {"iroh-base", "iroh-dns", "iroh-runtime"},
-    "iroh": {"iroh-base", "iroh-dns", "iroh-relay", "iroh-runtime"},
-    "iroh-dns-server": {"iroh-base", "iroh-dns"},
-    "iroh-bench": {"iroh", "iroh-dns", "iroh-dns-server", "iroh-relay"},
-    "determinism-checker": set(),
-}
-normal_allowed.update({
-    "iroh-resolver": set(),
-    "iroh-dns": {"iroh-base", "iroh-resolver"},
-    "iroh-relay": {"iroh-base", "iroh-resolver", "iroh-runtime"},
-    "iroh": {"iroh-base", "iroh-dns", "iroh-relay", "iroh-resolver", "iroh-runtime"},
-    "iroh-dns-server": {"iroh-base", "iroh-dns", "iroh-resolver"},
-    "iroh-bench": {"iroh", "iroh-dns", "iroh-dns-server", "iroh-relay", "iroh-resolver"},
-})
-
-for name, package in packages.items():
-    if name not in normal_allowed:
-        continue
-    actual = {
-        dependency["name"]
-        for dependency in package["dependencies"]
-        if dependency.get("kind") in (None, "normal") and dependency["name"] in first_party
-    }
-    unexpected = actual - normal_allowed[name]
-    if unexpected:
-        fail(f"forbidden normal first-party edges from {name}: {sorted(unexpected)}")
 
 resolver_forbidden = {"iroh-base", "iroh-dns", "simple-dns", "mainline"}
 resolver_dependencies = {

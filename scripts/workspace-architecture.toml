@@ -1,0 +1,109 @@
+schema_version = 1
+
+[[layers]]
+name = "foundation"
+rank = 0
+
+[[layers]]
+name = "platform"
+rank = 1
+
+[[layers]]
+name = "protocol"
+rank = 2
+
+[[layers]]
+name = "service"
+rank = 2
+
+[[layers]]
+name = "documents"
+rank = 3
+
+[[layers]]
+name = "framework"
+rank = 4
+
+[[layers]]
+name = "tooling"
+rank = 5
+
+[[packages]]
+name = "iroh-base"
+path = "iroh-base"
+workspace = "root"
+layer = "foundation"
+allowed_normal = []
+allowed_dev = []
+
+[[packages]]
+name = "iroh-runtime"
+path = "iroh-runtime"
+workspace = "root"
+layer = "foundation"
+allowed_normal = []
+allowed_dev = []
+
+[[packages]]
+name = "iroh-resolver"
+path = "iroh-resolver"
+workspace = "root"
+layer = "foundation"
+allowed_normal = []
+allowed_dev = []
+
+[[packages]]
+name = "iroh-dns"
+path = "iroh-dns"
+workspace = "root"
+layer = "platform"
+allowed_normal = ["iroh-base", "iroh-resolver"]
+allowed_dev = []
+
+[[packages]]
+name = "iroh-relay"
+path = "iroh-relay"
+workspace = "root"
+layer = "platform"
+allowed_normal = ["iroh-base", "iroh-resolver", "iroh-runtime"]
+allowed_dev = []
+
+[[packages]]
+name = "iroh"
+path = "iroh"
+workspace = "root"
+layer = "platform"
+allowed_normal = ["iroh-base", "iroh-dns", "iroh-relay", "iroh-resolver", "iroh-runtime"]
+allowed_dev = ["iroh-base", "iroh-relay"]
+
+[[packages]]
+name = "iroh-dns-server"
+path = "iroh-dns-server"
+workspace = "root"
+layer = "service"
+allowed_normal = ["iroh-base", "iroh-dns", "iroh-resolver"]
+allowed_dev = ["iroh"]
+
+[[packages]]
+name = "iroh-bench"
+path = "iroh/bench"
+workspace = "root"
+layer = "tooling"
+allowed_normal = ["iroh", "iroh-dns", "iroh-dns-server", "iroh-relay", "iroh-resolver"]
+allowed_dev = []
+
+[[packages]]
+name = "determinism-checker"
+path = "tools/determinism-checker"
+workspace = "root"
+layer = "tooling"
+allowed_normal = []
+allowed_dev = []
+
+[[packages]]
+name = "iroh-sim"
+path = "iroh-sim"
+workspace = "sim"
+layer = "tooling"
+allowed_normal = ["iroh", "iroh-relay", "iroh-runtime"]
+allowed_dev = []
