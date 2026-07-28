@@ -1,7 +1,8 @@
 # Local-First Application Framework Monorepo Implementation Plan
 
-**Status:** Proposed for execution after the v2 architecture hard-cut pull request is merged and
-green
+**Status:** In progress from merge commit
+`caa3e5632ce2ce46a6bd0cf8d608c4ee63db7999` on branch
+`codex/local-first-framework-monorepo`
 
 **Governing decision:**
 [`ADR-0001`](../../adr/0001-local-first-application-framework-monorepo.md)
@@ -521,7 +522,7 @@ for package names and registry ownership before removing `publish = false` or ta
 
 ## Final acceptance checklist
 
-- [ ] PR #7 is merged and its hosted architecture/compatibility evidence is green.
+- [x] PR #7 is merged and its hosted architecture/compatibility evidence is green.
 - [ ] Exact upstream tags, commits, licenses, rewritten histories, and commit maps are verified.
 - [ ] Blobs, gossip, and docs are root workspace members with enforced inward-only dependencies.
 - [ ] Imported wire, ticket, and persistent-state fixtures pass after the v2 ports.
@@ -546,6 +547,8 @@ workspace, execute them sequentially in one integration branch or use isolated w
 ## Evidence and remaining decision
 
 - Current workspace and compatibility evidence is mapped in ADR-0001.
+- The immutable pre-import platform evidence is recorded in
+  [`docs/architecture-baselines/2026-07-28-v2-platform.md`](../../architecture-baselines/2026-07-28-v2-platform.md).
 - Upstream repository/tag/commit evidence was captured on 2026-07-28 from the three official
   n0-computer repositories.
 - `git-filter-repo` is not installed in the current environment; Task 3 must provision exact
