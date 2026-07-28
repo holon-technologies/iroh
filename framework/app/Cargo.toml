@@ -1,0 +1,24 @@
+[package]
+name = "iroh-app"
+version.workspace = true
+edition.workspace = true
+description = "Experimental local-first application lifecycle for Iroh"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+iroh = { workspace = true, default-features = false }
+iroh-base = { workspace = true, features = ["key"] }
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "rt", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+
+[dev-dependencies]
+proptest = "1.11.0"
+tempfile = "3.27.0"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "test-util", "time"] }

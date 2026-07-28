@@ -131,3 +131,11 @@ workspace = "root"
 layer = "documents"
 allowed_normal = ["iroh", "iroh-base", "iroh-blobs", "iroh-gossip"]
 allowed_dev = ["iroh"]
+
+[[packages]]
+name = "iroh-app"
+path = "framework/app"
+workspace = "root"
+layer = "framework"
+allowed_normal = ["iroh", "iroh-base"]
+allowed_dev = []

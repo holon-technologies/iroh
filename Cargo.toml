@@ -8,6 +8,7 @@ members = [
   "iroh/bench",
   "iroh-relay",
   "iroh-runtime",
+  "framework/app",
   "protocols/iroh-blobs",
   "protocols/iroh-docs",
   "protocols/iroh-gossip",
@@ -40,6 +41,7 @@ iroh-dns = { version = "2.0.0", path = "iroh-dns" }
 iroh-dns-server = { version = "2.0.0", path = "iroh-dns-server" }
 iroh-relay = { version = "2.0.0", path = "iroh-relay", default-features = false }
 iroh-runtime = { version = "2.0.0", path = "iroh-runtime" }
+iroh-app = { version = "2.0.0", path = "framework/app" }
 iroh-blobs = { version = "2.0.0", path = "protocols/iroh-blobs", default-features = false }
 iroh-docs = { version = "2.0.0", path = "protocols/iroh-docs" }
 iroh-gossip = { version = "2.0.0", path = "protocols/iroh-gossip", default-features = false }

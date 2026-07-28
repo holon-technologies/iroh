@@ -2560,6 +2560,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-app"
+version = "2.0.0"
+dependencies = [
+ "iroh",
+ "iroh-base",
+ "proptest",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "iroh-base"
 version = "2.0.0"
 dependencies = [
