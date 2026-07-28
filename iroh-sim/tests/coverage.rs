@@ -1,6 +1,8 @@
+mod support;
+
 use std::collections::BTreeMap;
 
-use iroh_sim::{
+use support::{
     BehaviorTransition, ConnectionId, ConnectionState, CoverageError, CoverageLedger,
     CoverageObservation, CoveragePhase, CoveragePolicy, CryptoMode, EndpointId, EndpointState,
     InvariantName, OBSERVATION_SCHEMA_VERSION, Observation, ObservationKind, OperationId,
@@ -506,7 +508,7 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
         .flat_map(|dimension| &dimension.values)
         .flat_map(|value| &value.evidence)
         .filter_map(|evidence| match evidence {
-            iroh_sim::CoverageEvidence::KnownGap { id } => Some(id.as_str()),
+            support::CoverageEvidence::KnownGap { id } => Some(id.as_str()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -540,10 +542,10 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
                     .find(|value| value.id == promoted_value)
             })
             .expect("promoted impairment value must remain declared");
-        assert_eq!(value.disposition, iroh_sim::CoverageDisposition::Continuous);
+        assert_eq!(value.disposition, support::CoverageDisposition::Continuous);
         assert!(value.evidence.iter().any(|evidence| matches!(
             evidence,
-            iroh_sim::CoverageEvidence::SwarmOption { domain, .. }
+            support::CoverageEvidence::SwarmOption { domain, .. }
                 if domain == "impairment"
         )));
     }
@@ -560,7 +562,7 @@ fn checked_repository_policy_covers_every_current_soak_domain() {
         .expect("promoted blackhole value must remain declared");
     assert!(blackhole.evidence.iter().any(|evidence| matches!(
         evidence,
-        iroh_sim::CoverageEvidence::SwarmOption {
+        support::CoverageEvidence::SwarmOption {
             domain,
             choice_id,
             option_id,
@@ -601,10 +603,10 @@ fn operation_completed(sequence: u64, operation: &str) -> Observation {
 }
 
 fn resolve_swarm(bytes: &[u8]) -> SwarmSpec {
-    let template = iroh_sim::SwarmTemplate::from_json(bytes).unwrap();
+    let template = support::SwarmTemplate::from_json(bytes).unwrap();
     match template {
-        iroh_sim::SwarmTemplate::Embedded(spec) => *spec,
-        iroh_sim::SwarmTemplate::Referenced(reference) => {
+        support::SwarmTemplate::Embedded(spec) => *spec,
+        support::SwarmTemplate::Referenced(reference) => {
             let relative = reference.base_path.strip_prefix("iroh-sim/").unwrap();
             let base =
                 std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative))

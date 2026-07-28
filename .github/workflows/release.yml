@@ -82,11 +82,12 @@ jobs:
               [.packages[]
                 | select(.name == "iroh"
                     or .name == "iroh-base"
+                    or .name == "iroh-resolver"
                     or .name == "iroh-dns"
                     or .name == "iroh-dns-server"
                     or .name == "iroh-relay"
                     or .name == "iroh-runtime")]
-              | length == 6 and all(.version == $expected)
+              | length == 7 and all(.version == $expected)
             '
           cargo metadata --format-version 1 --no-deps \
             --manifest-path vendor/noq-1.1.0/Cargo.toml |

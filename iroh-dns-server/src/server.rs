@@ -128,22 +128,7 @@ impl Server {
 
     /// Cancels the server tasks and waits for them to complete.
     pub async fn shutdown(mut self) -> Result<()> {
-        let shutdown_timeout = self.shutdown_timeout;
-        let shutdown = async move {
-            let (dns, http) =
-                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown(),);
-            let store = self.store.shutdown().await;
-            if let Some(server) = self.metrics_server.take() {
-                server.shutdown().await;
-            }
-            dns?;
-            http?;
-            store.anyerr()?;
-            Ok(())
-        };
-        tokio::time::timeout(shutdown_timeout, shutdown)
-            .await
-            .map_err(|_| anyerr!("server shutdown exceeded {shutdown_timeout:?}"))?
+        self.shutdown_components().await
     }
 
     /// Waits for the server tasks to complete.
@@ -154,24 +139,49 @@ impl Server {
             res = self.dns_server.run_until_done() => res,
             res = self.http_server.run_until_done() => res,
         };
-        let shutdown_timeout = self.shutdown_timeout;
-        let cleanup = async {
-            let (dns_result, http_result) =
-                tokio::join!(self.dns_server.shutdown(), self.http_server.shutdown());
-            let store_result = self.store.shutdown().await;
-            if let Some(server) = self.metrics_server.take() {
-                server.shutdown().await;
-            }
-            dns_result?;
-            http_result?;
-            store_result.anyerr()?;
-            Ok::<(), n0_error::AnyError>(())
-        };
-        let cleanup_result = tokio::time::timeout(shutdown_timeout, cleanup)
-            .await
-            .map_err(|_| anyerr!("server cleanup exceeded {shutdown_timeout:?}"))?;
+        let cleanup_result = self.shutdown_components().await;
         run_result?;
         cleanup_result?;
+        Ok(())
+    }
+
+    async fn shutdown_components(&mut self) -> Result<()> {
+        let shutdown_timeout = self.shutdown_timeout;
+        let deadline = tokio::time::Instant::now()
+            .checked_add(shutdown_timeout)
+            .ok_or_else(|| anyerr!("server shutdown deadline overflowed"))?;
+
+        // Begin every shutdown before awaiting any one component. This prevents
+        // an earlier component from consuming the grace period while later
+        // listeners continue accepting work.
+        self.dns_server.start_shutdown();
+        self.http_server.start_shutdown();
+        self.store.start_shutdown();
+
+        let dns_result = tokio::time::timeout_at(deadline, self.dns_server.shutdown())
+            .await
+            .map_err(|_| anyerr!("DNS shutdown exceeded {shutdown_timeout:?}"))
+            .and_then(|result| result);
+        let http_result = tokio::time::timeout_at(deadline, self.http_server.shutdown())
+            .await
+            .map_err(|_| anyerr!("HTTP shutdown exceeded {shutdown_timeout:?}"))
+            .and_then(|result| result);
+        let store_result = tokio::time::timeout_at(deadline, self.store.shutdown())
+            .await
+            .map_err(|_| anyerr!("store shutdown exceeded {shutdown_timeout:?}"))
+            .and_then(|result| result.anyerr());
+        let metrics_result = if let Some(server) = self.metrics_server.take() {
+            tokio::time::timeout_at(deadline, server.shutdown())
+                .await
+                .map_err(|_| anyerr!("metrics shutdown exceeded {shutdown_timeout:?}"))
+        } else {
+            Ok(())
+        };
+
+        dns_result?;
+        http_result?;
+        store_result?;
+        metrics_result?;
         Ok(())
     }
 

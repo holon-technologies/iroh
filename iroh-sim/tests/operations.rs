@@ -1,4 +1,6 @@
-use iroh_sim::{DeterminismGrade, OperationsPolicy, OperationsPolicyError};
+mod support;
+
+use support::{DeterminismGrade, OperationsPolicy, OperationsPolicyError};
 
 #[test]
 fn checked_operations_policy_is_canonical_and_safe() {

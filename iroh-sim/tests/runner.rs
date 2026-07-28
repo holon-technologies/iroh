@@ -1,7 +1,9 @@
+mod support;
+
 use std::{sync::Arc, time::SystemTime};
 
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use support::{
     ActionSchedule, ActionSpec, DiscoveryProviderSpec, DiscoveryRecordState, FailureSignature,
     FaultRule, FirewallAction, FirewallConnectionState, FirewallDirection, FirewallProtocol,
     FirewallRuleSpec, FirewallSpec, InvariantName, InvariantSpec, IpFamily, NatFilteringBehavior,
@@ -20,12 +22,12 @@ fn enable_relay_routing_invariant(scenario: &mut Scenario) {
 }
 
 fn assert_production_relay_coverage(
-    report: &iroh_sim::ScenarioReport,
+    report: &support::ScenarioReport,
     minimum_authenticated_sessions: u64,
 ) {
     assert!(report.observations.iter().any(|observation| matches!(
         observation.kind,
-        iroh_sim::ObservationKind::RelayCoverage {
+        support::ObservationKind::RelayCoverage {
             authenticated_sessions,
             forwarded_packets,
             ..
@@ -37,7 +39,7 @@ fn assert_production_relay_coverage(
 struct ResourceFailureEvidence {
     signature: FailureSignature,
     trace: Vec<iroh_runtime::TraceEvent>,
-    resources: iroh_sim::ResourceLedgerSnapshot,
+    resources: support::ResourceLedgerSnapshot,
     virtual_time_nanos: u64,
 }
 
@@ -228,15 +230,15 @@ async fn declarative_scenario_runs_real_quic_and_replays_the_same_report_and_tra
     }));
     assert!(first_report.tasks.iter().all(|task| !task.live));
     for (kind, limit) in [
-        (iroh_sim::ResourceKind::Timer, 100_000),
-        (iroh_sim::ResourceKind::Socket, 100_000),
-        (iroh_sim::ResourceKind::Connection, 64),
-        (iroh_sim::ResourceKind::Stream, 64),
-        (iroh_sim::ResourceKind::Relay, 1),
+        (support::ResourceKind::Timer, 100_000),
+        (support::ResourceKind::Socket, 100_000),
+        (support::ResourceKind::Connection, 64),
+        (support::ResourceKind::Stream, 64),
+        (support::ResourceKind::Relay, 1),
     ] {
         assert!(first_report.observations.iter().any(|observation| matches!(
             &observation.kind,
-            iroh_sim::ObservationKind::Resource {
+            support::ObservationKind::Resource {
                 kind: observed,
                 limit: observed_limit,
                 ..
@@ -330,7 +332,7 @@ async fn relay_only_scenario_runs_production_quic_client_and_server_sessions() {
     assert!(report.resources.is_empty());
     assert!(report.observations.iter().any(|observation| matches!(
         observation.kind,
-        iroh_sim::ObservationKind::PathState { ref path, active: true, .. }
+        support::ObservationKind::PathState { ref path, active: true, .. }
             if path.as_str() == "relay"
     )));
     assert_production_relay_coverage(&report, 2);
@@ -378,7 +380,7 @@ async fn relay_frame_loss_is_recovered_by_production_quic_and_remains_observable
     let report = run(builder.build().unwrap(), [69; 32]).await.0;
     assert!(report.observations.iter().any(|observation| matches!(
         observation.kind,
-        iroh_sim::ObservationKind::RelayCoverage {
+        support::ObservationKind::RelayCoverage {
             forwarded_packets,
             dropped_packets,
             ..
@@ -441,7 +443,7 @@ async fn direct_failure_falls_back_to_the_production_relay_path() {
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 41,
                     fill: 0x6d,
                 },
@@ -454,7 +456,7 @@ async fn direct_failure_falls_back_to_the_production_relay_path() {
         .observations
         .iter()
         .filter_map(|observation| match &observation.kind {
-            iroh_sim::ObservationKind::PathState { path, .. } => Some(path.as_str()),
+            support::ObservationKind::PathState { path, .. } => Some(path.as_str()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -541,7 +543,7 @@ async fn relay_restart_invalidates_sessions_and_recovers_the_quic_connection() {
             },
             action: ScenarioAction::DatagramRoundTrip {
                 connection: "c2".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 37,
                     fill: 0x5a,
                 },
@@ -555,7 +557,7 @@ async fn relay_restart_invalidates_sessions_and_recovers_the_quic_connection() {
         .observations
         .iter()
         .filter_map(|observation| match &observation.kind {
-            iroh_sim::ObservationKind::RelayState {
+            support::ObservationKind::RelayState {
                 online,
                 generation,
                 sessions,
@@ -631,7 +633,7 @@ async fn relay_connection_upgrades_to_a_discovered_direct_path() {
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 43,
                     fill: 0xa7,
                 },
@@ -644,7 +646,7 @@ async fn relay_connection_upgrades_to_a_discovered_direct_path() {
         .observations
         .iter()
         .filter_map(|observation| match &observation.kind {
-            iroh_sim::ObservationKind::PathState { path, .. } => Some(path.as_str()),
+            support::ObservationKind::PathState { path, .. } => Some(path.as_str()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -695,7 +697,7 @@ async fn endpoints_on_distinct_relays_route_without_cross_relay_identity_leakage
     assert_eq!(report.actions_completed, 7);
     assert!(report.observations.iter().any(|observation| matches!(
         observation.kind,
-        iroh_sim::ObservationKind::PathState { ref path, .. } if path.as_str() == "relay"
+        support::ObservationKind::PathState { ref path, .. } if path.as_str() == "relay"
     )));
     assert!(report.resources.is_empty());
 }
@@ -859,7 +861,7 @@ async fn endpoint_restart_reauthenticates_and_routes_on_a_new_runtime_incarnatio
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c2".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 47,
                     fill: 0x47,
                 },
@@ -947,7 +949,7 @@ async fn interface_down_up_notifies_production_socket_actor_and_preserves_quic()
         .iter_mut()
         .find(|host| host.id == "client")
         .unwrap();
-    client.interfaces.push(iroh_sim::InterfaceSpec {
+    client.interfaces.push(support::InterfaceSpec {
         id: "wifi0".to_owned(),
         link: "lan".to_owned(),
         addresses: vec!["192.0.3.1/0".to_owned()],
@@ -1000,7 +1002,7 @@ async fn interface_down_up_notifies_production_socket_actor_and_preserves_quic()
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 31,
                     fill: 90,
                 },
@@ -1051,7 +1053,7 @@ async fn interface_down_up_notifies_production_socket_actor_and_preserves_quic()
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 35,
                     fill: 75,
                 },
@@ -1098,7 +1100,7 @@ async fn interface_down_up_notifies_production_socket_actor_and_preserves_quic()
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 37,
                     fill: 60,
                 },
@@ -1139,7 +1141,7 @@ async fn interface_down_up_notifies_production_socket_actor_and_preserves_quic()
             .iter()
             .filter(|observation| matches!(
                 &observation.kind,
-                iroh_sim::ObservationKind::RouteState { host, .. } if host == "client"
+                support::ObservationKind::RouteState { host, .. } if host == "client"
             ))
             .count(),
         2
@@ -1315,7 +1317,7 @@ async fn declared_stateful_nat_and_firewall_carry_real_quic_and_replay() {
             .iter()
             .filter(|observation| matches!(
                 observation.kind,
-                iroh_sim::ObservationKind::PortMappingState { .. }
+                support::ObservationKind::PortMappingState { .. }
             ))
             .count(),
         2
@@ -1449,7 +1451,7 @@ async fn production_connect_aggregates_conflicting_delayed_discovery_and_expires
             },
             action: ScenarioAction::StreamRoundTrip {
                 connection: "c2".to_owned(),
-                payload: iroh_sim::PayloadSpec {
+                payload: support::PayloadSpec {
                     bytes: 33,
                     fill: 87,
                 },
@@ -1479,7 +1481,7 @@ async fn production_connect_aggregates_conflicting_delayed_discovery_and_expires
             .iter()
             .filter(|observation| matches!(
                 observation.kind,
-                iroh_sim::ObservationKind::DiscoveryRecordState { .. }
+                support::ObservationKind::DiscoveryRecordState { .. }
             ))
             .count(),
         4
@@ -1540,8 +1542,8 @@ async fn observation_completion_stops_pending_actions_and_performs_cleanup() {
         ScenarioOperation::Stream,
     )
     .unwrap();
-    builder.scenario_mut().completion = iroh_sim::CompletionPolicy::Observation {
-        trigger: iroh_sim::ObservationTrigger::EndpointState {
+    builder.scenario_mut().completion = support::CompletionPolicy::Observation {
+        trigger: support::ObservationTrigger::EndpointState {
             endpoint: "client".to_owned(),
             state: "running".to_owned(),
         },
@@ -1582,7 +1584,7 @@ async fn unsupported_capability_and_unsatisfied_trigger_are_typed() {
     stalled.scenario_mut().actions.push(ActionSpec {
         id: "99-never".to_owned(),
         schedule: ActionSchedule::AfterObservation {
-            observation: iroh_sim::ObservationTrigger::EndpointState {
+            observation: support::ObservationTrigger::EndpointState {
                 endpoint: "client".to_owned(),
                 state: "failed".to_owned(),
             },
@@ -1626,7 +1628,7 @@ fn reference_model_rejects_a_missing_production_observation() {
 async fn run(
     scenario: Scenario,
     seed: [u8; 32],
-) -> (iroh_sim::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
+) -> (support::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
     let trace = TraceBuffer::default();
     let runner = ScenarioRunner::deterministic(
         scenario,
@@ -1643,7 +1645,7 @@ async fn run_with_crypto_mode(
     scenario: Scenario,
     seed: [u8; 32],
     crypto_mode: iroh::simulation::SimulationCryptoMode,
-) -> (iroh_sim::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
+) -> (support::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
     let trace = TraceBuffer::default();
     let runner = ScenarioRunner::with_crypto_mode(
         scenario,

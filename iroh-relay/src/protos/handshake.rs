@@ -617,6 +617,7 @@ fn deserialize_frame<F: Frame + serde::de::DeserializeOwned>(frame: Bytes) -> Re
 #[cfg(all(test, feature = "server"))]
 mod tests {
     use bytes::BytesMut;
+    use data_encoding::HEXLOWER;
     use iroh_base::{PublicKey, SecretKey};
     use n0_error::{AnyError, Result, StackResultExt, StdResultExt};
     use n0_future::{Sink, SinkExt, Stream, TryStreamExt};
@@ -626,9 +627,88 @@ mod tests {
     use tracing::{Instrument, info_span};
 
     use super::{
-        ClientAuth, KeyMaterialClientAuth, Mechanism, ServerChallenge, ServerConfirmsAuth,
+        ClientAuth, Frame, KeyMaterialClientAuth, Mechanism, ServerChallenge, ServerConfirmsAuth,
+        ServerDeniesAuth,
     };
-    use crate::{ExportKeyingMaterial, server::Access};
+    use crate::{ExportKeyingMaterial, protos::compatibility_fixtures::fixture, server::Access};
+
+    fn serialize_compat_frame<F: serde::Serialize + Frame>(frame: &F) -> Vec<u8> {
+        let mut encoded = F::TAG.write_to(Vec::new());
+        encoded.extend(
+            postcard::to_allocvec(frame)
+                .expect("fixed relay compatibility frame must serialize into an allocated buffer"),
+        );
+        encoded
+    }
+
+    fn assert_compat_fixture(name: &str, actual: impl AsRef<[u8]>) {
+        let actual = actual.as_ref();
+        let expected = fixture(name);
+        assert_eq!(
+            actual,
+            expected,
+            "handshake encoding changed from upstream v1.0.3 fixture {name}: actual={} expected={}",
+            HEXLOWER.encode(actual),
+            HEXLOWER.encode(&expected),
+        );
+    }
+
+    #[derive(Debug)]
+    struct GoldenExporter {
+        expected_context: [u8; 32],
+    }
+
+    impl ExportKeyingMaterial for GoldenExporter {
+        fn export_keying_material<T: AsMut<[u8]>>(
+            &self,
+            mut output: T,
+            label: &[u8],
+            context: Option<&[u8]>,
+        ) -> Option<T> {
+            assert_eq!(label, super::DOMAIN_SEP_TLS_EXPORT_LABEL);
+            assert_eq!(context, Some(self.expected_context.as_slice()));
+            let output_bytes = output.as_mut();
+            assert_eq!(
+                output_bytes.len(),
+                32,
+                "relay TLS compatibility exporter output must remain 32 bytes"
+            );
+            for (index, byte) in output_bytes.iter_mut().enumerate() {
+                *byte = u8::try_from(index)
+                    .expect("32-byte compatibility exporter index must fit in u8");
+            }
+            Some(output)
+        }
+    }
+
+    #[test]
+    fn handshake_frames_match_v1_0_3_fixtures() {
+        let secret_key = SecretKey::from_bytes(&[42u8; 32]);
+        let challenge = ServerChallenge {
+            challenge: [7u8; 16],
+        };
+        let client_auth = ClientAuth::new(&secret_key, &challenge);
+        let confirmation = ServerConfirmsAuth;
+        let denial = ServerDeniesAuth {
+            reason: "not authorized".to_owned(),
+        };
+
+        assert_compat_fixture("handshake.challenge", serialize_compat_frame(&challenge));
+        assert_compat_fixture(
+            "handshake.client_auth",
+            serialize_compat_frame(&client_auth),
+        );
+        assert_compat_fixture("handshake.confirm", serialize_compat_frame(&confirmation));
+        assert_compat_fixture("handshake.deny", serialize_compat_frame(&denial));
+
+        let exporter = GoldenExporter {
+            expected_context: *secret_key.public().as_bytes(),
+        };
+        let header = KeyMaterialClientAuth::new(&secret_key, &exporter)
+            .expect("fixed compatibility exporter returns key material")
+            .into_header_value();
+        assert_compat_fixture("handshake.tls_header", header.as_bytes());
+    }
 
     struct TestKeyingMaterial<IO> {
         shared_secret: Option<u64>,

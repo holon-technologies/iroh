@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     future::pending,
     net::{Ipv4Addr, Ipv6Addr},
@@ -10,12 +12,12 @@ use std::{
 
 use iroh::dns::{BoxIter, DnsError, DnsResolver, Resolver, TxtRecordData};
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use n0_error::AnyError;
+use n0_future::boxed::BoxFuture;
+use support::{
     DeterministicDnsRuntime, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, TraceBuffer,
     normalized_trace_json,
 };
-use n0_error::AnyError;
-use n0_future::boxed::BoxFuture;
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn seeded_stagger_retries_and_virtual_timeout_are_replay_stable() {

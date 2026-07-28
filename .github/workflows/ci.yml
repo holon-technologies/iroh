@@ -86,6 +86,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes ripgrep
+      - name: Check workspace architecture contract
+        run: scripts/tests/check-workspace-architecture.sh
+      - name: Check exact relay TLS provider bundles
+        run: scripts/tests/check-relay-tls-features.sh
       - name: Check boundary checker contract
         run: scripts/tests/check-determinism-boundaries.sh
       - name: Check syntax-aware boundary checker contract
@@ -131,8 +135,12 @@ jobs:
         run: scripts/tests/check-v2-release-readiness.sh
       - name: Check release dependency-fork boundary
         run: scripts/tests/check-release-fork-boundary.sh
+      - name: Check relay V1/V2 golden compatibility
+        run: scripts/tests/check-relay-compatibility.sh --golden
       - name: Test runtime capability contracts
         run: cargo test -p iroh-runtime
+      - name: Test generic resolver contracts
+        run: cargo test -p iroh-resolver --all-features
       - name: Test manifest, trace, and replay contracts
         run: cargo test --manifest-path iroh-sim/Cargo.toml
       - name: Validate simulation operations and cross-backend parity policy
@@ -542,7 +550,9 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-semver-checks@0.49.0
-      - name: Check v2 public API against v1.0.3
+      - name: Check v2 semver transition policy
+        run: scripts/tests/check-v2-semver-policy.sh
+      - name: Check v2 migration inventory or post-cut API stability
         run: scripts/run-v2-semver-checks.sh
 
   check_external_types:

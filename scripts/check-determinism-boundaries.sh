@@ -64,7 +64,7 @@ if [[ -z "$baseline" ]]; then
 fi
 
 source_roots=()
-for candidate in iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim; do
+for candidate in iroh iroh-base iroh-resolver iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim; do
   if [[ -d "$repo_root/$candidate" ]]; then
     source_roots+=("$candidate")
   fi

@@ -1,5 +1,10 @@
 # Iroh 2.0 release-closure audit — 2026-07-25
 
+> Historical pre-architecture-cut evidence. The later v2 hard cut intentionally moves generic DNS
+> APIs and replaces the zero-break v1 Rust API gate with the reviewed migration inventory plus a
+> strict post-cut baseline. Current release decisions use `v2-release-checklist.md` and a new
+> candidate audit; relay wire compatibility still uses upstream v1.0.3.
+
 ## Decision
 
 The source tree is locally ready to become a `2.0.0` release candidate. The

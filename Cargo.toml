@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "iroh-base",
+  "iroh-resolver",
   "iroh-dns",
   "iroh-dns-server",
   "iroh",
@@ -10,6 +11,7 @@ members = [
   "tools/determinism-checker",
 ]
 exclude = [
+  "compat/relay-v1-interop",
   "fuzz",
   "iroh-sim",
   "vendor/hickory-server-0.26.1",
@@ -17,6 +19,22 @@ exclude = [
   "vendor/rustls-0.23.41",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/holon-technologies/iroh"
+
+[workspace.dependencies]
+iroh = { version = "2.0.0", path = "iroh", default-features = false }
+iroh-base = { version = "2.0.0", path = "iroh-base", default-features = false }
+iroh-resolver = { version = "2.0.0", path = "iroh-resolver", default-features = false }
+iroh-dns = { version = "2.0.0", path = "iroh-dns" }
+iroh-dns-server = { version = "2.0.0", path = "iroh-dns-server" }
+iroh-relay = { version = "2.0.0", path = "iroh-relay", default-features = false }
+iroh-runtime = { version = "2.0.0", path = "iroh-runtime" }
 
 [profile.release]
 debug = true

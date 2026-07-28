@@ -17,13 +17,13 @@ use std::{
 use defaults::timeouts::PROBES_TIMEOUT;
 use iroh_base::RelayUrl;
 #[cfg(not(wasm_browser))]
-use iroh_dns::dns::DnsResolver;
-#[cfg(not(wasm_browser))]
 use iroh_relay::{RelayConfig, quic::QuicClient};
 use iroh_relay::{
     RelayMap,
     quic::{QUIC_ADDR_DISC_CLOSE_CODE, QUIC_ADDR_DISC_CLOSE_REASON},
 };
+#[cfg(not(wasm_browser))]
+use iroh_resolver::DnsResolver;
 use n0_error::e;
 #[cfg(not(wasm_browser))]
 use n0_error::stack_error;
@@ -1044,8 +1044,8 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr};
 
     use iroh_base::RelayUrl;
-    use iroh_dns::dns::DnsResolver;
     use iroh_relay::tls::{CaTlsConfig, default_provider};
+    use iroh_resolver::DnsResolver;
     use n0_error::{Result, StdResultExt};
     use n0_tracing_test::traced_test;
     use tokio_util::sync::CancellationToken;

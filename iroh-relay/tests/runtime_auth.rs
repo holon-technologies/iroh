@@ -19,7 +19,6 @@ use std::{
 };
 
 use iroh_base::{EndpointId, RelayUrl, SecretKey};
-use iroh_dns::dns::DnsResolver;
 use iroh_relay::{
     client::{Client, ClientBuilder, ConnectError},
     protos::{
@@ -31,6 +30,7 @@ use iroh_relay::{
     },
     tls::{CaTlsConfig, default_provider},
 };
+use iroh_resolver::DnsResolver;
 use n0_error::{Result, StackResultExt, StdResultExt};
 use n0_future::{SinkExt, StreamExt};
 use n0_tracing_test::traced_test;

@@ -2,11 +2,11 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use iroh::{
     RelayUrl, SecretKey,
     address_lookup::pkarr::PkarrRelayClient,
-    dns::DnsResolver,
     endpoint_info::EndpointInfo,
     tls::{CaTlsConfig, default_provider},
 };
 use iroh_dns_server::{Server, config::Config};
+use iroh_resolver::DnsResolver;
 use rand::RngExt;
 use rand_chacha::rand_core::SeedableRng;
 use tokio::runtime::Runtime;

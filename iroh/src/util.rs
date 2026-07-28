@@ -27,7 +27,7 @@ pub(crate) fn reqwest_client_builder() -> reqwest::ClientBuilder {
 mod reqwest_dns_resolver {
     use std::net::SocketAddr;
 
-    use iroh_dns::dns::{DNS_TIMEOUT, DnsResolver};
+    use iroh_resolver::{DNS_TIMEOUT, DnsResolver};
 
     /// Implementation of [`reqwest::dns::Resolve`] for [`DnsResolver`].
     ///

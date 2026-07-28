@@ -2,7 +2,10 @@ use std::{hint::black_box, sync::Arc, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use iroh_runtime::{Executor, RootSeed, TaskKind};
-use iroh_sim::{Kernel, KernelConfig, KernelResourceLimits, Quiescence, TraceBuffer};
+use iroh_sim::{
+    engine::{Kernel, KernelConfig, KernelResourceLimits, Quiescence},
+    evidence::TraceBuffer,
+};
 
 const TASKS: u64 = 256;
 

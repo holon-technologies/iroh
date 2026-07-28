@@ -1,6 +1,8 @@
+mod support;
+
 use std::collections::BTreeMap;
 
-use iroh_sim::{
+use support::{
     ActionSchedule, ActionSpec, FailureSignature, InvariantClass, InvariantFailure, InvariantName,
     MinimizationConfig, MinimizationError, Minimizer, RunnerError, ScenarioAction, ScenarioBuilder,
     ScenarioInventory, ScenarioOperation,
@@ -10,7 +12,7 @@ use iroh_sim::{
 fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
     let mut builder = ScenarioBuilder::direct_ip_echo(
         "minimize/multi-cause",
-        iroh_sim::IpFamily::Ipv4,
+        support::IpFamily::Ipv4,
         ScenarioOperation::Stream,
     )
     .unwrap();
@@ -19,15 +21,15 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
     scenario.metadata.tags = vec!["generated".to_owned(), "nightly".to_owned()];
     scenario.budgets.resources.max_connections = 2;
     scenario.budgets.resources.max_streams = 0;
-    scenario.topology.hosts.push(iroh_sim::HostSpec {
+    scenario.topology.hosts.push(support::HostSpec {
         id: "noise-host".to_owned(),
-        interfaces: vec![iroh_sim::InterfaceSpec {
+        interfaces: vec![support::InterfaceSpec {
             id: "eth0".to_owned(),
             link: "lan".to_owned(),
             addresses: vec!["10.0.0.99/24".to_owned()],
         }],
     });
-    scenario.endpoints.push(iroh_sim::EndpointSpec {
+    scenario.endpoints.push(support::EndpointSpec {
         id: "noise-endpoint".to_owned(),
         host: "noise-host".to_owned(),
         bind: "10.0.0.99:46000".to_owned(),
@@ -35,10 +37,10 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
         direct: true,
         relay: None,
     });
-    scenario.fault_rules.push(iroh_sim::FaultRule {
+    scenario.fault_rules.push(support::FaultRule {
         id: "noise-fault".to_owned(),
         link: "lan".to_owned(),
-        effect: iroh_sim::PacketFault::Duplication,
+        effect: support::PacketFault::Duplication,
         probability_per_million: 1,
         start_nanos: 0,
         end_nanos: scenario.budgets.max_virtual_time_nanos,
@@ -72,7 +74,7 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
     let original_size = scenario.to_canonical_json().unwrap().len();
     let signature = fixture_signature();
     let mut evaluations = 0;
-    let mut evaluator = |candidate: &iroh_sim::Scenario| {
+    let mut evaluator = |candidate: &support::Scenario| {
         evaluations += 1;
         Ok(candidate.actions.iter().any(|action| {
             matches!(&action.action, ScenarioAction::ExpectFailure { class } if class == "cause")
@@ -110,7 +112,7 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
     assert!(first.attempts.iter().any(|attempt| attempt.accepted));
     assert!(!first.exhausted);
 
-    let mut evaluator = |candidate: &iroh_sim::Scenario| {
+    let mut evaluator = |candidate: &support::Scenario| {
         Ok(candidate.actions.iter().any(|action| {
             matches!(&action.action, ScenarioAction::ExpectFailure { class } if class == "cause")
         })
@@ -127,10 +129,10 @@ fn deterministic_ddmin_removes_irrelevant_causes_and_preserves_signature() {
 
 #[test]
 fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_routes() {
-    let mut entry = iroh_sim::canonical_patchbay_scenarios()
+    let mut entry = support::canonical_patchbay_scenarios()
         .unwrap()
         .into_iter()
-        .find(|entry| entry.case == iroh_sim::CanonicalParityCase::PortRestricted)
+        .find(|entry| entry.case == support::CanonicalParityCase::PortRestricted)
         .unwrap();
     let scenario = &mut entry.scenario;
     scenario.requirements.discovery = true;
@@ -138,7 +140,7 @@ fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_route
     scenario
         .topology
         .discovery
-        .push(iroh_sim::DiscoveryProviderSpec {
+        .push(support::DiscoveryProviderSpec {
             id: "noise-discovery".to_owned(),
             max_records: 8,
         });
@@ -149,7 +151,7 @@ fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_route
         .find(|host| host.id == "client")
         .unwrap()
         .interfaces
-        .push(iroh_sim::InterfaceSpec {
+        .push(support::InterfaceSpec {
             id: "noise0".to_owned(),
             link: "lan".to_owned(),
             addresses: vec!["10.1.0.1/24".to_owned(), "10.1.0.2/24".to_owned()],
@@ -165,7 +167,7 @@ fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_route
                 addresses: vec!["192.0.2.2:31002".to_owned()],
                 delay_nanos: 10,
                 ttl_nanos: 20,
-                state: iroh_sim::DiscoveryRecordState::Published,
+                state: support::DiscoveryRecordState::Published,
             },
         },
         ActionSpec {
@@ -197,7 +199,7 @@ fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_route
     assert_eq!(before.routes, 1);
 
     let signature = fixture_signature();
-    let mut evaluator = |candidate: &iroh_sim::Scenario| {
+    let mut evaluator = |candidate: &support::Scenario| {
         Ok(candidate.actions.iter().any(|action| {
             matches!(&action.action, ScenarioAction::ExpectFailure { class } if class == "cause")
         })
@@ -243,7 +245,7 @@ fn domain_reducers_remove_irrelevant_nat_firewall_discovery_interfaces_and_route
 fn relay_reducers_remove_unrelated_service_lifecycle_and_shrink_required_configuration() {
     let mut builder = ScenarioBuilder::direct_ip_echo(
         "minimize/relay",
-        iroh_sim::IpFamily::Ipv4,
+        support::IpFamily::Ipv4,
         ScenarioOperation::Stream,
     )
     .unwrap();
@@ -253,29 +255,29 @@ fn relay_reducers_remove_unrelated_service_lifecycle_and_shrink_required_configu
         ("required", "https://required.invalid"),
         ("noise", "https://noise.invalid"),
     ] {
-        scenario.topology.relays.push(iroh_sim::RelaySpec {
+        scenario.topology.relays.push(support::RelaySpec {
             id: id.to_owned(),
             url: url.to_owned(),
             online: true,
             max_sessions: 64,
             byte_capacity: 1024 * 1024,
-            protocol_version: iroh_sim::RelayProtocolVersion::V2,
+            protocol_version: support::RelayProtocolVersion::V2,
         });
     }
     scenario.topology.relay_impairments.extend([
-        iroh_sim::RelayImpairmentSpec {
+        support::RelayImpairmentSpec {
             relay: "required".to_owned(),
             connection_delay_nanos: 9_000_000,
             reject_connect_attempts: vec![2, 4, 8],
             drop_every_nth_packet: Some(70),
-            ..iroh_sim::RelayImpairmentSpec::default()
+            ..support::RelayImpairmentSpec::default()
         },
-        iroh_sim::RelayImpairmentSpec {
+        support::RelayImpairmentSpec {
             relay: "noise".to_owned(),
             connection_delay_nanos: 10_000_000,
             reject_connect_attempts: vec![1],
             drop_every_nth_packet: Some(3),
-            ..iroh_sim::RelayImpairmentSpec::default()
+            ..support::RelayImpairmentSpec::default()
         },
     ]);
     scenario.actions.extend([
@@ -297,7 +299,7 @@ fn relay_reducers_remove_unrelated_service_lifecycle_and_shrink_required_configu
     ]);
     let scenario = builder.build().unwrap();
     let signature = fixture_signature();
-    let mut evaluator = |candidate: &iroh_sim::Scenario| {
+    let mut evaluator = |candidate: &support::Scenario| {
         Ok((candidate
             .topology
             .relays
@@ -324,7 +326,7 @@ fn relay_reducers_remove_unrelated_service_lifecycle_and_shrink_required_configu
     assert_eq!(relay.id, "required");
     assert_eq!(relay.max_sessions, 1);
     assert_eq!(relay.byte_capacity, 1);
-    assert_eq!(relay.protocol_version, iroh_sim::RelayProtocolVersion::V1);
+    assert_eq!(relay.protocol_version, support::RelayProtocolVersion::V1);
     assert_eq!(result.scenario.topology.relay_impairments.len(), 1);
     let impairment = &result.scenario.topology.relay_impairments[0];
     assert_eq!(impairment.relay, "required");
@@ -347,14 +349,14 @@ fn relay_reducers_remove_unrelated_service_lifecycle_and_shrink_required_configu
 fn minimizer_distinguishes_nonfailure_changed_signature_and_budget_exhaustion() {
     let scenario = ScenarioBuilder::direct_ip_echo(
         "minimize/errors",
-        iroh_sim::IpFamily::Ipv4,
+        support::IpFamily::Ipv4,
         ScenarioOperation::Stream,
     )
     .unwrap()
     .build()
     .unwrap();
     let expected = fixture_signature();
-    let mut nonfailing = |_candidate: &iroh_sim::Scenario| Ok(None);
+    let mut nonfailing = |_candidate: &support::Scenario| Ok(None);
     assert!(matches!(
         Minimizer::new(MinimizationConfig { max_attempts: 10 }).minimize(
             scenario.clone(),
@@ -370,7 +372,7 @@ fn minimizer_distinguishes_nonfailure_changed_signature_and_budget_exhaustion() 
         4,
     )
     .unwrap();
-    let mut changed = |_candidate: &iroh_sim::Scenario| Ok(Some(different.clone()));
+    let mut changed = |_candidate: &support::Scenario| Ok(Some(different.clone()));
     assert!(matches!(
         Minimizer::new(MinimizationConfig { max_attempts: 10 }).minimize(
             scenario.clone(),
@@ -380,7 +382,7 @@ fn minimizer_distinguishes_nonfailure_changed_signature_and_budget_exhaustion() 
         Err(MinimizationError::InputSignatureMismatch { .. })
     ));
 
-    let mut same = |_candidate: &iroh_sim::Scenario| Ok(Some(expected.clone()));
+    let mut same = |_candidate: &support::Scenario| Ok(Some(expected.clone()));
     let result = Minimizer::new(MinimizationConfig { max_attempts: 1 })
         .minimize(scenario, expected.clone(), &mut same)
         .unwrap();

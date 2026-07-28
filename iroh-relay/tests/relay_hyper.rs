@@ -17,7 +17,6 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use iroh_base::{RelayUrl, SecretKey};
-use iroh_dns::dns::DnsResolver;
 use iroh_relay::{
     KeyCache,
     client::ClientBuilder,
@@ -29,6 +28,7 @@ use iroh_relay::{
     },
     tls::{CaTlsConfig, default_provider},
 };
+use iroh_resolver::DnsResolver;
 use n0_error::{Result, StdResultExt};
 use n0_future::task::AbortOnDropHandle;
 use n0_tracing_test::traced_test;
@@ -95,7 +95,7 @@ async fn serve_hyper() -> Result<(SocketAddr, AbortOnDropHandle<()>)> {
 #[tokio::test]
 #[traced_test]
 async fn relay_embed_hyper() -> Result<()> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = default_provider().as_ref().clone().install_default();
     let (addr, _guard) = serve_hyper().await?;
 
     let res = reqwest::get(format!("http://{addr}/ping"))

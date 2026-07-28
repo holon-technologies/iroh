@@ -1,14 +1,16 @@
+mod support;
+
 use std::time::Duration;
 
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use proptest::prelude::*;
+use support::{
     ActionSchedule, ActionSpec, DiscoveryProviderSpec, DiscoveryRecordState, GeneratorConfig,
     IpFamily, NatFilteringBehavior, NatMappingBehavior, NatSpec, ObservationTrigger,
     RelayImpairmentSpec, RelayProtocolVersion, RelaySpec, SCENARIO_SCHEMA_VERSION, Scenario,
     ScenarioAction, ScenarioBuilder, ScenarioGenerator, ScenarioModelError, ScenarioOperation,
     ScenarioResourceLimits,
 };
-use proptest::prelude::*;
 
 #[test]
 fn strict_v3_fixture_matches_the_rust_builder_and_round_trips_canonically() {
@@ -119,7 +121,7 @@ fn sleep_actions_are_positive_bounded_and_counted_in_inventory() {
     });
     scenario.validate().unwrap();
     assert_eq!(
-        iroh_sim::ScenarioInventory::from_scenario(&scenario).sleep_actions,
+        support::ScenarioInventory::from_scenario(&scenario).sleep_actions,
         1
     );
 
@@ -155,7 +157,7 @@ fn datagram_probe_actions_validate_connection_payload_and_round_trip() {
             },
             action: ScenarioAction::SendDatagram {
                 connection: "c1".to_owned(),
-                payload: iroh_sim::PayloadSpec { bytes: 64, fill: 7 },
+                payload: support::PayloadSpec { bytes: 64, fill: 7 },
             },
         },
         ActionSpec {
@@ -310,7 +312,7 @@ fn schema_rejects_unknown_fields_dangling_references_and_missing_capabilities() 
     .unwrap()
     .build()
     .unwrap();
-    let iroh_sim::ScenarioAction::Connect { connection, .. } = &mut dangling.actions[2].action
+    let support::ScenarioAction::Connect { connection, .. } = &mut dangling.actions[2].action
     else {
         panic!("builder action ordering changed");
     };
@@ -321,7 +323,7 @@ fn schema_rejects_unknown_fields_dangling_references_and_missing_capabilities() 
     ));
 
     let mut capability = dangling;
-    capability.actions[2].action = iroh_sim::ScenarioAction::NatChange {
+    capability.actions[2].action = support::ScenarioAction::NatChange {
         nat: "home".to_owned(),
         public_ip: "203.0.113.7".to_owned(),
         preserve_ports: false,
@@ -526,10 +528,10 @@ fn legacy_stage_two_documents_migrate_explicitly_to_v3() {
         assert!(migrated.actions.iter().any(|action| matches!(
             (&action.action, operation),
             (
-                iroh_sim::ScenarioAction::StreamRoundTrip { .. },
+                support::ScenarioAction::StreamRoundTrip { .. },
                 ScenarioOperation::Stream
             ) | (
-                iroh_sim::ScenarioAction::DatagramRoundTrip { .. },
+                support::ScenarioAction::DatagramRoundTrip { .. },
                 ScenarioOperation::Datagram
             )
         )));

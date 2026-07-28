@@ -139,8 +139,14 @@ impl DnsServer {
         self.local_addr
     }
 
-    /// Shutdown the server an wait for all tasks to complete.
+    /// Signals every DNS listener and request task to stop.
+    pub(crate) fn start_shutdown(&self) {
+        self.server.shutdown_token().cancel();
+    }
+
+    /// Shutdown the server and wait for all tasks to complete.
     pub(crate) async fn shutdown(&mut self) -> Result<()> {
+        self.start_shutdown();
         self.server.shutdown_gracefully().await.anyerr()?;
         Ok(())
     }

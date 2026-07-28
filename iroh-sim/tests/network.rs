@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     io::{self, IoSliceMut},
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -9,13 +11,13 @@ use std::{
 
 use iroh::simulation::{IpSocket, IpSocketSender};
 use iroh_runtime::{RootSeed, TraceEventKind};
-use iroh_sim::{
+use proptest::prelude::*;
+use support::{
     FirewallAction, FirewallConfig, FirewallConnectionState, FirewallDirection, FirewallProtocol,
     FirewallRule, IpCidr, Kernel, KernelConfig, KernelResourceLimits, LedgerError, LinkConfig,
     NatConfig, NatFilteringBehavior, NatMappingBehavior, NetworkConfig, NetworkError, ResourceKind,
     SyntheticNetwork, TraceBuffer, normalized_trace_json,
 };
-use proptest::prelude::*;
 
 struct Fixture {
     kernel: Kernel,
@@ -214,7 +216,7 @@ fn stateful_nat_translates_real_socket_outbound_and_reply_paths() {
     send(&private, remote.local_addr().unwrap(), b"outbound").unwrap();
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     let received = recv(&remote, 64).unwrap();
     assert_eq!(received.0, b"outbound");
@@ -224,7 +226,7 @@ fn stateful_nat_translates_real_socket_outbound_and_reply_paths() {
     send(&remote, external, b"reply").unwrap();
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     let reply = recv(&private, 64).unwrap();
     assert_eq!(reply.0, b"reply");
@@ -256,7 +258,7 @@ fn stateful_nat_translates_real_socket_outbound_and_reply_paths() {
     send(&unsolicited, external, b"unsolicited").unwrap();
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     assert!(recv(&private, 64).is_none());
     assert!(fixture.trace.events().iter().any(|event| {
@@ -552,7 +554,7 @@ fn routed_multi_hop_delivery_uses_longest_prefix_and_rejects_ambiguity() {
 
     assert_eq!(
         fixture.kernel.run_until_idle().unwrap().quiescence,
-        iroh_sim::Quiescence::Complete
+        support::Quiescence::Complete
     );
     assert_eq!(recv(&destination, 64).unwrap().0, b"routed");
     let hops: Vec<_> = fixture
@@ -837,21 +839,21 @@ fn packet_budget_rejection_does_not_reserve_phantom_link_time() {
     )));
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     assert_eq!(fixture.kernel.now(), Duration::from_secs(1));
 
     send(&source, destination.local_addr().unwrap(), b"3").unwrap();
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     assert_eq!(fixture.kernel.now(), Duration::from_secs(2));
 
     send(&second_destination, external, b"phantom").unwrap();
     assert!(matches!(
         fixture.kernel.step().unwrap(),
-        iroh_sim::KernelStep::Progress
+        support::KernelStep::Progress
     ));
     assert!(
         recv(&source, 64).is_none(),

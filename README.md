@@ -127,11 +127,22 @@ If you want to use iroh from other languages, make sure to check out [iroh-ffi],
 
 ## Repository Structure
 
-This repository contains a workspace of crates:
-- `iroh`: The core library for hole-punching & communicating with relays.
-- `iroh-relay`: The relay client and server implementation. This is the code we run in production for the public relays (and you can, too!).
-- `iroh-base`: Common types like `EndpointId` or `RelayUrl`.
-- `iroh-dns-server`: DNS server implementation powering the DNS/Pkarr address lookup for EndpointIds, running at dns.iroh.link.
+The production workspace and its isolated test workspaces have explicit ownership boundaries:
+
+- `iroh`: public endpoint, connection, path-selection, and hole-punching orchestration.
+- `iroh-base`: dependency-light identity, address, key, and relay-map value types.
+- `iroh-runtime`: bounded clock, task, decision, and trace capabilities used by production Iroh.
+- `iroh-resolver`: provider-neutral, bounded A/AAAA/TXT/host resolution.
+- `iroh-dns`: endpoint-aware DNS records, endpoint lookup, and pkarr integration.
+- `iroh-relay`: relay client, server, sessions, and the shared V1/V2 wire protocol.
+- `iroh-dns-server`: deployable DNS, DNS-over-HTTPS, and pkarr publication service.
+- `iroh/bench`: non-published benchmarks and production resource canaries.
+- `tools/determinism-checker`: non-published source-boundary policy checker.
+- `iroh-sim`: isolated deterministic simulation workspace; production crates never depend on it.
+
+See [the architecture contract](docs/architecture.md), the
+[relay compatibility contract](docs/relay-compatibility.md), and the
+[Iroh 2.0 migration guide](docs/release/v2-migration.md) for the fork's hard-cut boundaries.
 
 ## License
 

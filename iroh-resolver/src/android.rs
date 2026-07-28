@@ -1,4 +1,4 @@
-//! Android system DNS reader.
+//! Android system DNS reader for the generic resolver.
 //!
 //! Forwards to [`hickory_resolver::system_conf::read_system_conf`], which
 //! reads `LinkProperties.getDnsServers()` through [`ndk_context`]. iroh on
@@ -59,7 +59,7 @@ pub(crate) fn read_system_conf() -> Result<(ResolverConfig, ResolverOpts), NetEr
 /// via `JNI_OnLoad`:
 ///
 /// *Note: `install_android_jni_context` is reexported from `iroh`, so you can substitute
-/// `iroh_dns` for `iroh` below.*
+/// `iroh_resolver` for `iroh` below.*
 ///
 /// ```ignore
 /// #[cfg(target_os = "android")]
@@ -72,7 +72,7 @@ pub(crate) fn read_system_conf() -> Result<(ResolverConfig, ResolverOpts), NetEr
 ///
 ///     let vm = vm.get_java_vm_pointer() as *mut c_void;
 ///     unsafe {
-///         iroh_dns::install_android_jni_context(vm, res);
+///         iroh_resolver::install_android_jni_context(vm, res);
 ///     }
 ///     jni::JNIVersion::V6.into()
 /// }

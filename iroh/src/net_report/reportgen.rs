@@ -26,12 +26,12 @@ use std::{
 use http::StatusCode;
 use iroh_base::RelayUrl;
 #[cfg(not(wasm_browser))]
-use iroh_dns::dns::{DnsError, DnsResolver, StaggeredError};
-#[cfg(not(wasm_browser))]
 use iroh_relay::quic::QuicClient;
 use iroh_relay::{
     RelayConfig, RelayMap, defaults::DEFAULT_RELAY_QUIC_PORT, http::RELAY_PROBE_PATH,
 };
+#[cfg(not(wasm_browser))]
+use iroh_resolver::{DnsError, DnsResolver, StaggeredError};
 use n0_error::{e, stack_error};
 #[cfg(wasm_browser)]
 use n0_future::future::Pending;
@@ -891,8 +891,8 @@ async fn run_https_probe(
 mod tests {
     use std::net::Ipv4Addr;
 
-    use iroh_dns::dns::DnsResolver;
     use iroh_relay::tls::{CaTlsConfig, default_provider};
+    use iroh_resolver::DnsResolver;
     use n0_error::{Result, StdResultExt};
     use n0_tracing_test::traced_test;
 

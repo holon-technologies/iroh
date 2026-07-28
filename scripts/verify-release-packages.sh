@@ -28,7 +28,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 69
 fi
 
-packages="iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-dns iroh-relay iroh iroh-dns-server"
+packages="iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server"
 read -r -a package_order <<< "$packages"
 candidate_patches=()
 declare -A candidate_manifests=()
@@ -37,6 +37,7 @@ source_bootstrap_patches=(
   --config "patch.crates-io.iroh-hickory-server.path=\"$repo_root/vendor/hickory-server-0.26.1\""
   --config "patch.crates-io.iroh-base.path=\"$repo_root/iroh-base\""
   --config "patch.crates-io.iroh-runtime.path=\"$repo_root/iroh-runtime\""
+  --config "patch.crates-io.iroh-resolver.path=\"$repo_root/iroh-resolver\""
   --config "patch.crates-io.iroh-dns.path=\"$repo_root/iroh-dns\""
   --config "patch.crates-io.iroh-relay.path=\"$repo_root/iroh-relay\""
   --config "patch.crates-io.iroh.path=\"$repo_root/iroh\""

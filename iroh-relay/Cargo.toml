@@ -1,14 +1,14 @@
 [package]
 name = "iroh-relay"
-version = "2.0.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "Iroh's relay server and client"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["n0 team"]
-repository = "https://github.com/holon-technologies/iroh"
+repository.workspace = true
 keywords = ["networking", "holepunching", "p2p"]
-rust-version = "1.91"
+rust-version.workspace = true
 
 [lib]
 # We need "cdylib" to actually generate .wasm files when we run with --target=wasm32-unknown-unknown.
@@ -34,10 +34,10 @@ http = "1"
 http-body-util = "0.1.0"
 hyper = { version = "1", features = ["server", "client", "http1"] }
 hyper-util = "0.1.1"
-iroh-base = { version = "2.0.0", path = "../iroh-base", default-features = false, features = ["key", "relay"] }
-iroh-dns = { version = "2.0.0", path = "../iroh-dns" }
+iroh-base = { workspace = true, default-features = false, features = ["key", "relay"] }
+iroh-resolver.workspace = true
 iroh-metrics = { version = "1.0.1", default-features = false }
-iroh-runtime = { version = "2.0.0", path = "../iroh-runtime" }
+iroh-runtime.workspace = true
 lru = "0.18.0"
 n0-error = "1.0.0"
 n0-future = "0.3"
@@ -73,12 +73,12 @@ webpki_types = { package = "rustls-pki-types", version = "1.12" }
 # server feature
 clap = { version = "4", features = ["derive"], optional = true }
 dashmap = { version = "6.1.0", optional = true }
-rcgen = { version = "0.14", optional = true }
+rcgen = { version = "0.14", optional = true, default-features = false, features = ["crypto", "pem"] }
 reloadable-state = { version = "0.1", optional = true }
 rustls-cert-reloadable-resolver = { version = "0.7.1", optional = true }
 rustls-cert-file-reader = { version = "0.4.2", optional = true }
 time = { version = "0.3.37", optional = true }
-tokio-rustls-acme = { version = "0.9", optional = true }
+tokio-rustls-acme = { package = "rustls-acme", version = "0.15.3", optional = true, default-features = false, features = ["tokio", "tls12", "webpki-roots"] }
 tokio-websockets = { version = "0.13", features = ["rustls-bring-your-own-connector", "getrandom", "rand", "server", "sha1_smol"], optional = true } # server-side websocket implementation
 simdutf8 = { version = "0.1.5", optional = true } # minimal version fix
 sha1 = { version = "0.11.0", optional = true }
@@ -89,7 +89,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 # non-wasm-in-browser dependencies
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
-hickory-resolver = { version = "0.26.0", features = ["tokio", "system-config"] }
 tokio = { version = "1", features = [
     "io-util",
     "macros",
@@ -141,12 +140,10 @@ server = [
     "dep:async-trait",
     "dep:clap",
     "dep:dashmap",
-    "dep:rcgen",
     "dep:reloadable-state",
     "dep:rustls-cert-file-reader",
     "dep:rustls-cert-reloadable-resolver",
     "dep:time",
-    "dep:tokio-rustls-acme",
     "dep:tokio-websockets",
     "dep:simdutf8",
     "dep:sha1",
@@ -156,33 +153,50 @@ server = [
     "dep:tracing-subscriber",
     "noq/platform-verifier",
     "noq/runtime-tokio",
-    "iroh-metrics/service",
+]
+# Internal target marker. Provider bundles enable this so workspace feature
+# unification cannot accidentally compile the binary from provider-neutral
+# library consumers.
+relay-bin = []
+server-acme = ["dep:tokio-rustls-acme"]
+server-ring = [
+    "server",
+    "relay-bin",
+    "server-acme",
     "tls-ring",
+    "tokio-rustls-acme/ring",
+]
+server-aws-lc-rs = [
+    "server",
+    "relay-bin",
+    "server-acme",
+    "tls-aws-lc-rs",
+    "tokio-rustls-acme/aws-lc-rs",
 ]
 metrics = ["iroh-metrics/metrics"]
-test-utils = []
+test-utils = ["dep:rcgen"]
 fuzzing = []
 tls-ring = [
     "noq/ring",
     "rustls/ring",
     "tokio-rustls/ring",
     "tokio-websockets/ring",
-    "hickory-resolver/https-ring",
-    "iroh-dns/tls-ring",
+    "iroh-resolver/tls-ring",
+    "rcgen?/ring",
 ]
 tls-aws-lc-rs = [
     "noq/aws-lc-rs",
     "rustls/aws-lc-rs",
     "tokio-rustls/aws-lc-rs",
     "tokio-websockets/aws_lc_rs",
-    "hickory-resolver/https-aws-lc-rs",
-    "iroh-dns/tls-aws-lc-rs",
+    "iroh-resolver/tls-aws-lc-rs",
+    "rcgen?/aws_lc_rs",
 ]
 
 [[bin]]
 name = "iroh-relay"
 path = "src/main.rs"
-required-features = ["server"]
+required-features = ["server", "relay-bin"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -192,7 +206,7 @@ rustdoc-args = ["--cfg", "iroh_docsrs"]
 allowed_external_types = [
     # workspace crates
     "iroh_base::*",
-    "iroh_dns::*",
+    "iroh_resolver::*",
     "iroh_runtime::*",
     # crates owned by us that will move to 1.0 as well
     "iroh_metrics::*",
@@ -212,7 +226,7 @@ allowed_external_types = [
     "rustls::*",
     "tokio_rustls::*",
     # BoundedAcmeCache is the concrete cache implementation supplied to ACME.
-    "tokio_rustls_acme::*",
+    "rustls_acme::*",
     "futures_core::stream::Stream",
     "futures_sink::Sink",
 ]

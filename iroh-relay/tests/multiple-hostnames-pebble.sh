@@ -129,7 +129,7 @@ log "starting iroh-relay (hostnames: ${HOSTS[*]})"
 IROH_RELAY_ACME_URL="$PEBBLE_DIR_URL" \
 IROH_RELAY_ACME_CA="$WORK/pebble.minica.pem" \
 RUST_LOG="${RUST_LOG:-iroh_relay=debug,rustls_acme=info,warn}" \
-    cargo run --quiet --bin iroh-relay --features server -- \
+    cargo run --quiet --bin iroh-relay --features server-ring -- \
     --config-path "$WORK/relay.toml" > "$WORK/relay.log" 2>&1 &
 RELAY_PID=$!
 

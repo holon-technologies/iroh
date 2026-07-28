@@ -1,10 +1,12 @@
+mod support;
+
 use std::{
     fs,
     sync::atomic::{AtomicU64, Ordering},
 };
 
 use iroh_runtime::{TaskId, TraceContext, TraceEvent, TraceEventKind, TraceSequence, TraceSink};
-use iroh_sim::{
+use support::{
     ArtifactStore, ArtifactTraceWriter, TraceBuffer, TraceBufferError, first_trace_divergence,
     normalized_trace_json,
 };

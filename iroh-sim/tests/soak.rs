@@ -1,6 +1,8 @@
+mod support;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use iroh_sim::{
+use support::{
     CampaignTerminal, FailureSignature, MinimizationConfig, RunnerError, Scenario, SeedLease,
     SeedLeaseError, SoakConfig, SoakCryptoLane, SoakError, SoakLane, SoakPlan, SoakPlanError,
     SoakRunner, SoakStopReason, derive_soak_seed_start,

@@ -3,7 +3,10 @@ use std::hint::black_box;
 use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 use iroh::SecretKey;
 use iroh_relay::protos::relay::{ClientToRelayMsg, Datagrams, RelayToClientMsg};
-use iroh_sim::{RelayEnvironment, RelayProtocolVersion, RelaySpec};
+use iroh_sim::{
+    engine::RelayEnvironment,
+    model::{RelayProtocolVersion, RelaySpec},
+};
 use n0_future::{SinkExt, StreamExt};
 
 fn stage5_relay(c: &mut Criterion) {

@@ -1,16 +1,16 @@
 [package]
 name = "iroh"
-version = "2.0.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "p2p quic connections dialed by public key"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["dignifiedquire <me@dignifiedquire.com>", "n0 team"]
-repository = "https://github.com/holon-technologies/iroh"
+repository.workspace = true
 keywords = ["quic", "networking", "holepunching", "p2p"]
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.91"
+rust-version.workspace = true
 
 [lib]
 # We need "cdylib" to actually generate .wasm files when we run with --target=wasm32-unknown-unknown.
@@ -31,9 +31,10 @@ derive_more = { version = "2.0.1", features = ["debug", "display", "from", "try_
 ed25519-dalek = { version = ">=3.0.0-rc.0,<4.0.0", features = ["serde", "rand_core", "zeroize", "pkcs8", "pem"] }
 http = "1"
 ipnet = "2"
-iroh-base = { version = "2.0.0", default-features = false, features = ["key", "relay"], path = "../iroh-base" }
-iroh-dns = { version = "2.0.0", path = "../iroh-dns" }
-iroh-relay = { version = "2.0.0", path = "../iroh-relay", default-features = false }
+iroh-base = { workspace = true, default-features = false, features = ["key", "relay"] }
+iroh-dns.workspace = true
+iroh-relay = { workspace = true, default-features = false }
+iroh-resolver.workspace = true
 n0-future = "0.3"
 n0-error = "1.0.0"
 n0-watcher = "1.0.0"
@@ -75,7 +76,7 @@ axum = { version = "0.8", optional = true }
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 
 hickory-resolver = { version = "0.26.0", default-features = false }
-iroh-runtime = { version = "2.0.0", path = "../iroh-runtime" }
+iroh-runtime.workspace = true
 portmapper = { version = "0.19.1", optional = true, default-features = false }
 noq = { package = "iroh-noq", version = "=1.1.0-holon.1", default-features = false, features = ["runtime-tokio", "rustls"] }
 tokio = { version = "1", features = [
@@ -122,7 +123,7 @@ tokio = { version = "1", features = [
     "test-util",
 ] }
 serde_json = "1"
-iroh-relay = { version = "2.0.0", path = "../iroh-relay", default-features = false, features = ["test-utils", "server"] }
+iroh-relay = { workspace = true, default-features = false, features = ["test-utils", "server"] }
 n0-tracing-test = "0.3"
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = [
@@ -130,7 +131,7 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 indicatif = { version = "0.18", features = ["tokio"] }
 parse-size = { version = "1.1.0", features = ['std'] }
-iroh-base = { version = "2.0.0", default-features = false, features = ["key", "relay"], path = "../iroh-base" }
+iroh-base = { workspace = true, default-features = false, features = ["key", "relay"] }
 console = { version = "0.16" }
 
 # wasm-in-browser test/dev dependencies
@@ -158,9 +159,9 @@ qlog = ["noq/qlog"]
 # Use private Apple APIs to send multiple packets in a single syscall.
 fast-apple-datapath = ["noq/fast-apple-datapath"]
 # Use ring as the crypto backend.
-tls-ring = ["noq/ring", "iroh-relay/tls-ring", "iroh-dns/tls-ring"]
+tls-ring = ["noq/ring", "iroh-relay/tls-ring", "iroh-resolver/tls-ring"]
 # Use aws-lc-rs as the crypto backend, unless `ring` is also enabled.
-tls-aws-lc-rs = ["noq/aws-lc-rs", "iroh-relay/tls-aws-lc-rs", "iroh-dns/tls-aws-lc-rs"]
+tls-aws-lc-rs = ["noq/aws-lc-rs", "iroh-relay/tls-aws-lc-rs", "iroh-resolver/tls-aws-lc-rs"]
 # Unstable: Custom transport API (may change without notice)
 unstable-custom-transports = []
 # Unstable: API to access an endpoint's NetReport (may change without notice)
@@ -176,6 +177,9 @@ allowed_external_types = [
     "iroh_base::*",
     "iroh_dns::*",
     "iroh_relay::*",
+    # `iroh::dns` intentionally re-exports the resolver crate as a module.
+    "iroh_resolver",
+    "iroh_resolver::*",
     "iroh_runtime::*",
     # crates owned by us that will move to 1.0 as well
     "iroh_metrics::*",

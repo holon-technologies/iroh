@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
@@ -5,11 +7,11 @@ use std::{
 
 use iroh::{SecretKey, address_lookup::AddressLookup};
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use n0_future::StreamExt;
+use support::{
     DeterministicDiscovery, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, ResourceKind,
     TraceBuffer,
 };
-use n0_future::StreamExt;
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn delayed_failure_success_stale_suppression_and_expiry_are_ordered() {

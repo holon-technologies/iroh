@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     future::{Future, poll_fn},
     num::NonZeroUsize,
@@ -15,7 +17,7 @@ use iroh_runtime::{
     TaskKind, Timer, TraceContext, TraceEvent, TraceEventKind, TraceRecordError, TraceSink,
     TraceSinkError,
 };
-use iroh_sim::{
+use support::{
     EventClass, Kernel, KernelConfig, KernelError, KernelResourceLimits, LedgerError, Quiescence,
     ResourceKind, TraceBuffer, normalized_trace_json,
 };
@@ -905,8 +907,8 @@ fn event_budget_is_cumulative_across_step_and_run_calls() {
             .unwrap();
     }
 
-    assert_eq!(kernel.step().unwrap(), iroh_sim::KernelStep::Progress);
-    assert_eq!(kernel.step().unwrap(), iroh_sim::KernelStep::Progress);
+    assert_eq!(kernel.step().unwrap(), support::KernelStep::Progress);
+    assert_eq!(kernel.step().unwrap(), support::KernelStep::Progress);
     assert!(matches!(
         kernel.run_until_idle(),
         Err(KernelError::EventBudgetExceeded { limit: 2 })

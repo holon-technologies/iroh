@@ -39,20 +39,29 @@ for path in \
   .github/workflows/simulation-nightly.yml \
   Makefile.toml \
   scripts/run-bounded-fuzz.sh \
+  scripts/check-v2-api-inventory.sh \
+  scripts/check-v2-semver-result.sh \
   scripts/run-v2-semver-checks.sh \
+  scripts/v2-api-baseline.toml \
+  scripts/v2-api-breaks.txt \
+  scripts/tests/check-v2-semver-policy.sh \
   scripts/tests/check-release-fork-boundary.sh \
   scripts/verify-release-packages.sh \
   docs/release/v2-migration.md \
   docs/release/v2-release-checklist.md \
   iroh-runtime/CHANGELOG.md \
   iroh-runtime/README.md \
-  iroh-runtime/release.toml; do
+  iroh-runtime/release.toml \
+  iroh-resolver/CHANGELOG.md \
+  iroh-resolver/README.md \
+  iroh-resolver/release.toml; do
   require_file "$path"
 done
 
 version_manifests=(
   iroh-base/Cargo.toml
   iroh-runtime/Cargo.toml
+  iroh-resolver/Cargo.toml
   iroh-dns/Cargo.toml
   iroh-relay/Cargo.toml
   iroh/Cargo.toml
@@ -62,7 +71,7 @@ version_manifests=(
 )
 
 for path in "${version_manifests[@]}"; do
-  if ! grep -Eq '^version = "2\.0\.0"$' "$repo_root/$path"; then
+  if ! grep -Eq '^(version = "2\.0\.0"|version\.workspace = true)$' "$repo_root/$path"; then
     fail "$path package version must be exactly 2.0.0"
   fi
   if grep -Fq -- 'version = "1.0.3"' "$repo_root/$path"; then
@@ -91,6 +100,7 @@ for lock_path in sys.argv[1:]:
             "iroh-dns-server",
             "iroh-relay",
             "iroh-runtime",
+            "iroh-resolver",
             "iroh-sim",
         }
         and package["version"].startswith("1.")
@@ -188,6 +198,7 @@ done
 require_text .github/workflows/ci.yml 'scripts/tests/check-v2-release-readiness.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-release-fork-boundary.sh'
 require_text .github/workflows/ci.yml 'scripts/run-v2-semver-checks.sh'
+require_text .github/workflows/ci.yml 'scripts/tests/check-v2-semver-policy.sh'
 require_text Makefile.toml 'CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["iroh/bench", "tools/determinism-checker"]'
 require_text .github/workflows/tests.yaml 'runs-on: windows-2022'
 require_text .github/workflows/tests.yaml 'toolchain: nightly-2026-07-19'
@@ -220,19 +231,29 @@ if grep -Fq -- 'cargo-semver-checks-action' "$repo_root/.github/workflows/ci.yml
   fail '.github/workflows/ci.yml still uses registry-only semver setup that cannot resolve unpublished owned forks'
 fi
 require_text .github/workflows/release.yml 'scripts/verify-release-packages.sh'
-require_text scripts/verify-release-packages.sh 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-dns iroh-relay iroh iroh-dns-server'
+require_text scripts/verify-release-packages.sh 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server'
 require_text docs/release/v2-migration.md 'PkarrRelayClient::new'
-require_text docs/release/v2-migration.md 'dns::Builder::build'
+require_text docs/release/v2-migration.md 'iroh_resolver::Builder::build'
 require_text docs/release/v2-migration.md 'quic::QuicClient::new'
 require_text docs/release/v2-release-checklist.md 'iroh-runtime'
 require_text docs/release/v2-release-checklist.md '2.0.0'
 require_text iroh-runtime/CHANGELOG.md '## Unreleased'
 require_text iroh-runtime/Cargo.toml 'readme = "README.md"'
 require_text iroh-runtime/release.toml 'pre-release-hook'
-require_text scripts/run-v2-semver-checks.sh 'baseline_ref=v1.0.3'
+require_text iroh-resolver/CHANGELOG.md '## Unreleased'
+require_text iroh-resolver/Cargo.toml 'readme = "README.md"'
+require_text iroh-resolver/release.toml 'pre-release-hook'
+require_text scripts/run-v2-semver-checks.sh 'mode=legacy-inventory'
+require_text scripts/run-v2-semver-checks.sh 'mode=post-cut'
 require_text scripts/run-v2-semver-checks.sh '--baseline-rustdoc'
 require_text scripts/run-v2-semver-checks.sh '--current-rustdoc'
 require_text scripts/run-v2-semver-checks.sh '--release-type minor'
+require_text scripts/v2-api-baseline.toml 'legacy_inventory_ref = "v1.0.3"'
+if ! grep -Eq '^post_cut_ref = "([0-9a-f]{40})?"$' "$repo_root/scripts/v2-api-baseline.toml"; then
+  fail 'scripts/v2-api-baseline.toml post_cut_ref must be empty or a full lowercase commit SHA'
+fi
+require_text scripts/v2-api-breaks.txt $'iroh-dns\tstruct_missing\tstruct iroh_dns::dns::DnsResolver'
+require_text docs/release/v2-migration.md 'iroh_resolver::DnsProtocol'
 
 if ((failures != 0)); then
   printf 'v2 release-readiness contract failed with %d issue(s)\n' "$failures" >&2

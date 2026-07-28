@@ -513,6 +513,7 @@ pub enum ScenarioError {
     UnsupportedSchema(u16),
     UnsupportedScenario(String),
     Backend(crate::BackendError),
+    EndpointEnvironment(crate::EndpointEnvironmentError),
     Network(crate::NetworkError),
     Driver(crate::KernelDriverError),
     Operation(String),
@@ -533,6 +534,9 @@ impl fmt::Display for ScenarioError {
             Self::UnsupportedSchema(version) => write!(f, "unsupported scenario schema {version}"),
             Self::UnsupportedScenario(id) => write!(f, "unsupported Stage 2 scenario {id:?}"),
             Self::Backend(error) => write!(f, "scenario backend failed: {error}"),
+            Self::EndpointEnvironment(error) => {
+                write!(f, "scenario endpoint environment failed: {error}")
+            }
             Self::Network(error) => write!(f, "scenario network failed: {error}"),
             Self::Driver(error) => write!(f, "scenario kernel driver failed: {error}"),
             Self::Operation(error) => write!(f, "scenario operation failed: {error}"),
@@ -563,6 +567,12 @@ impl std::error::Error for ScenarioError {}
 impl From<crate::BackendError> for ScenarioError {
     fn from(value: crate::BackendError) -> Self {
         Self::Backend(value)
+    }
+}
+
+impl From<crate::EndpointEnvironmentError> for ScenarioError {
+    fn from(value: crate::EndpointEnvironmentError) -> Self {
+        Self::EndpointEnvironment(value)
     }
 }
 

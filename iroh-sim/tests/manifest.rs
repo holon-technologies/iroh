@@ -1,6 +1,8 @@
+mod support;
+
 use std::collections::BTreeMap;
 
-use iroh_sim::{
+use support::{
     BackendCapabilities, CryptoMode, DeterminismGrade, MANIFEST_SCHEMA_VERSION, RunBudgets,
     RunManifest, SIMULATOR_VERSION, SourceIdentity, TraceComparisonMode,
 };

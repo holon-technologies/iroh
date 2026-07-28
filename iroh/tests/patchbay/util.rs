@@ -5,6 +5,7 @@ use iroh::{
     endpoint::{Connection, Path, PathEvent, presets},
     tls::CaTlsConfig,
 };
+#[cfg(feature = "metrics")]
 use iroh_metrics::MetricsGroupSet;
 use n0_error::{Result, StackResultExt, StdResultExt, anyerr, ensure_any};
 use n0_future::{StreamExt, boxed::BoxFuture, task::AbortOnDropHandle};
@@ -248,6 +249,7 @@ impl Pair {
 
                 // Wait until the client run function completed before dropping the endpoint.
                 barrier_server.wait().await;
+                #[cfg(feature = "metrics")]
                 for group in endpoint.metrics().groups() {
                     dev.record_iroh_metrics(group);
                 }
@@ -289,6 +291,7 @@ impl Pair {
 
                 // Wait until the server run function completed before dropping the endpoint.
                 barrier_client.wait().await;
+                #[cfg(feature = "metrics")]
                 for group in endpoint.metrics().groups() {
                     dev.record_iroh_metrics(group);
                 }

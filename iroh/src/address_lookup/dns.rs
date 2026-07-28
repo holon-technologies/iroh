@@ -1,8 +1,9 @@
 //! DNS endpoint discovery for iroh
 
 use iroh_base::EndpointId;
-use iroh_dns::dns::DnsResolver;
+use iroh_dns::dns::EndpointDnsResolver;
 pub use iroh_dns::dns::{N0_DNS_ENDPOINT_ORIGIN_PROD, N0_DNS_ENDPOINT_ORIGIN_STAGING};
+use iroh_resolver::DnsResolver;
 use n0_future::boxed::BoxStream;
 use tracing::{Instrument, debug, debug_span, trace};
 
@@ -45,7 +46,7 @@ pub(crate) const DNS_STAGGERING_MS: &[u64] = &[200, 300, 600, 1000, 2000, 3000];
 #[derive(Debug)]
 pub struct DnsAddressLookup {
     origin_domain: String,
-    dns_resolver: DnsResolver,
+    dns_resolver: EndpointDnsResolver,
 }
 
 /// Builder for [`DnsAddressLookup`].
@@ -67,7 +68,7 @@ impl DnsAddressLookupBuilder {
     /// Builds a [`DnsAddressLookup`] with the passed [`DnsResolver`].
     pub fn build(self) -> DnsAddressLookup {
         DnsAddressLookup {
-            dns_resolver: self.dns_resolver.unwrap_or_default(),
+            dns_resolver: EndpointDnsResolver::new(self.dns_resolver.unwrap_or_default()),
             origin_domain: self.origin_domain,
         }
     }
@@ -122,7 +123,7 @@ impl AddressLookup for DnsAddressLookup {
         let fut = async move {
             trace!("starting DNS lookup");
             let endpoint_info = resolver
-                .lookup_endpoint_by_id_staggered(&endpoint_id, &origin_domain, DNS_STAGGERING_MS)
+                .lookup_by_id_staggered(&endpoint_id, &origin_domain, DNS_STAGGERING_MS)
                 .await
                 .inspect_err(|err| debug!("DNS lookup failed: {err:#}"))
                 .map_err(|e| AddressLookupError::from_err_any("dns", e))?;

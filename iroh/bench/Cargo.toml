@@ -1,8 +1,10 @@
 [package]
 name = "iroh-bench"
-version = "2.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 publish = false
 
 [lints]
@@ -14,13 +16,13 @@ hdrhistogram = { version = "7.2", default-features = false }
 http-body-util = { version = "0.1", optional = true }
 hyper = { version = "1", features = ["client", "http2"], optional = true }
 hyper-util = { version = "0.1", features = ["tokio"], optional = true }
-iroh = { version = "2.0.0", path = "..", default-features = false }
-iroh-dns = { version = "2.0.0", path = "../../iroh-dns", optional = true }
-iroh-dns-server = { version = "2.0.0", path = "../../iroh-dns-server", features = [
+iroh = { workspace = true, default-features = false }
+iroh-dns = { workspace = true, optional = true }
+iroh-dns-server = { workspace = true, features = [
     "test-utils",
 ], optional = true }
 iroh-metrics = { version = "1.0.1", optional = true }
-iroh-relay = { version = "2.0.0", path = "../../iroh-relay", features = [
+iroh-relay = { workspace = true, features = [
     "server",
     "test-utils",
 ], optional = true }

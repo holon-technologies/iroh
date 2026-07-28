@@ -17,9 +17,10 @@ use syn::{
     visit::{self, Visit},
 };
 
-const SOURCE_ROOTS: [&str; 7] = [
+const SOURCE_ROOTS: [&str; 8] = [
     "iroh",
     "iroh-base",
+    "iroh-resolver",
     "iroh-dns",
     "iroh-dns-server",
     "iroh-relay",

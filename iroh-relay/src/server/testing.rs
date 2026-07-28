@@ -20,12 +20,10 @@ pub fn self_signed_tls_certs_and_config() -> (
     let private_key = rustls::pki_types::PrivatePkcs8KeyDer::from(cert.signing_key.serialize_der());
     let private_key = rustls::pki_types::PrivateKeyDer::from(private_key);
     let certs = vec![rustls_cert.clone()];
-    let server_config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::ring::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()
-    .expect("protocols supported by ring")
-    .with_no_client_auth();
+    let server_config = rustls::ServerConfig::builder_with_provider(crate::tls::default_provider())
+        .with_safe_default_protocol_versions()
+        .expect("protocols supported by selected provider")
+        .with_no_client_auth();
 
     let server_config = server_config
         .with_single_cert(certs.clone(), private_key)
@@ -92,7 +90,7 @@ mod tests {
     use std::str::FromStr;
 
     use iroh_base::{RelayUrl, SecretKey};
-    use iroh_dns::dns::DnsResolver;
+    use iroh_resolver::DnsResolver;
     use n0_error::Result;
     use n0_future::{SinkExt, StreamExt};
 

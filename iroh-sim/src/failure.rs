@@ -329,6 +329,7 @@ fn classify(error: &RunnerError) -> (TerminalFailureClass, Option<InvariantName>
         }
         RunnerError::Scenario(_)
         | RunnerError::Endpoint(_)
+        | RunnerError::EndpointEnvironment(_)
         | RunnerError::Operation(_)
         | RunnerError::Backend(_)
         | RunnerError::Discovery(_)

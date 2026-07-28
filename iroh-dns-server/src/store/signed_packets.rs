@@ -547,8 +547,12 @@ impl SignedPacketStore {
         rx.await.anyerr()
     }
 
-    pub(super) async fn shutdown(&self) -> std::result::Result<(), StoreShutdownError> {
+    pub(crate) fn start_shutdown(&self) {
         self.cancel.cancel();
+    }
+
+    pub(super) async fn shutdown(&self) -> std::result::Result<(), StoreShutdownError> {
+        self.start_shutdown();
         let (write_outcome, evict_outcome) =
             tokio::join!(self.write_thread.wait(), self.evict_thread.wait());
 

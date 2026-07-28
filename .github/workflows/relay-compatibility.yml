@@ -1,0 +1,44 @@
+name: Relay Compatibility
+
+on:
+  schedule:
+    - cron: "43 4 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relay-compatibility-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  upstream-v1-interop:
+    name: Current and upstream v1.0.3 bidirectional interoperability
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned source history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run golden and live compatibility gates
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/relay-compatibility"
+          scripts/tests/check-relay-compatibility.sh --live \
+            2>&1 | tee "$RUNNER_TEMP/relay-compatibility/run.log"
+      - name: Retain revision-stamped compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relay-v1-compatibility-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/relay-compatibility
+          if-no-files-found: error
+          retention-days: 30

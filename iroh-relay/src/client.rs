@@ -12,7 +12,7 @@ use std::{
 use conn::Conn;
 use iroh_base::{RelayUrl, SecretKey};
 #[cfg(not(wasm_browser))]
-use iroh_dns::dns::{DnsError, DnsResolver};
+use iroh_resolver::{DnsError, DnsResolver};
 #[cfg(wasm_browser)]
 use n0_error::StdResultExt;
 use n0_error::{AnyError, e, stack_error};

@@ -1,3 +1,5 @@
+mod support;
+
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use iroh::{
@@ -6,7 +8,7 @@ use iroh::{
     simulation::SimulationCryptoMaterial,
 };
 use iroh_runtime::{RootSeed, UnsafeTestOnly};
-use iroh_sim::{
+use support::{
     DeterministicBackend, DeterministicBackendConfig, IpCidr, KernelConfig, KernelResourceLimits,
     LinkConfig, NetworkConfig, ResourceKind, RunBudgets, ScenarioHarness, Stage2Scenario,
     TraceBuffer, first_trace_divergence,
@@ -17,7 +19,7 @@ const ALPN: &[u8] = b"iroh-sim/endpoint-echo/1";
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn named_ipv6_stream_scenario_runs_production_quic_to_clean_shutdown() {
     let scenario = Stage2Scenario {
-        schema_version: iroh_sim::STAGE2_SCENARIO_SCHEMA_VERSION,
+        schema_version: support::STAGE2_SCENARIO_SCHEMA_VERSION,
         id: "direct-ip/ipv6-stream".to_owned(),
     };
     let harness = ScenarioHarness::new(
@@ -48,7 +50,7 @@ async fn named_fault_scenarios_recover_or_fail_as_specified_through_production_q
     ] {
         let harness = ScenarioHarness::new(
             Stage2Scenario {
-                schema_version: iroh_sim::STAGE2_SCENARIO_SCHEMA_VERSION,
+                schema_version: support::STAGE2_SCENARIO_SCHEMA_VERSION,
                 id: id.to_owned(),
             },
             RootSeed::new(seed),

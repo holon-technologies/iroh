@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use iroh_dns::dns::{BoxIter, DnsError, DnsResolver, Resolver, TxtRecordData};
+use iroh_resolver::{BoxIter, DnsError, DnsResolver, Resolver, TxtRecordData};
 use n0_future::boxed::BoxFuture;
 
 /// Returns a [`DnsResolver`] that hands out fixed IPv4 and IPv6 addresses for every host.

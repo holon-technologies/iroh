@@ -586,6 +586,7 @@ mod tests {
     use n0_error::Result;
 
     use super::*;
+    use crate::protos::compatibility_fixtures::fixture;
 
     fn check_expected_bytes(frames: Vec<(Vec<u8>, &str)>) {
         for (bytes, expected_hex) in frames {
@@ -602,6 +603,14 @@ mod tests {
             let expected_bytes = HEXLOWER.decode(&stripped).unwrap();
             assert_eq!(HEXLOWER.encode(&bytes), HEXLOWER.encode(&expected_bytes));
         }
+    }
+
+    fn check_baseline_fixture(name: &str, actual: impl AsRef<[u8]>) {
+        assert_eq!(
+            actual.as_ref(),
+            fixture(name),
+            "relay encoding changed from upstream v1.0.3 fixture {name}"
+        );
     }
 
     #[test]
@@ -689,6 +698,62 @@ mod tests {
             ),
         ]);
 
+        check_baseline_fixture(
+            "relay.health",
+            RelayToClientMsg::Health {
+                problem: "Hello? Yes this is dog.".into(),
+            }
+            .write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.endpoint_gone",
+            RelayToClientMsg::EndpointGone(client_key.public()).write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.ping",
+            RelayToClientMsg::Ping([42u8; 8]).write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.pong",
+            RelayToClientMsg::Pong([42u8; 8]).write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.datagram_batch",
+            RelayToClientMsg::Datagrams {
+                remote_endpoint_id: client_key.public(),
+                datagrams: Datagrams {
+                    ecn: Some(noq::EcnCodepoint::Ce),
+                    segment_size: NonZeroU16::new(6),
+                    contents: "Hello World!".into(),
+                },
+            }
+            .write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.datagram",
+            RelayToClientMsg::Datagrams {
+                remote_endpoint_id: client_key.public(),
+                datagrams: Datagrams {
+                    ecn: Some(noq::EcnCodepoint::Ce),
+                    segment_size: None,
+                    contents: "Hello World!".into(),
+                },
+            }
+            .write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.restarting",
+            RelayToClientMsg::Restarting {
+                reconnect_in: Duration::from_millis(10),
+                try_for: Duration::from_millis(20),
+            }
+            .write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "relay.status",
+            RelayToClientMsg::Status(Status::SameEndpointIdConnected).write_to(Vec::new()),
+        );
+
         Ok(())
     }
 
@@ -750,6 +815,39 @@ mod tests {
                 48 65 6c 6c 6f 20 57 6f 72 6c 64 21",
             ),
         ]);
+
+        check_baseline_fixture(
+            "client.ping",
+            ClientToRelayMsg::Ping([42u8; 8]).write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "client.pong",
+            ClientToRelayMsg::Pong([42u8; 8]).write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "client.datagram_batch",
+            ClientToRelayMsg::Datagrams {
+                dst_endpoint_id: client_key.public(),
+                datagrams: Datagrams {
+                    ecn: Some(noq::EcnCodepoint::Ce),
+                    segment_size: NonZeroU16::new(6),
+                    contents: "Hello World!".into(),
+                },
+            }
+            .write_to(Vec::new()),
+        );
+        check_baseline_fixture(
+            "client.datagram",
+            ClientToRelayMsg::Datagrams {
+                dst_endpoint_id: client_key.public(),
+                datagrams: Datagrams {
+                    ecn: Some(noq::EcnCodepoint::Ce),
+                    segment_size: None,
+                    contents: "Hello World!".into(),
+                },
+            }
+            .write_to(Vec::new()),
+        );
 
         Ok(())
     }
