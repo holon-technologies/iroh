@@ -263,3 +263,84 @@ pub enum ControlError {
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 #[error("application stopped without a runtime failure")]
 pub struct WaitError;
+
+/// Invalid or unavailable application data root.
+#[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DataRootError {
+    /// The selected path exists but is not a directory.
+    #[error("application data root is not a directory")]
+    NotDirectory,
+    /// The bounded manifest size was exceeded.
+    #[error("application data manifest exceeds {limit} bytes")]
+    ManifestTooLarge { limit: usize },
+    /// The manifest is not a valid framework manifest.
+    #[error("application data manifest is invalid")]
+    InvalidManifest,
+    /// The manifest comes from an unsupported schema version.
+    #[error("data-root schema {found} is unsupported; expected {expected}")]
+    UnsupportedSchema { found: u32, expected: u32 },
+    /// Another process currently owns the data root.
+    #[error("application data root is already locked")]
+    Locked,
+    /// A bounded filesystem operation failed. Paths are intentionally omitted.
+    #[error("application data root is unavailable during {operation}")]
+    Unavailable { operation: &'static str },
+}
+
+/// Ordered startup stage for the standard local-first bundle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StandardStartStage {
+    /// Manifest, directory, or exclusive lease.
+    DataRoot,
+    /// Endpoint identity load or creation.
+    Identity,
+    /// Blob store open.
+    Blobs,
+    /// Endpoint bind.
+    Endpoint,
+    /// Gossip actor construction.
+    Gossip,
+    /// Documents store and engine construction.
+    Docs,
+    /// Standard or custom ALPN registration.
+    ProtocolRegistry,
+    /// Router and lifecycle publication.
+    Lifecycle,
+}
+
+impl fmt::Display for StandardStartStage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::DataRoot => "data-root",
+            Self::Identity => "identity",
+            Self::Blobs => "blobs",
+            Self::Endpoint => "endpoint",
+            Self::Gossip => "gossip",
+            Self::Docs => "docs",
+            Self::ProtocolRegistry => "protocol-registry",
+            Self::Lifecycle => "lifecycle",
+        })
+    }
+}
+
+/// Typed standard-bundle startup failure.
+#[derive(Debug, thiserror::Error)]
+#[error("standard bundle failed during {stage}: {message}")]
+pub struct StandardStartError {
+    pub(crate) stage: StandardStartStage,
+    pub(crate) message: &'static str,
+}
+
+impl StandardStartError {
+    pub(crate) const fn new(stage: StandardStartStage, message: &'static str) -> Self {
+        Self { stage, message }
+    }
+
+    /// Exact startup stage that failed.
+    #[must_use]
+    pub const fn stage(&self) -> StandardStartStage {
+        self.stage
+    }
+}

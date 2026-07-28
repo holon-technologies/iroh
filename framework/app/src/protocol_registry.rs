@@ -33,6 +33,15 @@ impl ProtocolRegistry {
         self.register_boxed(alpn.as_ref(), handler.into())
     }
 
+    /// Registers an already type-erased Iroh protocol handler.
+    pub fn register_dyn(
+        &mut self,
+        alpn: impl AsRef<[u8]>,
+        handler: Box<dyn DynProtocolHandler>,
+    ) -> Result<(), RegistryError> {
+        self.register_boxed(alpn.as_ref(), handler)
+    }
+
     /// Registers a rejecting marker handler, useful for planning and registry validation.
     ///
     /// Standard bundles replace markers with concrete handlers before exposing a router.

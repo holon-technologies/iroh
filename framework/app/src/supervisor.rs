@@ -68,11 +68,13 @@ impl fmt::Debug for RunningInner {
 
 impl Drop for RunningInner {
     fn drop(&mut self) {
+        // Drop cannot await. Cancellation hands ownership to the already-bounded supervisor,
+        // which drains components against the configured absolute deadline and then exits. In
+        // particular, do not abort the supervisor here: protocol components may need their
+        // shutdown future to release durable store locks before the data-root lease is removed.
         self.cancellation.cancel();
-        if let Ok(mut task) = self.task.lock()
-            && let Some(task) = task.take()
-        {
-            task.abort();
+        if let Ok(mut task) = self.task.lock() {
+            drop(task.take());
         }
     }
 }

@@ -273,7 +273,7 @@ async fn shutdown_uses_one_absolute_deadline_and_reports_timeout() {
 }
 
 #[tokio::test]
-async fn dropping_last_handle_aborts_owned_tasks() {
+async fn dropping_last_handle_cancels_owned_tasks() {
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let component = FakeComponent::healthy("worker", events);
     let dropped = component.dropped.clone();

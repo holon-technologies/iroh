@@ -5,17 +5,23 @@
 //! before components start, partially started applications are rolled back, and one supervisor
 //! owns runtime failure and bounded shutdown.
 
+mod application;
 mod config;
+mod data_root;
 mod error;
 mod identity;
 mod lifecycle;
 mod protocol_registry;
+mod standard_bundle;
 mod supervisor;
 
+pub use application::{Application, ApplicationHealth, ApplicationMetrics};
 pub use config::AppConfig;
+pub use data_root::DataRoot;
 pub use error::{
-    BuildError, ComponentError, ComponentFailure, ConfigError, ControlError, FailurePhase,
-    IdentityError, RegistryError, ShutdownError, ShutdownReport, StartupError, WaitError,
+    BuildError, ComponentError, ComponentFailure, ConfigError, ControlError, DataRootError,
+    FailurePhase, IdentityError, RegistryError, ShutdownError, ShutdownReport, StandardStartError,
+    StandardStartStage, StartupError, WaitError,
 };
 pub use identity::{FileIdentityStore, IdentityPolicy, IdentityStore, MemoryIdentityStore};
 pub use lifecycle::{
@@ -23,4 +29,5 @@ pub use lifecycle::{
     StartedComponent,
 };
 pub use protocol_registry::ProtocolRegistry;
+pub use standard_bundle::{StandardBundle, StandardBundleBuilder};
 pub use supervisor::{Health, RunningApp};
