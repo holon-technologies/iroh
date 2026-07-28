@@ -2,9 +2,10 @@
 
 ## Verdict
 
-The architecture hard cut is implemented and locally verified. It is **not yet an immutable
-release candidate** and this record does not authorize a tag, crate publication, GitHub release,
-container publication, or infrastructure change.
+The architecture hard cut is implemented, locally verified, and committed at
+`b433041dce6fcb1f45287e4602e7cab271bf81df`. It is **not yet release-ready** because the hosted and
+privileged evidence below is still pending. This record does not authorize a tag, crate
+publication, GitHub release, container publication, or infrastructure change.
 
 Relay interoperability is retained against the sole approved upstream baseline, tag `v1.0.3` at
 commit `f2eb930dda3779c6d852b72f3712aacd6e573ab1`. Golden protocol checks and live client/server
@@ -14,18 +15,18 @@ processes passed in both directions.
 
 | Field | Value |
 | --- | --- |
-| Verification date | 2026-07-27 |
-| Working-tree base | `74c86342c90bb9550411458f46fa73d616473af4` |
-| Tree state | Dirty; 158 paths reported by `git status --short` when this record was prepared |
+| Verification date | 2026-07-27; immutable baseline locked 2026-07-28 |
+| Architecture-cut revision | `b433041dce6fcb1f45287e4602e7cab271bf81df` |
+| Tree state | Architecture cut committed; baseline metadata recorded in a follow-up commit |
 | Host | Linux 6.8.0-136-generic, x86_64 |
 | Rust | `rustc 1.97.1 (8bab26f4f 2026-07-14)` |
 | Cargo | `cargo 1.97.1 (c980f4866 2026-06-30)` |
 | Rust API inventory baseline | Upstream `v1.0.3`; exact intentional v1-to-v2 findings audited |
-| Post-cut Rust API baseline | Pending; `post_cut_ref` is intentionally empty |
+| Post-cut Rust API baseline | `b433041dce6fcb1f45287e4602e7cab271bf81df` |
 
-The base revision does not identify the changes under test because the implementation remains in
-the working tree. Hosted evidence must therefore be collected again from a reviewed, immutable
-commit before release readiness can be claimed.
+The architecture-cut revision now identifies the exact source changes under test. Hosted evidence
+must be collected from the pushed branch containing that revision and its baseline-lock follow-up
+before release readiness can be claimed.
 
 ## Implemented cut
 
@@ -58,6 +59,7 @@ The authoritative current design is in `docs/architecture.md`; wire obligations 
 | Release source contracts | `scripts/tests/check-v2-release-readiness.sh`; `scripts/tests/check-release-fork-boundary.sh` | Pass |
 | Semver policy source | `scripts/tests/check-v2-semver-policy.sh` | Pass |
 | V1-to-v2 API audit | `scripts/run-v2-semver-checks.sh --allow-dirty` | Pass; the exact ten intentional resolver moves match `scripts/v2-api-breaks.txt` |
+| Post-cut API stability | `scripts/run-v2-semver-checks.sh --allow-dirty` | Pass against `b433041dce6fcb1f45287e4602e7cab271bf81df`; no findings across all seven public crates |
 | Workspace tests | `RUSTFLAGS='-D warnings --cfg skip_patchbay' cargo test --workspace --all-features` | Pass; Patchbay correctly excluded for its privileged lane |
 | Simulator tests and benches | `cargo test --manifest-path iroh-sim/Cargo.toml --all-targets --all-features` | Pass |
 | All-feature lint | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | Pass |
@@ -81,11 +83,8 @@ environment capability failure. Normal CI uses `--cfg skip_patchbay` for the ord
 lane and runs Patchbay separately after enabling unprivileged user namespaces; that privileged
 lane was not reproduced locally.
 
-## Evidence still required from the immutable candidate
+## Evidence still required from the committed candidate
 
-- Review and commit the complete cut, then set `post_cut_ref` in
-  `scripts/v2-api-baseline.toml` to the approved full 40-character cut revision. Strict post-cut
-  semver must then report no findings.
 - Run the complete hosted feature/platform matrix on that same commit: MSRV, minimal versions,
   Windows, macOS, Android, Wasm, cross/Wine, and the configured default/all/no-default test jobs.
 - Run and retain the privileged Patchbay suite/public-parity smoke, Netsim, bounded fuzz smoke,

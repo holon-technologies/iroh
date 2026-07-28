@@ -4,4 +4,4 @@ legacy_inventory_ref = "v1.0.3"
 # Set this to the approved architecture-cut commit's full 40-character SHA after that immutable
 # candidate is reviewed. Leaving it empty runs the audited v1-to-v2 migration inventory; setting it
 # switches the gate to strict post-cut compatibility and permits no semver finding.
-post_cut_ref = ""
+post_cut_ref = "b433041dce6fcb1f45287e4602e7cab271bf81df"
