@@ -99,3 +99,18 @@ impl ReadableTables for ReadOnlyTables {
         &self.inline_outboard
     }
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use redb::TableHandle as _;
+
+    use super::{BLOBS_TABLE, INLINE_DATA_TABLE, INLINE_OUTBOARD_TABLE, TAGS_TABLE};
+
+    #[test]
+    fn v0_103_0_table_names_are_stable() {
+        assert_eq!(BLOBS_TABLE.name(), "blobs-0");
+        assert_eq!(TAGS_TABLE.name(), "tags-0");
+        assert_eq!(INLINE_DATA_TABLE.name(), "inline-data-0");
+        assert_eq!(INLINE_OUTBOARD_TABLE.name(), "inline-outboard-0");
+    }
+}

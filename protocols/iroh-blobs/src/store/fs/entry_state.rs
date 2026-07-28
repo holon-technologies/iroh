@@ -295,3 +295,21 @@ impl redb::Value for EntryState {
         redb::TypeName::new("EntryState")
     }
 }
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::EntryState;
+
+    #[test]
+    fn v0_103_0_entry_state_encoding_is_stable() {
+        assert_eq!(<EntryState as redb::Value>::fixed_width(), None);
+        assert_eq!(
+            <EntryState as redb::Value>::type_name(),
+            redb::TypeName::new("EntryState")
+        );
+        assert_eq!(
+            <EntryState as redb::Value>::as_bytes(&EntryState::Partial { size: None }).as_slice(),
+            [1, 0]
+        );
+    }
+}
