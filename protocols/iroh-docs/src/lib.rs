@@ -35,6 +35,7 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_cfg))]
 
+pub mod limits;
 pub mod metrics;
 pub mod net;
 pub mod protocol;
@@ -54,4 +55,9 @@ mod ranger;
 #[doc(inline)]
 pub use net::ALPN;
 
-pub use self::{heads::*, keys::*, sync::*, ticket::DocTicket};
+pub use self::{
+    heads::*,
+    keys::*,
+    sync::*,
+    ticket::{DocTicket, ParseError},
+};

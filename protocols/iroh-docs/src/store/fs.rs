@@ -8,7 +8,7 @@ use std::{
     ops::Bound,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use iroh::{KeyParsingError, PublicKey};
 use iroh_blobs::Hash;
 use n0_future::time::SystemTime;
@@ -19,16 +19,16 @@ use tracing::info;
 use tracing::warn;
 
 use super::{
-    pubkeys::MemPublicKeyStore, DownloadPolicy, ImportNamespaceOutcome, OpenError, PublicKeyStore,
-    Query,
+    DownloadPolicy, ImportNamespaceOutcome, OpenError, PublicKeyStore, Query,
+    pubkeys::MemPublicKeyStore,
 };
 use crate::{
+    AuthorHeads, AuthorId, Capability, CapabilityKind, NamespaceId, NamespaceSecret, PeerIdBytes,
+    ReplicaInfo,
     actor::MAX_COMMIT_DELAY,
     keys::Author,
     ranger::{Fingerprint, Range, RangeEntry},
     sync::{Entry, EntrySignature, Record, RecordIdentifier, Replica, SignedEntry},
-    AuthorHeads, AuthorId, Capability, CapabilityKind, NamespaceId, NamespaceSecret, PeerIdBytes,
-    ReplicaInfo,
 };
 
 mod bounds;
@@ -195,7 +195,7 @@ impl Store {
         };
         *guard = CurrentTransaction::Read(tables);
         match &*guard {
-            CurrentTransaction::Read(ref tables) => Ok(tables),
+            CurrentTransaction::Read(tables) => Ok(tables),
             _ => unreachable!(),
         }
     }
@@ -250,7 +250,7 @@ impl Store {
         };
         *guard = CurrentTransaction::Write(tables);
         match guard {
-            CurrentTransaction::Write(ref mut tables) => Ok(tables.tables()),
+            CurrentTransaction::Write(tables) => Ok(tables.tables()),
             _ => unreachable!(),
         }
     }
@@ -287,7 +287,7 @@ impl Store {
         };
         *guard = CurrentTransaction::Write(tables);
         let res = match &mut *guard {
-            CurrentTransaction::Write(ref mut tables) => tables.with_tables_mut(f)?,
+            CurrentTransaction::Write(tables) => tables.with_tables_mut(f)?,
             _ => unreachable!(),
         };
         Ok(res)
@@ -521,9 +521,8 @@ impl Store {
         let peer = &peer;
         let namespace = namespace.as_bytes();
         // calculate nanos since UNIX_EPOCH for a time measurement
-        let nanos = SystemTime::UNIX_EPOCH
-            .elapsed()
-            .map(|duration| duration.as_nanos() as u64)?;
+        let nanos = u64::try_from(SystemTime::UNIX_EPOCH.elapsed()?.as_nanos())
+            .map_err(|_| anyhow!("system time exceeds the supported nanosecond range"))?;
         self.modify(|tables| {
             // ensure the document exists
             anyhow::ensure!(

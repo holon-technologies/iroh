@@ -1,14 +1,41 @@
 //! Tickets for `iroh-docs` documents.
 
+use std::{fmt, str::FromStr};
+
 use iroh::EndpointAddr;
-use iroh_tickets::{ParseError, Ticket};
 use serde::{Deserialize, Serialize};
 
-use crate::Capability;
+use crate::{
+    Capability,
+    limits::{LimitError, MAX_PEERS_PER_DOCUMENT, MAX_TICKET_BYTES},
+};
+
+/// An error parsing or validating a [`DocTicket`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ParseError {
+    /// The string does not start with the document-ticket prefix.
+    #[error("wrong prefix, expected doc")]
+    Kind,
+    /// The ticket payload is not valid postcard data.
+    #[error(transparent)]
+    Postcard(#[from] postcard::Error),
+    /// The ticket payload is not valid unpadded base32.
+    #[error(transparent)]
+    Encoding(#[from] data_encoding::DecodeError),
+    /// The ticket does not contain addressing information.
+    #[error("addressing info cannot be empty")]
+    Empty,
+    /// The ticket exceeded a resource limit.
+    #[error(transparent)]
+    Limit(#[from] LimitError),
+    /// An endpoint address in the ticket exceeded its resource limits.
+    #[error(transparent)]
+    Address(#[from] iroh_base::AddressLimitError),
+}
 
 /// Contains both a key (either secret or public) to a document, and a list of peers to join.
-#[derive(Serialize, Deserialize, Clone, Debug, derive_more::Display)]
-#[display("{}", Ticket::encode_string(self))]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DocTicket {
     /// either a public or private key
     pub capability: Capability,
@@ -26,40 +53,96 @@ enum TicketWireFormat {
     Variant0(DocTicket),
 }
 
-impl Ticket for DocTicket {
-    const KIND: &'static str = "doc";
+impl DocTicket {
+    /// String prefix identifying document tickets.
+    pub const KIND: &'static str = "doc";
 
-    fn encode_bytes(&self) -> Vec<u8> {
+    /// Encode this ticket to its v0.101-compatible binary representation.
+    pub fn encode_bytes(&self) -> Vec<u8> {
         let data = TicketWireFormat::Variant0(self.clone());
         postcard::to_stdvec(&data).expect("postcard serialization failed")
     }
 
-    fn decode_bytes(bytes: &[u8]) -> Result<Self, ParseError> {
+    /// Decode the v0.101-compatible binary representation.
+    pub fn decode_bytes(bytes: &[u8]) -> Result<Self, ParseError> {
+        if bytes.len() > MAX_TICKET_BYTES {
+            return Err(LimitError::new("ticket bytes", bytes.len(), MAX_TICKET_BYTES).into());
+        }
         let res: TicketWireFormat = postcard::from_bytes(bytes)?;
         let TicketWireFormat::Variant0(res) = res;
         if res.nodes.is_empty() {
-            return Err(ParseError::verification_failed(
-                "addressing info cannot be empty",
-            ));
+            return Err(ParseError::Empty);
         }
+        res.validate()?;
         Ok(res)
     }
-}
 
-impl DocTicket {
-    /// Create a new doc ticket
-    pub fn new(capability: Capability, peers: Vec<EndpointAddr>) -> Self {
-        Self {
+    /// Encode this ticket as lowercase, unpadded base32 with the `doc` prefix.
+    pub fn encode_string(&self) -> String {
+        let mut output = Self::KIND.to_owned();
+        data_encoding::BASE32_NOPAD.encode_append(&self.encode_bytes(), &mut output);
+        output.make_ascii_lowercase();
+        output
+    }
+
+    /// Decode the canonical string representation.
+    pub fn decode_string(value: &str) -> Result<Self, ParseError> {
+        let Some(payload) = value.strip_prefix(Self::KIND) else {
+            return Err(ParseError::Kind);
+        };
+        let maximum_encoded = MAX_TICKET_BYTES.saturating_mul(8).div_ceil(5);
+        if payload.len() > maximum_encoded {
+            return Err(LimitError::new("ticket text", payload.len(), maximum_encoded).into());
+        }
+        let bytes = data_encoding::BASE32_NOPAD.decode(payload.to_ascii_uppercase().as_bytes())?;
+        Self::decode_bytes(&bytes)
+    }
+
+    /// Validate the ticket's untrusted peer addresses.
+    pub fn validate(&self) -> Result<(), ParseError> {
+        if self.nodes.len() > MAX_PEERS_PER_DOCUMENT {
+            return Err(
+                LimitError::new("ticket peers", self.nodes.len(), MAX_PEERS_PER_DOCUMENT).into(),
+            );
+        }
+        for node in &self.nodes {
+            node.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Create a new validated document ticket.
+    pub fn try_new(capability: Capability, peers: Vec<EndpointAddr>) -> Result<Self, ParseError> {
+        let ticket = Self {
             capability,
             nodes: peers,
+        };
+        if ticket.nodes.is_empty() {
+            return Err(ParseError::Empty);
         }
+        ticket.validate()?;
+        Ok(ticket)
+    }
+
+    /// Create a new document ticket from trusted application state.
+    pub fn new(capability: Capability, peers: Vec<EndpointAddr>) -> Self {
+        Self::try_new(capability, peers).expect("document ticket must satisfy resource limits")
     }
 }
 
-impl std::str::FromStr for DocTicket {
+impl fmt::Display for DocTicket {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.validate().is_err() {
+            return Err(fmt::Error);
+        }
+        formatter.write_str(&self.encode_string())
+    }
+}
+
+impl FromStr for DocTicket {
     type Err = ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ticket::decode_string(s)
+        Self::decode_string(s)
     }
 }
 
@@ -67,7 +150,7 @@ impl std::str::FromStr for DocTicket {
 mod tests {
     use std::str::FromStr;
 
-    use anyhow::{ensure, Context, Result};
+    use anyhow::{Context, Result, ensure};
     use iroh::PublicKey;
 
     use super::*;

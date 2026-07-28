@@ -29,6 +29,6 @@ tag = "v0.101.0"
 source_commit = "091e8cac47bbc49cdb84b0bfed227cc163b61dfe"
 resolved_tag_commit = "091e8cac47bbc49cdb84b0bfed227cc163b61dfe"
 import_prefix = "protocols/iroh-docs"
-state = "imported"
+state = "ported"
 expected_license = "MIT OR Apache-2.0"
 license_files = ["LICENSE-MIT", "LICENSE-APACHE"]

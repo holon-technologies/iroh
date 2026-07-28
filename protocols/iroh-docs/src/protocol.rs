@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use iroh::{endpoint::Connection, protocol::ProtocolHandler, Endpoint};
+use iroh::{Endpoint, endpoint::Connection, protocol::ProtocolHandler};
 use iroh_blobs::api::Store as BlobsStore;
 use iroh_gossip::net::Gossip;
 

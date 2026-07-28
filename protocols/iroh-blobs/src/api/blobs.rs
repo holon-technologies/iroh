@@ -568,7 +568,7 @@ impl<'a> BatchAddProgress<'a> {
         clippy::unused_async,
         reason = "preserves the v0.103 public API for progress handles"
     )]
-    pub async fn stream(self) -> impl Stream<Item = AddProgressItem> {
+    pub async fn stream(self) -> impl Stream<Item = AddProgressItem> + use<> {
         self.0.stream().await
     }
 
@@ -753,7 +753,7 @@ impl<'a> AddProgress<'a> {
         clippy::unused_async,
         reason = "preserves the v0.103 public API for progress handles"
     )]
-    pub async fn stream(self) -> impl Stream<Item = AddProgressItem> {
+    pub async fn stream(self) -> impl Stream<Item = AddProgressItem> + use<> {
         self.inner
     }
 }

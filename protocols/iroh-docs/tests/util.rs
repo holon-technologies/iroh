@@ -6,10 +6,10 @@ use std::{
 };
 
 use iroh::{
-    endpoint::{presets, BindError},
+    Endpoint, EndpointId, RelayMap, RelayMode, SecretKey,
+    endpoint::{BindError, presets},
     test_utils::DnsPkarrServer,
     tls::CaTlsConfig,
-    Endpoint, EndpointId, RelayMap, RelayMode, SecretKey,
 };
 use iroh_blobs::store::GcConfig;
 use iroh_docs::{engine::ProtectCallbackHandler, protocol::Docs};

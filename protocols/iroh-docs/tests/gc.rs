@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use bytes::Bytes;
 use iroh_blobs::api::blobs::ImportMode;
-use n0_future::{time::Duration, StreamExt};
+use n0_future::{StreamExt, time::Duration};
 use rand::Rng;
 use testdir::testdir;
 use util::Node;

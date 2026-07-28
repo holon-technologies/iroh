@@ -7,7 +7,7 @@ use super::{
     into_entry,
     tables::{RecordsByKeyId, RecordsId, RecordsValue},
 };
-use crate::{store::SortDirection, SignedEntry};
+use crate::{SignedEntry, store::SortDirection};
 
 /// An extension trait for [`Range`] that provides methods for mapped retrieval.
 pub trait RangeExt<K: Key, V: Value> {
@@ -149,7 +149,7 @@ impl RecordsByKeyRange {
         direction: &SortDirection,
         filter: impl for<'x> Fn(RecordsByKeyId<'x>) -> bool,
     ) -> Option<anyhow::Result<SignedEntry>> {
-        let entry = self.by_key_range.next_try_filter_map(direction, |k, _v| {
+        self.by_key_range.next_try_filter_map(direction, |k, _v| {
             if !filter(k) {
                 return None;
             };
@@ -160,7 +160,6 @@ impl RecordsByKeyRange {
                 .map(|value| into_entry(records_id, value.value()))
                 .map_err(anyhow::Error::from);
             Some(entry)
-        });
-        entry
+        })
     }
 }

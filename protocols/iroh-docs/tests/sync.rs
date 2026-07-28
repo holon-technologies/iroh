@@ -1,26 +1,26 @@
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use bytes::Bytes;
-use iroh::{endpoint::presets, Endpoint, PublicKey, SecretKey};
+use iroh::{Endpoint, PublicKey, SecretKey, endpoint::presets};
 use iroh_blobs::Hash;
 use iroh_docs::{
+    AuthorId, ContentStatus, Entry,
     api::{
-        protocol::{AddrInfoOptions, ShareMode},
         Doc,
+        protocol::{AddrInfoOptions, ShareMode},
     },
     engine::LiveEvent,
     store::{DownloadPolicy, FilterKind, Query},
-    AuthorId, ContentStatus, Entry,
 };
 use n0_future::{
-    time::{Duration, Instant},
     Stream, TryStreamExt,
+    time::{Duration, Instant},
 };
 use rand::{CryptoRng, RngExt, SeedableRng};
 #[cfg(feature = "fs-store")]
 use tempfile::tempdir;
-use tracing::{debug, error_span, info, Instrument};
+use tracing::{Instrument, debug, error_span, info};
 use tracing_test::traced_test;
 mod util;
 use util::{Builder, Node};
@@ -186,7 +186,7 @@ async fn sync_gossip_bulk() -> Result<()> {
     let elapsed = now.elapsed();
     info!(
         "insert took {elapsed:?} for {n_entries} ({:?} per entry)",
-        elapsed / n_entries as u32
+        elapsed / u32::try_from(n_entries).expect("test entry count fits in a u32")
     );
 
     let now = Instant::now();
@@ -205,7 +205,7 @@ async fn sync_gossip_bulk() -> Result<()> {
     let elapsed = now.elapsed();
     info!(
         "initial sync took {elapsed:?} for {n_entries} ({:?} per entry)",
-        elapsed / n_entries as u32
+        elapsed / u32::try_from(n_entries).expect("test entry count fits in a u32")
     );
 
     // publish another 1000 entries
@@ -220,7 +220,7 @@ async fn sync_gossip_bulk() -> Result<()> {
     let elapsed = now.elapsed();
     info!(
         "insert took {elapsed:?} for {n_entries} ({:?} per entry)",
-        elapsed / n_entries as u32
+        elapsed / u32::try_from(n_entries).expect("test entry count fits in a u32")
     );
 
     while let Ok(event) = events.try_next().await {
@@ -235,7 +235,7 @@ async fn sync_gossip_bulk() -> Result<()> {
     let elapsed = now.elapsed();
     info!(
         "gossip recv took {elapsed:?} for {n_entries} ({:?} per entry)",
-        elapsed / n_entries as u32
+        elapsed / u32::try_from(n_entries).expect("test entry count fits in a u32")
     );
 
     Ok(())

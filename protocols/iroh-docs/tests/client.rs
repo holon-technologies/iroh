@@ -8,8 +8,8 @@ use tokio::io::AsyncWriteExt;
 use tracing_test::traced_test;
 
 use self::util::{
-    path::{key_to_path, path_to_key},
     Node,
+    path::{key_to_path, path_to_key},
 };
 use crate::util::empty_endpoint;
 

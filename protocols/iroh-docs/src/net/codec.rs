@@ -8,18 +8,17 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_stream::StreamExt;
 use tokio_util::codec::{Decoder, Encoder, FramedRead, FramedWrite};
-use tracing::{debug, trace, Span};
+use tracing::{Span, debug, trace};
 
 use crate::{
-    actor::SyncHandle,
-    net::{AbortReason, AcceptError, AcceptOutcome, ConnectError},
     NamespaceId, SyncOutcome,
+    actor::SyncHandle,
+    limits::MAX_SYNC_MESSAGE_SIZE,
+    net::{AbortReason, AcceptError, AcceptOutcome, ConnectError},
 };
 
 #[derive(Debug, Default)]
 struct SyncCodec;
-
-const MAX_MESSAGE_SIZE: usize = 1024 * 1024 * 1024; // This is likely too large, but lets have some restrictions
 
 impl Decoder for SyncCodec {
     type Item = Message;
@@ -31,7 +30,7 @@ impl Decoder for SyncCodec {
         let bytes: [u8; 4] = src[..4].try_into().unwrap();
         let frame_len = u32::from_be_bytes(bytes) as usize;
         ensure!(
-            frame_len <= MAX_MESSAGE_SIZE,
+            frame_len <= MAX_SYNC_MESSAGE_SIZE,
             "received message that is too large: {}",
             frame_len
         );
@@ -40,6 +39,7 @@ impl Decoder for SyncCodec {
         }
 
         let message: Message = postcard::from_bytes(&src[4..4 + frame_len])?;
+        message.validate_limits()?;
         src.advance(4 + frame_len);
         Ok(Some(message))
     }
@@ -49,10 +49,11 @@ impl Encoder<Message> for SyncCodec {
     type Error = anyhow::Error;
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        item.validate_limits()?;
         let len =
             postcard::serialize_with_flavor(&item, postcard::ser_flavors::Size::default()).unwrap();
         ensure!(
-            len <= MAX_MESSAGE_SIZE,
+            len <= MAX_SYNC_MESSAGE_SIZE,
             "attempting to send message that is too large {}",
             len
         );
@@ -86,6 +87,15 @@ enum Message {
     Sync(crate::sync::ProtocolMessage),
     /// Abort message (sent by the accepting peer to decline a request)
     Abort { reason: AbortReason },
+}
+
+impl Message {
+    fn validate_limits(&self) -> Result<(), crate::limits::LimitError> {
+        match self {
+            Self::Init { message, .. } | Self::Sync(message) => message.validate_limits(),
+            Self::Abort { .. } => Ok(()),
+        }
+    }
 }
 
 /// Runs the initiator side of the sync protocol.
@@ -301,10 +311,20 @@ mod tests {
 
     use super::*;
     use crate::{
+        AuthorId, NamespaceSecret,
         actor::OpenOpts,
         store::{self, Query, Store},
-        AuthorId, NamespaceSecret,
     };
+
+    #[test]
+    fn oversized_frame_is_rejected_before_allocation() {
+        let mut bytes = BytesMut::new();
+        bytes.put_u32(
+            u32::try_from(MAX_SYNC_MESSAGE_SIZE + 1).expect("sync frame limit fits in a u32"),
+        );
+        let error = SyncCodec.decode(&mut bytes).unwrap_err();
+        assert!(error.to_string().contains("too large"));
+    }
 
     #[tokio::test]
     async fn test_sync_simple() -> Result<()> {

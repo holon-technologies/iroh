@@ -21,17 +21,15 @@ use bytes::{Bytes, BytesMut};
 // `SignedEntry` format independent of upstream `ed25519` serde changes.
 use iroh::{KeyParsingError, Signature, SignatureError};
 use iroh_blobs::Hash;
-use n0_future::{
-    time::{Duration, SystemTime},
-    IterExt,
-};
+use n0_future::{IterExt, time::SystemTime};
 use serde::{Deserialize, Serialize};
 
 pub use crate::heads::AuthorHeads;
 use crate::{
     keys::{Author, AuthorId, AuthorPublicKey, NamespaceId, NamespacePublicKey, NamespaceSecret},
+    limits::{LimitError, MAX_SUBSCRIBERS_PER_DOCUMENT},
     ranger::{self, Fingerprint, InsertOutcome, RangeEntry, RangeKey, RangeValue, Store},
-    store::{self, fs::StoreInstance, DownloadPolicyStore, PublicKeyStore},
+    store::{self, DownloadPolicyStore, PublicKeyStore, fs::StoreInstance},
 };
 
 /// Protocol message for the set reconciliation protocol.
@@ -45,7 +43,7 @@ pub type PeerIdBytes = [u8; 32];
 
 /// Max time in the future from our wall clock time that we accept entries for.
 /// Value is 10 minutes.
-pub const MAX_TIMESTAMP_FUTURE_SHIFT: u64 = 10 * 60 * Duration::from_secs(1).as_micros() as u64;
+pub const MAX_TIMESTAMP_FUTURE_SHIFT: u64 = 10 * 60 * 1_000_000;
 
 /// Callback that may be set on a replica to determine the availability status for a content hash.
 pub type ContentStatusCallback =
@@ -116,20 +114,8 @@ pub struct SyncOutcome {
     pub num_sent: usize,
 }
 
-fn get_as_ptr<T>(value: &T) -> Option<usize> {
-    use std::mem;
-    if mem::size_of::<T>() == std::mem::size_of::<usize>()
-        && mem::align_of::<T>() == mem::align_of::<usize>()
-    {
-        // Safe only if size and alignment requirements are met
-        unsafe { Some(mem::transmute_copy(value)) }
-    } else {
-        None
-    }
-}
-
 fn same_channel<T>(a: &async_channel::Sender<T>, b: &async_channel::Sender<T>) -> bool {
-    get_as_ptr(a).unwrap() == get_as_ptr(b).unwrap()
+    a.same_channel(b)
 }
 
 #[derive(Debug, Default)]
@@ -297,8 +283,16 @@ impl ReplicaInfo {
     /// When subscribing to a replica, you must ensure that the corresponding [`async_channel::Receiver`] is
     /// received from in a loop. If not receiving, local and remote inserts will hang waiting for
     /// the receiver to be received from.
-    pub fn subscribe(&mut self, sender: async_channel::Sender<Event>) {
-        self.subscribers.subscribe(sender)
+    pub fn subscribe(&mut self, sender: async_channel::Sender<Event>) -> Result<(), LimitError> {
+        if self.subscribers.len() >= MAX_SUBSCRIBERS_PER_DOCUMENT {
+            return Err(LimitError::new(
+                "document subscribers",
+                self.subscribers.len().saturating_add(1),
+                MAX_SUBSCRIBERS_PER_DOCUMENT,
+            ));
+        }
+        self.subscribers.subscribe(sender);
+        Ok(())
     }
 
     /// Explicitly unsubscribe a sender.
@@ -1031,10 +1025,13 @@ impl RangeKey for RecordIdentifier {
 }
 
 fn system_time_now() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("time drift")
-        .as_micros() as u64
+    u64::try_from(
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time drift")
+            .as_micros(),
+    )
+    .expect("system time exceeds the supported microsecond range")
 }
 
 impl RecordIdentifier {
@@ -1238,6 +1235,19 @@ mod tests {
         store::{OpenError, Query, SortBy, SortDirection, Store},
     };
 
+    #[test]
+    fn replica_subscriber_count_is_bounded() {
+        let namespace = NamespaceSecret::from_bytes(&[9u8; 32]);
+        let mut info = ReplicaInfo::new(Capability::Write(namespace));
+        for _ in 0..MAX_SUBSCRIBERS_PER_DOCUMENT {
+            let (sender, _receiver) = async_channel::bounded(1);
+            info.subscribe(sender).unwrap();
+        }
+        let (sender, _receiver) = async_channel::bounded(1);
+        let error = info.subscribe(sender).unwrap_err();
+        assert_eq!(error.resource, "document subscribers");
+    }
+
     #[tokio::test]
     async fn test_basics_memory() -> Result<()> {
         let store = store::Store::memory();
@@ -1408,7 +1418,7 @@ mod tests {
         let count = super::store::PEERS_PER_DOC_CACHE_SIZE.get();
         // expected peers: newest peers are to the front, oldest to the back
         let mut expected_peers = Vec::with_capacity(count);
-        for i in 0..count as u8 {
+        for i in 0..u8::try_from(count).expect("peer cache size fits in a u8") {
             let peer = [i; 32];
             expected_peers.insert(0, peer);
             store.register_useful_peer(namespace, peer)?;
@@ -1417,7 +1427,7 @@ mod tests {
 
         // one more peer should evict the last peer
         expected_peers.pop();
-        let newer_peer = [count as u8; 32];
+        let newer_peer = [u8::try_from(count).expect("peer cache size fits in a u8"); 32];
         expected_peers.insert(0, newer_peer);
         store.register_useful_peer(namespace, newer_peer)?;
         verify_peers(store, namespace, &expected_peers);
@@ -1816,7 +1826,7 @@ mod tests {
         let namespace = NamespaceSecret::new(&mut rng);
         let mut replica = store.new_replica(namespace.clone())?;
         let key = b"skew";
-        let skew_micros: u64 = Duration::from_secs(1).as_micros() as u64;
+        let skew_micros = 1_000_000_u64;
         let now = system_time_now();
         let record = Record::from_data(b"ahead", now + skew_micros);
         let entry = SignedEntry::from_parts(&namespace, &author, key, record);
@@ -2298,8 +2308,8 @@ mod tests {
         let (events1_sender, events1) = async_channel::bounded(32);
         let (events2_sender, events2) = async_channel::bounded(32);
 
-        replica1.info.subscribe(events1_sender);
-        replica2.info.subscribe(events2_sender);
+        replica1.info.subscribe(events1_sender).unwrap();
+        replica2.info.subscribe(events2_sender).unwrap();
 
         replica1.hash_and_insert(b"foo", &author, b"init").await?;
 

@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
 use crate::{
-    net::{AbortReason, AcceptOutcome, SyncFinished},
     NamespaceId,
+    limits::MAX_PEERS_PER_DOCUMENT,
+    net::{AbortReason, AcceptOutcome, SyncFinished},
 };
 
 /// Why we started a sync request
@@ -56,6 +57,11 @@ struct NamespaceState {
 }
 
 impl NamespaceStates {
+    /// Number of actively syncing namespaces.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Are we syncing this namespace?
     pub fn is_syncing(&self, namespace: &NamespaceId) -> bool {
         self.0.contains_key(namespace)
@@ -152,9 +158,11 @@ impl NamespaceStates {
     /// If the namespace is syncing and the node so far unknown, initialize and return a default [`PeerState`].
     /// If the namespace is not syncing return None.
     fn entry(&mut self, namespace: &NamespaceId, node: EndpointId) -> Option<&mut PeerState> {
-        self.0
-            .get_mut(namespace)
-            .map(|n| n.nodes.entry(node).or_default())
+        let namespace = self.0.get_mut(namespace)?;
+        if !namespace.nodes.contains_key(&node) && namespace.nodes.len() >= MAX_PEERS_PER_DOCUMENT {
+            return None;
+        }
+        Some(namespace.nodes.entry(node).or_default())
     }
 }
 
@@ -252,5 +260,29 @@ fn expected_sync_direction(self_node_id: &EndpointId, other_node_id: &EndpointId
         SyncDirection::Accept
     } else {
         SyncDirection::Connect
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iroh::SecretKey;
+
+    use super::*;
+
+    #[test]
+    fn peer_state_is_bounded_per_document() {
+        let namespace = NamespaceId::from(&[7u8; 32]);
+        let mut states = NamespaceStates::default();
+        states.insert(namespace);
+
+        for index in 0..MAX_PEERS_PER_DOCUMENT {
+            let mut bytes = [0u8; 32];
+            bytes[..8].copy_from_slice(&(index as u64).to_le_bytes());
+            let peer = SecretKey::from_bytes(&bytes).public();
+            assert!(states.start_connect(&namespace, peer, SyncReason::DirectJoin));
+        }
+
+        let overflow = SecretKey::from_bytes(&[0xff; 32]).public();
+        assert!(!states.start_connect(&namespace, overflow, SyncReason::DirectJoin));
     }
 }

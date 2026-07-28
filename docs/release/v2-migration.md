@@ -247,3 +247,27 @@ limits with unbounded values.
 transitively for normal `iroh` and `iroh-relay` users. Direct dependencies are
 only needed for custom runtime, tracing, or deterministic simulation
 integrations.
+
+## Local-first protocol crates
+
+The fork now owns `iroh-blobs`, `iroh-gossip`, and `iroh-docs` in the same workspace on the v2
+version line. Applications should use the workspace-compatible `2.0.0` crates together; mixing
+their Rust APIs with the upstream 0.x protocol crates is unsupported.
+
+The hard cut does not change the frozen protocol and persistent formats:
+
+- blobs keeps `/iroh-bytes/4` and v0.103 request, range, hash, ticket, and store representations;
+- gossip keeps `/iroh-gossip/1` and v0.101 HyParView, Plumtree, topic, and envelope encodings; and
+- docs keeps `/iroh-sync/1`, v0.101 tickets and signed entries, reconciliation messages, redb table
+  names, and existing migrations.
+
+`DocTicket` no longer exposes the external `iroh_tickets::ParseError`. Parsing returns
+`iroh_docs::ParseError`, and `DocTicket::try_new` is the fallible constructor for untrusted peer
+lists. `DocTicket::new` remains as a trusted-state convenience and panics when its invariant is
+violated. Ticket and start-sync inputs now reject oversized peer lists or endpoint addresses.
+
+Persistent docs stores are opened and migrated as before. When an older redb file requires a
+format rewrite, keep the automatically created `.backup-redb-v1` or
+`.backup-redb-v2-tuples` sibling until the application has reopened the migrated store and
+validated its documents. Migration failure leaves that backup available for rollback; do not
+delete or rename either file while a docs process is running.

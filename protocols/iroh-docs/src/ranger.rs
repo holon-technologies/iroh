@@ -6,7 +6,10 @@ use std::fmt::Debug;
 use n0_future::StreamExt;
 use serde::{Deserialize, Serialize};
 
-use crate::ContentStatus;
+use crate::{
+    ContentStatus,
+    limits::{LimitError, MAX_ENTRIES_PER_SYNC_MESSAGE, MAX_SYNC_MESSAGE_PARTS},
+};
 
 /// Store entries that can be fingerprinted and put into ranges.
 pub trait RangeEntry: Debug + Clone {
@@ -197,6 +200,27 @@ pub struct Message<E: RangeEntry> {
 }
 
 impl<E: RangeEntry> Message<E> {
+    pub(crate) fn validate_limits(&self) -> Result<(), LimitError> {
+        if self.parts.len() > MAX_SYNC_MESSAGE_PARTS {
+            return Err(LimitError::new(
+                "sync message parts",
+                self.parts.len(),
+                MAX_SYNC_MESSAGE_PARTS,
+            ));
+        }
+        let entries = self.parts.iter().fold(0usize, |count, part| {
+            count.saturating_add(part.values().map_or(0, <[_]>::len))
+        });
+        if entries > MAX_ENTRIES_PER_SYNC_MESSAGE {
+            return Err(LimitError::new(
+                "sync message entries",
+                entries,
+                MAX_ENTRIES_PER_SYNC_MESSAGE,
+            ));
+        }
+        Ok(())
+    }
+
     /// Construct the initial message.
     fn init<S: Store<E>>(store: &mut S) -> Result<Self, S::Error> {
         let x = store.get_first()?;
@@ -400,14 +424,14 @@ pub trait Store<E: RangeEntry>: Sized {
                 }
             }
 
-            if let Some(diff) = diff {
-                if !diff.is_empty() {
-                    out.push(MessagePart::RangeItem(RangeItem {
-                        range,
-                        values: diff,
-                        have_local: true,
-                    }));
-                }
+            if let Some(diff) = diff
+                && !diff.is_empty()
+            {
+                out.push(MessagePart::RangeItem(RangeItem {
+                    range,
+                    values: diff,
+                    have_local: true,
+                }));
             }
         }
 
@@ -709,6 +733,37 @@ mod tests {
     use test_strategy::proptest;
 
     use super::*;
+
+    #[test]
+    fn sync_message_resource_limits_are_enforced() {
+        type Entry = (String, u8);
+        let fingerprint = MessagePart::RangeFingerprint(RangeFingerprint {
+            range: Range::<String>::default(),
+            fingerprint: Fingerprint::empty(),
+        });
+        let too_many_parts = Message::<Entry> {
+            parts: vec![fingerprint; MAX_SYNC_MESSAGE_PARTS + 1],
+        };
+        assert_eq!(
+            too_many_parts.validate_limits().unwrap_err().resource,
+            "sync message parts"
+        );
+
+        let entries = (0..=MAX_ENTRIES_PER_SYNC_MESSAGE)
+            .map(|index| ((format!("key-{index}"), 1), ContentStatus::Complete))
+            .collect();
+        let too_many_entries = Message::<Entry> {
+            parts: vec![MessagePart::RangeItem(RangeItem {
+                range: Range::default(),
+                values: entries,
+                have_local: false,
+            })],
+        };
+        assert_eq!(
+            too_many_entries.validate_limits().unwrap_err().resource,
+            "sync message entries"
+        );
+    }
 
     #[derive(Debug)]
     struct SimpleStore<K, V> {

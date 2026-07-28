@@ -1,4 +1,4 @@
-use std::collections::{hash_map, HashMap};
+use std::collections::{HashMap, hash_map};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
@@ -8,14 +8,18 @@ use iroh_gossip::{
     net::Gossip,
 };
 use n0_future::{
-    task::{AbortHandle, JoinSet},
     StreamExt,
+    task::{AbortHandle, JoinSet},
 };
 use tokio::sync::mpsc;
 use tracing::{debug, instrument, warn};
 
 use super::live::{Op, ToLiveActor};
-use crate::{actor::SyncHandle, ContentStatus, NamespaceId};
+use crate::{
+    ContentStatus, NamespaceId,
+    actor::SyncHandle,
+    limits::{LimitError, MAX_ACTIVE_DOCUMENTS},
+};
 
 #[derive(Debug)]
 struct ActiveState {
@@ -44,6 +48,14 @@ impl GossipState {
     }
 
     pub async fn join(&mut self, namespace: NamespaceId, bootstrap: Vec<EndpointId>) -> Result<()> {
+        if !self.active.contains_key(&namespace) && self.active.len() >= MAX_ACTIVE_DOCUMENTS {
+            return Err(LimitError::new(
+                "active gossip documents",
+                self.active.len().saturating_add(1),
+                MAX_ACTIVE_DOCUMENTS,
+            )
+            .into());
+        }
         match self.active.entry(namespace) {
             hash_map::Entry::Occupied(mut entry) => {
                 if !bootstrap.is_empty() {

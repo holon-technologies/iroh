@@ -6,32 +6,37 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use iroh::{address_lookup::memory::MemoryLookup, Endpoint, EndpointAddr, EndpointId, PublicKey};
+use iroh::{Endpoint, EndpointAddr, EndpointId, PublicKey, address_lookup::memory::MemoryLookup};
 use iroh_blobs::{
+    Hash, HashAndFormat,
     api::{
+        Store,
         blobs::BlobStatus,
         downloader::{ContentDiscovery, DownloadRequest, Downloader, SplitStrategy},
-        Store,
     },
-    Hash, HashAndFormat,
 };
 use iroh_gossip::net::Gossip;
-use n0_future::{task::JoinSet, time::SystemTime, FutureExt};
+use n0_future::{FutureExt, task::JoinSet, time::SystemTime};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{self, mpsc, oneshot};
-use tracing::{debug, error, info, instrument, trace, warn, Instrument, Span};
+use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 
 // use super::gossip::{GossipActor, ToGossipActor};
 use super::state::{NamespaceStates, Origin, SyncReason};
 use crate::{
+    AuthorHeads, ContentStatus, NamespaceId, SignedEntry,
     actor::{OpenOpts, SyncHandle},
     engine::gossip::GossipState,
+    limits::{
+        LimitError, MAX_ACTIVE_DOCUMENTS, MAX_LIVE_SYNC_SESSIONS, MAX_PEERS_PER_DOCUMENT,
+        MAX_PENDING_CONTENT_HASHES, MAX_PENDING_CONTENT_HASHES_PER_DOCUMENT,
+        MAX_SUBSCRIBERS_PER_DOCUMENT, REPLICA_EVENT_QUEUE_CAPACITY,
+    },
     metrics::Metrics,
     net::{
-        connect_and_sync, handle_connection, AbortReason, AcceptError, AcceptOutcome, ConnectError,
-        SyncFinished,
+        AbortReason, AcceptError, AcceptOutcome, ConnectError, SyncFinished, connect_and_sync,
+        handle_connection,
     },
-    AuthorHeads, ContentStatus, NamespaceId, SignedEntry,
 };
 
 /// An iroh-docs operation
@@ -193,7 +198,8 @@ impl LiveActor {
         sync_actor_tx: mpsc::Sender<ToLiveActor>,
         metrics: Arc<Metrics>,
     ) -> Result<Self> {
-        let (replica_events_tx, replica_events_rx) = async_channel::bounded(1024);
+        let (replica_events_tx, replica_events_rx) =
+            async_channel::bounded(REPLICA_EVENT_QUEUE_CAPACITY);
         let gossip_state = GossipState::new(gossip, sync.clone(), sync_actor_tx.clone());
         let memory_lookup = MemoryLookup::new();
         endpoint.address_lookup()?.add(memory_lookup.clone());
@@ -335,8 +341,8 @@ impl LiveActor {
                 sender,
                 reply,
             } => {
-                self.subscribers.subscribe(namespace, sender);
-                reply.send(Ok(())).ok();
+                let result = self.subscribers.subscribe(namespace, sender);
+                reply.send(result.map_err(Into::into)).ok();
             }
             ToLiveActor::HandleConnection { conn } => {
                 self.handle_connection(conn).await;
@@ -362,6 +368,13 @@ impl LiveActor {
 
     #[instrument("connect", skip_all, fields(peer = %peer.fmt_short(), namespace = %namespace.fmt_short()))]
     fn sync_with_peer(&mut self, namespace: NamespaceId, peer: PublicKey, reason: SyncReason) {
+        if self.running_sync_connect.len() >= MAX_LIVE_SYNC_SESSIONS {
+            warn!(
+                maximum = MAX_LIVE_SYNC_SESSIONS,
+                "outbound document sync limit reached"
+            );
+            return;
+        }
         if !self.state.start_connect(&namespace, peer, reason) {
             return;
         }
@@ -393,8 +406,12 @@ impl LiveActor {
             self.sync.shutdown()
         );
         gossip_shutdown_res?;
-        // TODO: abort_all and join_next all JoinSets to catch panics
-        // (they are aborted on drop, but that swallows panics)
+        self.running_sync_connect.abort_all();
+        self.running_sync_accept.abort_all();
+        self.download_tasks.abort_all();
+        while self.running_sync_connect.join_next().await.is_some() {}
+        while self.running_sync_accept.join_next().await.is_some() {}
+        while self.download_tasks.join_next().await.is_some() {}
         Ok(())
     }
 
@@ -404,6 +421,14 @@ impl LiveActor {
         mut peers: Vec<EndpointAddr>,
     ) -> Result<()> {
         debug!(?namespace, peers = peers.len(), "start sync");
+        if !self.state.is_syncing(&namespace) && self.state.len() >= MAX_ACTIVE_DOCUMENTS {
+            return Err(LimitError::new(
+                "active documents",
+                self.state.len().saturating_add(1),
+                MAX_ACTIVE_DOCUMENTS,
+            )
+            .into());
+        }
         // update state to allow sync
         if !self.state.is_syncing(&namespace) {
             let opts = OpenOpts::default()
@@ -461,10 +486,16 @@ impl LiveActor {
     }
 
     async fn join_peers(&mut self, namespace: NamespaceId, peers: Vec<EndpointAddr>) -> Result<()> {
+        if peers.len() > MAX_PEERS_PER_DOCUMENT {
+            return Err(
+                LimitError::new("document peers", peers.len(), MAX_PEERS_PER_DOCUMENT).into(),
+            );
+        }
         let mut peer_ids = Vec::new();
 
         // add addresses of peers to our endpoint address book
         for peer in peers.into_iter() {
+            peer.validate()?;
             let peer_id = peer.id;
             // adding a node address without any addressing info fails with an error,
             // but we still want to include those peers because endpoint address lookup might find addresses for them
@@ -545,10 +576,10 @@ impl LiveActor {
         result: Result<SyncFinished>,
     ) {
         match &result {
-            Err(ref err) => {
+            Err(err) => {
                 warn!(?origin, ?err, "sync failed");
             }
-            Ok(ref details) => {
+            Ok(details) => {
                 info!(
                     sent = %details.outcome.num_sent,
                     recv = %details.outcome.num_recv,
@@ -658,7 +689,7 @@ impl LiveActor {
             self.broadcast_neighbors(namespace, &Op::ContentReady(hash))
                 .await;
         } else {
-            self.missing_hashes.insert(hash);
+            self.insert_missing_hash(hash);
         }
         for namespace in completed_namespaces.iter() {
             if let Some(true) = self.state.may_emit_ready(namespace) {
@@ -732,7 +763,7 @@ impl LiveActor {
                         let node_id = PublicKey::from_bytes(&from)?;
                         self.start_download(namespace, hash, node_id, false).await;
                     } else {
-                        self.missing_hashes.insert(hash);
+                        self.insert_missing_hash(hash);
                     }
                 }
             }
@@ -753,15 +784,22 @@ impl LiveActor {
             self.missing_hashes.remove(&hash);
             return;
         }
-        self.hash_providers
-            .0
-            .lock()
-            .expect("poisoned")
-            .entry(hash)
-            .or_default()
-            .insert(node);
+        {
+            let mut providers = self.hash_providers.0.lock().expect("poisoned");
+            if providers.contains_key(&hash) || providers.len() < MAX_PENDING_CONTENT_HASHES {
+                providers.entry(hash).or_default().insert(node);
+            } else {
+                warn!(
+                    maximum = MAX_PENDING_CONTENT_HASHES,
+                    "content provider map limit reached"
+                );
+                return;
+            }
+        }
         if self.queued_hashes.contains_hash(&hash) {
-            self.queued_hashes.insert(hash, namespace);
+            if let Err(error) = self.queued_hashes.insert(hash, namespace) {
+                warn!(?error, "content queue limit reached");
+            }
         } else if !only_if_missing || self.missing_hashes.contains(&hash) {
             let req = DownloadRequest::new(
                 HashAndFormat::raw(hash),
@@ -770,7 +808,10 @@ impl LiveActor {
             );
             let handle = self.downloader.download_with_opts(req);
 
-            self.queued_hashes.insert(hash, namespace);
+            if let Err(error) = self.queued_hashes.insert(hash, namespace) {
+                warn!(?error, "content queue limit reached");
+                return;
+            }
             self.missing_hashes.remove(&hash);
             self.download_tasks.spawn(async move {
                 (
@@ -784,6 +825,13 @@ impl LiveActor {
 
     #[instrument("accept", skip_all)]
     pub async fn handle_connection(&mut self, conn: iroh::endpoint::Connection) {
+        if self.running_sync_accept.len() >= MAX_LIVE_SYNC_SESSIONS {
+            warn!(
+                maximum = MAX_LIVE_SYNC_SESSIONS,
+                "inbound document sync limit reached"
+            );
+            return;
+        }
         let to_actor_tx = self.sync_actor_tx.clone();
         let accept_request_cb = move |namespace, peer| {
             let to_actor_tx = to_actor_tx.clone();
@@ -826,6 +874,19 @@ impl LiveActor {
         self.state
             .accept_request(&self.endpoint.id(), &namespace, peer)
     }
+
+    fn insert_missing_hash(&mut self, hash: Hash) {
+        if self.missing_hashes.contains(&hash)
+            || self.missing_hashes.len() < MAX_PENDING_CONTENT_HASHES
+        {
+            self.missing_hashes.insert(hash);
+        } else {
+            warn!(
+                maximum = MAX_PENDING_CONTENT_HASHES,
+                "missing content hash limit reached"
+            );
+        }
+    }
 }
 
 /// Event emitted when a sync operation completes
@@ -864,8 +925,21 @@ impl From<&SyncFinished> for SyncDetails {
 struct SubscribersMap(HashMap<NamespaceId, Subscribers>);
 
 impl SubscribersMap {
-    fn subscribe(&mut self, namespace: NamespaceId, sender: async_channel::Sender<Event>) {
-        self.0.entry(namespace).or_default().subscribe(sender);
+    fn subscribe(
+        &mut self,
+        namespace: NamespaceId,
+        sender: async_channel::Sender<Event>,
+    ) -> Result<(), LimitError> {
+        let subscribers = self.0.entry(namespace).or_default();
+        if subscribers.len() >= MAX_SUBSCRIBERS_PER_DOCUMENT {
+            return Err(LimitError::new(
+                "live event subscribers",
+                subscribers.len().saturating_add(1),
+                MAX_SUBSCRIBERS_PER_DOCUMENT,
+            ));
+        }
+        subscribers.subscribe(sender);
+        Ok(())
     }
 
     async fn send(&mut self, namespace: &NamespaceId, event: Event) -> bool {
@@ -914,9 +988,32 @@ impl ContentDiscovery for ProviderNodes {
 }
 
 impl QueuedHashes {
-    fn insert(&mut self, hash: Hash, namespace: NamespaceId) {
+    fn insert(&mut self, hash: Hash, namespace: NamespaceId) -> Result<(), LimitError> {
+        let already_queued = self
+            .by_namespace
+            .get(&namespace)
+            .is_some_and(|hashes| hashes.contains(&hash));
+        if already_queued {
+            return Ok(());
+        }
+        if !self.by_hash.contains_key(&hash) && self.by_hash.len() >= MAX_PENDING_CONTENT_HASHES {
+            return Err(LimitError::new(
+                "pending content hashes",
+                self.by_hash.len().saturating_add(1),
+                MAX_PENDING_CONTENT_HASHES,
+            ));
+        }
+        let namespace_hashes = self.by_namespace.entry(namespace).or_default();
+        if namespace_hashes.len() >= MAX_PENDING_CONTENT_HASHES_PER_DOCUMENT {
+            return Err(LimitError::new(
+                "pending content hashes per document",
+                namespace_hashes.len().saturating_add(1),
+                MAX_PENDING_CONTENT_HASHES_PER_DOCUMENT,
+            ));
+        }
         self.by_hash.entry(hash).or_default().insert(namespace);
-        self.by_namespace.entry(namespace).or_default().insert(hash);
+        namespace_hashes.insert(hash);
+        Ok(())
     }
 
     /// Remove a hash from the set of queued hashes.
@@ -950,6 +1047,10 @@ impl QueuedHashes {
 struct Subscribers(Vec<async_channel::Sender<Event>>);
 
 impl Subscribers {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
     fn subscribe(&mut self, sender: async_channel::Sender<Event>) {
         self.0.push(sender)
     }

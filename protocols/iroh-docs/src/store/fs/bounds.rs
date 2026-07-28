@@ -3,7 +3,7 @@ use std::ops::{Bound, RangeBounds};
 use bytes::Bytes;
 
 use super::tables::{RecordsByKeyId, RecordsByKeyIdOwned, RecordsId, RecordsIdOwned};
-use crate::{store::KeyFilter, AuthorId, NamespaceId};
+use crate::{AuthorId, NamespaceId, store::KeyFilter};
 
 /// Bounds on the records table.
 ///
@@ -111,7 +111,7 @@ impl ByKeyBounds {
                 let end = (ns.to_bytes(), key.clone(), [255u8; 32]);
                 Self(Bound::Included(start), Bound::Included(end))
             }
-            KeyFilter::Prefix(ref prefix) => {
+            KeyFilter::Prefix(prefix) => {
                 let start = Bound::Included((ns.to_bytes(), prefix.clone(), [0u8; 32]));
 
                 let mut ns_end = ns.to_bytes();

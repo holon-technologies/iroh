@@ -4,7 +4,10 @@ use std::{collections::BTreeMap, num::NonZeroU64};
 
 use anyhow::Result;
 
-use crate::AuthorId;
+use crate::{
+    AuthorId,
+    limits::{LimitError, MAX_ENTRIES_PER_SYNC_MESSAGE},
+};
 
 type Timestamp = u64;
 
@@ -77,11 +80,11 @@ impl AuthorHeads {
         let mut items = Vec::new();
         for (ts, author) in by_timestamp.into_iter().rev() {
             items.push((ts, author));
-            if let Some(size_limit) = size_limit {
-                if postcard::experimental::serialized_size(&items)? > size_limit {
-                    items.pop();
-                    break;
-                }
+            if let Some(size_limit) = size_limit
+                && postcard::experimental::serialized_size(&items)? > size_limit
+            {
+                items.pop();
+                break;
             }
         }
         let encoded = postcard::to_stdvec(&items)?;
@@ -92,6 +95,11 @@ impl AuthorHeads {
     /// Decode from byte slice created with [`Self::encode`].
     pub fn decode(bytes: &[u8]) -> Result<Self> {
         let items: Vec<(Timestamp, AuthorId)> = postcard::from_bytes(bytes)?;
+        if items.len() > MAX_ENTRIES_PER_SYNC_MESSAGE {
+            return Err(
+                LimitError::new("author heads", items.len(), MAX_ENTRIES_PER_SYNC_MESSAGE).into(),
+            );
+        }
         let mut heads = AuthorHeads::default();
         for (ts, author) in items {
             heads.insert(author, ts);
@@ -125,13 +133,21 @@ mod tests {
         let mut heads = AuthorHeads::default();
         let start = Record::empty_current().timestamp();
         for i in 0..10u64 {
-            heads.insert(AuthorId::from(&[i as u8; 32]), start + i);
+            heads.insert(
+                AuthorId::from(&[u8::try_from(i).expect("test index fits in a u8"); 32]),
+                start + i,
+            );
         }
         let encoded = heads.encode(Some(256))?;
         let decoded = AuthorHeads::decode(&encoded)?;
         assert_eq!(decoded.len(), 6);
         let expected: AuthorHeads = (0u64..6)
-            .map(|n| (AuthorId::from(&[9 - n as u8; 32]), start + (9 - n)))
+            .map(|n| {
+                (
+                    AuthorId::from(&[9 - u8::try_from(n).expect("test index fits in a u8"); 32]),
+                    start + (9 - n),
+                )
+            })
             .collect();
         assert_eq!(expected, decoded);
         Ok(())

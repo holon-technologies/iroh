@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use irpc::{channel::mpsc, LocalSender, WithChannels};
-use n0_future::{task, StreamExt};
+use irpc::{LocalSender, WithChannels, channel::mpsc};
+use n0_future::{StreamExt, task};
 use tokio::sync::mpsc as tokio_mpsc;
 use tracing::error;
 
 use super::{
+    DocsApi, RpcError, RpcResult,
     protocol::{
         AuthorCreateRequest, AuthorCreateResponse, AuthorDeleteRequest, AuthorDeleteResponse,
         AuthorExportRequest, AuthorExportResponse, AuthorGetDefaultRequest,
@@ -21,9 +22,11 @@ use super::{
         SetRequest, SetResponse, ShareMode, ShareRequest, ShareResponse, StartSyncRequest,
         StartSyncResponse, StatusRequest, StatusResponse, SubscribeRequest, SubscribeResponse,
     },
-    DocsApi, RpcError, RpcResult,
 };
-use crate::{engine::Engine, Author, DocTicket, NamespaceSecret, SignedEntry};
+use crate::{
+    Author, DocTicket, NamespaceSecret, SignedEntry, engine::Engine,
+    limits::RPC_ACTOR_QUEUE_CAPACITY,
+};
 
 /// The docs RPC actor that handles incoming messages
 pub(crate) struct RpcActor {
@@ -33,7 +36,7 @@ pub(crate) struct RpcActor {
 
 impl RpcActor {
     pub(crate) fn spawn(engine: Arc<Engine>) -> DocsApi {
-        let (tx, rx) = tokio_mpsc::channel(64);
+        let (tx, rx) = tokio_mpsc::channel(RPC_ACTOR_QUEUE_CAPACITY);
         let actor = Self { recv: rx, engine };
         task::spawn(actor.run());
         let local = LocalSender::<DocsProtocol>::from(tx);
@@ -188,7 +191,7 @@ impl RpcActor {
             }
             DocsMessage::AuthorGetDefault(author_get_default) => {
                 let WithChannels { tx, inner, .. } = author_get_default;
-                let result = self.author_default(inner).await;
+                let result = self.author_default(inner);
                 if let Err(e) = tx.send(result).await {
                     error!("Failed to send AuthorGetDefault response: {}", e);
                 }
@@ -249,7 +252,7 @@ impl RpcActor {
         })
     }
 
-    pub(super) async fn author_default(
+    pub(super) fn author_default(
         &self,
         _req: AuthorGetDefaultRequest,
     ) -> RpcResult<AuthorGetDefaultResponse> {
@@ -406,10 +409,9 @@ impl RpcActor {
             .await
             .map_err(|e| RpcError::new(&*e))?;
 
-        Ok(ShareResponse(DocTicket {
-            capability,
-            nodes: vec![me],
-        }))
+        let ticket =
+            DocTicket::try_new(capability, vec![me]).map_err(|error| RpcError::new(&error))?;
+        Ok(ShareResponse(ticket))
     }
 
     pub(super) async fn doc_subscribe(

@@ -1,16 +1,16 @@
 //! This contains an actor spawned on a separate thread to process replica and store operations.
 
 use std::{
-    collections::{hash_map, HashMap},
+    collections::{HashMap, hash_map},
     num::NonZeroU64,
     sync::Arc,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
 use iroh_blobs::Hash;
 use irpc::channel::mpsc;
-use n0_future::{task::JoinSet, time::Duration, TryFutureExt};
+use n0_future::{TryFutureExt, task::JoinSet, time::Duration};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 #[cfg(wasm_browser)]
@@ -18,22 +18,22 @@ use tracing::Instrument;
 use tracing::{debug, error, error_span, trace, warn};
 
 use crate::{
+    Author, AuthorHeads, AuthorId, Capability, ContentStatus, ContentStatusCallback, Event,
+    NamespaceId, NamespaceSecret, PeerIdBytes, Replica, ReplicaInfo, SignedEntry, SyncOutcome,
     api::{
-        protocol::{AuthorListResponse, ListResponse},
         RpcError, RpcResult,
+        protocol::{AuthorListResponse, ListResponse},
     },
+    limits::{MAX_ACTIVE_DOCUMENTS, MAX_DATABASE_COMMIT_DELAY, STORE_ACTION_QUEUE_CAPACITY},
     metrics::Metrics,
     ranger::Message,
     store::{
-        fs::{ContentHashesIterator, StoreInstance},
         DownloadPolicy, ImportNamespaceOutcome, Query, Store,
+        fs::{ContentHashesIterator, StoreInstance},
     },
-    Author, AuthorHeads, AuthorId, Capability, ContentStatus, ContentStatusCallback, Event,
-    NamespaceId, NamespaceSecret, PeerIdBytes, Replica, ReplicaInfo, SignedEntry, SyncOutcome,
 };
 
-const ACTION_CAP: usize = 1024;
-pub(crate) const MAX_COMMIT_DELAY: Duration = Duration::from_millis(500);
+pub(crate) const MAX_COMMIT_DELAY: Duration = MAX_DATABASE_COMMIT_DELAY;
 
 #[derive(derive_more::Debug, derive_more::Display)]
 enum Action {
@@ -271,7 +271,7 @@ impl SyncHandle {
         me: String,
     ) -> SyncHandle {
         let metrics = Arc::new(Metrics::default());
-        let (action_tx, action_rx) = async_channel::bounded(ACTION_CAP);
+        let (action_tx, action_rx) = async_channel::bounded(STORE_ACTION_QUEUE_CAPACITY);
         let actor = Actor {
             store,
             states: Default::default(),
@@ -674,10 +674,10 @@ impl Actor {
                     continue;
                 }
                 Some(res) = self.tasks.join_next(), if !self.tasks.is_empty() => {
-                    if let Err(err) = res {
-                        if !err.is_cancelled() {
-                            warn!(?err, "actor reply-streamer task panicked");
-                        }
+                    if let Err(err) = res
+                        && !err.is_cancelled()
+                    {
+                        warn!(?err, "actor reply-streamer task panicked");
                     }
                     continue;
                 }
@@ -737,27 +737,37 @@ impl Actor {
             Action::ImportNamespace { capability, reply } => send_reply_with(reply, self, |this| {
                 let id = capability.id();
                 let outcome = this.store.import_namespace(capability.clone())?;
-                if let ImportNamespaceOutcome::Upgraded = outcome {
-                    if let Ok(state) = this.states.get_mut(&id) {
-                        state.info.merge_capability(capability)?;
-                    }
+                if let ImportNamespaceOutcome::Upgraded = outcome
+                    && let Ok(state) = this.states.get_mut(&id)
+                {
+                    state.info.merge_capability(capability)?;
                 }
                 Ok(id)
             }),
             Action::ListAuthors { reply } => {
-                let iter = self
-                    .store
-                    .list_authors()
-                    .map(|a| a.map(|a| a.map(|a| AuthorListResponse { author_id: a.id() })));
+                let iter = self.store.list_authors().map(|authors| {
+                    authors
+                        .map(|author| {
+                            author.map(|author| AuthorListResponse {
+                                author_id: author.id(),
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                });
                 self.tasks.spawn_local(async move {
                     iter_to_irpc(reply, iter).await.ok();
                 });
                 Ok(())
             }
             Action::ListReplicas { reply } => {
-                let iter = self.store.list_namespaces();
-                let iter = iter.map(|inner| {
-                    inner.map(|res| res.map(|(id, capability)| ListResponse { id, capability }))
+                let iter = self.store.list_namespaces().map(|replicas| {
+                    replicas
+                        .map(|replica| {
+                            replica.map(|(id, capability)| ListResponse { id, capability })
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
                 });
                 self.tasks.spawn_local(async move {
                     iter_to_irpc(reply, iter).await.ok();
@@ -792,7 +802,7 @@ impl Actor {
             }
             ReplicaAction::Subscribe { sender, reply } => send_reply_with(reply, self, |this| {
                 let state = this.states.get_mut(&namespace)?;
-                state.info.subscribe(sender);
+                state.info.subscribe(sender)?;
                 Ok(())
             }),
             ReplicaAction::Unsubscribe { sender, reply } => send_reply_with(reply, self, |this| {
@@ -1017,11 +1027,19 @@ impl OpenReplicas {
         opts: OpenOpts,
         mut open_cb: impl FnMut() -> Result<ReplicaInfo>,
     ) -> Result<()> {
+        if !self.0.contains_key(&namespace) && self.0.len() >= MAX_ACTIVE_DOCUMENTS {
+            return Err(crate::limits::LimitError::new(
+                "open documents",
+                self.0.len().saturating_add(1),
+                MAX_ACTIVE_DOCUMENTS,
+            )
+            .into());
+        }
         match self.0.entry(namespace) {
             hash_map::Entry::Vacant(e) => {
                 let mut info = open_cb()?;
                 if let Some(sender) = opts.subscribe {
-                    info.subscribe(sender);
+                    info.subscribe(sender)?;
                 }
                 debug!(namespace = %namespace.fmt_short(), "open");
                 let state = OpenReplica {
@@ -1036,7 +1054,7 @@ impl OpenReplicas {
                 state.handles += 1;
                 state.sync = state.sync || opts.sync;
                 if let Some(sender) = opts.subscribe {
-                    state.info.subscribe(sender);
+                    state.info.subscribe(sender)?;
                 }
             }
         }

@@ -4,18 +4,18 @@
 
 use std::sync::{Arc, RwLock};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use iroh::{Endpoint, EndpointAddr, PublicKey};
 use iroh_blobs::{
-    api::{blobs::BlobStatus, downloader::Downloader, Store},
-    store::{ProtectCb, ProtectOutcome},
     Hash,
+    api::{Store, blobs::BlobStatus, downloader::Downloader},
+    store::{ProtectCb, ProtectOutcome},
 };
 use iroh_gossip::net::Gossip;
-use n0_future::{task::AbortOnDropHandle, Stream, StreamExt};
+use n0_future::{Stream, StreamExt, task::AbortOnDropHandle};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, error_span, Instrument};
+use tracing::{Instrument, debug, error, error_span};
 
 use self::live::{LiveActor, ToLiveActor};
 pub use self::{
@@ -23,18 +23,18 @@ pub use self::{
     state::{Origin, SyncReason},
 };
 use crate::{
-    actor::SyncHandle, metrics::Metrics, Author, AuthorId, ContentStatus, ContentStatusCallback,
-    Entry, NamespaceId,
+    Author, AuthorId, ContentStatus, ContentStatusCallback, Entry, NamespaceId,
+    actor::SyncHandle,
+    limits::{
+        GC_PROTECTION_QUEUE_CAPACITY, LIVE_ACTOR_QUEUE_CAPACITY, LimitError,
+        MAX_PEERS_PER_DOCUMENT, SHUTDOWN_TIMEOUT, SUBSCRIPTION_QUEUE_CAPACITY,
+    },
+    metrics::Metrics,
 };
 
 mod gossip;
 mod live;
 mod state;
-
-/// Capacity of the channel for the [`ToLiveActor`] messages.
-const ACTOR_CHANNEL_CAP: usize = 64;
-/// Capacity for the channels for [`Engine::subscribe`].
-const SUBSCRIBE_CHANNEL_CAP: usize = 256;
 
 /// The sync engine coordinates actors that manage open documents, set-reconciliation syncs with
 /// peers and a gossip swarm for each syncing document.
@@ -69,7 +69,7 @@ impl Engine {
         default_author_storage: DefaultAuthorStorage,
         protect_cb: Option<ProtectCallbackHandler>,
     ) -> anyhow::Result<Self> {
-        let (live_actor_tx, to_live_actor_recv) = mpsc::channel(ACTOR_CHANNEL_CAP);
+        let (live_actor_tx, to_live_actor_recv) = mpsc::channel(LIVE_ACTOR_QUEUE_CAPACITY);
         let me = endpoint.id().fmt_short().to_string();
 
         let content_status_cb: ContentStatusCallback = {
@@ -90,7 +90,7 @@ impl Engine {
                 return;
             };
             while let Some(reply_tx) = protect_handler.0.recv().await {
-                let (tx, rx) = mpsc::channel(64);
+                let (tx, rx) = mpsc::channel(GC_PROTECTION_QUEUE_CAPACITY);
                 if let Err(_err) = reply_tx.send(rx) {
                     continue;
                 }
@@ -169,6 +169,14 @@ impl Engine {
     /// If `peers` is non-empty, it will both do an initial set-reconciliation sync with each peer,
     /// and join an iroh-gossip swarm with these peers to receive and broadcast document updates.
     pub async fn start_sync(&self, namespace: NamespaceId, peers: Vec<EndpointAddr>) -> Result<()> {
+        if peers.len() > MAX_PEERS_PER_DOCUMENT {
+            return Err(
+                LimitError::new("start-sync peers", peers.len(), MAX_PEERS_PER_DOCUMENT).into(),
+            );
+        }
+        for peer in &peers {
+            peer.validate()?;
+        }
         let (reply, reply_rx) = oneshot::channel();
         self.to_live_actor
             .send(ToLiveActor::StartSync {
@@ -209,7 +217,7 @@ impl Engine {
 
         // Subscribe to insert events from the replica.
         let a = {
-            let (s, r) = async_channel::bounded(SUBSCRIBE_CHANNEL_CAP);
+            let (s, r) = async_channel::bounded(SUBSCRIPTION_QUEUE_CAPACITY);
             self.sync.subscribe(namespace, s).await?;
             Box::pin(r).then(move |ev| {
                 let content_status_cb = content_status_cb.clone();
@@ -219,7 +227,7 @@ impl Engine {
 
         // Subscribe to events from the [`live::Actor`].
         let b = {
-            let (s, r) = async_channel::bounded(SUBSCRIBE_CHANNEL_CAP);
+            let (s, r) = async_channel::bounded(SUBSCRIPTION_QUEUE_CAPACITY);
             let r = Box::pin(r);
             let (reply, reply_rx) = oneshot::channel();
             self.to_live_actor
@@ -246,11 +254,16 @@ impl Engine {
 
     /// Shutdown the engine.
     pub async fn shutdown(&self) -> Result<()> {
-        let (reply, reply_rx) = oneshot::channel();
-        self.to_live_actor
-            .send(ToLiveActor::Shutdown { reply })
-            .await?;
-        reply_rx.await?;
+        n0_future::time::timeout(SHUTDOWN_TIMEOUT, async {
+            let (reply, reply_rx) = oneshot::channel();
+            self.to_live_actor
+                .send(ToLiveActor::Shutdown { reply })
+                .await?;
+            reply_rx.await?;
+            Result::<()>::Ok(())
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("docs engine shutdown timed out"))??;
         Ok(())
     }
 }
@@ -370,7 +383,7 @@ impl DefaultAuthorStorage {
                 Ok(author_id)
             }
             #[cfg(feature = "fs-store")]
-            Self::Persistent(ref path) => {
+            Self::Persistent(path) => {
                 use std::str::FromStr;
 
                 use anyhow::Context;
@@ -416,7 +429,7 @@ impl DefaultAuthorStorage {
                 // persistence is not possible for the mem storage so this is a noop.
             }
             #[cfg(feature = "fs-store")]
-            Self::Persistent(ref path) => {
+            Self::Persistent(path) => {
                 use anyhow::Context;
                 tokio::fs::write(path, author_id.to_string())
                     .await

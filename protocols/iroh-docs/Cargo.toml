@@ -1,22 +1,23 @@
 [package]
 name = "iroh-docs"
-version = "0.101.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "Iroh sync"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["n0 team"]
-repository = "https://github.com/n0-computer/iroh-docs"
+repository.workspace = true
 publish = false
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.91"
+rust-version.workspace = true
 
 [dependencies]
 anyhow = "1"
 async-channel = "2.3.1"
 blake3 = "1.8"
 bytes = { version = "1.7", features = ["serde"] }
+data-encoding = "2.6.0"
 derive_more = { version = "2.0.1", features = [
     "debug",
     "deref",
@@ -29,10 +30,10 @@ derive_more = { version = "2.0.1", features = [
 ] }
 futures-buffered = "0.2.4"
 hex = "0.4"
-iroh = { version = "1", default-features = false }
-iroh-tickets = { version = "1" }
-iroh-blobs = { version = "0.103", default-features = false }
-iroh-gossip = { version = "0.101.0", features = ["net"], default-features = false }
+iroh = { workspace = true, default-features = false }
+iroh-base = { workspace = true, features = ["key"] }
+iroh-blobs = { workspace = true, default-features = false }
+iroh-gossip = { workspace = true, features = ["net"], default-features = false }
 iroh-metrics = { version = "1", default-features = false }
 irpc = { version = "0.17", default-features = false }
 n0-error = "1"
@@ -60,7 +61,7 @@ tracing = "0.1"
 
 [dev-dependencies]
 data-encoding = "2.6.0"
-iroh = { version = "1", features = ["test-utils"] }
+iroh = { workspace = true, features = ["test-utils", "tls-ring"] }
 nested_enum_utils = "0.2"
 parking_lot = "0.12.3"
 proptest = "1.2.0"
@@ -84,18 +85,8 @@ redb-v2-migration = ["dep:redb_v3"]
 all-features = true
 rustdoc-args = ["--cfg", "iroh_docsrs"]
 
-[lints.rust]
-missing_debug_implementations = "warn"
-
-# We use this --cfg for documenting the cargo features on which an API
-# is available.  To preview this locally use: RUSTFLAGS="--cfg
-# iroh_docsrs cargo +nightly doc --all-features".  We use our own
-# iroh_docsrs instead of the common docsrs to avoid also enabling this
-# feature in any dependencies, because some indirect dependencies
-# require a feature enabled when using `--cfg docsrs` which we can not
-# do.  To enable for a crate set `#![cfg_attr(iroh_docsrs,
-# feature(doc_cfg))]` in the crate.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
+[lints]
+workspace = true
 
 [build-dependencies]
 cfg_aliases = "0.2.1"

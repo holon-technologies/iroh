@@ -7,18 +7,18 @@ use std::{
     path::Path,
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
-    task::{ready, Poll},
+    task::{Poll, ready},
 };
 
 use anyhow::Result;
 use bytes::Bytes;
 use iroh::EndpointAddr;
 use iroh_blobs::{
-    api::blobs::{AddPathOptions, AddProgressItem, ExportMode, ExportOptions, ExportProgress},
     Hash,
+    api::blobs::{AddPathOptions, AddProgressItem, ExportMode, ExportOptions, ExportProgress},
 };
 use n0_future::{FutureExt, Stream, StreamExt};
 
@@ -35,10 +35,10 @@ use self::{
     },
 };
 use crate::{
+    Author, AuthorId, Capability, CapabilityKind, DocTicket, Entry, NamespaceId, PeerIdBytes,
     actor::OpenState,
     engine::{Engine, LiveEvent},
     store::{DownloadPolicy, Query},
-    Author, AuthorId, Capability, CapabilityKind, DocTicket, Entry, NamespaceId, PeerIdBytes,
 };
 
 pub(crate) mod actor;
@@ -218,6 +218,7 @@ impl DocsApi {
 
     /// Imports a document from a ticket and joins all peers in the ticket.
     pub async fn import(&self, ticket: DocTicket) -> Result<Doc> {
+        ticket.validate()?;
         let DocTicket { capability, nodes } = ticket;
         let doc = self.import_namespace(capability).await?;
         doc.start_sync(nodes).await?;
@@ -234,6 +235,7 @@ impl DocsApi {
         &self,
         ticket: DocTicket,
     ) -> Result<(Doc, impl Stream<Item = Result<LiveEvent>>)> {
+        ticket.validate()?;
         let DocTicket { capability, nodes } = ticket;
         let response = self.inner.rpc(ImportRequest { capability }).await??;
         let doc = Doc::new(self.inner.clone(), response.doc_id);
@@ -459,7 +461,7 @@ impl Doc {
     /// Subscribes to events for this document.
     pub async fn subscribe(
         &self,
-    ) -> Result<impl Stream<Item = Result<LiveEvent>> + Send + Unpin + 'static> {
+    ) -> Result<impl Stream<Item = Result<LiveEvent>> + Send + Unpin + 'static + use<>> {
         self.ensure_open()?;
         let stream = self
             .inner
@@ -555,6 +557,7 @@ impl Doc {
     }
 
     /// Exports an entry as a file to a given absolute path.
+    #[allow(clippy::unused_async)] // Preserve the v0.101 async source API.
     pub async fn export_file(
         &self,
         blobs: &iroh_blobs::api::Store,

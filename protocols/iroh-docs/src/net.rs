@@ -5,13 +5,13 @@ use std::future::Future;
 use iroh::{Endpoint, EndpointAddr, PublicKey};
 use n0_future::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error_span, trace, Instrument};
+use tracing::{Instrument, debug, error_span, trace};
 
 use crate::{
+    NamespaceId, SyncOutcome,
     actor::SyncHandle,
     metrics::Metrics,
-    net::codec::{run_alice, BobState},
-    NamespaceId, SyncOutcome,
+    net::codec::{BobState, run_alice},
 };
 
 /// The ALPN identifier for the iroh-docs protocol

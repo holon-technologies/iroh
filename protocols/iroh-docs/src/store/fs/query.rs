@@ -2,17 +2,17 @@ use anyhow::Result;
 use iroh_blobs::Hash;
 
 use super::{
+    RecordsValue,
     bounds::{ByKeyBounds, RecordsBounds},
     ranges::{RecordsByKeyRange, RecordsRange},
-    RecordsValue,
 };
 use crate::{
+    AuthorId, NamespaceId, SignedEntry,
     store::{
+        AuthorFilter, KeyFilter, Query,
         fs::tables::ReadOnlyTables,
         util::{IndexKind, LatestPerKeySelector, SelectorRes},
-        AuthorFilter, KeyFilter, Query,
     },
-    AuthorId, NamespaceId, SignedEntry,
 };
 
 /// A query iterator for entry queries.
@@ -90,10 +90,10 @@ impl Iterator for QueryIterator {
 
     fn next(&mut self) -> Option<Result<SignedEntry>> {
         // early-return if we reached the query limit.
-        if let Some(limit) = self.query.limit() {
-            if self.count >= limit {
-                return None;
-            }
+        if let Some(limit) = self.query.limit()
+            && self.count >= limit
+        {
+            return None;
         }
         loop {
             let next = match &mut self.range {

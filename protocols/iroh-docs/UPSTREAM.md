@@ -62,3 +62,24 @@ The following checks passed before the cleanup commit was finalized:
 
 The following port freezes persistent and wire compatibility before adapting the imported Rust
 implementation to the local v2 endpoint, blobs, and gossip crates.
+
+## v2 workspace port
+
+The subsequent port keeps the crate private, changes its package version and metadata to the v2
+workspace line, replaces crates.io Iroh, blobs, and gossip with the local workspace packages, and
+removes the superseded standalone lockfile. The production dependency graph contains no Iroh 1.x
+package; the former `iroh-tickets` dependency is replaced by a local codec that retains the exact
+`doc` prefix, lowercase unpadded-base32 representation, postcard discriminator, capability bytes,
+and endpoint-address encoding.
+
+Compatibility fixtures preserve `/iroh-sync/1`, document tickets, signed entries, author and
+namespace secrets, canonical entry-signing bytes, range reconciliation messages, redb table names,
+and the v1→v2 plus redb 2.x tuple migrations. Existing redb migration behavior remains in place:
+format migrations create `.backup-redb-v1` or `.backup-redb-v2-tuples` siblings before replacing
+the live file, and repeated opens do not rerun a completed migration.
+
+The port centralizes and enforces named limits for sync frames, reconciliation parts and entries,
+tickets, peers, active documents, peer history, sessions, subscribers, pending content, actor/RPC
+queues, transaction age, and graceful shutdown. Endpoint addresses are validated at ticket and
+start-sync boundaries; oversized peer state and malicious frames are rejected without changing a
+document's capability.
