@@ -1,4 +1,6 @@
-use iroh_sim::{OPERATIONAL_OUTCOME_SCHEMA_VERSION, OperationalOutcome, OperationalOutcomeClass};
+mod support;
+
+use support::{OPERATIONAL_OUTCOME_SCHEMA_VERSION, OperationalOutcome, OperationalOutcomeClass};
 
 #[test]
 fn operational_outcomes_have_distinct_automation_semantics() {

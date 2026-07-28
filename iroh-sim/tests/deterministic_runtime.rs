@@ -1,5 +1,7 @@
 #![cfg(not(all(target_family = "wasm", target_os = "unknown")))]
 
+mod support;
+
 use std::{
     future::poll_fn,
     sync::{Arc, Mutex},
@@ -10,7 +12,7 @@ use iroh_runtime::{
     RootSeed, RuntimeContext, TaskKind, TraceContext, TraceEvent, TraceEventKind, TraceSink,
     TraceSinkError,
 };
-use iroh_sim::normalized_trace_json;
+use support::normalized_trace_json;
 
 #[tokio::test(start_paused = true)]
 async fn repeated_timer_task_lifecycle_has_byte_identical_trace() {

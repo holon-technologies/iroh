@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     net::Ipv4Addr,
     num::NonZeroU16,
@@ -7,7 +9,7 @@ use std::{
 
 use iroh::simulation::{IpSocket, PortMapper};
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use support::{
     DeterministicPortMapper, IpCidr, Kernel, KernelConfig, KernelResourceLimits, LinkConfig,
     NatConfig, NatFilteringBehavior, NatMappingBehavior, NetworkConfig, ResourceKind,
     SyntheticNetwork, TraceBuffer,

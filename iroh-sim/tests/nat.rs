@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -5,7 +7,7 @@ use std::{
 };
 
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use support::{
     Firewall, FirewallAction, FirewallConfig, FirewallConnectionState, FirewallDirection,
     FirewallPacket, FirewallProtocol, FirewallRule, IpCidr, Kernel, KernelConfig,
     KernelResourceLimits, NatConfig, NatError, NatFilteringBehavior, NatMappingBehavior, NatTable,

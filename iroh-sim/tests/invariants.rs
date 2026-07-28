@@ -1,6 +1,8 @@
+mod support;
+
 use std::collections::BTreeMap;
 
-use iroh_sim::{
+use support::{
     ConnectionId, ConnectionState, EndpointId, EndpointState, FairnessAssumption, InvariantClass,
     InvariantError, InvariantName, InvariantRegistry, InvariantSpec, Observation, ObservationKind,
     PayloadDigest, ResourceKind, ScenarioBuilder, ScenarioOperation, StreamId,
@@ -9,7 +11,7 @@ use iroh_sim::{
 fn registry(extra: &[(InvariantName, Option<u64>, Option<u64>)]) -> InvariantRegistry {
     let mut scenario = ScenarioBuilder::direct_ip_echo(
         "invariants/test",
-        iroh_sim::IpFamily::Ipv4,
+        support::IpFamily::Ipv4,
         ScenarioOperation::Stream,
     )
     .unwrap()
@@ -121,7 +123,7 @@ fn delivery_integrity_misdelivery_and_order_are_continuously_checked() {
 fn relay_routing_rejects_delivery_to_an_unaddressed_identity() {
     let mut scenario = ScenarioBuilder::direct_ip_echo(
         "invariants/relay-routing",
-        iroh_sim::IpFamily::Ipv4,
+        support::IpFamily::Ipv4,
         ScenarioOperation::Stream,
     )
     .unwrap()
@@ -139,7 +141,7 @@ fn relay_routing_rejects_delivery_to_an_unaddressed_identity() {
             1,
             ObservationKind::PathState {
                 connection: ConnectionId::new("c1").unwrap(),
-                path: iroh_sim::PathId::new("relay").unwrap(),
+                path: support::PathId::new("relay").unwrap(),
                 active: true,
             },
         ))

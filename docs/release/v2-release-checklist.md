@@ -12,12 +12,16 @@ crate, tag, GitHub release, or container.
   `Unreleased` entries, including the fallible constructors and
   `Clients::register`.
 - [ ] The migration guide has been checked against the final public API diff
-  from `v1.0.3`.
-- [ ] `scripts/run-v2-semver-checks.sh` reports no minor-level public API
-  regressions against `v1.0.3`; the report is retained with the candidate
-  evidence.
-- [ ] `iroh-runtime` packages successfully and its README/API documentation
-  accurately describe its support boundary.
+  from `v1.0.3`, and `scripts/v2-api-breaks.txt` exactly matches the retained
+  cargo-semver-checks inventory.
+- [ ] After the architecture cut is approved, `post_cut_ref` in
+  `scripts/v2-api-baseline.toml` is the immutable 40-character cut commit; it
+  is not a branch, tag, or dirty worktree.
+- [ ] `scripts/run-v2-semver-checks.sh` reports no minor-level regressions
+  against that post-cut baseline. The independent upstream `v1.0.3` relay-wire
+  matrix remains green.
+- [ ] `iroh-runtime` and `iroh-resolver` package successfully and their README/API
+  documentation accurately describes each support boundary.
 - [ ] `iroh-noq` `1.1.0-holon.1` and `iroh-hickory-server`
   `0.26.1-holon.1` retain their reviewed resource-bound tests, provenance,
   licenses, and exact dependency requirements.
@@ -45,8 +49,8 @@ crate, tag, GitHub release, or container.
 ## Package and binary dry runs
 
 - [ ] `scripts/verify-release-packages.sh` succeeds in dependency order:
-  `iroh-noq`, `iroh-hickory-server`, `iroh-base`, `iroh-runtime`, `iroh-dns`,
-  `iroh-relay`, `iroh`, then `iroh-dns-server`. Source paths bootstrap archive
+  `iroh-noq`, `iroh-hickory-server`, `iroh-base`, `iroh-runtime`, `iroh-resolver`,
+  `iroh-dns`, `iroh-relay`, `iroh`, then `iroh-dns-server`. Source paths bootstrap archive
   creation only; the authoritative build uses normalized extracted packages
   exclusively, and no patch is written into a crate archive.
 - [ ] Each packaged crate builds using only packaged content.

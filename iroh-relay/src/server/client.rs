@@ -147,8 +147,8 @@ impl Client {
             channel_capacity,
             protocol_version,
         } = config;
-        let endpoint_id = guard.endpoint_id;
-        let connection_id = guard.connection_id;
+        let endpoint_id = guard.endpoint_id();
+        let connection_id = guard.connection_id();
 
         let (packet_send_queue_s, packet_send_queue_r) = mpsc::channel(channel_capacity);
         let (message_send_queue_s, message_send_queue_r) = mpsc::channel(channel_capacity);

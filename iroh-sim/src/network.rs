@@ -991,6 +991,10 @@ struct SyntheticIpSocketFactory {
 }
 
 impl IpSocketFactory for SyntheticIpSocketFactory {
+    fn clock_domain(&self) -> Option<iroh_runtime::ClockDomain> {
+        Some(self.network.context.clock().domain())
+    }
+
     fn bind(&self, requested: SocketAddr) -> io::Result<Arc<dyn IpSocket>> {
         self.network
             .bind_socket(&self.host, requested)

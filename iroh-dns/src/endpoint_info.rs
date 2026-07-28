@@ -554,10 +554,10 @@ mod tests {
         },
     };
     use iroh_base::{EndpointId, SecretKey, TransportAddr};
+    use iroh_resolver::TxtRecordData;
     use n0_error::{Result, StdResultExt};
 
     use super::{EndpointData, EndpointInfo};
-    use crate::dns::TxtRecordData;
 
     #[test]
     fn txt_attr_roundtrip() {

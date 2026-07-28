@@ -1,0 +1,122 @@
+# Iroh Fork Architecture
+
+**Status:** implemented in the working tree; immutable candidate and hosted validation pending.
+
+This document is the source of truth for crate ownership, dependency direction, workspace
+isolation, and compatibility boundaries in this fork. The source contract in
+`scripts/tests/check-workspace-architecture.sh` enforces these boundaries. Release readiness still
+requires an immutable candidate and the local/hosted evidence listed in the v2 release checklist.
+
+## Compatibility policy
+
+The v2 cut may break Rust source APIs, crate names, module paths, Cargo features, builders, and
+simulator-internal interfaces. It must preserve the relay V1/V2 wire protocol in both directions
+against upstream `v1.0.3`. The exact wire contract and baseline are defined in
+[`relay-compatibility.md`](relay-compatibility.md).
+
+Rust API breaks must be listed in [`release/v2-migration.md`](release/v2-migration.md). Relay wire
+breaks are not migration-guide items: they are regressions unless introduced as a new, additive,
+negotiated protocol version.
+
+## Workspace boundaries
+
+The root workspace contains publishable production crates and non-published production tooling.
+`iroh-sim` is a nested, non-published workspace because it applies a deterministic Rustls patch
+that must never enter the production dependency graph. Fuzzing is also isolated from the root
+workspace.
+
+| Package | Responsibility | May depend on first-party packages |
+| --- | --- | --- |
+| `iroh-base` | Stable identity, address, relay-map, and key value types | none |
+| `iroh-runtime` | Runtime, clock, task, decision, and trace capabilities | none |
+| `iroh-resolver` | Generic bounded A, AAAA, TXT, and host resolution | none |
+| `iroh-dns` | Iroh endpoint DNS records, endpoint lookup, pkarr integration | `iroh-base`, `iroh-resolver` |
+| `iroh-relay` | Relay client, server, shared wire protocol, and sessions | `iroh-base`, `iroh-resolver`, `iroh-runtime` |
+| `iroh` | Public endpoint and connection orchestration | `iroh-base`, `iroh-dns`, `iroh-resolver`, `iroh-relay`, `iroh-runtime` |
+| `iroh-dns-server` | Deployable endpoint DNS and pkarr service | `iroh-base`, `iroh-dns`, `iroh-resolver`; `iroh` only for dev/tests |
+| `iroh-bench` | Non-published benchmarks and resource canaries | public packages it exercises |
+| `determinism-checker` | Non-published source-boundary checker | no production package may depend on it |
+| `iroh-sim` | Deterministic model, execution, evidence, and operations | production packages; never the reverse |
+
+`iroh-resolver` is the implemented generic-resolution boundary. `iroh-dns` composes it through
+`EndpointDnsResolver`, while relay code depends on the generic crate directly.
+
+## Dependency rules
+
+- The production graph is acyclic and points from orchestration toward stable capability/value
+  crates.
+- Production packages never depend on simulator, fuzz, benchmark, or deterministic-patch code.
+- `iroh-base`, `iroh-runtime`, and `iroh-resolver` remain first-party leaves.
+- Relay code never depends on endpoint-record parsing, pkarr, DNS publication, or the DNS server.
+- Dev dependencies are checked separately from normal dependencies; a test edge never justifies a
+  production edge.
+- Feature unification must not install an unselected TLS provider or simulator-only implementation.
+
+These rules are enforced by `scripts/tests/check-workspace-architecture.sh`. Cargo metadata remains
+the authoritative input; documentation diagrams are not accepted as proof.
+
+## TLS provider boundary
+
+Generic client and server capability is provider-neutral. Production bundles select exactly one of
+Ring or AWS-LC. An exact AWS-LC build may not contain Ring, and an exact Ring build may not contain
+AWS-LC. Both providers may be enabled only for all-features/documentation jobs, where Ring has
+documented precedence for process-global Rustls provider installation.
+
+The relay target feature shape is:
+
+- `server`: provider-neutral relay server library;
+- `relay-bin`: internal target marker included by provider bundles so feature unification cannot
+  select the binary from a provider-neutral library consumer;
+- `server-ring`: server plus Ring;
+- `server-aws-lc-rs`: server plus AWS-LC;
+- `tls-ring` / `tls-aws-lc-rs`: provider selection for client/resolver TLS.
+
+## Construction boundary
+
+Normal endpoint construction installs production runtime, networking, monitoring, mapping, relay,
+and cryptographic capabilities. Deterministic tests install those capabilities atomically through
+one validated `SimulationEnvironment` and one explicit unsafe-test capability. Individual public
+simulation setters and global mutable simulation environments are forbidden.
+
+## Module ownership
+
+Large modules are split by responsibility, not by line-count quota:
+
+- endpoint: construction/binding, public handle, lifecycle, and relay status;
+- socket: immutable configuration, shared inner state, actor/messages, and direct-address state;
+- relay transport: session state, connection/reconnect, and message handling;
+- relay server: configuration/limits/certificates, supervision, routes, HTTP listener/upgrade,
+  connection handling, and relay service;
+- simulator: `engine`, `model`, `execution`, `evidence`, `operations`, and a thin `cli`.
+
+`iroh-sim` exposes public types only through those domain facades. Its scenario implementation is
+split into schema, migration, validation, builder, and generator owners; its runner is split into
+reference model, backend, orchestration, reporting, and errors; and CLI command implementations
+remain private behind the stable `cargo sim` command surface.
+
+The DNS-server crate root owns declarations and curated reexports only. Service smoke,
+publish/resolve, and mainline fallback are package-boundary tests; private storage eviction remains
+a unit test next to the store.
+
+Facades own public exports. Sibling implementation modules exchange explicit handles/messages and
+do not reach into each other's mutable state. Every task, queue, retry loop, payload, and shutdown
+path retains a named bound and an observable owner.
+
+## Persistent and deterministic artifacts
+
+Scenario, trace, manifest, corpus, and failure artifacts remain replayable across module moves.
+Moving a Rust type does not authorize changing its serialized name or representation. Any actual
+format change requires a schema version, explicit migration, old-fixture replay, and migration
+documentation.
+
+## Release boundary
+
+First-party publishable crates move in lockstep on the v2 line. Package order places leaf packages
+before consumers. A release is blocked by an undocumented Rust API break, a forbidden dependency
+edge, provider leakage, a failed deterministic replay, or a relay compatibility failure. This
+architecture work does not itself authorize tagging or publication.
+
+`iroh-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`, and
+`key` also enables `relay` because key-facing endpoint/address types require relay URL support.
+Consumers seeking the smallest value-type build must use `default-features = false` and then select
+only the required features.

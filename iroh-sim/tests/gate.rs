@@ -1,4 +1,6 @@
-use iroh_sim::{ChangeImpactPolicy, GateSelection, GateSelectionMode, SimulationGateTier};
+mod support;
+
+use support::{ChangeImpactPolicy, GateSelection, GateSelectionMode, SimulationGateTier};
 
 const COVERAGE_POLICY_BLAKE3: &str =
     "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978";

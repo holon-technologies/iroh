@@ -549,6 +549,61 @@ first hash-map iteration item. The associated manifest drift is line movement in
 production entropy/map boundaries, explicit saturating duration arithmetic, and timeout-based test
 orchestration; it adds no ambient effect source.
 
+The 2026-07-27 architecture cut moves the existing generic DNS effect seam from
+`iroh-dns/src/dns.rs` into `iroh-resolver`. The production Hickory adapter remains a realistic
+network boundary, while `Resolver` and `DnsRuntime` preserve deterministic lookup, timeout,
+reset, and retry injection. `iroh-dns::dns::EndpointDnsResolver` only composes endpoint-record
+parsing over that generic seam. New resolver inventory entries are therefore relocated reviewed
+effects, not new ambient access. The same inventory update includes line movement from bounded
+relay admission tests, explicit production challenge entropy, and endpoint/DNS integration tests;
+each is test-only or an already classified production boundary.
+
+The 2026-07-28 cross-platform feature repair removes a redundant Android JNI re-export from the
+private `iroh-resolver::dns` module; the public re-export remains in `iroh-resolver::lib`. Every
+network-environment row in `iroh-resolver/src/dns.rs` therefore shifts upward by two lines while
+its matched source, owner, execution path, and existing **Injectable dependency** or production
+Hickory boundary classification remains unchanged. No clock, entropy, scheduling, network,
+filesystem, or unordered-iteration effect is added or removed.
+
+The follow-up TLS/doctest repair makes rcgen crypto follow the explicitly selected relay TLS
+provider and documents that the illustrative metrics-service example needs the separately owned
+`iroh-metrics/service` feature. That documentation clarification moves the existing
+`tokio::spawn(endpoint.closed()...)` example in `iroh/src/endpoint/handle.rs` down by one line. Its
+matched source, owner, execution path, and documentation-only classification are unchanged; no
+production spawn or other ambient effect is added or removed.
+
+The 2026-07-27 simulation-environment cut replaces partial endpoint injection with one validated
+**Injectable dependency**. `SimulationEnvironment` now rejects socket factories that do not name
+an owning clock domain or that belong to a different runtime clock domain, before sockets bind or
+tasks spawn. New `netmon::State::fake` occurrences in `iroh/src/endpoint.rs` and
+`iroh/src/simulation.rs` are validation fixtures below `#[cfg(test)]`. The relay metrics listener
+and its owned connection tasks are **Acceptable nondeterminism** in the real relay-server backend;
+they are bounded by an abort-on-drop supervisor and do not enter the deterministic simulator.
+Remaining relay/endpoint inventory movement comes from the explicit TLS provider cut and relocated
+tests, not from new simulator-visible ambient effects.
+
+The 2026-07-27 architecture hard cut then moved the already-classified effects into responsibility
+modules without changing their execution paths: endpoint construction/handle/tests, socket
+actor/inner/direct-address/tests, relay actor session/connect/message handling, relay server and
+HTTP listener/connection/service/tests, and simulator CLI/runner/scenario domains. The DNS-server
+clock and entropy entries moved from the crate-root test module into the private store unit test
+and public package-boundary tests. Syntax-aware owner names and qualified API spellings therefore
+change, but the effect counts and classifications remain the same except for those explicit test
+boundary moves. Full simulator replay, production package tests, relay golden/live compatibility,
+and resource/shutdown tests characterize the move; it introduces no new simulator-supported
+ambient clock, entropy, task, network, filesystem, or unordered-collection escape.
+
+The 2026-07-27 DNS shutdown correction adds `tokio::time::Instant` and `timeout_at` occurrences in
+the production DNS-server supervisor. These are **Acceptable nondeterminism** at the realistic
+server boundary: DNS, HTTP, and store cancellation is broadcast before any component is awaited,
+and one absolute configured deadline bounds observation of all workers. The change neither enters
+the deterministic simulator nor changes protocol behavior. The remaining DNS-server inventory
+movement in this update is line relocation caused by the new `start_shutdown` methods; existing
+test-only sleeps, entropy, native-thread fixtures, and network metrics retain their prior
+classifications. The no-default-feature Patchbay fix only conditionally removes metrics collection;
+its timeout, entropy, and spawned path-watch entries shift lines without changing behavior or
+classification.
+
 ### Dependency Assessment
 
 | Dependency | Finding | Action |
@@ -597,7 +652,8 @@ This audit remains current only when:
 - Confirmed endpoint construction: `iroh/src/endpoint.rs:120-270`; `iroh/src/socket.rs:874-1117`.
 - Confirmed concrete IP socket: `iroh/src/socket/transports/ip.rs:170-184`.
 - Confirmed custom in-memory transport: `iroh/src/test_utils/test_transport.rs:1-320`.
-- Confirmed DNS provider seam: `iroh-dns/src/dns.rs:52-84,252-425`.
+- Confirmed DNS provider seam: `iroh-resolver/src/dns.rs`; production adapter:
+  `iroh-resolver/src/hickory.rs`; endpoint composition: `iroh-dns/src/dns.rs`.
 - Confirmed concrete network monitor: `iroh/src/socket.rs:1035-1088,1450-1800`.
 - Confirmed port-mapper wrapper: `iroh/src/portmapper.rs`.
 - Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server.rs:441-640`; `iroh-relay/src/quic.rs:97-200`.

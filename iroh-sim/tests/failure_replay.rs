@@ -1,9 +1,11 @@
+mod support;
+
 use std::{collections::BTreeMap, fs};
 
 use iroh_runtime::{
     ClockError, ClockResource, TraceContext, TraceEvent, TraceEventKind, TraceSequence,
 };
-use iroh_sim::{
+use support::{
     ArtifactStore, FailureArtifactBundle, FailureReplayError, FailureSignature, InvariantClass,
     InvariantFailure, InvariantName, InvariantSnapshot, LedgerError, ResourceKind,
     ResourceLedgerSnapshot, RunnerError, Scenario, TerminalFailureClass, compare_failure_replay,

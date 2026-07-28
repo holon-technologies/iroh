@@ -17,15 +17,19 @@ pub const QUIC_ADDR_DISC_CLOSE_REASON: &[u8] = b"finished";
 
 #[cfg(feature = "server")]
 pub(crate) mod server {
+    #[cfg(with_crypto_provider)]
     use std::num::NonZeroUsize;
 
     use n0_error::e;
+    #[cfg(with_crypto_provider)]
     use noq::{
         ApplicationClose, ConnectionError, ConnectionLifetimeToken, EventQueueLimits,
         crypto::rustls::{NoInitialCipherSuite, QuicServerConfig},
     };
+    #[cfg(with_crypto_provider)]
     use tokio::{sync::Semaphore, task::JoinSet};
     use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
+    #[cfg(with_crypto_provider)]
     use tracing::{Instrument, debug, info, info_span};
 
     use super::*;
@@ -37,11 +41,13 @@ pub(crate) mod server {
         handle: AbortOnDropHandle<()>,
     }
 
+    #[cfg(with_crypto_provider)]
     #[derive(Clone, Debug)]
     pub(super) struct QadAdmission {
         slots: Arc<Semaphore>,
     }
 
+    #[cfg(with_crypto_provider)]
     impl QadAdmission {
         pub(super) fn new(capacity: NonZeroUsize) -> Self {
             Self {
@@ -61,6 +67,11 @@ pub(crate) mod server {
     pub enum QuicSpawnError {
         #[error("TLS not configured")]
         TlsNotConfigured {},
+        #[error(
+            "QUIC address discovery requires a crypto provider; select tls-ring or tls-aws-lc-rs"
+        )]
+        MissingCryptoProvider {},
+        #[cfg(with_crypto_provider)]
         #[error(transparent)]
         NoInitialCipherSuite {
             #[error(std_err, from)]
@@ -119,6 +130,7 @@ pub(crate) mod server {
         /// If there is a panic during a connection, it will be propagated
         /// up here. Any other errors in a connection will be logged as a
         ///  warning.
+        #[cfg(with_crypto_provider)]
         pub(crate) fn spawn(
             bind_addr: SocketAddr,
             mut server_config: rustls::ServerConfig,
@@ -238,6 +250,16 @@ pub(crate) mod server {
             })
         }
 
+        #[cfg(not(with_crypto_provider))]
+        pub(crate) fn spawn(
+            _bind_addr: SocketAddr,
+            _server_config: rustls::ServerConfig,
+            _max_connections: usize,
+            _metrics: Arc<Metrics>,
+        ) -> Result<Self, QuicSpawnError> {
+            Err(e!(QuicSpawnError::MissingCryptoProvider))
+        }
+
         /// Closes the underlying QUIC endpoint and the tasks running the
         /// QUIC connections.
         pub(crate) async fn shutdown(mut self) {
@@ -266,6 +288,7 @@ pub(crate) mod server {
     }
 
     /// Handle the connection from the client.
+    #[cfg(with_crypto_provider)]
     async fn handle_connection(
         incoming: noq::Incoming,
         permit: tokio::sync::OwnedSemaphorePermit,
@@ -499,7 +522,7 @@ mod tests {
     async fn qad_client_rejects_provider_without_initial_cipher_suite() -> Result {
         let endpoint = noq::Endpoint::client((Ipv4Addr::LOCALHOST, 0).into())
             .std_context("client endpoint")?;
-        let mut provider = rustls::crypto::ring::default_provider();
+        let mut provider = crate::tls::default_provider().as_ref().clone();
         provider
             .cipher_suites
             .retain(|suite| suite.suite() != rustls::CipherSuite::TLS13_AES_128_GCM_SHA256);
@@ -637,14 +660,13 @@ mod tests {
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
             .std_context("self signed")?;
         let key = PrivatePkcs8KeyDer::from(cert.signing_key.serialize_der());
-        let mut server_crypto = rustls::ServerConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .std_context("crypto provider")?
-        .with_no_client_auth()
-        .with_single_cert(vec![cert.cert.into()], key.into())
-        .std_context("tls")?;
+        let mut server_crypto =
+            rustls::ServerConfig::builder_with_provider(crate::tls::default_provider())
+                .with_safe_default_protocol_versions()
+                .std_context("crypto provider")?
+                .with_no_client_auth()
+                .with_single_cert(vec![cert.cert.into()], key.into())
+                .std_context("tls")?;
         server_crypto.key_log = Arc::new(rustls::KeyLogFile::new());
         server_crypto.alpn_protocols = vec![ALPN_QUIC_ADDR_DISC.to_vec()];
         let mut server_config = noq::ServerConfig::with_crypto(Arc::new(

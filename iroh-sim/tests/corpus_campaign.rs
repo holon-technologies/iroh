@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     fs,
     sync::{
@@ -8,7 +10,7 @@ use std::{
 };
 
 use iroh_runtime::{RootSeed, TraceEventKind};
-use iroh_sim::{
+use support::{
     CampaignConfig, CampaignRunner, CampaignTerminal, Corpus, CorpusExpectation, CorpusReviewState,
     FailureSignature, MinimizationConfig, RunnerError, Scenario, ScenarioRunner, TraceBuffer,
     first_trace_divergence,
@@ -149,7 +151,7 @@ async fn execute_resource_failure(
 ) -> (
     FailureSignature,
     Vec<iroh_runtime::TraceEvent>,
-    iroh_sim::ResourceLedgerSnapshot,
+    support::ResourceLedgerSnapshot,
 ) {
     let trace = TraceBuffer::default();
     let failure = ScenarioRunner::deterministic(
@@ -181,7 +183,7 @@ async fn reviewed_rare_ready_order_replays_the_production_scheduler_witness() {
     async fn execute(
         scenario: Scenario,
         seed: RootSeed,
-    ) -> (iroh_sim::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
+    ) -> (support::ScenarioReport, Vec<iroh_runtime::TraceEvent>) {
         let trace = TraceBuffer::default();
         let report = ScenarioRunner::deterministic(
             scenario,

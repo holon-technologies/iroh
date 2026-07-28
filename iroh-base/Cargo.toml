@@ -1,15 +1,15 @@
 [package]
 name = "iroh-base"
-version = "2.0.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "base type and utilities for Iroh"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["n0 team"]
-repository = "https://github.com/holon-technologies/iroh"
+repository.workspace = true
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.91"
+rust-version.workspace = true
 
 [lints]
 workspace = true

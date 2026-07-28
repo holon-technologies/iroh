@@ -201,9 +201,14 @@ impl HttpServer {
         self.https_addr
     }
 
+    /// Signals every HTTP listener and connection task to stop.
+    pub(crate) fn start_shutdown(&self) {
+        self.cancel.cancel();
+    }
+
     /// Shutdown the server and wait for all tasks to complete.
     pub(crate) async fn shutdown(&mut self) -> Result<()> {
-        self.cancel.cancel();
+        self.start_shutdown();
         match tokio::time::timeout(self.shutdown_timeout, self.run_tasks_until_done()).await {
             Ok(result) => result,
             Err(_) => {
@@ -432,9 +437,9 @@ mod tests {
     use iroh::{
         RelayUrl, SecretKey,
         address_lookup::{EndpointInfo, PkarrRelayClient},
-        dns::DnsResolver,
         tls::{CaTlsConfig, default_provider},
     };
+    use iroh_resolver::DnsResolver;
     use n0_error::StdResultExt;
     use n0_tracing_test::traced_test;
     use rand::{RngExt, SeedableRng};

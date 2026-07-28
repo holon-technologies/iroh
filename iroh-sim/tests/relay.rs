@@ -1,10 +1,12 @@
+mod support;
+
 use iroh::SecretKey;
 use iroh_relay::protos::relay::{ClientToRelayMsg, Datagrams, RelayToClientMsg};
-use iroh_sim::{
+use n0_future::{SinkExt, StreamExt};
+use support::{
     RelayAdmissionDecision, RelayEnvironment, RelayImpairmentSpec, RelayProtocolVersion,
     RelayRouteDecision, RelayRoutingOracle, RelaySpec,
 };
-use n0_future::{SinkExt, StreamExt};
 
 fn relay(id: &str, url: &str) -> RelaySpec {
     RelaySpec {

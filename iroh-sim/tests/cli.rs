@@ -1,3 +1,5 @@
+mod support;
+
 use std::{
     fs,
     process::Command,
@@ -7,7 +9,7 @@ use std::{
     },
 };
 
-use iroh_sim::{
+use support::{
     ActionSchedule, ActionSpec, AllowedTerminal, CryptoMode, DeterminismGrade, FailureSignature,
     IpFamily, NatFilteringBehavior, NatMappingBehavior, ObservationTrigger,
     PATCHBAY_RECEIPT_SCHEMA_VERSION, PatchbayReceipt, ReferencedSwarmSpec, RunManifest,
@@ -738,7 +740,7 @@ fn versioned_declarative_run_and_expected_failure_replay_through_the_same_cli() 
     assert!(success_dir.join("terminal-report.json").is_file());
     let canonical = Scenario::from_json(&fs::read(success_dir.join("scenario.json")).unwrap())
         .expect("v2 input is stored as canonical v3");
-    assert_eq!(canonical.schema_version, iroh_sim::SCENARIO_SCHEMA_VERSION);
+    assert_eq!(canonical.schema_version, support::SCENARIO_SCHEMA_VERSION);
     let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("replay")

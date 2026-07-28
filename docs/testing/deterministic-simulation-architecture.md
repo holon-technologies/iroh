@@ -1,10 +1,16 @@
 # Deterministic Simulation Platform Architecture
 
-Status: Proposed; awaiting architecture approval
+Status: Historical approved design; implemented through Stage 7 and superseded for current module
+ownership by [`../architecture.md`](../architecture.md). Current simulator operation and evidence
+contracts live in [`simulation.md`](simulation.md) and
+[`../simulation/operations.md`](../simulation/operations.md).
 
 ## Scope
 
-This document proposes the long-term architecture for a deterministic simulation and adversarial testing platform for Iroh. It covers controlled runtime services, real production endpoint/QUIC/path logic, synthetic networking, NAT/firewall/relay/discovery models, scenario execution, invariants, replay, minimization, cross-backend validation, and continuous operation.
+This document records the approved long-term architecture that guided the deterministic simulation
+and adversarial testing platform. It covers controlled runtime services, real production
+endpoint/QUIC/path logic, synthetic networking, NAT/firewall/relay/discovery models, scenario
+execution, invariants, replay, minimization, cross-backend validation, and continuous operation.
 
 The design is intentionally broader than an initial two-endpoint proof of concept. Implementation must remain staged and reversible, but completion means the testing platform can evolve with Iroh's production protocol and supported environments.
 
@@ -323,7 +329,7 @@ All failure exits print the artifact directory and replay command. `explain` ren
 
 ### 16. Continuous operation
 
-Campaign tiers are proposed as:
+The implemented campaign tiers are:
 
 - Pull requests: deterministic smoke scenarios plus permanent corpus, bounded by a small event budget.
 - Main branch: broader topology/fault/schedule matrix and cross-backend parity subset.

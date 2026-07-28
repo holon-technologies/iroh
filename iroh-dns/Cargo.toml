@@ -1,60 +1,49 @@
 [package]
 name = "iroh-dns"
-version = "2.0.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "DNS-based endpoint discovery for iroh"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["n0 team"]
-repository = "https://github.com/holon-technologies/iroh"
+repository.workspace = true
 keywords = ["networking", "pkarr", "dns", "iroh"]
-rust-version = "1.91"
+rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-arc-swap = "1.9.1"
 derive_more = { version = "2.0.1", features = ["debug"] }
-iroh-base = { version = "2.0.0", path = "../iroh-base", default-features = false, features = ["key", "relay"] }
+iroh-base = { workspace = true, default-features = false, features = ["key", "relay"] }
 n0-error = "1.0.0"
 n0-future = "0.3"
 portable-atomic = "1"
-rand = "0.10"
-rustls = { version = "0.23.33", default-features = false }
 simple-dns = "0.11"
 strum = { version = "0.28", features = ["derive"] }
-tokio = { version = "1", features = ["sync"] }
-tracing = "0.1"
 url = "2.5.3"
 
-# non-wasm-in-browser dependencies
+# Native DNS uses sockets and the host resolver configuration. Browser builds retain endpoint
+# record parsing and HTTP-based discovery without compiling the native resolver stack.
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
-hickory-resolver = { version = "0.26.0", features = ["tokio", "system-config"] }
-
-[target.'cfg(target_os = "android")'.dependencies]
-ndk-context = "0.1"
+iroh-resolver.workspace = true
 
 [build-dependencies]
 cfg_aliases = "0.2.2"
 
 [features]
 default = []
-tls-ring = ["rustls/ring", "hickory-resolver/https-ring"]
-tls-aws-lc-rs = ["rustls/aws-lc-rs", "hickory-resolver/https-aws-lc-rs"]
+tls-ring = ["iroh-resolver/tls-ring"]
+tls-aws-lc-rs = ["iroh-resolver/tls-aws-lc-rs"]
 
 [dev-dependencies]
 n0-tracing-test = "0.3"
+hickory-resolver = { version = "0.26.0", features = ["tokio", "system-config"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
     "iroh_base::*",
-    # BuildError intentionally retains the concrete resolver construction cause.
-    "hickory_net::*",
+    "iroh_resolver::*",
     "n0_error::*",
-    "rustls::*",
     "url::*",
-    "futures_core::stream::Stream",
-    # only type alias
-    "futures_lite::future::Boxed",
 ]

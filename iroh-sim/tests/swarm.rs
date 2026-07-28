@@ -1,7 +1,9 @@
+mod support;
+
 use std::{collections::BTreeSet, sync::Arc, time::SystemTime};
 
 use iroh_runtime::{RootSeed, TraceEventKind};
-use iroh_sim::{
+use support::{
     ActionSchedule, ActionSpec, DiscoveryRecordState, InvariantName, IpFamily,
     NatFilteringBehavior, NatMappingBehavior, ReferencedSwarmSpec, RunnerError,
     SWARM_SCHEMA_VERSION, SafetyLivenessPhases, Scenario, ScenarioAction, ScenarioBuilder,
@@ -280,7 +282,7 @@ fn checked_link_impairment_swarm_declares_explicit_blackhole_recovery() {
         action("05-send-blackholed").action,
         ScenarioAction::SendDatagram {
             ref connection,
-            payload: iroh_sim::PayloadSpec { bytes: 64, fill: 165 },
+            payload: support::PayloadSpec { bytes: 64, fill: 165 },
         } if connection == "c1"
     ));
     assert_eq!(
@@ -332,7 +334,7 @@ fn checked_link_impairment_swarm_declares_explicit_blackhole_recovery() {
         action("09-stream-restored").action,
         ScenarioAction::StreamRoundTrip {
             ref connection,
-            payload: iroh_sim::PayloadSpec {
+            payload: support::PayloadSpec {
                 bytes: 65_536,
                 fill: 165,
             },

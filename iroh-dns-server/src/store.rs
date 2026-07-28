@@ -53,8 +53,14 @@ impl ZoneStore {
         self.store.is_ready()
     }
 
+    /// Signals both persistent-store workers to stop.
+    pub(crate) fn start_shutdown(&self) {
+        self.store.start_shutdown();
+    }
+
     /// Cancels and joins both persistent-store workers.
     pub(crate) async fn shutdown(&self) -> std::result::Result<(), StoreShutdownError> {
+        self.start_shutdown();
         self.store.shutdown().await
     }
 
@@ -357,7 +363,46 @@ impl CachedZone {
 
 #[cfg(test)]
 mod tests {
+    use iroh::{RelayUrl, SecretKey, endpoint_info::EndpointInfo};
+    use n0_tracing_test::traced_test;
+    use rand::{CryptoRng, RngExt, SeedableRng};
+
     use super::*;
+
+    #[tokio::test]
+    #[traced_test]
+    async fn store_eviction() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+        let options = Options {
+            eviction: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test eviction age is nonzero"),
+            eviction_interval: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test eviction interval is nonzero"),
+            max_batch_time: NonZeroDuration::new(Duration::from_millis(100))
+                .expect("test batch time is nonzero"),
+            ..Default::default()
+        };
+        let store = ZoneStore::in_memory(options, Default::default())?;
+        let signed_packet = random_signed_packet(&mut rng)?;
+        let key = PublicKeyBytes::from_signed_packet(&signed_packet);
+
+        store
+            .insert(signed_packet, PacketSource::PkarrPublish)
+            .await?;
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let mut evicted = false;
+        for _ in 0..10 {
+            if store.get_signed_packet(&key).await?.is_none() {
+                evicted = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        store.shutdown().await.anyerr()?;
+        assert!(evicted, "store did not evict packet");
+        Ok(())
+    }
 
     #[test]
     fn mainline_construction_failure_is_reported() {
@@ -384,5 +429,13 @@ mod tests {
             error,
             SignedPacketVerifyError::InvalidTimestamp { timestamp: -1, .. }
         ));
+    }
+
+    fn random_signed_packet<R: CryptoRng + ?Sized>(rng: &mut R) -> Result<SignedPacket> {
+        let secret_key = SecretKey::from_bytes(&rng.random());
+        let relay_url: RelayUrl = "https://relay.example.".parse()?;
+        let endpoint_info = EndpointInfo::new(secret_key.public()).with_relay_url(relay_url);
+        let packet = endpoint_info.to_pkarr_signed_packet(&secret_key, 30)?;
+        Ok(packet)
     }
 }

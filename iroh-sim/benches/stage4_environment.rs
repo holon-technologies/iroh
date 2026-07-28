@@ -3,7 +3,7 @@ use std::{hint::black_box, net::Ipv4Addr, sync::Arc, time::Duration};
 use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 use iroh::{SecretKey, endpoint::PortmapperConfig};
 use iroh_runtime::{NoopTraceSink, RootSeed};
-use iroh_sim::{
+use iroh_sim::engine::{
     DeterministicDiscovery, Firewall, FirewallAction, FirewallConfig, FirewallConnectionState,
     FirewallDirection, FirewallPacket, FirewallProtocol, FirewallRule, Kernel, KernelConfig,
     KernelResourceLimits, NatConfig, NatFilteringBehavior, NatMappingBehavior, NatTable,

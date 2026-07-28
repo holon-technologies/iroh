@@ -1356,7 +1356,7 @@ mod tests {
 #[cfg(test)]
 mod test_dns_pkarr {
     use iroh_base::{EndpointAddr, SecretKey, TransportAddr};
-    use iroh_dns::endpoint_info::UserData;
+    use iroh_dns::{dns::EndpointDnsResolver, endpoint_info::UserData};
     use iroh_relay::tls::{CaTlsConfig, default_provider};
     use n0_error::{Result, StackResultExt};
     use n0_future::time::Duration;
@@ -1390,9 +1390,9 @@ mod test_dns_pkarr {
             .upsert(signed_packet)
             .context("update and insert signed packet")?;
 
-        let resolver = DnsResolver::with_nameserver(nameserver);
+        let resolver = EndpointDnsResolver::new(DnsResolver::with_nameserver(nameserver));
         let resolved = resolver
-            .lookup_endpoint_by_id(&endpoint_info.endpoint_id, &origin)
+            .lookup_by_id(&endpoint_info.endpoint_id, &origin)
             .await?;
 
         assert_eq!(resolved, endpoint_info);
@@ -1420,7 +1420,7 @@ mod test_dns_pkarr {
         let tls_config = CaTlsConfig::insecure_skip_verify()
             .client_config(default_provider())
             .expect("infallible");
-        let resolver = dns_pkarr_server.dns_resolver();
+        let resolver = EndpointDnsResolver::new(dns_pkarr_server.dns_resolver());
         let publisher = PkarrPublisher::builder(dns_pkarr_server.pkarr_url().clone())
             .build(secret_key, tls_config)?;
         let user_data: UserData = "foobar".parse().unwrap();
@@ -1432,9 +1432,7 @@ mod test_dns_pkarr {
             .on_endpoint(&endpoint_id, PUBLISH_TIMEOUT)
             .await
             .context("wait for on endpoint update")?;
-        let resolved = resolver
-            .lookup_endpoint_by_id(&endpoint_id, &origin)
-            .await?;
+        let resolved = resolver.lookup_by_id(&endpoint_id, &origin).await?;
         println!("resolved {resolved:?}");
 
         let expected_addr = EndpointAddr::try_from_parts(endpoint_id, relay_url)?;

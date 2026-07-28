@@ -1,7 +1,9 @@
+mod support;
+
 use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
 
 use iroh_runtime::RootSeed;
-use iroh_sim::{
+use support::{
     CanonicalParityCase, PARITY_FIXTURE_SCHEMA_VERSION, PATCHBAY_RECEIPT_SCHEMA_VERSION,
     ParityBackend, ParityComparisonStatus, ParityEvidence, ParityFixture, ParityFixtureResult,
     PatchbayReceipt, Scenario, ScenarioRunner, SemanticDimension, SemanticOutcome,

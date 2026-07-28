@@ -29,7 +29,6 @@ use axum::{
 };
 use bytes::Bytes;
 use iroh_base::{RelayUrl, SecretKey};
-use iroh_dns::dns::DnsResolver;
 use iroh_relay::{
     ExportKeyingMaterial, KeyCache,
     client::ClientBuilder,
@@ -41,6 +40,7 @@ use iroh_relay::{
     },
     tls::{CaTlsConfig, default_provider},
 };
+use iroh_resolver::DnsResolver;
 use n0_error::{AnyError, Result, StdResultExt};
 use n0_future::{Sink, Stream, task::AbortOnDropHandle};
 use n0_tracing_test::traced_test;
@@ -206,7 +206,7 @@ async fn handle_relay_websocket(
 #[tokio::test]
 #[traced_test]
 async fn relay_embed_axum() -> Result<()> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = default_provider().as_ref().clone().install_default();
     let (addr, _guard) = serve_axum().await?;
 
     let resp = reqwest::get(format!("http://{addr}/ping"))

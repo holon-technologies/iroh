@@ -4,8 +4,10 @@ use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use iroh::simulation::SimulationCryptoMode;
 use iroh_runtime::{ClockSleep, NoopTraceSink, RootSeed};
 use iroh_sim::{
-    IpFamily, Kernel, KernelConfig, KernelDriver, KernelResourceLimits, ScenarioBuilder,
-    ScenarioOperation, ScenarioRunner, SwarmTemplate,
+    engine::{Kernel, KernelConfig, KernelResourceLimits},
+    execution::{KernelDriver, ScenarioRunner},
+    model::{IpFamily, ScenarioBuilder, ScenarioOperation},
+    operations::SwarmTemplate,
 };
 
 fn deterministic_closure(c: &mut Criterion) {

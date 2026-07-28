@@ -2,8 +2,9 @@ use clap::{Parser, ValueEnum};
 use iroh::{
     EndpointId,
     address_lookup::dns::{N0_DNS_ENDPOINT_ORIGIN_PROD, N0_DNS_ENDPOINT_ORIGIN_STAGING},
-    dns::DnsResolver,
 };
+use iroh_dns::dns::EndpointDnsResolver;
+use iroh_resolver::DnsResolver;
 use n0_error::{Result, StackResultExt, StdResultExt};
 
 const DEV_DNS_SERVER: &str = "127.0.0.1:5300";
@@ -61,6 +62,7 @@ async fn main() -> Result<()> {
             }
         }
     };
+    let resolver = EndpointDnsResolver::new(resolver);
     let resolved = match args.command {
         Command::Endpoint {
             endpoint_id,
@@ -72,11 +74,9 @@ async fn main() -> Result<()> {
                 (None, Env::Staging) => N0_DNS_ENDPOINT_ORIGIN_STAGING,
                 (None, Env::Dev) => DEV_DNS_ORIGIN_DOMAIN,
             };
-            resolver
-                .lookup_endpoint_by_id(&endpoint_id, origin_domain)
-                .await?
+            resolver.lookup_by_id(&endpoint_id, origin_domain).await?
         }
-        Command::Domain { domain } => resolver.lookup_endpoint_by_domain_name(&domain).await?,
+        Command::Domain { domain } => resolver.lookup_by_domain_name(&domain).await?,
     };
     println!("resolved endpoint {}", resolved.endpoint_id);
     for url in resolved.relay_urls() {

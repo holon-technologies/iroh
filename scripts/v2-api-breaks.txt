@@ -1,0 +1,12 @@
+# Audited cargo-semver-checks 0.49.0 findings from upstream v1.0.3 to the v2 architecture cut.
+# Format: package<TAB>lint<TAB>exact baseline item. Any addition, removal, or changed item fails.
+iroh-dns	enum_missing	enum iroh_dns::dns::DnsError, previously in file iroh-dns/src/dns.rs:85
+iroh-dns	enum_missing	enum iroh_dns::dns::DnsProtocol, previously in file iroh-dns/src/dns.rs:141
+iroh-dns	function_missing	function iroh_dns::dns::install_android_jni_context, previously in file iroh-dns/src/android.rs:89
+iroh-dns	function_missing	function iroh_dns::install_android_jni_context, previously in file iroh-dns/src/android.rs:89
+iroh-dns	pub_module_level_const_missing	DNS_TIMEOUT in file iroh-dns/src/dns.rs:42
+iroh-dns	struct_missing	struct iroh_dns::dns::Builder, previously in file iroh-dns/src/dns.rs:131
+iroh-dns	struct_missing	struct iroh_dns::dns::DnsResolver, previously in file iroh-dns/src/dns.rs:252
+iroh-dns	struct_missing	struct iroh_dns::dns::StaggeredError, previously in file iroh-dns/src/dns.rs:118
+iroh-dns	struct_missing	struct iroh_dns::dns::TxtRecordData, previously in file iroh-dns/src/dns.rs:870
+iroh-dns	trait_missing	trait iroh_dns::dns::Resolver, previously in file iroh-dns/src/dns.rs:53

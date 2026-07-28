@@ -33,7 +33,7 @@ cd ../
 cargo build \
   --profile optimized-release \
   --package iroh-relay \
-  --features server
+  --features server-ring
 ```
 
 You will find the optimised binary at `target/optimized-release/iroh-relay`.
@@ -133,7 +133,7 @@ manual_key_path = "/path/to/certs/cert.key.pem"
 ```
 
 Then run the server with the `--dev` flag, like you would when normally testing locally:
-`cargo run --features="server" --bin iroh-relay -- --config-path=/path/to/config.toml --dev`
+`cargo run --features="server-ring" --bin iroh-relay -- --config-path=/path/to/config.toml --dev`
 
 The relay server will run over http on port 3340, as it does using the `--dev` flag, but it will also run a QUIC server on port 7824.
 

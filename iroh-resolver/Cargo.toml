@@ -1,0 +1,52 @@
+[package]
+name = "iroh-resolver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Provider-neutral DNS resolution for Iroh"
+readme = "README.md"
+license.workspace = true
+authors = ["n0 team"]
+repository.workspace = true
+keywords = ["networking", "dns", "iroh"]
+
+[lints]
+workspace = true
+
+[dependencies]
+arc-swap = "1.9.1"
+hickory-resolver = { version = "0.26.0", default-features = false, features = ["tokio", "system-config"] }
+n0-error = "1.0.0"
+n0-future = "0.3"
+rand = "0.10"
+rustls = { version = "0.23.33", default-features = false }
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+url = "2.5.3"
+
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-context = "0.1"
+
+[build-dependencies]
+cfg_aliases = "0.2.2"
+
+[dev-dependencies]
+n0-tracing-test = "0.3"
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[features]
+default = []
+tls-ring = ["rustls/ring", "hickory-resolver/https-ring"]
+tls-aws-lc-rs = ["rustls/aws-lc-rs", "hickory-resolver/https-aws-lc-rs"]
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    # BuildError intentionally retains the concrete resolver construction cause.
+    "hickory_net::*",
+    "n0_error::*",
+    "rustls::*",
+    "url::*",
+    "futures_core::stream::Stream",
+    # only type alias
+    "futures_lite::future::Boxed",
+]

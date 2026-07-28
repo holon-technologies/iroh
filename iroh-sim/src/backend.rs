@@ -7,7 +7,10 @@ use std::{
     time::SystemTime,
 };
 
-use iroh::simulation::{SimulationCryptoMaterial, SimulationCryptoMode, SimulationEnvironment};
+use iroh::simulation::{
+    SimulationCryptoMaterial, SimulationCryptoMode, SimulationEnvironment,
+    SimulationEnvironmentError,
+};
 use iroh_runtime::{RootSeed, RuntimeContext, TraceSink};
 
 use crate::{
@@ -97,7 +100,7 @@ impl DeterministicBackend {
         &self,
         host: &str,
         crypto: SimulationCryptoMaterial,
-    ) -> Result<SimulationEnvironment, NetworkError> {
+    ) -> Result<SimulationEnvironment, EndpointEnvironmentError> {
         let connectivity = self.network.host_connectivity(host)?;
         let monitor = {
             let mut monitors = self
@@ -121,7 +124,7 @@ impl DeterministicBackend {
             self.network.socket_factory(host)?,
             monitor,
             crypto,
-        );
+        )?;
         if self.crypto_mode == SimulationCryptoMode::DeterministicTest {
             let provider = deterministic_crypto::deterministic_test_crypto_provider(
                 iroh_relay::tls::default_provider(),
@@ -311,6 +314,38 @@ impl DeterministicBackend {
                 vec!["production_crypto_entropy".to_owned()]
             }
         }
+    }
+}
+
+/// Endpoint capability assembly failed before any endpoint tasks or sockets were created.
+#[derive(Debug)]
+pub enum EndpointEnvironmentError {
+    /// The requested synthetic host or socket factory was unavailable.
+    Network(NetworkError),
+    /// Runtime and socket capabilities did not share one owner.
+    Invalid(SimulationEnvironmentError),
+}
+
+impl std::fmt::Display for EndpointEnvironmentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Network(error) => write!(f, "endpoint environment network failed: {error}"),
+            Self::Invalid(error) => write!(f, "endpoint environment is incoherent: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for EndpointEnvironmentError {}
+
+impl From<NetworkError> for EndpointEnvironmentError {
+    fn from(value: NetworkError) -> Self {
+        Self::Network(value)
+    }
+}
+
+impl From<SimulationEnvironmentError> for EndpointEnvironmentError {
+    fn from(value: SimulationEnvironmentError) -> Self {
+        Self::Invalid(value)
     }
 }
 

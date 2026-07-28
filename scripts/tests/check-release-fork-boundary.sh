@@ -95,11 +95,12 @@ require_text iroh-dns-server/Cargo.toml 'version = "=0.26.1-holon.1"'
 for path in \
   iroh/Cargo.toml \
   iroh-base/Cargo.toml \
+  iroh-resolver/Cargo.toml \
   iroh-dns/Cargo.toml \
   iroh-dns-server/Cargo.toml \
   iroh-relay/Cargo.toml \
   iroh-runtime/Cargo.toml; do
-  require_text "$path" 'repository = "https://github.com/holon-technologies/iroh"'
+  require_text "$path" 'repository.workspace = true'
 done
 
 sim_manifest=iroh-sim/Cargo.toml
@@ -136,7 +137,7 @@ require_text .github/workflows/release.yml 'iroh-noq'
 require_text .github/workflows/release.yml 'iroh-hickory-server'
 
 verifier=scripts/verify-release-packages.sh
-require_text "$verifier" 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-dns iroh-relay iroh iroh-dns-server'
+require_text "$verifier" 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server'
 require_text "$verifier" 'target/release-packages'
 require_text "$verifier" 'candidate_sources'
 require_text "$verifier" 'source paths bootstrap archive creation only'

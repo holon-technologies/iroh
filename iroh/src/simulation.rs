@@ -60,18 +60,48 @@ impl SimulationCryptoMaterial {
 /// Complete environment bundle installed by the deterministic simulator.
 #[derive(Clone, Debug)]
 pub struct SimulationEnvironment {
-    pub(crate) runtime: Arc<iroh_runtime::RuntimeContext>,
-    pub(crate) ip_sockets: Arc<dyn IpSocketFactory>,
-    pub(crate) network_monitor: Arc<dyn NetworkMonitor>,
-    pub(crate) port_mapper: Option<Arc<dyn PortMapper>>,
+    runtime: Arc<iroh_runtime::RuntimeContext>,
+    ip_sockets: Arc<dyn IpSocketFactory>,
+    network_monitor: Arc<dyn NetworkMonitor>,
+    port_mapper: Option<Arc<dyn PortMapper>>,
     #[cfg(not(wasm_browser))]
-    pub(crate) relay_connector: Option<Arc<dyn RelayConnector>>,
+    relay_connector: Option<Arc<dyn RelayConnector>>,
     #[cfg(not(wasm_browser))]
-    pub(crate) preferred_relay: Option<RelayUrl>,
-    pub(crate) crypto: SimulationCryptoMaterial,
-    pub(crate) crypto_mode: SimulationCryptoMode,
-    pub(crate) crypto_provider: Option<Arc<rustls::crypto::CryptoProvider>>,
+    preferred_relay: Option<RelayUrl>,
+    crypto: SimulationCryptoMaterial,
+    crypto_mode: SimulationCryptoMode,
+    crypto_provider: Option<Arc<rustls::crypto::CryptoProvider>>,
 }
+
+/// A simulation environment mixed capabilities from incompatible owners.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SimulationEnvironmentError {
+    /// The socket factory did not declare which runtime clock domain owns it.
+    SocketFactoryHasNoClockDomain,
+    /// Runtime timers and synthetic socket delivery belong to different clock domains.
+    RuntimeSocketClockDomainMismatch {
+        /// Clock domain supplied by the runtime context.
+        runtime: iroh_runtime::ClockDomain,
+        /// Clock domain declared by the socket factory.
+        sockets: iroh_runtime::ClockDomain,
+    },
+}
+
+impl fmt::Display for SimulationEnvironmentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SocketFactoryHasNoClockDomain => {
+                f.write_str("simulation socket factory has no runtime clock-domain owner")
+            }
+            Self::RuntimeSocketClockDomainMismatch { runtime, sockets } => write!(
+                f,
+                "simulation runtime clock domain {runtime:?} does not own socket domain {sockets:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SimulationEnvironmentError {}
 
 impl SimulationEnvironment {
     /// Creates a coherent explicit simulation environment.
@@ -80,8 +110,20 @@ impl SimulationEnvironment {
         ip_sockets: Arc<dyn IpSocketFactory>,
         network_monitor: Arc<dyn NetworkMonitor>,
         crypto: SimulationCryptoMaterial,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, SimulationEnvironmentError> {
+        let runtime_domain = runtime.clock().domain();
+        let socket_domain = ip_sockets
+            .clock_domain()
+            .ok_or(SimulationEnvironmentError::SocketFactoryHasNoClockDomain)?;
+        if runtime_domain != socket_domain {
+            return Err(
+                SimulationEnvironmentError::RuntimeSocketClockDomainMismatch {
+                    runtime: runtime_domain,
+                    sockets: socket_domain,
+                },
+            );
+        }
+        Ok(Self {
             runtime,
             ip_sockets,
             network_monitor,
@@ -93,7 +135,7 @@ impl SimulationEnvironment {
             crypto,
             crypto_mode: SimulationCryptoMode::ProductionProvider,
             crypto_provider: None,
-        }
+        })
     }
 
     /// Installs run- and endpoint-scoped deterministic test TLS.
@@ -109,6 +151,40 @@ impl SimulationEnvironment {
     /// Returns the explicitly selected simulation TLS mode.
     pub const fn crypto_mode(&self) -> SimulationCryptoMode {
         self.crypto_mode
+    }
+
+    pub(crate) fn runtime(&self) -> Arc<iroh_runtime::RuntimeContext> {
+        self.runtime.clone()
+    }
+
+    pub(crate) fn ip_sockets(&self) -> Arc<dyn IpSocketFactory> {
+        self.ip_sockets.clone()
+    }
+
+    pub(crate) fn network_monitor(&self) -> Arc<dyn NetworkMonitor> {
+        self.network_monitor.clone()
+    }
+
+    pub(crate) fn port_mapper(&self) -> Option<Arc<dyn PortMapper>> {
+        self.port_mapper.clone()
+    }
+
+    #[cfg(not(wasm_browser))]
+    pub(crate) fn relay_connector(&self) -> Option<Arc<dyn RelayConnector>> {
+        self.relay_connector.clone()
+    }
+
+    #[cfg(not(wasm_browser))]
+    pub(crate) fn preferred_relay(&self) -> Option<RelayUrl> {
+        self.preferred_relay.clone()
+    }
+
+    pub(crate) const fn crypto(&self) -> SimulationCryptoMaterial {
+        self.crypto
+    }
+
+    pub(crate) fn crypto_provider(&self) -> Option<Arc<rustls::crypto::CryptoProvider>> {
+        self.crypto_provider.clone()
     }
 
     /// Installs a simulator-owned port-mapping capability.
@@ -255,6 +331,14 @@ impl NetworkMonitor for OsNetworkMonitor {
 
 /// Creates environment-owned IP/UDP sockets for an endpoint.
 pub trait IpSocketFactory: fmt::Debug + Send + Sync + 'static {
+    /// Returns the runtime clock domain that owns socket delivery for this factory.
+    ///
+    /// Production factories and partial test doubles return `None` and cannot be installed in a
+    /// [`SimulationEnvironment`].
+    fn clock_domain(&self) -> Option<iroh_runtime::ClockDomain> {
+        None
+    }
+
     /// Binds one socket using production-compatible address semantics.
     fn bind(&self, addr: SocketAddr) -> io::Result<Arc<dyn IpSocket>>;
 }
@@ -375,5 +459,105 @@ impl IpSocketSender for OsIpSocketSender {
         cx: &mut Context<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_send(transmit, cx)
+    }
+}
+
+#[cfg(all(test, not(wasm_browser)))]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct Factory(Option<iroh_runtime::ClockDomain>);
+
+    impl IpSocketFactory for Factory {
+        fn clock_domain(&self) -> Option<iroh_runtime::ClockDomain> {
+            self.0
+        }
+
+        fn bind(&self, _addr: SocketAddr) -> io::Result<Arc<dyn IpSocket>> {
+            panic!("environment validation must not bind sockets")
+        }
+    }
+
+    #[derive(Debug)]
+    struct Monitor(n0_watcher::Watchable<netwatch::netmon::State>);
+
+    impl NetworkMonitor for Monitor {
+        fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
+            self.0.watch()
+        }
+
+        fn network_change(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+            Box::pin(std::future::ready(()))
+        }
+    }
+
+    fn runtime() -> Arc<iroh_runtime::RuntimeContext> {
+        Arc::new(iroh_runtime::RuntimeContext::tokio(
+            iroh_runtime::RootSeed::new([91; 32]),
+            Arc::new(iroh_runtime::NoopTraceSink),
+        ))
+    }
+
+    fn monitor() -> Arc<dyn NetworkMonitor> {
+        Arc::new(Monitor(n0_watcher::Watchable::new(
+            netwatch::netmon::State::fake(),
+        )))
+    }
+
+    #[test]
+    fn environment_rejects_socket_factory_without_owner() {
+        let error = SimulationEnvironment::new(
+            runtime(),
+            Arc::new(Factory(None)),
+            monitor(),
+            SimulationCryptoMaterial::new([1; 32], [2; 32]),
+        )
+        .expect_err("unowned socket factory must be rejected");
+
+        assert_eq!(
+            error,
+            SimulationEnvironmentError::SocketFactoryHasNoClockDomain
+        );
+    }
+
+    #[test]
+    fn environment_rejects_mixed_clock_domains() {
+        let runtime = runtime();
+        let runtime_domain = runtime.clock().domain();
+        let socket_domain = iroh_runtime::ClockDomain::fresh();
+        let error = SimulationEnvironment::new(
+            runtime,
+            Arc::new(Factory(Some(socket_domain))),
+            monitor(),
+            SimulationCryptoMaterial::new([3; 32], [4; 32]),
+        )
+        .expect_err("mixed runtime and socket owners must be rejected");
+
+        assert_eq!(
+            error,
+            SimulationEnvironmentError::RuntimeSocketClockDomainMismatch {
+                runtime: runtime_domain,
+                sockets: socket_domain,
+            }
+        );
+    }
+
+    #[test]
+    fn environment_accepts_one_clock_domain() {
+        let runtime = runtime();
+        let domain = runtime.clock().domain();
+        let environment = SimulationEnvironment::new(
+            runtime,
+            Arc::new(Factory(Some(domain))),
+            monitor(),
+            SimulationCryptoMaterial::new([5; 32], [6; 32]),
+        )
+        .expect("matching owners are coherent");
+
+        assert_eq!(
+            environment.crypto_mode(),
+            SimulationCryptoMode::ProductionProvider
+        );
     }
 }

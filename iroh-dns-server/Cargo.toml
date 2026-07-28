@@ -1,13 +1,14 @@
 [package]
 name = "iroh-dns-server"
-version = "2.0.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "A pkarr relay and DNS server"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["Frando <franz@n0.computer>", "n0 team"]
-repository = "https://github.com/holon-technologies/iroh"
+repository.workspace = true
 keywords = ["networking", "pkarr", "dns", "dns-server", "iroh"]
 readme = "README.md"
+rust-version.workspace = true
 
 [lints]
 workspace = true
@@ -33,9 +34,10 @@ hyper-util = { version = "0.1.1", features = ["server-auto", "service", "tokio"]
 humantime = "2.2.0"
 humantime-serde = "1.1.1"
 ipnet = { version = "2", features = ["serde"] }
-iroh-base = { version = "2.0.0", path = "../iroh-base", features = ["key"] }
+iroh-base = { workspace = true, features = ["key"] }
 iroh-metrics = { version = "1.0.1", features = ["service"] }
-iroh-dns = { version = "2.0.0", path = "../iroh-dns" }
+iroh-dns.workspace = true
+iroh-resolver.workspace = true
 lru = "0.18.0"
 mainline = "7"
 n0-future = "0.3"
@@ -64,7 +66,7 @@ url = "2.5.3"
 criterion = "0.8.0"
 data-encoding = "2.3.3"
 hickory-resolver = { version = "0.26.0", features = ["tls-ring", "https-ring"] }
-iroh = { path = "../iroh" }
+iroh = { workspace = true, features = ["tls-ring"] }
 n0-tracing-test = "0.3"
 rand = "0.10"
 simple-dns = "0.11"

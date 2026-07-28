@@ -4,6 +4,9 @@
 //! This handles only the CLI and config file loading, the server implementation lives in
 //! [`iroh::relay::server`].
 
+#[cfg(not(any(feature = "server-ring", feature = "server-aws-lc-rs")))]
+compile_error!("iroh-relay binary requires a TLS provider; select server-ring or server-aws-lc-rs");
+
 use std::{
     io::Read,
     net::{Ipv6Addr, SocketAddr},
@@ -16,15 +19,17 @@ use bytes::{Bytes, BytesMut};
 use clap::Parser;
 use http::StatusCode;
 use iroh_base::EndpointId;
+#[cfg(feature = "server-acme")]
+use iroh_relay::server::AcmeConfig;
 use iroh_relay::{
     defaults::{
         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_METRICS_PORT, DEFAULT_RELAY_QUIC_PORT,
     },
     server::{
-        self as relay, Access, AccessControl, AcmeConfig, ClientRateLimit, ClientRequest,
+        self as relay, Access, AccessControl, ClientRateLimit, ClientRequest,
         DEFAULT_CERT_RELOAD_INTERVAL, QuicConfig, reloading_resolver,
     },
-    tls::CaTlsConfig,
+    tls::{CaTlsConfig, default_provider},
 };
 use n0_error::{AnyError, Result, StdResultExt, bail_any};
 use n0_future::{Stream, StreamExt};
@@ -73,6 +78,7 @@ struct Cli {
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum CertMode {
     Manual,
+    #[cfg(feature = "server-acme")]
     LetsEncrypt,
     #[cfg(feature = "server")]
     Reloading,
@@ -653,13 +659,11 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    // Install `ring` as default crypto provider for rustls.
-    // This helps when both the tls-ring and tls-aws-lc-rs features are enabled,
-    // otherwise some crypto operations would panic because rustls can't determine
-    // a default provider.
-    // `ring` is enabled by the `tls-ring` feature, which is included in the `server` feature,
-    // which is required for the main.rs binary. Therefore, this does not need any feature flags.
-    rustls::crypto::ring::default_provider()
+    // Ring wins in the documentation-only both-provider build; exact production bundles install
+    // only their selected provider.
+    default_provider()
+        .as_ref()
+        .clone()
         .install_default()
         .expect("failed to set default crypto provider");
 
@@ -696,12 +700,10 @@ async fn main() -> Result<()> {
 }
 
 async fn load_cert_config(tls: &TlsConfig) -> Result<relay::CertConfig> {
-    let server_config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::ring::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()
-    .expect("protocols supported by ring")
-    .with_no_client_auth();
+    let server_config = rustls::ServerConfig::builder_with_provider(default_provider())
+        .with_safe_default_protocol_versions()
+        .expect("protocols supported by selected provider")
+        .with_no_client_auth();
     let cert_config = match tls.cert_mode {
         CertMode::Manual => {
             let cert_path = tls.cert_path();
@@ -719,6 +721,7 @@ async fn load_cert_config(tls: &TlsConfig) -> Result<relay::CertConfig> {
                 .std_context("tls config")?;
             relay::CertConfig::Manual { server_config }
         }
+        #[cfg(feature = "server-acme")]
         CertMode::LetsEncrypt => {
             let domains = tls.hostname.clone();
             if domains.is_empty() {
@@ -786,6 +789,7 @@ async fn build_relay_config(cfg: Config) -> Result<relay::ServerConfig> {
                 Some(mut quic_config) => {
                     quic_config.server_config = match cert {
                         relay::CertConfig::Manual { server_config } => Some(server_config),
+                        #[cfg(feature = "server-acme")]
                         relay::CertConfig::LetsEncrypt { .. } => {
                             bail_any!("--dev is incompatible with cert_mode LetsEncrypt")
                         }

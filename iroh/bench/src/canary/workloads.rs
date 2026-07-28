@@ -19,12 +19,12 @@ use hyper::{Request, client::conn::http2::SendRequest};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use iroh::{
     Endpoint, EndpointAddr, SecretKey,
+    dns::DnsResolver,
     endpoint::{
         CapacitySnapshot, ConnectOptions, ConnectWithOptsError, Connection, EndpointLimits,
         TaskCapacitySnapshot, presets,
     },
 };
-use iroh_dns::dns::DnsResolver;
 use iroh_dns_server::{
     Server as DnsServer,
     config::{Config as DnsServerConfig, MetricsConfig, RateLimitConfig},

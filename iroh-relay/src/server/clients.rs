@@ -1,13 +1,12 @@
 //! The "Server" side of the client. Uses the `ClientConnManager`.
 // Based on tailscale/derp/derp_server.go
 
+#[cfg(any(test, feature = "test-utils"))]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::HashSet,
     fmt,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, Mutex},
 };
 
 use dashmap::DashMap;
@@ -58,13 +57,18 @@ struct Inner {
 
 enum ChallengeEntropy {
     Production,
-    Deterministic { key: [u8; 32], next: AtomicU64 },
+    #[cfg(any(test, feature = "test-utils"))]
+    Deterministic {
+        key: [u8; 32],
+        next: AtomicU64,
+    },
 }
 
 impl fmt::Debug for ChallengeEntropy {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Production => formatter.write_str("Production"),
+            #[cfg(any(test, feature = "test-utils"))]
             Self::Deterministic { next, .. } => formatter
                 .debug_struct("Deterministic")
                 .field("key", &"[redacted]")
@@ -139,6 +143,7 @@ fn sorted_endpoint_ids(endpoint_ids: impl IntoIterator<Item = EndpointId>) -> Ve
 }
 
 impl Clients {
+    #[cfg(any(test, feature = "test-utils"))]
     pub(super) fn with_runtime(
         runtime: Arc<RuntimeContext>,
         decision_path: &str,
@@ -190,6 +195,7 @@ impl Clients {
         let mut challenge = [0; 16];
         match &self.0.challenge_entropy {
             ChallengeEntropy::Production => rand::rng().fill_bytes(&mut challenge),
+            #[cfg(any(test, feature = "test-utils"))]
             ChallengeEntropy::Deterministic { key, next } => {
                 let counter = next
                     .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
@@ -277,7 +283,7 @@ impl Clients {
     where
         S: BytesStreamSink + Send + 'static,
     {
-        let endpoint_id = client_config.guard.endpoint_id;
+        let endpoint_id = client_config.guard.endpoint_id();
         trace!(remote_endpoint = %endpoint_id.fmt_short(), "registering client");
 
         let session_lease = self.0.admission.try_session().ok_or_else(|| {
@@ -325,8 +331,8 @@ impl Clients {
     ///
     /// Must be passed a matching connection_id.
     pub(super) fn unregister(&self, guard: OnDisconnectGuard, metrics: &Metrics) {
-        let endpoint_id = guard.endpoint_id;
-        let connection_id = guard.connection_id;
+        let endpoint_id = guard.endpoint_id();
+        let connection_id = guard.connection_id();
         trace!(
             endpoint_id = %endpoint_id.fmt_short(),
             %connection_id, "unregistering client"

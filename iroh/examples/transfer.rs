@@ -42,10 +42,10 @@ use iroh::{
     Endpoint, EndpointAddr, EndpointId, RelayMap, RelayMode, RelayUrl, SecretKey, TransportAddr,
     address_lookup::{
         AddrFilter,
-        dns::DnsAddressLookup,
+        dns::{DnsAddressLookup, N0_DNS_ENDPOINT_ORIGIN_PROD, N0_DNS_ENDPOINT_ORIGIN_STAGING},
         pkarr::{N0_DNS_PKARR_RELAY_PROD, N0_DNS_PKARR_RELAY_STAGING, PkarrPublisher},
     },
-    dns::{DnsResolver, N0_DNS_ENDPOINT_ORIGIN_PROD, N0_DNS_ENDPOINT_ORIGIN_STAGING},
+    dns::DnsResolver,
     endpoint::{
         BindOpts, Connection, ConnectionError, PathEvent, PathId, QuicTransportConfig, RecvStream,
         SendStream, VarInt, WriteError, presets,
@@ -168,7 +168,7 @@ enum Env {
     /// To run the DNS server:
     ///     cargo run --bin iroh-dns-server
     /// To run the relay server:
-    ///     cargo run --bin iroh-relay --features server -- --dev
+    ///     cargo run --bin iroh-relay --features server-ring -- --dev
     Dev,
 }
 
