@@ -71,6 +71,9 @@ cargo check -p iroh-relay --no-default-features --features server-ring
 cargo check -p iroh-relay --no-default-features --features server-aws-lc-rs
 cargo check -p iroh-relay --no-default-features --lib --features tls-ring
 cargo check -p iroh-relay --no-default-features --lib --features tls-aws-lc-rs
+# Match the Android relay test lane's exact feature set so test-only modules cannot become
+# orphaned when server-only compatibility tests are excluded.
+cargo check -p iroh-relay --no-default-features --tests --features tls-ring,metrics
 cargo check -p iroh --no-default-features --lib --features test-utils,tls-ring
 cargo check -p iroh --no-default-features --lib --features test-utils,tls-aws-lc-rs
 
