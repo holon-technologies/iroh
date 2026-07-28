@@ -565,6 +565,13 @@ its matched source, owner, execution path, and existing **Injectable dependency*
 Hickory boundary classification remains unchanged. No clock, entropy, scheduling, network,
 filesystem, or unordered-iteration effect is added or removed.
 
+The follow-up TLS/doctest repair makes rcgen crypto follow the explicitly selected relay TLS
+provider and documents that the illustrative metrics-service example needs the separately owned
+`iroh-metrics/service` feature. That documentation clarification moves the existing
+`tokio::spawn(endpoint.closed()...)` example in `iroh/src/endpoint/handle.rs` down by one line. Its
+matched source, owner, execution path, and documentation-only classification are unchanged; no
+production spawn or other ambient effect is added or removed.
+
 The 2026-07-27 simulation-environment cut replaces partial endpoint injection with one validated
 **Injectable dependency**. `SimulationEnvironment` now rejects socket factories that do not name
 an owning clock domain or that belong to a different runtime clock domain, before sockets bind or

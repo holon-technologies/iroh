@@ -924,7 +924,7 @@ spawn-task	iroh/src/address_lookup.rs:1496	let handle = tokio::spawn({
 spawn-task	iroh/src/address_lookup/pkarr.rs:341	let join_handle = task::spawn(service.run().instrument(info_span!("pkarr_publish")));
 spawn-task	iroh/src/endpoint/connection.rs:1499	tokio::spawn({
 spawn-task	iroh/src/endpoint/handle.rs:424	/// tokio::spawn(endpoint_closed.run_until(async move {
-spawn-task	iroh/src/endpoint/handle.rs:916	/// tokio::spawn(endpoint.closed().run_until(async move {
+spawn-task	iroh/src/endpoint/handle.rs:917	/// tokio::spawn(endpoint.closed().run_until(async move {
 spawn-task	iroh/src/endpoint/tests.rs:1142	let p1_accept = tokio::spawn(
 spawn-task	iroh/src/endpoint/tests.rs:1149	let p2_accept = tokio::spawn(
 spawn-task	iroh/src/endpoint/tests.rs:1156	let p1_connect = tokio::spawn(connect_hello(ep1.clone(), ep2_endpointid).instrument(
