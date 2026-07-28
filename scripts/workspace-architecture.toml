@@ -123,3 +123,11 @@ workspace = "root"
 layer = "protocol"
 allowed_normal = ["iroh", "iroh-base"]
 allowed_dev = ["iroh"]
+
+[[packages]]
+name = "iroh-docs"
+path = "protocols/iroh-docs"
+workspace = "excluded"
+layer = "documents"
+allowed_normal = []
+allowed_dev = []
