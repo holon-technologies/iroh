@@ -11,6 +11,7 @@ readonly -a targets=(
   pkarr_body
   relay_segmentation
   config_deserialize
+  gossip_message
 )
 
 [[ -x "$runner" ]] || {

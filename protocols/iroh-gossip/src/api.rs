@@ -10,7 +10,7 @@ use std::{
 
 use bytes::Bytes;
 use iroh_base::EndpointId;
-use irpc::{channel::mpsc, rpc_requests, Client};
+use irpc::{Client, channel::mpsc, rpc_requests};
 use n0_error::{e, stack_error};
 use n0_future::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
@@ -45,6 +45,12 @@ pub enum ApiError {
     /// The gossip topic was closed.
     #[error("topic closed")]
     Closed,
+    /// A request exceeded a named resource limit.
+    #[error("{resource} exceeds limit {limit}")]
+    LimitExceeded {
+        resource: &'static str,
+        limit: usize,
+    },
 }
 
 impl From<irpc::channel::SendError> for ApiError {
@@ -102,7 +108,7 @@ impl GossipApi {
     /// Listen on a noq endpoint for incoming RPC connections.
     #[cfg(all(feature = "rpc", feature = "net"))]
     pub(crate) async fn listen(&self, endpoint: noq::Endpoint) {
-        use irpc::rpc::{listen, RemoteService};
+        use irpc::rpc::{RemoteService, listen};
 
         let local = self
             .client
@@ -125,6 +131,20 @@ impl GossipApi {
         topic_id: TopicId,
         opts: JoinOptions,
     ) -> Result<GossipTopic, ApiError> {
+        if opts.bootstrap.len() > crate::limits::MAX_BOOTSTRAP_PEERS {
+            return Err(e!(ApiError::LimitExceeded {
+                resource: "bootstrap peers",
+                limit: crate::limits::MAX_BOOTSTRAP_PEERS,
+            }));
+        }
+        if opts.subscription_capacity == 0
+            || opts.subscription_capacity > crate::limits::MAX_SUBSCRIPTION_CAPACITY
+        {
+            return Err(e!(ApiError::LimitExceeded {
+                resource: "subscription capacity",
+                limit: crate::limits::MAX_SUBSCRIPTION_CAPACITY,
+            }));
+        }
         let req = JoinRequest {
             topic_id,
             bootstrap: opts.bootstrap,
@@ -190,6 +210,12 @@ impl GossipSender {
 
     /// Joins a set of peers.
     pub async fn join_peers(&self, peers: Vec<EndpointId>) -> Result<(), ApiError> {
+        if peers.len() > crate::limits::MAX_BOOTSTRAP_PEERS {
+            return Err(e!(ApiError::LimitExceeded {
+                resource: "join peers",
+                limit: crate::limits::MAX_BOOTSTRAP_PEERS,
+            }));
+        }
         self.send(Command::JoinPeers(peers)).await?;
         Ok(())
     }
@@ -416,16 +442,16 @@ mod tests {
     #[tokio::test]
     #[n0_tracing_test::traced_test]
     async fn test_rpc() -> n0_error::Result<()> {
-        use iroh::{address_lookup::memory::MemoryLookup, protocol::Router, RelayMap};
+        use iroh::{RelayMap, address_lookup::memory::MemoryLookup, protocol::Router};
         use n0_error::{AnyError, Result, StackResultExt, StdResultExt};
-        use n0_future::{time::Duration, StreamExt};
+        use n0_future::{StreamExt, time::Duration};
         use rand::SeedableRng;
 
         use crate::{
-            api::{Event, GossipApi},
-            net::{tests::create_endpoint, Gossip},
-            proto::TopicId,
             ALPN,
+            api::{Event, GossipApi},
+            net::{Gossip, tests::create_endpoint},
+            proto::TopicId,
         };
 
         let mut rng = rand::rngs::ChaCha12Rng::seed_from_u64(1);

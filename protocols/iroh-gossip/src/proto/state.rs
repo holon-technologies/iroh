@@ -1,6 +1,6 @@
 //! The protocol state of the `iroh-gossip` protocol.
 
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 
 use n0_future::time::{Duration, Instant};
 use rand::{Rng, SeedableRng};
@@ -10,9 +10,9 @@ use tracing::trace;
 use crate::{
     metrics::Metrics,
     proto::{
+        Config, PeerData, PeerIdentity,
         topic::{self, Command},
         util::idbytes_impls,
-        Config, PeerData, PeerIdentity, MIN_MAX_MESSAGE_SIZE,
     },
 };
 
@@ -171,12 +171,11 @@ impl<PI: PeerIdentity, R: Rng + SeedableRng> State<PI, R> {
     ///
     /// ## Panics
     ///
-    /// Panics if [`Config::max_message_size`] is below [`MIN_MAX_MESSAGE_SIZE`].
+    /// Panics if the configuration fails [`Config::validate`].
     pub fn new(me: PI, me_data: PeerData, config: Config, rng: R) -> Self {
-        assert!(
-            config.max_message_size >= MIN_MAX_MESSAGE_SIZE,
-            "max_message_size must be at least {MIN_MAX_MESSAGE_SIZE}"
-        );
+        config
+            .validate()
+            .unwrap_or_else(|err| panic!("gossip config invariant: {err}"));
         Self {
             me,
             me_data,
@@ -247,7 +246,10 @@ impl<PI: PeerIdentity, R: Rng + SeedableRng> State<PI, R> {
             InEventMapped::TopicEvent(topic, event) => {
                 // when receiving a join command, initialize state if it doesn't exist
                 if matches!(&event, topic::InEvent::Command(Command::Join(_peers))) {
-                    if let hash_map::Entry::Vacant(e) = self.states.entry(topic) {
+                    let may_add_topic = self.states.len() < crate::limits::MAX_TOPICS;
+                    if let hash_map::Entry::Vacant(e) = self.states.entry(topic)
+                        && may_add_topic
+                    {
                         e.insert(topic::State::with_rng(
                             self.me,
                             Some(self.me_data.clone()),
@@ -266,7 +268,11 @@ impl<PI: PeerIdentity, R: Rng + SeedableRng> State<PI, R> {
                     // when receiving messages, update our conn map to take note that this topic state may want
                     // to keep this connection
                     if let topic::InEvent::RecvMessage(from, _message) = &event {
-                        self.peer_topics.entry(*from).or_default().insert(topic);
+                        let may_add_peer = self.peer_topics.len()
+                            < crate::limits::MAX_TOPICS * crate::limits::MAX_ACTIVE_VIEW_CAPACITY;
+                        if self.peer_topics.contains_key(from) || may_add_peer {
+                            self.peer_topics.entry(*from).or_default().insert(topic);
+                        }
                     }
                     let out = state.handle(event, now);
                     for event in out {

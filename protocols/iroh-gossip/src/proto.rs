@@ -48,7 +48,7 @@
 use std::{fmt, hash::Hash};
 
 use bytes::Bytes;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 mod hyparview;
 mod plumtree;
@@ -131,13 +131,59 @@ mod test {
     use std::{collections::HashSet, env, fmt, str::FromStr};
 
     use n0_tracing_test::traced_test;
-    use rand::{rngs::ChaCha12Rng, SeedableRng};
+    use rand::{SeedableRng, rngs::ChaCha12Rng};
 
-    use super::{Command, Config, Event};
+    use super::{Command, Config, Event, HyparviewConfig};
     use crate::proto::{
+        InEvent, Scope, State, TopicId,
         sim::{LatencyConfig, Network, NetworkConfig},
-        Scope, TopicId,
     };
+
+    #[test]
+    fn resource_limits_reject_unsafe_config() {
+        let config = Config {
+            max_message_size: crate::limits::MAX_MESSAGE_SIZE + 1,
+            ..Config::default()
+        };
+        assert!(config.validate().is_err());
+
+        let config = Config {
+            membership: HyparviewConfig {
+                active_view_capacity: crate::limits::MAX_ACTIVE_VIEW_CAPACITY + 1,
+                ..HyparviewConfig::default()
+            },
+            ..Config::default()
+        };
+        assert!(config.validate().is_err());
+
+        let config = Config {
+            membership: HyparviewConfig {
+                passive_view_capacity: crate::limits::MAX_PASSIVE_VIEW_CAPACITY + 1,
+                ..HyparviewConfig::default()
+            },
+            ..Config::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn topic_count_is_bounded() {
+        let rng = ChaCha12Rng::seed_from_u64(0);
+        let mut state = State::new(0_u64, Default::default(), Config::default(), rng);
+        for index in 0..=crate::limits::MAX_TOPICS {
+            let mut topic = [0_u8; 32];
+            topic[..8].copy_from_slice(&(index as u64).to_le_bytes());
+            state
+                .handle(
+                    InEvent::Command(TopicId::from(topic), Command::Join(Vec::new())),
+                    n0_future::time::Instant::now(),
+                    None,
+                )
+                .for_each(drop);
+        }
+
+        assert_eq!(state.topics().count(), crate::limits::MAX_TOPICS);
+    }
 
     #[test]
     #[traced_test]

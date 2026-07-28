@@ -1,14 +1,14 @@
 //! Utilities used in the protocol implementation
 
 use std::{
-    collections::{hash_map, BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap, hash_map},
     hash::Hash,
 };
 
 use n0_future::time::Instant;
 use rand::{
-    seq::{IteratorRandom, SliceRandom},
     Rng, RngExt,
+    seq::{IteratorRandom, SliceRandom},
 };
 
 /// Implement methods, display, debug and conversion traits for 32 byte identifiers.
@@ -262,6 +262,15 @@ impl<T> TimerMap<T> {
         }
     }
 
+    /// Pop the earliest entry.
+    pub fn pop_first(&mut self) -> Option<(Instant, T)> {
+        self.heap.pop().map(|item| (item.time, item.item))
+    }
+
+    fn len(&self) -> usize {
+        self.heap.len()
+    }
+
     /// Get a reference to the earliest entry in the `TimerMap`.
     pub fn first(&self) -> Option<&Instant> {
         self.heap.peek().map(|x| &x.time)
@@ -317,6 +326,7 @@ impl<T> Ord for TimerMapEntry<T> {
 pub struct TimeBoundCache<K, V> {
     map: HashMap<K, (Instant, V)>,
     expiry: TimerMap<K>,
+    capacity: usize,
 }
 
 impl<K, V> Default for TimeBoundCache<K, V> {
@@ -324,15 +334,56 @@ impl<K, V> Default for TimeBoundCache<K, V> {
         Self {
             map: Default::default(),
             expiry: Default::default(),
+            capacity: crate::limits::MAX_DUPLICATE_CACHE_ENTRIES,
         }
     }
 }
 
 impl<K: Hash + Eq + Clone, V> TimeBoundCache<K, V> {
+    /// Create an empty cache which retains at most `capacity` entries.
+    pub fn with_capacity(capacity: usize) -> Self {
+        let capacity = capacity.clamp(1, crate::limits::MAX_DUPLICATE_CACHE_ENTRIES);
+        Self {
+            map: HashMap::new(),
+            expiry: TimerMap::default(),
+            capacity,
+        }
+    }
+
     /// Insert an item into the cache, marked with an expiration time.
     pub fn insert(&mut self, key: K, value: V, expires: Instant) {
+        if let Some(entry) = self.map.get_mut(&key) {
+            *entry = (expires, value);
+            self.expiry.insert(expires, key);
+            self.compact_expiry_if_needed();
+            return;
+        }
+        while self.map.len() >= self.capacity {
+            let Some((time, expired_key)) = self.expiry.pop_first() else {
+                break;
+            };
+            if self
+                .map
+                .get(&expired_key)
+                .is_some_and(|entry| entry.0 == time)
+            {
+                self.map.remove(&expired_key);
+            }
+        }
         self.map.insert(key.clone(), (expires, value));
         self.expiry.insert(expires, key);
+        self.compact_expiry_if_needed();
+    }
+
+    fn compact_expiry_if_needed(&mut self) {
+        if self.expiry.len() <= self.capacity.saturating_mul(2) {
+            return;
+        }
+        let mut expiry = TimerMap::default();
+        for (key, (expires, _value)) in &self.map {
+            expiry.insert(*expires, key.clone());
+        }
+        self.expiry = expiry;
     }
 
     /// Returns `true` if the map contains a value for the specified key.
@@ -528,5 +579,19 @@ mod test {
         cache.expire_until(t2);
         assert_eq!(cache.get(&4), None);
         assert_eq!(cache.get(&5), Some(&50));
+    }
+
+    #[test]
+    fn time_bound_cache_capacity_is_enforced() {
+        let mut cache = TimeBoundCache::with_capacity(2);
+        let now = Instant::now();
+        cache.insert(1, 10, now + Duration::from_secs(1));
+        cache.insert(2, 20, now + Duration::from_secs(2));
+        cache.insert(3, 30, now + Duration::from_secs(3));
+
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.get(&1), None);
+        assert_eq!(cache.get(&2), Some(&20));
+        assert_eq!(cache.get(&3), Some(&30));
     }
 }

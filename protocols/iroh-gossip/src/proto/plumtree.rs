@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
 use super::{
-    util::{idbytes_impls, TimeBoundCache},
-    PeerIdentity, IO,
+    IO, PeerIdentity,
+    util::{TimeBoundCache, idbytes_impls},
 };
 
 /// A message identifier, which is the message content's blake3 hash.
@@ -128,7 +128,7 @@ pub struct Round(u16);
 
 impl Round {
     pub fn next(&self) -> Round {
-        Round(self.0 + 1)
+        Round(self.0.saturating_add(1))
     }
 }
 
@@ -392,10 +392,12 @@ impl<PI: PeerIdentity> State<PI> {
             lazy_push_queue: Default::default(),
             config,
             missing_messages: Default::default(),
-            received_messages: Default::default(),
+            received_messages: TimeBoundCache::with_capacity(
+                crate::limits::MAX_DUPLICATE_CACHE_ENTRIES,
+            ),
             graft_timer_scheduled: Default::default(),
             dispatch_timer_scheduled: false,
-            cache: Default::default(),
+            cache: TimeBoundCache::with_capacity(crate::limits::MAX_CACHED_MESSAGES),
             init: false,
             stats: Default::default(),
             max_message_size,
@@ -562,22 +564,22 @@ impl<PI: PeerIdentity> State<PI> {
             .min_by(|(_a_peer, a_round), (_b_peer, b_round)| a_round.cmp(b_round))
             .copied();
 
-        if let Some((ihave_peer, ihave_round)) = best_ihave {
-            if (ihave_round < round) && (round - ihave_round) >= self.config.optimization_threshold
-            {
-                // Graft the sender of the IHave, but only if it's not already eager.
-                if !self.eager_push_peers.contains(&ihave_peer) {
-                    let message = Message::Graft(Graft {
-                        id: None,
-                        round: ihave_round,
-                    });
-                    self.add_eager(ihave_peer);
-                    io.push(OutEvent::SendMessage(ihave_peer, message));
-                }
-                // Prune the sender of the Gossip.
-                self.add_lazy(*gossip_sender);
-                io.push(OutEvent::SendMessage(*gossip_sender, Message::Prune));
+        if let Some((ihave_peer, ihave_round)) = best_ihave
+            && (ihave_round < round)
+            && (round - ihave_round) >= self.config.optimization_threshold
+        {
+            // Graft the sender of the IHave, but only if it's not already eager.
+            if !self.eager_push_peers.contains(&ihave_peer) {
+                let message = Message::Graft(Graft {
+                    id: None,
+                    round: ihave_round,
+                });
+                self.add_eager(ihave_peer);
+                io.push(OutEvent::SendMessage(ihave_peer, message));
             }
+            // Prune the sender of the Gossip.
+            self.add_lazy(*gossip_sender);
+            io.push(OutEvent::SendMessage(*gossip_sender, Message::Prune));
         }
     }
 
@@ -595,12 +597,20 @@ impl<PI: PeerIdentity> State<PI> {
     /// > target maximum recovery latency, defined by the application requirements. This is a
     /// > parameter that should be statically configured at deployment time. (p8)
     fn on_ihave(&mut self, sender: PI, ihaves: Vec<IHave>, io: &mut impl IO<PI>) {
-        for ihave in ihaves {
+        for ihave in ihaves.into_iter().take(crate::limits::MAX_IHAVE_ENTRIES) {
             if !self.received_messages.contains_key(&ihave.id) {
-                self.missing_messages
-                    .entry(ihave.id)
-                    .or_default()
-                    .push_back((sender, ihave.round));
+                let may_track = self.missing_messages.contains_key(&ihave.id)
+                    || self.missing_messages.len() < crate::limits::MAX_PENDING_MESSAGES;
+                if !may_track {
+                    continue;
+                }
+                let candidates = self.missing_messages.entry(ihave.id).or_default();
+                if candidates.len() >= crate::limits::MAX_GRAFT_RETRIES
+                    || candidates.iter().any(|(peer, _)| *peer == sender)
+                {
+                    continue;
+                }
+                candidates.push_back((sender, ihave.round));
 
                 if !self.graft_timer_scheduled.contains(&ihave.id) {
                     self.graft_timer_scheduled.insert(ihave.id);
@@ -720,10 +730,13 @@ impl<PI: PeerIdentity> State<PI> {
             return;
         };
         for peer in self.lazy_push_peers.iter().filter(|x| *x != sender) {
-            self.lazy_push_queue.entry(*peer).or_default().push(IHave {
-                id: gossip.id,
-                round,
-            });
+            let queue = self.lazy_push_queue.entry(*peer).or_default();
+            if queue.len() < crate::limits::MAX_LAZY_QUEUE_PER_PEER {
+                queue.push(IHave {
+                    id: gossip.id,
+                    round,
+                });
+            }
         }
         if !self.dispatch_timer_scheduled {
             io.push(OutEvent::ScheduleTimer(
@@ -773,6 +786,54 @@ mod test {
                 "0201ef6228157e41acb05059701e441795cfff52c30a975320476c0f21cb2f68715504",
             ]
         );
+    }
+
+    #[test]
+    fn peer_driven_pending_work_is_bounded() {
+        let mut state = State::new(1_u64, Config::default(), 1024);
+        let now = Instant::now();
+        let mut io = VecDeque::new();
+        for index in 0..=crate::limits::MAX_PENDING_MESSAGES {
+            state.handle(
+                InEvent::RecvMessage(
+                    2,
+                    Message::IHave(vec![IHave {
+                        id: MessageId::from_content(&index.to_le_bytes()),
+                        round: Round(1),
+                    }]),
+                ),
+                now,
+                &mut io,
+            );
+        }
+        assert_eq!(
+            state.missing_messages.len(),
+            crate::limits::MAX_PENDING_MESSAGES
+        );
+
+        let id = MessageId::from_content(&0_usize.to_le_bytes());
+        for peer in 3..=(crate::limits::MAX_GRAFT_RETRIES as u64 + 3) {
+            state.handle(
+                InEvent::RecvMessage(
+                    peer,
+                    Message::IHave(vec![IHave {
+                        id,
+                        round: Round(1),
+                    }]),
+                ),
+                now,
+                &mut io,
+            );
+        }
+        assert_eq!(
+            state.missing_messages[&id].len(),
+            crate::limits::MAX_GRAFT_RETRIES
+        );
+    }
+
+    #[test]
+    fn peer_supplied_round_saturates() {
+        assert_eq!(Round(u16::MAX).next(), Round(u16::MAX));
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::{
 
 use bytes::Bytes;
 use n0_future::time::{Duration, Instant};
-use rand::{rngs::ChaCha12Rng, seq::IteratorRandom, Rng, RngExt, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng, rngs::ChaCha12Rng, seq::IteratorRandom};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, debug_span, info, info_span, trace, warn};
 
@@ -241,7 +241,11 @@ impl<PI: PeerIdentity + fmt::Display, R: Rng + SeedableRng> Network<PI, R> {
 
     /// Runs the simulation for `n` times the maximum latency between peers.
     pub fn run_trips(&mut self, n: usize) {
-        let duration = self.config.latency.max() * n as u32;
+        let duration = self
+            .config
+            .latency
+            .max()
+            .saturating_mul(u32::try_from(n).unwrap_or(u32::MAX));
         self.run_duration(duration)
     }
 
@@ -646,7 +650,7 @@ impl RoundStats {
         avg.rmr /= len;
         avg.ldh /= len;
         avg.missed /= len;
-        avg.duration /= len as u32;
+        avg.duration = avg.duration.div_f32(len);
         avg
     }
 

@@ -3,8 +3,8 @@
 use std::{env, fmt, str::FromStr, time::Duration};
 
 use iroh_gossip::proto::{
-    sim::{BootstrapMode, LatencyConfig, NetworkConfig, Simulator, SimulatorConfig},
     Config,
+    sim::{BootstrapMode, LatencyConfig, NetworkConfig, Simulator, SimulatorConfig},
 };
 
 #[test]

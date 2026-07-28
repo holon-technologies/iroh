@@ -45,6 +45,7 @@ jobs:
           - pkarr_body
           - relay_segmentation
           - config_deserialize
+          - gossip_message
     steps:
       - name: Checkout
         uses: actions/checkout@v7

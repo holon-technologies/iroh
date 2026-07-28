@@ -1,7 +1,7 @@
 //! Networking for the `iroh-gossip` protocol
 
 use std::{
-    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeSet, HashMap, HashSet, VecDeque, hash_map::Entry},
     net::SocketAddr,
     pin::Pin,
     sync::Arc,
@@ -9,24 +9,24 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures_concurrency::stream::{stream_group, StreamGroup};
+use futures_concurrency::stream::{StreamGroup, stream_group};
 use iroh::{
+    Endpoint, EndpointAddr, EndpointId, PublicKey, RelayUrl, Watcher,
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
-    Endpoint, EndpointAddr, EndpointId, PublicKey, RelayUrl, Watcher,
 };
 use irpc::WithChannels;
 use n0_error::{e, stack_error};
 use n0_future::{
+    Stream, StreamExt as _,
     task::{self, AbortOnDropHandle, JoinSet},
     time::Instant,
-    Stream, StreamExt as _,
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, error_span, trace, warn, Instrument};
+use tracing::{Instrument, debug, error, error_span, trace, warn};
 
 use self::{
     address_lookup::GossipAddressLookup,
@@ -107,6 +107,8 @@ enum LocalActorMessage {
 #[non_exhaustive]
 pub enum Error {
     ActorDropped {},
+    #[error("gossip shutdown timed out")]
+    ShutdownTimedOut {},
 }
 
 impl<T> From<mpsc::error::SendError<T>> for Error {
@@ -183,8 +185,20 @@ impl Builder {
         self
     }
 
-    /// Spawn a gossip actor and get a handle for it
+    /// Spawn a gossip actor and get a handle for it.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the builder configuration exceeds a protocol resource limit. Use
+    /// [`Self::try_spawn`] to handle invalid configuration explicitly.
     pub fn spawn(self, endpoint: Endpoint) -> Gossip {
+        self.try_spawn(endpoint)
+            .unwrap_or_else(|err| panic!("gossip config invariant: {err}"))
+    }
+
+    /// Validate the configuration, spawn a gossip actor, and return its handle.
+    pub fn try_spawn(self, endpoint: Endpoint) -> Result<Gossip, crate::limits::ConfigError> {
+        self.config.validate()?;
         let metrics = Arc::new(Metrics::default());
         let address_lookup = GossipAddressLookup::default();
 
@@ -210,7 +224,7 @@ impl Builder {
 
         let api = GossipApi::local(rpc_tx);
 
-        Gossip {
+        Ok(Gossip {
             inner: Inner {
                 api,
                 local_tx,
@@ -219,7 +233,7 @@ impl Builder {
                 metrics,
             }
             .into(),
-        }
+        })
     }
 }
 
@@ -264,7 +278,10 @@ impl Gossip {
             .local_tx
             .send(LocalActorMessage::Shutdown { reply })
             .await?;
-        reply_rx.await?;
+        match n0_future::time::timeout(crate::limits::SHUTDOWN_TIMEOUT, reply_rx).await {
+            Ok(reply) => reply?,
+            Err(_) => return Err(e!(Error::ShutdownTimedOut)),
+        }
         Ok(())
     }
 
@@ -390,7 +407,15 @@ impl Actor {
                     Some(LocalActorMessage::Shutdown { reply }) => {
                         debug!("received shutdown message, quit all topics");
                         self.quit_queue.extend(self.topics.keys().copied());
-                        self.process_quit_queue().await;
+                        if n0_future::time::timeout(
+                            crate::limits::SHUTDOWN_DRAIN_TIMEOUT,
+                            self.process_quit_queue(),
+                        )
+                        .await
+                        .is_err()
+                        {
+                            warn!("gossip shutdown drain timed out; abort remaining connection work");
+                        }
                         debug!("all topics quit, stop gossip actor");
                         reply.send(()).ok();
                         return false;
@@ -467,16 +492,24 @@ impl Actor {
             }
             Some(res) = self.connection_tasks.join_next(), if !self.connection_tasks.is_empty() => {
                 trace!(?i, "tick: connection_tasks");
-                let (peer_id, conn, result) = res.expect("connection task panicked");
-                self.handle_connection_task_finished(peer_id, conn, result).await;
+                match res {
+                    Ok((peer_id, conn, result)) => {
+                        self.handle_connection_task_finished(peer_id, conn, result).await;
+                    }
+                    Err(err) => warn!("connection task failed: {err}"),
+                }
             }
             Some(res) = self.topic_event_forwarders.join_next(), if !self.topic_event_forwarders.is_empty() => {
-                let topic_id = res.expect("topic event forwarder panicked");
-                if let Some(state) = self.topics.get_mut(&topic_id) {
-                    if !state.still_needed() {
-                        self.quit_queue.push_back(topic_id);
-                        self.process_quit_queue().await;
+                match res {
+                    Ok(topic_id) => {
+                        if let Some(state) = self.topics.get_mut(&topic_id)
+                            && !state.still_needed()
+                        {
+                            self.quit_queue.push_back(topic_id);
+                            self.process_quit_queue().await;
+                        }
                     }
+                    Err(err) => warn!("topic event forwarder failed: {err}"),
                 }
             }
         }
@@ -526,6 +559,11 @@ impl Actor {
     }
 
     fn handle_connection(&mut self, peer_id: EndpointId, origin: ConnOrigin, conn: Connection) {
+        if self.connection_tasks.len() >= crate::limits::MAX_CONCURRENT_CONNECTION_HANDLERS {
+            warn!(peer = %peer_id.fmt_short(), "reject connection: handler limit reached");
+            conn.close(0u32.into(), b"gossip handler limit reached");
+            return;
+        }
         let (send_tx, send_rx) = mpsc::channel(SEND_QUEUE_CAP);
         let conn_id = conn.stable_id();
 
@@ -599,6 +637,10 @@ impl Actor {
         trace!("handle to_actor  {msg:?}");
         match msg {
             RpcMessage::Join(msg) => {
+                if self.topic_event_forwarders.len() >= crate::limits::MAX_SUBSCRIPTIONS {
+                    warn!("reject subscription: subscription limit reached");
+                    return;
+                }
                 let WithChannels {
                     inner,
                     rx,
@@ -610,6 +652,12 @@ impl Actor {
                     topic_id,
                     bootstrap,
                 } = inner;
+                if !self.topics.contains_key(&topic_id)
+                    && self.topics.len() >= crate::limits::MAX_TOPICS
+                {
+                    warn!(%topic_id, "reject subscription: topic limit reached");
+                    return;
+                }
                 let TopicState {
                     neighbors,
                     event_sender,
@@ -641,7 +689,12 @@ impl Actor {
                 self.handle_in_event(
                     InEvent::Command(
                         topic_id,
-                        ProtoCommand::Join(bootstrap.into_iter().collect()),
+                        ProtoCommand::Join(
+                            bootstrap
+                                .into_iter()
+                                .take(crate::limits::MAX_BOOTSTRAP_PEERS)
+                                .collect(),
+                        ),
                     ),
                     now,
                 )
@@ -699,6 +752,10 @@ impl Actor {
                             if queue.is_empty() {
                                 debug!(peer = %peer_id.fmt_short(), "start to dial");
                                 self.dialer.queue_dial(peer_id, self.alpn.clone());
+                            }
+                            if queue.len() >= crate::limits::MAX_PENDING_SENDS_PER_PEER {
+                                queue.remove(0);
+                                warn!(peer = %peer_id.fmt_short(), "pending send queue full; drop oldest message");
                             }
                             queue.push(message);
                         }
@@ -1015,7 +1072,9 @@ impl Dialer {
 
     /// Starts to dial a endpoint by [`EndpointId`].
     fn queue_dial(&mut self, endpoint_id: EndpointId, alpn: Bytes) {
-        if self.is_pending(endpoint_id) {
+        if self.is_pending(endpoint_id)
+            || self.pending_dials.len() >= crate::limits::MAX_CONCURRENT_DIALS
+        {
             return;
         }
         let cancel = CancellationToken::new();
@@ -1079,11 +1138,11 @@ pub(crate) mod tests {
     use bytes::Bytes;
     use futures_concurrency::future::TryJoin;
     use iroh::{
+        RelayMap, RelayMode, SecretKey,
         address_lookup::memory::MemoryLookup,
-        endpoint::{presets, BindError},
+        endpoint::{BindError, presets},
         protocol::Router,
         tls::CaTlsConfig,
-        RelayMap, RelayMode, SecretKey,
     };
     use n0_error::{AnyError, Result, StdResultExt};
     use n0_tracing_test::traced_test;
@@ -1493,8 +1552,8 @@ pub(crate) mod tests {
 
         // advance and check that the topic is now subscribed
         actor.steps(3).await; // handle our subscribe;
-                              // get peer connection;
-                              // receive the other peer's information for a NeighborUp
+        // get peer connection;
+        // receive the other peer's information for a NeighborUp
         let state = actor.topics.get(&topic).expect("get registered topic");
         assert!(state.joined());
 

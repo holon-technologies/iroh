@@ -1,36 +1,22 @@
 [package]
 name = "iroh-gossip"
-version = "0.101.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "gossip messages over broadcast trees"
-license = "MIT OR Apache-2.0"
+license.workspace = true
 authors = ["n0 team"]
-repository = "https://github.com/n0-computer/iroh-gossip"
+repository.workspace = true
 publish = false
-resolver = "2"
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.91"
+rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[lints.rust]
-missing_debug_implementations = "warn"
-
-# We use this --cfg for documenting the cargo features on which an API
-# is available.  To preview this locally use: RUSTFLAGS="--cfg
-# iroh_docsrs cargo +nightly doc --all-features".  We use our own
-# iroh_docsrs instead of the common docsrs to avoid also enabling this
-# feature in any dependencies, because some indirect dependencies
-# require a feature enabled when using `--cfg docsrs` which we can not
-# do.  To enable for a crate set `#![cfg_attr(iroh_docsrs,
-# feature(doc_cfg))]` in the crate.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
-
-[lints.clippy]
-unused-async = "warn"
+[lints]
+workspace = true
 
 [dependencies]
 blake3 = "1.8"
@@ -48,7 +34,7 @@ derive_more = { version = "2.0.1", features = [
 hex = "0.4.3"
 indexmap = "2.0"
 iroh-metrics = { version = "1.0.1", default-features = false }
-iroh-base = { version = "1", default-features = false, features = ["key"] }
+iroh-base = { workspace = true, features = ["key"] }
 n0-future = "0.3"
 postcard = { version = "1", default-features = false, features = [
     "alloc",
@@ -60,7 +46,7 @@ serde = { version = "1.0.164", features = ["derive"] }
 
 # net dependencies (optional)
 futures-concurrency = { version = "7.6.1", optional = true }
-iroh = { version = "1", default-features = false, optional = true }
+iroh = { workspace = true, optional = true }
 tokio = { version = "1", optional = true, features = ["io-util", "sync"] }
 tokio-util = { version = "0.7.12", optional = true, features = ["codec"] }
 tracing = "0.1"
@@ -99,7 +85,7 @@ tokio = { version = "1", features = [
 ] }
 clap = { version = "4", features = ["derive"] }
 humantime-serde = { version = "1.1.1" }
-iroh = { version = "1", default-features = false, features = [
+iroh = { workspace = true, features = [
     "metrics",
     "test-utils",
     "tls-ring"
@@ -162,9 +148,3 @@ required-features = ["examples"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "iroh_docsrs"]
-
-[profile.bench]
-debug = true
-
-[profile.release]
-debug = true

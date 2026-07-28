@@ -9,10 +9,10 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    DEFAULT_MAX_MESSAGE_SIZE, PeerData, PeerIdentity,
     hyparview::{self, InEvent as SwarmIn},
     plumtree::{self, GossipEvent, InEvent as GossipIn, Scope},
     state::MessageKind,
-    PeerData, PeerIdentity, DEFAULT_MAX_MESSAGE_SIZE,
 };
 use crate::proto::MIN_MAX_MESSAGE_SIZE;
 
@@ -202,6 +202,62 @@ impl Default for Config {
     }
 }
 
+impl Config {
+    /// Validate all configured resource bounds.
+    pub fn validate(&self) -> Result<(), crate::limits::ConfigError> {
+        use crate::limits::{
+            ConfigError, MAX_ACTIVE_VIEW_CAPACITY, MAX_MESSAGE_SIZE, MAX_PASSIVE_VIEW_CAPACITY,
+            MAX_SHUFFLE_PEERS,
+        };
+
+        let check = |field, value, min, max| {
+            if (min..=max).contains(&value) {
+                Ok(())
+            } else {
+                Err(ConfigError::new(field, value, min, max))
+            }
+        };
+        check(
+            "max_message_size",
+            self.max_message_size,
+            MIN_MAX_MESSAGE_SIZE,
+            MAX_MESSAGE_SIZE,
+        )?;
+        check(
+            "membership.active_view_capacity",
+            self.membership.active_view_capacity,
+            1,
+            MAX_ACTIVE_VIEW_CAPACITY,
+        )?;
+        check(
+            "membership.passive_view_capacity",
+            self.membership.passive_view_capacity,
+            1,
+            MAX_PASSIVE_VIEW_CAPACITY,
+        )?;
+        check(
+            "membership.shuffle_active_view_count",
+            self.membership.shuffle_active_view_count,
+            0,
+            MAX_SHUFFLE_PEERS,
+        )?;
+        check(
+            "membership.shuffle_passive_view_count",
+            self.membership.shuffle_passive_view_count,
+            0,
+            MAX_SHUFFLE_PEERS,
+        )?;
+        check(
+            "membership.shuffle_fanout",
+            self.membership
+                .shuffle_active_view_count
+                .saturating_add(self.membership.shuffle_passive_view_count),
+            0,
+            MAX_SHUFFLE_PEERS,
+        )
+    }
+}
+
 /// The topic state maintains the swarm membership and broadcast tree for a particular topic.
 #[derive(Debug)]
 pub struct State<PI, R> {
@@ -217,7 +273,7 @@ impl<PI: PeerIdentity> State<PI, rand::rngs::ThreadRng> {
     ///
     /// ## Panics
     ///
-    /// Panics if [`Config::max_message_size`] is below [`MIN_MAX_MESSAGE_SIZE`].
+    /// Panics if the configuration fails [`Config::validate`].
     pub fn new(me: PI, me_data: Option<PeerData>, config: Config) -> Self {
         Self::with_rng(me, me_data, config, rand::rng())
     }
@@ -235,12 +291,11 @@ impl<PI: PeerIdentity, R: Rng> State<PI, R> {
     ///
     /// ## Panics
     ///
-    /// Panics if [`Config::max_message_size`] is below [`MIN_MAX_MESSAGE_SIZE`].
+    /// Panics if the configuration fails [`Config::validate`].
     pub fn with_rng(me: PI, me_data: Option<PeerData>, config: Config, rng: R) -> Self {
-        assert!(
-            config.max_message_size >= MIN_MAX_MESSAGE_SIZE,
-            "max_message_size must be at least {MIN_MAX_MESSAGE_SIZE}"
-        );
+        config
+            .validate()
+            .unwrap_or_else(|err| panic!("gossip config invariant: {err}"));
         let max_payload_size =
             config.max_message_size - super::Message::<PI>::postcard_header_size();
         Self {

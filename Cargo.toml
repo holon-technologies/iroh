@@ -9,14 +9,15 @@ members = [
   "iroh-relay",
   "iroh-runtime",
   "protocols/iroh-blobs",
+  "protocols/iroh-gossip",
   "tools/determinism-checker",
 ]
 exclude = [
   "compat/iroh-blobs-v0-103-interop",
+  "compat/iroh-gossip-v0-101-interop",
   "compat/relay-v1-interop",
   "fuzz",
   "iroh-sim",
-  "protocols/iroh-gossip",
   "vendor/hickory-server-0.26.1",
   "vendor/noq-1.1.0",
   "vendor/rustls-0.23.41",
@@ -39,6 +40,7 @@ iroh-dns-server = { version = "2.0.0", path = "iroh-dns-server" }
 iroh-relay = { version = "2.0.0", path = "iroh-relay", default-features = false }
 iroh-runtime = { version = "2.0.0", path = "iroh-runtime" }
 iroh-blobs = { version = "2.0.0", path = "protocols/iroh-blobs" }
+iroh-gossip = { version = "2.0.0", path = "protocols/iroh-gossip" }
 
 [profile.release]
 debug = true

@@ -10,7 +10,10 @@ cargo-fuzz = true
 [dependencies]
 iroh-dns-server = { path = "../iroh-dns-server", default-features = false, features = ["test-utils"] }
 iroh-relay = { path = "../iroh-relay", default-features = false, features = ["fuzzing"] }
+iroh-base = { path = "../iroh-base", default-features = false, features = ["key"] }
+iroh-gossip = { path = "../protocols/iroh-gossip", default-features = false }
 libfuzzer-sys = "0.4"
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 
 [workspace]
 members = ["."]
@@ -44,6 +47,13 @@ bench = false
 [[bin]]
 name = "config_deserialize"
 path = "fuzz_targets/config_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gossip_message"
+path = "fuzz_targets/gossip_message.rs"
 test = false
 doc = false
 bench = false

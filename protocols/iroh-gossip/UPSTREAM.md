@@ -43,10 +43,8 @@ The dedicated cleanup immediately following the import merge:
 - excludes the standalone crate from the production workspace; and
 - registers the imported state in the architecture and provenance policies.
 
-Source, tests, examples, simulations, changelog, licenses, and the standalone `Cargo.lock` remain.
-The removed files are recoverable from the import merge. The next porting commit may change Rust
-APIs and workspace metadata, but it must first freeze and then preserve the imported protocol
-behavior.
+Source, tests, examples, simulations, changelog, licenses, and the standalone `Cargo.lock` remained
+at the import checkpoint. The removed files are recoverable from the import merge.
 
 ## Import validation
 
@@ -62,3 +60,15 @@ The following checks passed before the cleanup commit was finalized:
   one documentation test; and
 - `cargo test --manifest-path protocols/iroh-gossip/Cargo.toml --locked --features test-utils
   --test sim` passed all four simulator integration tests.
+
+## v2 workspace port
+
+The subsequent port freezes the v0.101 ALPN and postcard encodings, changes the package version and
+workspace metadata to 2.0, replaces Iroh 1.x dependencies with the local v2 crates, joins the root
+workspace, and removes the superseded standalone lockfile. Production code does not retain an
+Iroh 1.x dependency.
+
+The port adds named resource limits for protocol and network state and a live excluded interop
+driver under `compat/iroh-gossip-v0-101-interop`. That driver forms a mixed-version mesh and
+broadcasts in both directions between exact Iroh v1.0.3/upstream gossip v0.101.0 and the local v2
+stack.

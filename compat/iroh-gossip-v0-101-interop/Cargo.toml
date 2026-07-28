@@ -1,0 +1,19 @@
+[package]
+name = "iroh-gossip-v0-101-interop"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[patch.crates-io]
+iroh-noq = { path = "../../vendor/noq-1.1.0" }
+
+[dependencies]
+anyhow = "1"
+iroh-v1 = { package = "iroh", version = "=1.0.3", features = ["tls-ring"] }
+iroh-v2 = { package = "iroh", path = "../../iroh", features = ["tls-ring"] }
+iroh-gossip-v1 = { package = "iroh-gossip", version = "=0.101.0" }
+iroh-gossip-v2 = { package = "iroh-gossip", path = "../../protocols/iroh-gossip" }
+n0-future = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

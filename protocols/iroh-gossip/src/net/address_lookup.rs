@@ -1,13 +1,15 @@
 //! An address lookup service to gather addressing info collected from gossip Join and ForwardJoin messages.
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     sync::{Arc, RwLock},
     time::Duration,
 };
 
-use iroh::address_lookup::{self, AddressLookup, EndpointData, EndpointInfo};
-use iroh_base::EndpointId;
+use iroh::{
+    EndpointId,
+    address_lookup::{self, AddressLookup, EndpointData, EndpointInfo},
+};
 use n0_future::{
     boxed::BoxStream,
     stream::{self, StreamExt},
@@ -118,11 +120,13 @@ impl AddressLookup for GossipAddressLookup {
     ) -> Option<BoxStream<Result<address_lookup::Item, address_lookup::Error>>> {
         let guard = self.endpoints.read().expect("poisoned");
         let info = guard.get(&endpoint_id)?;
-        let last_updated = info
-            .last_updated
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("time drift")
-            .as_micros() as u64;
+        let last_updated = u64::try_from(
+            info.last_updated
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("time drift")
+                .as_micros(),
+        )
+        .unwrap_or(u64::MAX);
         let item = address_lookup::Item::new(
             EndpointInfo::from_parts(endpoint_id, info.data.clone()),
             Self::PROVENANCE,
@@ -136,7 +140,7 @@ impl AddressLookup for GossipAddressLookup {
 mod tests {
     use std::time::Duration;
 
-    use iroh::{address_lookup::AddressLookup, EndpointAddr, SecretKey};
+    use iroh::{EndpointAddr, SecretKey, address_lookup::AddressLookup};
     use n0_future::StreamExt;
     use rand::{RngExt, SeedableRng};
 

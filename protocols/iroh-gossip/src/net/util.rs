@@ -1,31 +1,31 @@
 //! Utilities for iroh-gossip networking
 
 use std::{
-    collections::{hash_map, HashMap},
+    collections::{HashMap, hash_map},
     io,
     time::Duration,
 };
 
 use bytes::{Bytes, BytesMut};
 use iroh::{
-    endpoint::{Connection, RecvStream, SendStream},
     EndpointId,
+    endpoint::{Connection, RecvStream, SendStream},
 };
 use n0_error::{e, stack_error};
 use n0_future::{
-    task::JoinSet,
-    time::{sleep_until, Instant},
     FuturesUnordered, StreamExt,
+    task::JoinSet,
+    time::{Instant, sleep_until},
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::mpsc,
 };
-use tracing::{debug, trace, Instrument};
+use tracing::{Instrument, debug, trace};
 
 use super::{InEvent, ProtoMessage};
-use crate::proto::{util::TimerMap, TopicId};
+use crate::proto::{TopicId, util::TimerMap};
 
 /// Errors related to message writing
 #[allow(missing_docs)]
@@ -120,7 +120,7 @@ impl RecvLoop {
                 _ = &mut closed, if !conn_is_closed => {
                     conn_is_closed = true;
                 }
-                stream = self.conn.accept_uni(), if !conn_is_closed => {
+                stream = self.conn.accept_uni(), if !conn_is_closed && read_futures.len() < crate::limits::MAX_STREAMS_PER_CONNECTION => {
                     let stream = match stream {
                         Ok(stream) => stream,
                         Err(_) => {
@@ -387,7 +387,8 @@ pub async fn write_frame<T: Serialize>(
     buffer.clear();
     buffer.resize(len, 0u8);
     let slice = postcard::to_slice(&message, buffer)?;
-    stream.write_u32(len as u32).await?;
+    let len = u32::try_from(len).map_err(|_| e!(WriteError::TooLarge))?;
+    stream.write_u32(len).await?;
     stream.write_all(slice).await.map_err(io::Error::other)?;
     Ok(())
 }

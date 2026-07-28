@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use comfy_table::{presets::NOTHING, Cell, CellAlignment, Table};
+use comfy_table::{Cell, CellAlignment, Table, presets::NOTHING};
 use iroh_gossip::proto::sim::{
     BootstrapMode, NetworkConfig, RoundStats, RoundStatsAvg, RoundStatsDiff, Simulator,
     SimulatorConfig,
@@ -174,7 +174,7 @@ fn run_and_save_simulation(
         let path = out_dir.as_ref().join(format!("{label}.config.toml"));
         let encoded = toml::to_string(&scenario).std_context("encode scenario")?;
         std::fs::write(&path, encoded)
-            .with_std_context(|_| format!("write scenario {}", &path.display()))?;
+            .with_std_context(|_| format!("write scenario {}", path.display()))?;
     }
 
     let result = run_simulation(seeds, scenario);

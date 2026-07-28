@@ -10,11 +10,11 @@ use std::collections::{HashMap, HashSet};
 
 use derive_more::{From, Sub};
 use n0_future::time::Duration;
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::{util::IndexSet, PeerData, PeerIdentity, PeerInfo, IO};
+use super::{IO, PeerData, PeerIdentity, PeerInfo, util::IndexSet};
 
 /// Input event for HyParView
 #[derive(Debug)]
@@ -433,7 +433,9 @@ where
                     .pick_random_without(&[&sender], &mut self.rng)
                 {
                     None => {
-                        unreachable!("if the peer was not added, there are at least two peers in our active view.");
+                        unreachable!(
+                            "if the peer was not added, there are at least two peers in our active view."
+                        );
                     }
                     Some(next) => {
                         let message = Message::ForwardJoin(ForwardJoin {
@@ -484,20 +486,26 @@ where
     /// > one he received this shuffle message from, and simply forwards the Shuffle request.
     /// > Otherwise, node q accepts the Shuffle request and send back (p.8)
     fn on_shuffle(&mut self, from: PI, shuffle: Shuffle<PI>, io: &mut impl IO<PI>) {
-        if shuffle.ttl.expired() || self.active_view.len() <= 1 {
-            let len = shuffle.nodes.len();
-            for node in shuffle.nodes {
+        let Shuffle {
+            origin,
+            mut nodes,
+            ttl,
+        } = shuffle;
+        nodes.truncate(crate::limits::MAX_SHUFFLE_PEERS);
+        if ttl.expired() || self.active_view.len() <= 1 {
+            let len = nodes.len();
+            for node in nodes {
                 self.add_passive(node.id, node.data, io);
             }
-            self.send_shuffle_reply(shuffle.origin, len, io);
+            self.send_shuffle_reply(origin, len, io);
         } else if let Some(node) = self
             .active_view
-            .pick_random_without(&[&shuffle.origin, &from], &mut self.rng)
+            .pick_random_without(&[&origin, &from], &mut self.rng)
         {
             let message = Message::Shuffle(Shuffle {
-                origin: shuffle.origin,
-                nodes: shuffle.nodes,
-                ttl: shuffle.ttl.next(),
+                origin,
+                nodes,
+                ttl: ttl.next(),
             });
             io.push(OutEvent::SendMessage(*node, message));
         }
@@ -521,7 +529,11 @@ where
     }
 
     fn on_shuffle_reply(&mut self, message: ShuffleReply<PI>, io: &mut impl IO<PI>) {
-        for node in message.nodes {
+        for node in message
+            .nodes
+            .into_iter()
+            .take(crate::limits::MAX_SHUFFLE_PEERS)
+        {
             self.add_passive(node.id, node.data, io);
         }
         self.refill_active_from_passive(&[], io);
@@ -765,7 +777,41 @@ enum RemovalReason {
 
 #[cfg(test)]
 mod wire_compatibility_tests {
+    use std::collections::VecDeque;
+
     use super::*;
+
+    #[test]
+    fn peer_supplied_shuffle_fanout_is_bounded() {
+        let mut state = State::new(0_u64, None, Config::default(), rand::rng());
+        state.active_view.insert(1);
+        state.active_view.insert(2);
+        let nodes = (10_u64..)
+            .take(crate::limits::MAX_SHUFFLE_PEERS + 1)
+            .map(|id| PeerInfo { id, data: None })
+            .collect();
+        let mut io = VecDeque::new();
+        state.handle(
+            InEvent::RecvMessage(
+                1,
+                Message::Shuffle(Shuffle {
+                    origin: 9,
+                    nodes,
+                    ttl: Ttl(2),
+                }),
+            ),
+            &mut io,
+        );
+
+        let forwarded_len = io.into_iter().find_map(|event| match event {
+            super::super::topic::OutEvent::SendMessage(
+                _,
+                super::super::topic::Message::Swarm(Message::Shuffle(shuffle)),
+            ) => Some(shuffle.nodes.len()),
+            _ => None,
+        });
+        assert_eq!(forwarded_len, Some(crate::limits::MAX_SHUFFLE_PEERS));
+    }
 
     #[test]
     fn wire_messages_match_v0_101_0() {

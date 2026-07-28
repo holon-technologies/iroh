@@ -119,7 +119,7 @@ allowed_dev = ["iroh"]
 [[packages]]
 name = "iroh-gossip"
 path = "protocols/iroh-gossip"
-workspace = "excluded"
+workspace = "root"
 layer = "protocol"
-allowed_normal = []
-allowed_dev = []
+allowed_normal = ["iroh", "iroh-base"]
+allowed_dev = ["iroh"]

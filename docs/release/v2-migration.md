@@ -52,6 +52,25 @@ Run `scripts/tests/check-blobs-v0-interop.sh` to exercise a live transfer in bot
 the crates.io v0.103.0 stack and the local v2 port. The driver is an excluded compatibility crate;
 its Iroh 1.x dependencies never enter the production workspace graph.
 
+## Gossip protocol workspace port
+
+`iroh-gossip` v0.101.0 is preserved under `protocols/iroh-gossip` and ported as the private
+workspace crate `iroh-gossip` 2.0. The ALPN remains `/iroh-gossip/1`; topic IDs, HyParView control
+messages, Plumtree payload/control messages, and outer envelopes are frozen by v0.101 byte
+fixtures. The pure membership and broadcast state machines remain independent of endpoint I/O and
+wall-clock scheduling.
+
+The optional network adapter now uses the local v2 `Endpoint` and `Router` directly. Invalid
+configuration has an explicit `Config::validate`/`Builder::try_spawn` path, while `Builder::spawn`
+retains the existing convenience API and reports invalid configuration as a named invariant panic.
+Finite limits cover frames, views, shuffle fanout, topics, subscriptions, pending messages and
+sends, duplicate/payload caches, graft retries, streams, dials, connection handlers, and graceful
+shutdown.
+
+Run `scripts/tests/check-gossip-v0-interop.sh` for a live bidirectional broadcast between crates.io
+`iroh-gossip` v0.101.0 on exact Iroh v1.0.3 and the local v2 port. The compatibility driver is
+excluded from the production workspace so the Iroh 1.x graph cannot enter a release build.
+
 The endpoint implementation is now split behind a narrow `iroh::endpoint` facade. Public endpoint
 imports (`iroh::Endpoint`, `iroh::endpoint::Builder`, connection types, relay status, and lifecycle
 types) are unchanged by that structural move; the new `endpoint::{builder,handle,lifecycle,
