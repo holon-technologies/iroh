@@ -43,12 +43,12 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use iroh::{
-    address_lookup::PkarrResolver,
-    endpoint::{presets, Connection},
-    protocol::{AcceptError, ProtocolHandler, Router},
     Endpoint, EndpointId,
+    address_lookup::PkarrResolver,
+    endpoint::{Connection, presets},
+    protocol::{AcceptError, ProtocolHandler, Router},
 };
-use iroh_blobs::{api::Store, store::mem::MemStore, BlobsProtocol, Hash};
+use iroh_blobs::{BlobsProtocol, Hash, api::Store, store::mem::MemStore};
 mod common;
 use common::{get_or_generate_secret_key, setup_logging};
 

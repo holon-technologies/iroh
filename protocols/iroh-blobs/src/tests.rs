@@ -3,18 +3,19 @@ use std::{collections::HashSet, io, ops::Range, path::PathBuf};
 use bao_tree::ChunkRanges;
 use bytes::Bytes;
 use iroh::{
-    address_lookup::MemoryLookup, endpoint::presets, protocol::Router, Endpoint, EndpointId,
-    RelayMode,
+    Endpoint, EndpointId, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
+    protocol::Router,
 };
 use irpc::RpcMessage;
-use n0_future::{task::AbortOnDropHandle, StreamExt};
+use n0_future::{StreamExt, task::AbortOnDropHandle};
 use tempfile::TempDir;
 use testresult::TestResult;
 use tokio::sync::{mpsc, watch};
 use tracing::info;
 
 use crate::{
-    api::{blobs::Bitfield, Store},
+    BlobFormat, Hash, HashAndFormat,
+    api::{Store, blobs::Bitfield},
     get,
     hashseq::HashSeq,
     net_protocol::BlobsProtocol,
@@ -22,14 +23,13 @@ use crate::{
     provider::events::{AbortReason, EventMask, EventSender, ProviderMessage, RequestUpdate},
     store::{
         fs::{
-            tests::{test_data, INTERESTING_SIZES},
             FsStore,
+            tests::{INTERESTING_SIZES, test_data},
         },
         mem::MemStore,
         util::{observer::Combine, tests::create_n0_bao},
     },
     util::sink::Drain,
-    BlobFormat, Hash, HashAndFormat,
 };
 
 // #[tokio::test]
@@ -774,8 +774,12 @@ async fn test_export_ranges(
         .export_ranges(hash, range.clone())
         .concatenate()
         .await?;
-    let start = (range.start as usize).min(data.len());
-    let end = (range.end as usize).min(data.len());
+    let start = usize::try_from(range.start)
+        .unwrap_or(usize::MAX)
+        .min(data.len());
+    let end = usize::try_from(range.end)
+        .unwrap_or(usize::MAX)
+        .min(data.len());
     assert_eq!(&actual, &data[start..end]);
     Ok(())
 }

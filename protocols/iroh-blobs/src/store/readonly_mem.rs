@@ -13,13 +13,13 @@ use std::{
 };
 
 use bao_tree::{
+    BaoTree, ChunkRanges,
     io::{
-        mixed::{traverse_ranges_validated, EncodedItem, ReadBytesAt},
+        Leaf,
+        mixed::{EncodedItem, ReadBytesAt, traverse_ranges_validated},
         outboard::PreOrderMemOutboard,
         sync::ReadAt,
-        Leaf,
     },
-    BaoTree, ChunkRanges,
 };
 use bytes::Bytes;
 use irpc::channel::mpsc;
@@ -32,8 +32,9 @@ use ref_cast::RefCast;
 
 use super::util::BaoTreeSender;
 use crate::{
+    Hash,
     api::{
-        self,
+        self, ApiClient, TempTag,
         blobs::{Bitfield, ExportProgressItem},
         proto::{
             self, BlobStatus, Command, ExportBaoMsg, ExportBaoRequest, ExportPathMsg,
@@ -41,11 +42,10 @@ use crate::{
             ImportBaoMsg, ImportByteStreamMsg, ImportBytesMsg, ImportPathMsg, ObserveMsg,
             ObserveRequest, WaitIdleMsg,
         },
-        ApiClient, TempTag,
     },
+    limits::{MAX_CONCURRENT_STORE_TASKS, STORE_COMMAND_QUEUE_CAPACITY},
     protocol::ChunkRangesExt,
-    store::{mem::CompleteStorage, IROH_BLOCK_SIZE},
-    Hash,
+    store::{IROH_BLOCK_SIZE, mem::CompleteStorage},
 };
 
 #[derive(Debug, Clone)]
@@ -241,7 +241,7 @@ impl Actor {
     async fn run(mut self) {
         loop {
             tokio::select! {
-                Some(cmd) = self.commands.recv() => {
+                Some(cmd) = self.commands.recv(), if self.tasks.len() < MAX_CONCURRENT_STORE_TASKS => {
                     if let Some(shutdown) = self.handle_command(cmd).await {
                         shutdown.send(()).await.ok();
                         break;
@@ -345,7 +345,12 @@ async fn export_ranges_impl(
         let mut offset = range.start;
         loop {
             let end: u64 = (offset + bs).min(range.end);
-            let size = (end - offset) as usize;
+            let size = usize::try_from(end - offset).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "export range exceeds address space",
+                )
+            })?;
             tx.send(
                 Leaf {
                     offset,
@@ -371,7 +376,7 @@ impl ReadonlyMemStore {
             let (hash, entry) = CompleteStorage::create(data);
             entries.insert(hash, entry);
         }
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
+        let (sender, receiver) = tokio::sync::mpsc::channel(STORE_COMMAND_QUEUE_CAPACITY);
         let actor = Actor::new(receiver, entries);
         n0_future::task::spawn(actor.run());
         let local = irpc::LocalSender::from(sender);
@@ -410,7 +415,8 @@ async fn export_path_impl(
     tx.send(ExportProgressItem::Size(size)).await?;
     let mut buf = [0u8; 1024 * 64];
     for offset in (0..size).step_by(1024 * 64) {
-        let len = std::cmp::min(size - offset, 1024 * 64) as usize;
+        let len = usize::try_from(std::cmp::min(size - offset, 1024 * 64))
+            .expect("export blocks are at most 64 KiB");
         let buf = &mut buf[..len];
         data.as_ref().read_exact_at(offset, buf)?;
         file.write_all(buf)?;

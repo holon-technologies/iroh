@@ -123,6 +123,33 @@ class ArchitecturePolicyFixtures(unittest.TestCase):
 
 
 class ProvenancePolicyFixtures(unittest.TestCase):
+    def test_workspace_inherited_license_is_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["protocols/iroh-blobs"]\n'
+                '[workspace.package]\nlicense = "MIT OR Apache-2.0"\n'
+            )
+            prefix = root / "protocols" / "iroh-blobs"
+            prefix.mkdir(parents=True)
+            (prefix / "Cargo.toml").write_text(
+                '[package]\nname = "iroh-blobs"\nversion = "2.0.0"\n'
+                "license.workspace = true\n"
+            )
+            (prefix / "UPSTREAM.md").write_text("# Upstream\n")
+            (prefix / "LICENSE-MIT").write_text("MIT\n")
+            (prefix / "LICENSE-APACHE").write_text("Apache-2.0\n")
+
+            failures = provenance.validate_baselines(
+                {
+                    "schema_version": 1,
+                    "baselines": [baseline(state="ported")],
+                },
+                root,
+            )
+
+        self.assertEqual(failures, [])
+
     def test_floating_source_ref_is_rejected(self) -> None:
         failures = provenance.validate_baselines(
             {"schema_version": 1, "baselines": [baseline(tag="main")]},

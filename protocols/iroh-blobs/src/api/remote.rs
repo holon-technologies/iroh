@@ -9,43 +9,43 @@ use std::{
 };
 
 use bao_tree::{
-    io::{BaoContentItem, Leaf},
     ChunkNum, ChunkRanges,
+    io::{BaoContentItem, Leaf},
 };
 use genawaiter::sync::{Co, Gen};
 use iroh::endpoint::Connection;
 use irpc::util::{AsyncReadVarintExt, WriteVarintExt};
-use n0_error::{e, stack_error, AnyError, Result, StdResultExt};
-use n0_future::{io, Stream, StreamExt};
+use n0_error::{AnyError, Result, StdResultExt, e, stack_error};
+use n0_future::{Stream, StreamExt, io};
 use ref_cast::RefCast;
 use tracing::{debug, trace};
 
 use super::blobs::{Bitfield, ExportBaoOptions};
 use crate::{
+    Hash, HashAndFormat,
     api::{
-        self,
+        self, ApiClient, Store,
         blobs::{Blobs, WriteProgress},
-        ApiClient, Store,
     },
     get::{
+        GetError, GetResult, Stats, StreamPair,
         fsm::{
             AtBlobHeader, AtConnected, AtEndBlob, BlobContentNext, ConnectedNext, DecodeError,
             EndBlobNext,
         },
-        GetError, GetResult, Stats, StreamPair,
     },
     hashseq::{HashSeq, HashSeqIter},
+    limits::PROGRESS_QUEUE_CAPACITY,
     protocol::{
-        ChunkRangesSeq, GetManyRequest, GetRequest, ObserveItem, ObserveRequest, PushRequest,
-        Request, RequestType, MAX_MESSAGE_SIZE,
+        ChunkRangesSeq, GetManyRequest, GetRequest, MAX_MESSAGE_SIZE, ObserveItem, ObserveRequest,
+        PushRequest, Request, RequestType,
     },
     provider::events::{ClientResult, ProgressError},
     store::IROH_BLOCK_SIZE,
     util::{
-        sink::{Sink, TokioMpscSenderSink},
         RecvStream, SendStream,
+        sink::{Sink, TokioMpscSenderSink},
     },
-    Hash, HashAndFormat,
 };
 
 /// API to compute request and to download from remote nodes.
@@ -100,8 +100,11 @@ impl TryFrom<GetProgressItem> for GetResult<Stats> {
     }
 }
 
+#[derive(derive_more::Debug)]
 pub struct GetProgress {
+    #[debug(skip)]
     rx: tokio::sync::mpsc::Receiver<GetProgressItem>,
+    #[debug(skip)]
     fut: n0_future::boxed::BoxFuture<()>,
 }
 
@@ -160,8 +163,11 @@ impl TryFrom<PushProgressItem> for Result<Stats> {
     }
 }
 
+#[derive(derive_more::Debug)]
 pub struct PushProgress {
+    #[debug(skip)]
     rx: tokio::sync::mpsc::Receiver<PushProgressItem>,
+    #[debug(skip)]
     fut: n0_future::boxed::BoxFuture<()>,
 }
 
@@ -324,11 +330,11 @@ impl LocalInfo {
                         return false;
                     }
                 } else {
-                    if let Some(max_child) = max_child {
-                        if child >= max_child {
-                            // reading after the end of the request
-                            return true;
-                        }
+                    if let Some(max_child) = max_child
+                        && child >= max_child
+                    {
+                        // reading after the end of the request
+                        return true;
                     }
                     return false;
                 }
@@ -499,7 +505,7 @@ impl Remote {
         content: impl Into<HashAndFormat>,
     ) -> GetProgress {
         let content = content.into();
-        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let (tx, rx) = tokio::sync::mpsc::channel(PROGRESS_QUEUE_CAPACITY);
         let tx2 = tx.clone();
         let sink = TokioMpscSenderSink(tx).with_map(GetProgressItem::Progress);
         let this = self.clone();
@@ -571,7 +577,7 @@ impl Remote {
     }
 
     pub fn execute_push(&self, conn: Connection, request: PushRequest) -> PushProgress {
-        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let (tx, rx) = tokio::sync::mpsc::channel(PROGRESS_QUEUE_CAPACITY);
         let tx2 = tx.clone();
         let sink = TokioMpscSenderSink(tx).with_map(PushProgressItem::Progress);
         let this = self.clone();
@@ -644,7 +650,7 @@ impl Remote {
         conn: impl GetStreamPair,
         request: GetRequest,
     ) -> GetProgress {
-        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let (tx, rx) = tokio::sync::mpsc::channel(PROGRESS_QUEUE_CAPACITY);
         let tx2 = tx.clone();
         let sink = TokioMpscSenderSink(tx).with_map(GetProgressItem::Progress);
         let this = self.clone();
@@ -720,7 +726,8 @@ impl Remote {
                         Err(at_closing) => break at_closing,
                     };
                     let offset = at_start_child.offset() - 1;
-                    let Some(hash) = hash_seq.get(offset as usize) else {
+                    let Some(hash) = hash_seq.get(usize::try_from(offset).unwrap_or(usize::MAX))
+                    else {
                         break at_start_child.finish();
                     };
                     trace!("getting child {offset} {}", hash.fmt_short());
@@ -744,7 +751,7 @@ impl Remote {
     }
 
     pub fn execute_get_many(&self, conn: Connection, request: GetManyRequest) -> GetProgress {
-        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let (tx, rx) = tokio::sync::mpsc::channel(PROGRESS_QUEUE_CAPACITY);
         let tx2 = tx.clone();
         let sink = TokioMpscSenderSink(tx).with_map(GetProgressItem::Progress);
         let this = self.clone();
@@ -785,7 +792,8 @@ impl Remote {
                         Err(at_closing) => break at_closing,
                     };
                     let offset = at_start_child.offset();
-                    let Some(hash) = hash_seq.get(offset as usize) else {
+                    let Some(hash) = hash_seq.get(usize::try_from(offset).unwrap_or(usize::MAX))
+                    else {
                         break at_start_child.finish();
                     };
                     trace!("getting child {offset} {}", hash.fmt_short());
@@ -987,7 +995,7 @@ impl HashSeqChunk {
         let start = self.offset;
         let end = start + self.chunk.len() as u64;
         if offset >= start && offset < end {
-            let o = (offset - start) as usize;
+            let o = usize::try_from(offset - start).unwrap_or(usize::MAX);
             self.chunk.get(o)
         } else {
             None
@@ -1017,10 +1025,10 @@ impl LazyHashSeq {
     #[allow(dead_code)]
     pub async fn get(&mut self, child_offset: u64) -> Result<Option<Hash>> {
         // check if we have the hash in the current chunk
-        if let Some(chunk) = &self.current_chunk {
-            if let Some(hash) = chunk.get(child_offset) {
-                return Ok(Some(hash));
-            }
+        if let Some(chunk) = &self.current_chunk
+            && let Some(hash) = chunk.get(child_offset)
+        {
+            return Ok(Some(hash));
         }
         // load the chunk covering the offset
         let leaf = self
@@ -1096,8 +1104,8 @@ mod tests {
         protocol::{ChunkRangesExt, ChunkRangesSeq, GetRequest},
         store::{
             fs::{
-                tests::{test_data, INTERESTING_SIZES},
                 FsStore,
+                tests::{INTERESTING_SIZES, test_data},
             },
             mem::MemStore,
             util::tests::create_n0_bao,

@@ -17,14 +17,13 @@ use std::{
 };
 
 use bao_tree::{
-    blake3,
+    BaoTree, ChunkNum, ChunkRanges, TreeNode, blake3,
     io::{
-        mixed::{traverse_ranges_validated, EncodedItem, ReadBytesAt},
+        BaoContentItem, EncodeError, Leaf,
+        mixed::{EncodedItem, ReadBytesAt, traverse_ranges_validated},
         outboard::PreOrderMemOutboard,
         sync::{Outboard, ReadAt, WriteAt},
-        BaoContentItem, EncodeError, Leaf,
     },
-    BaoTree, ChunkNum, ChunkRanges, TreeNode,
 };
 use bytes::Bytes;
 use irpc::channel::mpsc;
@@ -36,12 +35,13 @@ use n0_future::{
 };
 use range_collections::range_set::RangeSetRange;
 use tokio::sync::watch;
-use tracing::{error, info, instrument, trace, Instrument};
+use tracing::{Instrument, error, info, instrument, trace};
 
 use super::util::{BaoTreeSender, PartialMemStorage};
 use crate::{
+    BlobFormat, Hash, HashAndFormat,
     api::{
-        self,
+        self, ApiClient,
         blobs::{AddProgressItem, Bitfield, BlobStatus, ExportProgressItem},
         proto::{
             BatchMsg, BatchResponse, BlobDeleteRequest, BlobStatusMsg, BlobStatusRequest, Command,
@@ -54,16 +54,15 @@ use crate::{
             SetTagRequest, ShutdownMsg, SyncDbMsg, WaitIdleMsg,
         },
         tags::TagInfo,
-        ApiClient,
     },
+    limits::{MAX_CONCURRENT_IMPORTS, MAX_CONCURRENT_STORE_TASKS, STORE_COMMAND_QUEUE_CAPACITY},
     protocol::ChunkRangesExt,
     store::{
-        gc::{run_gc, GcConfig},
-        util::{SizeInfo, SparseMemFile, Tag},
         IROH_BLOCK_SIZE,
+        gc::{GcConfig, run_gc},
+        util::{SizeInfo, SparseMemFile, Tag},
     },
     util::temp_tag::{TagDrop, TempTagScope, TempTags},
-    BlobFormat, Hash, HashAndFormat,
 };
 
 #[derive(Debug, Default)]
@@ -120,7 +119,7 @@ impl MemStore {
     }
 
     pub fn new_with_opts(opts: Options) -> Self {
-        let (sender, receiver) = tokio::sync::mpsc::channel(32);
+        let (sender, receiver) = tokio::sync::mpsc::channel(STORE_COMMAND_QUEUE_CAPACITY);
         n0_future::task::spawn(
             Actor {
                 commands: receiver,
@@ -134,6 +133,7 @@ impl MemStore {
                 temp_tags: Default::default(),
                 protected: Default::default(),
                 idle_waiters: Default::default(),
+                import_admission: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_IMPORTS)),
             }
             .run(),
         );
@@ -158,6 +158,7 @@ struct Actor {
     // idle waiters
     idle_waiters: Vec<irpc::channel::oneshot::Sender<()>>,
     protected: HashSet<Hash>,
+    import_admission: Arc<tokio::sync::Semaphore>,
 }
 
 impl Actor {
@@ -171,6 +172,21 @@ impl Actor {
         self.tasks.spawn(fut);
     }
 
+    fn spawn_import<F, T>(&mut self, f: F)
+    where
+        F: Future<Output = T> + Send + 'static,
+        T: Into<TaskResult>,
+    {
+        let admission = self.import_admission.clone();
+        self.spawn(async move {
+            let Ok(_permit) = admission.acquire_owned().await else {
+                return TaskResult::Unit(());
+            };
+            let result: TaskResult = f.await.into();
+            result
+        });
+    }
+
     async fn handle_command(&mut self, cmd: Command) -> Option<ShutdownMsg> {
         match cmd {
             Command::ImportBao(ImportBaoMsg {
@@ -180,7 +196,7 @@ impl Actor {
                 ..
             }) => {
                 let entry = self.get_or_create_entry(hash);
-                self.spawn(import_bao(entry, size, data, tx));
+                self.spawn_import(import_bao(entry, size, data, tx));
             }
             Command::WaitIdle(WaitIdleMsg { tx, .. }) => {
                 trace!("wait idle");
@@ -211,13 +227,13 @@ impl Actor {
                 tx,
                 ..
             }) => {
-                self.spawn(import_bytes(data, scope, format, tx));
+                self.spawn_import(import_bytes(data, scope, format, tx));
             }
             Command::ImportByteStream(ImportByteStreamMsg { inner, tx, rx, .. }) => {
-                self.spawn(import_byte_stream(inner.scope, inner.format, rx, tx));
+                self.spawn_import(import_byte_stream(inner.scope, inner.format, rx, tx));
             }
             Command::ImportPath(cmd) => {
-                self.spawn(import_path(cmd));
+                self.spawn_import(import_path(cmd));
             }
             Command::ExportBao(ExportBaoMsg {
                 inner: ExportBaoRequest { hash, ranges },
@@ -242,15 +258,15 @@ impl Actor {
                 // todo: more efficient impl
                 let mut deleted = 0;
                 self.state.tags.retain(|tag, _| {
-                    if let Some(from) = &from {
-                        if tag < from {
-                            return true;
-                        }
+                    if let Some(from) = &from
+                        && tag < from
+                    {
+                        return true;
                     }
-                    if let Some(to) = &to {
-                        if tag >= to {
-                            return true;
-                        }
+                    if let Some(to) = &to
+                        && tag >= to
+                    {
+                        return true;
                     }
                     info!("    removing {:?}", tag);
                     deleted += 1;
@@ -298,15 +314,15 @@ impl Actor {
                     .tags
                     .iter()
                     .filter(move |(tag, value)| {
-                        if let Some(from) = &from {
-                            if tag < &from {
-                                return false;
-                            }
+                        if let Some(from) = &from
+                            && tag < &from
+                        {
+                            return false;
                         }
-                        if let Some(to) = &to {
-                            if tag >= &to {
-                                return false;
-                            }
+                        if let Some(to) = &to
+                            && tag >= &to
+                        {
+                            return false;
                         }
                         raw && value.format.is_raw() || hash_seq && value.format.is_hash_seq()
                     })
@@ -494,7 +510,7 @@ impl Actor {
     pub async fn run(mut self) {
         let shutdown = loop {
             tokio::select! {
-                cmd = self.commands.recv() => {
+                cmd = self.commands.recv(), if self.tasks.len() < MAX_CONCURRENT_STORE_TASKS => {
                     let Some(cmd) = cmd else {
                         // last sender has been dropped.
                         // exit immediately.
@@ -595,7 +611,12 @@ async fn export_ranges_impl(
         let mut offset = range.start;
         loop {
             let end: u64 = (offset + bs).min(range.end);
-            let size = (end - offset) as usize;
+            let size = usize::try_from(end - offset).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "export range exceeds address space",
+                )
+            })?;
             tx.send(
                 Leaf {
                     offset,
@@ -832,7 +853,8 @@ async fn export_path_impl(
     tx.send(ExportProgressItem::Size(size)).await?;
     let mut buf = [0u8; 1024 * 64];
     for offset in (0..size).step_by(1024 * 64) {
-        let len = std::cmp::min(size - offset, 1024 * 64) as usize;
+        let len = usize::try_from(std::cmp::min(size - offset, 1024 * 64))
+            .expect("export blocks are at most 64 KiB");
         let buf = &mut buf[..len];
         entry.0.state.borrow().data().read_exact_at(offset, buf)?;
         file.write_all(buf)?;
@@ -851,15 +873,17 @@ struct ImportEntry {
     tx: mpsc::Sender<AddProgressItem>,
 }
 
+#[derive(Debug)]
 pub struct DataReader(BaoFileHandle);
 
 impl ReadBytesAt for DataReader {
     fn read_bytes_at(&self, offset: u64, size: usize) -> std::io::Result<Bytes> {
-        let entry = self.0 .0.state.borrow();
+        let entry = self.0.0.state.borrow();
         entry.data().read_bytes_at(offset, size)
     }
 }
 
+#[derive(Debug)]
 pub struct OutboardReader {
     hash: blake3::Hash,
     tree: BaoTree,
@@ -1032,6 +1056,7 @@ fn print_outboard(hashes: &[u8]) {
     }
 }
 
+#[derive(Debug)]
 pub struct BaoFileStorageSubscriber {
     receiver: watch::Receiver<BaoFileStorage>,
 }

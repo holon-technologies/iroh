@@ -378,22 +378,28 @@ use std::{
     ops::{Bound, RangeBounds},
 };
 
-use bao_tree::{io::round_up_to_chunks, ChunkNum};
+use bao_tree::{ChunkNum, io::round_up_to_chunks};
 use builder::GetRequestBuilder;
 use derive_more::From;
 use iroh::endpoint::VarInt;
 use postcard::experimental::max_size::MaxSize;
-use range_collections::{range_set::RangeSetEntry, RangeSet2};
+use range_collections::{RangeSet2, range_set::RangeSetEntry};
 use serde::{Deserialize, Serialize};
 mod range_spec;
 pub use bao_tree::ChunkRanges;
 use n0_error::stack_error;
 pub use range_spec::{ChunkRangesSeq, NonEmptyRequestRangeSpecIter, RangeSpec};
 
-use crate::{api::blobs::Bitfield, util::RecvStreamExt, BlobFormat, Hash, HashAndFormat};
+use crate::{BlobFormat, Hash, HashAndFormat, api::blobs::Bitfield, util::RecvStreamExt};
 
-/// Maximum message size is limited to 100MiB for now.
+/// Maximum encoded request size accepted from the network (1 MiB).
 pub const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
+/// Maximum number of hashes accepted in one [`GetManyRequest`].
+pub const MAX_BLOBS_PER_REQUEST: usize = 4_096;
+/// Maximum number of range changes accepted across a request.
+pub const MAX_RANGE_TRANSITIONS: usize = 4_096;
+/// Maximum number of selected/unselected boundaries accepted for one blob.
+pub const MAX_RANGE_BOUNDARIES_PER_BLOB: usize = 4_096;
 
 /// Error code for a permission error
 pub const ERR_PERMISSION: VarInt = VarInt::from_u32(1u32);
@@ -446,6 +452,25 @@ pub enum RequestType {
 }
 
 impl Request {
+    /// Validate resource dimensions that are not fully constrained by the encoded byte limit.
+    pub fn validate(&self) -> io::Result<()> {
+        let invalid = |message| io::Error::new(io::ErrorKind::InvalidData, message);
+        match self {
+            Self::Get(request) => request.ranges.validate(),
+            Self::GetMany(request) => {
+                if request.hashes.len() > MAX_BLOBS_PER_REQUEST {
+                    return Err(invalid("get-many request contains too many hashes"));
+                }
+                request.ranges.validate()
+            }
+            Self::Observe(request) => request.ranges.validate(),
+            Self::Push(request) => request.ranges.validate(),
+            Self::Slot2 | Self::Slot3 | Self::Slot4 | Self::Slot5 | Self::Slot6 | Self::Slot7 => {
+                Err(invalid("reserved request type"))
+            }
+        }
+    }
+
     pub async fn read_async<R: crate::util::RecvStream>(
         reader: &mut R,
     ) -> io::Result<(Self, usize)> {
@@ -457,7 +482,7 @@ impl Request {
                 "failed to deserialize request type",
             )
         })?;
-        Ok(match request_type {
+        let (request, size): (Request, usize) = match request_type {
             RequestType::Get => {
                 let (r, size) = reader
                     .read_to_end_as::<GetRequest>(MAX_MESSAGE_SIZE)
@@ -489,7 +514,25 @@ impl Request {
                     "failed to deserialize request type",
                 ));
             }
-        })
+        };
+        request.validate()?;
+        Ok((request, size))
+    }
+}
+
+#[cfg(test)]
+mod request_limit_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_too_many_get_many_hashes() {
+        const TEST_LIMIT: usize = 4_096;
+        let request = Request::GetMany(GetManyRequest::new(
+            vec![Hash::EMPTY; TEST_LIMIT + 1],
+            ChunkRangesSeq::all(),
+        ));
+
+        assert!(request.validate().is_err());
     }
 }
 
@@ -796,8 +839,8 @@ pub mod builder {
 
     use super::ChunkRangesSeq;
     use crate::{
-        protocol::{GetManyRequest, GetRequest},
         Hash,
+        protocol::{GetManyRequest, GetRequest},
     };
 
     #[derive(Debug, Clone, Default)]

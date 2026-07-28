@@ -19,22 +19,23 @@ use std::{
 };
 
 use bao_tree::{
-    io::outboard::{PreOrderMemOutboard, PreOrderOutboard},
     BaoTree, ChunkNum,
+    io::outboard::{PreOrderMemOutboard, PreOrderOutboard},
 };
 use bytes::Bytes;
 use genawaiter::sync::Gen;
 use irpc::{
-    channel::{mpsc, none::NoReceiver},
     Channels, WithChannels,
+    channel::{mpsc, none::NoReceiver},
 };
-use n0_future::{stream, Stream, StreamExt};
+use n0_future::{Stream, StreamExt, stream};
 use ref_cast::RefCast;
 use smallvec::SmallVec;
 use tracing::{instrument, trace};
 
-use super::{meta::raw_outboard_size, options::Options, TaskContext};
+use super::{TaskContext, meta::raw_outboard_size, options::Options};
 use crate::{
+    BlobFormat, Hash,
     api::{
         blobs::{AddProgressItem, ImportMode},
         proto::{
@@ -43,12 +44,11 @@ use crate::{
         },
     },
     store::{
-        fs::reflink_or_copy_with_progress,
-        util::{MemOrFile, DD},
         IROH_BLOCK_SIZE,
+        fs::reflink_or_copy_with_progress,
+        util::{DD, MemOrFile},
     },
     util::{outboard_with_progress::init_outboard, sink::Sink},
-    BlobFormat, Hash,
 };
 
 /// An import source.
@@ -513,12 +513,16 @@ mod tests {
     }
 
     fn assert_expected_progress(progress: &[AddProgressItem]) {
-        assert!(progress
-            .iter()
-            .any(|x| matches!(&x, AddProgressItem::Size { .. })));
-        assert!(progress
-            .iter()
-            .any(|x| matches!(&x, AddProgressItem::CopyDone)));
+        assert!(
+            progress
+                .iter()
+                .any(|x| matches!(&x, AddProgressItem::Size { .. }))
+        );
+        assert!(
+            progress
+                .iter()
+                .any(|x| matches!(&x, AddProgressItem::CopyDone))
+        );
     }
 
     fn chunk_bytes(data: Bytes, chunk_size: usize) -> impl Iterator<Item = Bytes> {

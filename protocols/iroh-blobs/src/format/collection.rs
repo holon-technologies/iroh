@@ -8,11 +8,11 @@ use n0_error::{Result, StdResultExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{blobs::AddBytesOptions, Store},
-    get::{fsm, Stats},
+    BlobFormat, Hash,
+    api::{Store, blobs::AddBytesOptions},
+    get::{Stats, fsm},
     hashseq::HashSeq,
     util::temp_tag::TempTag,
-    BlobFormat, Hash,
 };
 
 /// A collection of blobs
@@ -325,13 +325,8 @@ mod tests {
 
     #[tokio::test]
     async fn collection_store_load() -> testresult::TestResult {
-        let collection = (0..3)
-            .map(|i| {
-                (
-                    format!("blob{i}"),
-                    crate::Hash::from(blake3::hash(&[i as u8])),
-                )
-            })
+        let collection = (0_u8..3)
+            .map(|i| (format!("blob{i}"), crate::Hash::from(blake3::hash(&[i]))))
             .collect::<Collection>();
         let mut root = None;
         let store = collection

@@ -44,14 +44,21 @@ use iroh::{
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use tracing::error;
+use tokio::sync::Semaphore;
+use tracing::{error, warn};
 
-use crate::{api::Store, provider::events::EventSender};
+use crate::{
+    api::Store,
+    limits::{GRACEFUL_SHUTDOWN_TIMEOUT, MAX_CONCURRENT_PROVIDER_CONNECTIONS},
+    protocol::ERR_LIMIT,
+    provider::events::EventSender,
+};
 
 #[derive(Debug)]
 pub(crate) struct BlobsInner {
     store: Store,
     events: EventSender,
+    provider_admission: Arc<Semaphore>,
 }
 
 /// A protocol handler for the blobs protocol.
@@ -74,6 +81,7 @@ impl BlobsProtocol {
             inner: Arc::new(BlobsInner {
                 store: store.clone(),
                 events: events.unwrap_or(EventSender::DEFAULT),
+                provider_admission: Arc::new(Semaphore::new(MAX_CONCURRENT_PROVIDER_CONNECTIONS)),
             }),
         }
     }
@@ -85,6 +93,11 @@ impl BlobsProtocol {
 
 impl ProtocolHandler for BlobsProtocol {
     async fn accept(&self, conn: Connection) -> std::result::Result<(), AcceptError> {
+        let Ok(_permit) = self.inner.provider_admission.clone().try_acquire_owned() else {
+            warn!("rejecting blob connection: provider concurrency limit reached");
+            conn.close(ERR_LIMIT, b"provider concurrency limit reached");
+            return Ok(());
+        };
         let store = self.store().clone();
         let events = self.inner.events.clone();
         crate::provider::handle_connection(conn, store, events).await;
@@ -92,8 +105,13 @@ impl ProtocolHandler for BlobsProtocol {
     }
 
     async fn shutdown(&self) {
-        if let Err(cause) = self.store().shutdown().await {
-            error!("error shutting down store: {:?}", cause);
+        match tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, self.store().shutdown()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(cause)) => error!("error shutting down store: {cause:?}"),
+            Err(_) => error!(
+                timeout = ?GRACEFUL_SHUTDOWN_TIMEOUT,
+                "timed out shutting down blob store"
+            ),
         }
     }
 }

@@ -7,7 +7,7 @@ use n0_future::time::SystemTime;
 
 mod sparse_mem_file;
 use irpc::channel::mpsc;
-use range_collections::{range_set::RangeSetEntry, RangeSetRef};
+use range_collections::{RangeSetRef, range_set::RangeSetEntry};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 pub use sparse_mem_file::SparseMemFile;
@@ -128,7 +128,7 @@ impl fmt::Debug for Tag {
 
 pub(crate) fn limited_range(offset: u64, len: usize, buf_len: usize) -> std::ops::Range<usize> {
     if offset < buf_len as u64 {
-        let start = offset as usize;
+        let start = usize::try_from(offset).unwrap_or(usize::MAX);
         let end = start.saturating_add(len).min(buf_len);
         start..end
     } else {
@@ -171,7 +171,7 @@ mod fs {
 
     use arrayvec::ArrayString;
     use bao_tree::blake3;
-    use serde::{de::DeserializeOwned, Serialize};
+    use serde::{Serialize, de::DeserializeOwned};
 
     mod redb_support {
         use bytes::Bytes;
@@ -417,7 +417,7 @@ impl bao_tree::io::mixed::Sender for BaoTreeSender {
 #[cfg(test)]
 #[cfg(feature = "fs-store")]
 pub mod tests {
-    use bao_tree::{io::outboard::PreOrderMemOutboard, ChunkRanges};
+    use bao_tree::{ChunkRanges, io::outboard::PreOrderMemOutboard};
     use n0_error::{Result, StdResultExt};
 
     use crate::{hash::Hash, store::IROH_BLOCK_SIZE};

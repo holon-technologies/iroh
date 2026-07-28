@@ -15,19 +15,19 @@ use std::{
 
 pub use bao_tree::io::mixed::EncodedItem;
 use bao_tree::{
-    io::{
-        fsm::{ResponseDecoder, ResponseDecoderNext},
-        BaoContentItem, Leaf,
-    },
     BaoTree, ChunkNum, ChunkRanges,
+    io::{
+        BaoContentItem, Leaf,
+        fsm::{ResponseDecoder, ResponseDecoderNext},
+    },
 };
 use bytes::Bytes;
 use genawaiter::sync::Gen;
 use iroh_io::AsyncStreamWriter;
 use irpc::channel::{mpsc, oneshot};
 use n0_error::AnyError;
-use n0_future::{future, stream, Stream, StreamExt};
-use range_collections::{range_set::RangeSetRange, RangeSet2};
+use n0_future::{Stream, StreamExt, future, stream};
+use range_collections::{RangeSet2, range_set::RangeSetRange};
 use ref_cast::RefCast;
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -45,6 +45,7 @@ pub use super::proto::{
     ImportBaoRequest as ImportBaoOptions, ImportMode, ObserveRequest as ObserveOptions,
 };
 use super::{
+    ApiClient, RequestResult, Tags,
     proto::{
         BatchResponse, BlobStatusRequest, ClearProtectedRequest, CreateTempTagRequest,
         ExportBaoRequest, ExportRangesItem, ImportBaoRequest, ImportByteStreamRequest,
@@ -52,14 +53,14 @@ use super::{
     },
     remote::HashSeqChunk,
     tags::TagInfo,
-    ApiClient, RequestResult, Tags,
 };
 use crate::{
+    BlobFormat, Hash, HashAndFormat,
     api::proto::{BatchRequest, ImportByteStreamUpdate},
+    limits::{IMPORT_STREAM_QUEUE_CAPACITY, SINGLE_RESPONSE_QUEUE_CAPACITY},
     provider::events::ClientResult,
     store::IROH_BLOCK_SIZE,
-    util::{temp_tag::TempTag, RecvStreamAsyncStreamReader},
-    BlobFormat, Hash, HashAndFormat,
+    util::{RecvStreamAsyncStreamReader, temp_tag::TempTag},
 };
 
 /// Options for adding bytes.
@@ -270,6 +271,10 @@ impl Blobs {
         })
     }
 
+    #[allow(
+        clippy::unused_async,
+        reason = "preserves the v0.103 public API while the returned stream owns the async work"
+    )]
     pub async fn add_stream(
         &self,
         data: impl Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
@@ -280,7 +285,14 @@ impl Blobs {
         };
         let client = self.client.clone();
         let stream = Gen::new(|co| async move {
-            let (sender, mut receiver) = match client.bidi_streaming(inner, 32, 32).await {
+            let (sender, mut receiver) = match client
+                .bidi_streaming(
+                    inner,
+                    IMPORT_STREAM_QUEUE_CAPACITY,
+                    IMPORT_STREAM_QUEUE_CAPACITY,
+                )
+                .await
+            {
                 Ok(x) => x,
                 Err(cause) => {
                     co.yield_(AddProgressItem::Error(cause.into())).await;
@@ -393,7 +405,7 @@ impl Blobs {
         trace!("{:?}", options);
         if options.hash == Hash::EMPTY {
             return ObserveProgress::new(async move {
-                let (tx, rx) = mpsc::channel(1);
+                let (tx, rx) = mpsc::channel(SINGLE_RESPONSE_QUEUE_CAPACITY);
                 tx.send(Bitfield::complete(0)).await.ok();
                 Ok(rx)
             });
@@ -530,6 +542,7 @@ impl Blobs {
 }
 
 /// A progress handle for a batch scoped add operation.
+#[derive(Debug)]
 pub struct BatchAddProgress<'a>(AddProgress<'a>);
 
 impl<'a> IntoFuture for BatchAddProgress<'a> {
@@ -551,6 +564,10 @@ impl<'a> BatchAddProgress<'a> {
         self.0.with_tag().await
     }
 
+    #[allow(
+        clippy::unused_async,
+        reason = "preserves the v0.103 public API for progress handles"
+    )]
     pub async fn stream(self) -> impl Stream<Item = AddProgressItem> {
         self.0.stream().await
     }
@@ -591,9 +608,13 @@ impl<'a> BatchAddProgress<'a> {
 /// # Ok(())
 /// # }
 /// ```
+#[derive(derive_more::Debug)]
 pub struct Batch<'a> {
+    #[debug(skip)]
     scope: Scope,
+    #[debug(skip)]
     blobs: &'a Blobs,
+    #[debug(skip)]
     _tx: mpsc::Sender<BatchResponse>,
 }
 
@@ -669,8 +690,11 @@ pub struct AddPathOptions {
 /// contains the hash of the added content and also protects the content.
 ///
 /// If you want access to the stream, you can use the [`AddProgress::stream`] method.
+#[derive(derive_more::Debug)]
 pub struct AddProgress<'a> {
+    #[debug(skip)]
     blobs: &'a Blobs,
+    #[debug(skip)]
     inner: stream::Boxed<AddProgressItem>,
 }
 
@@ -725,6 +749,10 @@ impl<'a> AddProgress<'a> {
         Ok(TagInfo { name, hash, format })
     }
 
+    #[allow(
+        clippy::unused_async,
+        reason = "preserves the v0.103 public API for progress handles"
+    )]
     pub async fn stream(self) -> impl Stream<Item = AddProgressItem> {
         self.inner
     }
@@ -740,7 +768,9 @@ pub struct ReaderOptions {
 ///
 /// Calling [`ObserveProgress::stream`] will return a stream of updates, where
 /// the first item is the current state and subsequent items are updates.
+#[derive(derive_more::Debug)]
 pub struct ObserveProgress {
+    #[debug(skip)]
     inner: future::Boxed<irpc::Result<mpsc::Receiver<Bitfield>>>,
 }
 
@@ -803,7 +833,9 @@ impl ObserveProgress {
 ///
 /// It also implements [`IntoFuture`], so you can await it to get the size of the
 /// exported blob.
+#[derive(derive_more::Debug)]
 pub struct ExportProgress {
+    #[debug(skip)]
     inner: future::Boxed<irpc::Result<mpsc::Receiver<ExportProgressItem>>>,
 }
 
@@ -826,6 +858,10 @@ impl ExportProgress {
         }
     }
 
+    #[allow(
+        clippy::unused_async,
+        reason = "preserves the v0.103 public API while the returned stream owns the async work"
+    )]
     pub async fn stream(self) -> impl Stream<Item = ExportProgressItem> {
         Gen::new(|co| async move {
             let mut rx = match self.inner.await {
@@ -861,20 +897,23 @@ impl ExportProgress {
 }
 
 /// A handle for an ongoing bao import operation.
+#[derive(derive_more::Debug)]
 pub struct ImportBaoHandle {
+    #[debug(skip)]
     pub tx: mpsc::Sender<BaoContentItem>,
+    #[debug(skip)]
     pub rx: oneshot::Receiver<super::Result<()>>,
 }
 
 impl ImportBaoHandle {
     pub(crate) async fn new(
         fut: impl Future<
-                Output = irpc::Result<(
-                    mpsc::Sender<BaoContentItem>,
-                    oneshot::Receiver<super::Result<()>>,
-                )>,
-            > + Send
-            + 'static,
+            Output = irpc::Result<(
+                mpsc::Sender<BaoContentItem>,
+                oneshot::Receiver<super::Result<()>>,
+            )>,
+        > + Send
+        + 'static,
     ) -> irpc::Result<Self> {
         let (tx, rx) = fut.await?;
         Ok(Self { tx, rx })
@@ -882,7 +921,9 @@ impl ImportBaoHandle {
 }
 
 /// A progress handle for a blobs list operation.
+#[derive(derive_more::Debug)]
 pub struct BlobsListProgress {
+    #[debug(skip)]
     inner: future::Boxed<irpc::Result<mpsc::Receiver<super::Result<Hash>>>>,
 }
 
@@ -921,8 +962,11 @@ impl BlobsListProgress {
 /// process the stream.
 ///
 /// You can get access to the underlying stream using the [`ExportBaoProgress::stream`] method.
+#[derive(derive_more::Debug)]
 pub struct ExportRangesProgress {
+    #[debug(skip)]
     ranges: RangeSet2<u64>,
+    #[debug(skip)]
     inner: future::Boxed<irpc::Result<mpsc::Receiver<ExportRangesItem>>>,
 }
 
@@ -987,7 +1031,9 @@ impl ExportRangesProgress {
                 }
                 let start = start.max(cstart);
                 let end = end.min(cend);
-                let data = &data[(start - cstart) as usize..(end - cstart) as usize];
+                let start = usize::try_from(start - cstart).unwrap_or(usize::MAX);
+                let end = usize::try_from(end - cstart).unwrap_or(usize::MAX);
+                let data = &data[start..end];
                 res.extend_from_slice(data);
             }
         }
@@ -1002,7 +1048,9 @@ impl ExportRangesProgress {
 /// process the stream.
 ///
 /// You can get access to the underlying stream using the [`ExportBaoProgress::stream`] method.
+#[derive(derive_more::Debug)]
 pub struct ExportBaoProgress {
+    #[debug(skip)]
     inner: future::Boxed<irpc::Result<mpsc::Receiver<EncodedItem>>>,
 }
 

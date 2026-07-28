@@ -2,7 +2,7 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
-use n0_error::{anyerr, AnyError};
+use n0_error::{AnyError, anyerr};
 
 use crate::Hash;
 

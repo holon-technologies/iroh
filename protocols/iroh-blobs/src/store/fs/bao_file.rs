@@ -7,14 +7,13 @@ use std::{
 };
 
 use bao_tree::{
-    blake3,
+    BaoTree, ChunkRanges, blake3,
     io::{
         fsm::BaoContentItem,
         mixed::ReadBytesAt,
         outboard::PreOrderOutboard,
         sync::{ReadAt, WriteAt},
     },
-    BaoTree, ChunkRanges,
 };
 use bytes::{Bytes, BytesMut};
 use derive_more::Debug;
@@ -24,21 +23,21 @@ use tokio::sync::watch;
 use tracing::{debug, info, trace};
 
 use super::{
+    BaoFilePart,
     entry_state::{DataLocation, EntryState, OutboardLocation},
     options::{Options, PathOptions},
-    BaoFilePart,
 };
 use crate::{
+    Hash,
     api::blobs::Bitfield,
     store::{
-        fs::{meta::raw_outboard_size, util::entity_manager, HashContext},
-        util::{
-            read_checksummed_and_truncate, write_checksummed, FixedSize, MemOrFile,
-            PartialMemStorage, DD,
-        },
         IROH_BLOCK_SIZE,
+        fs::{HashContext, meta::raw_outboard_size, util::entity_manager},
+        util::{
+            DD, FixedSize, MemOrFile, PartialMemStorage, read_checksummed_and_truncate,
+            write_checksummed,
+        },
     },
-    Hash,
 };
 
 /// Storage for complete blobs. There is no longer any uncertainty about the
@@ -205,7 +204,13 @@ impl PartialFileStorage {
     ) -> io::Result<(CompleteStorage, EntryState<Bytes>)> {
         let outboard_size = raw_outboard_size(size);
         let (data, data_location) = if options.is_inlined_data(size) {
-            let data = read_to_end(&self.data, 0, size as usize)?;
+            let size = usize::try_from(size).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "inline blob exceeds address space",
+                )
+            })?;
+            let data = read_to_end(&self.data, 0, size)?;
             (MemOrFile::Mem(data.clone()), DataLocation::Inline(data))
         } else {
             (
@@ -217,7 +222,13 @@ impl PartialFileStorage {
             if outboard_size == 0 {
                 (MemOrFile::empty(), OutboardLocation::NotNeeded)
             } else {
-                let outboard = read_to_end(&self.outboard, 0, outboard_size as usize)?;
+                let outboard_size = usize::try_from(outboard_size).map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "inline outboard exceeds address space",
+                    )
+                })?;
+                let outboard = read_to_end(&self.outboard, 0, outboard_size)?;
                 trace!("read outboard from file: {:?}", outboard.len());
                 (
                     MemOrFile::Mem(outboard.clone()),

@@ -8,30 +8,30 @@ use std::{fmt::Debug, future::Future, io};
 use bao_tree::ChunkRanges;
 use iroh::endpoint::{self, ConnectionError, VarInt};
 use iroh_io::{AsyncStreamReader, AsyncStreamWriter};
-use n0_error::{e, stack_error, Result};
+use n0_error::{Result, e, stack_error};
 use n0_future::{
-    time::{Duration, Instant},
     StreamExt,
+    time::{Duration, Instant},
 };
 use serde::{Deserialize, Serialize};
 use tokio::select;
-use tracing::{debug, debug_span, Instrument};
+use tracing::{Instrument, debug, debug_span};
 
 use crate::{
+    Hash,
     api::{
-        blobs::{Bitfield, WriteProgress},
         ExportBaoError, ExportBaoResult, RequestError, Store,
+        blobs::{Bitfield, WriteProgress},
     },
     hashseq::HashSeq,
     protocol::{
-        GetManyRequest, GetRequest, ObserveItem, ObserveRequest, PushRequest, Request, ERR_INTERNAL,
+        ERR_INTERNAL, GetManyRequest, GetRequest, ObserveItem, ObserveRequest, PushRequest, Request,
     },
     provider::events::{
         ClientConnected, ClientResult, ConnectionClosed, HasErrorCode, ProgressError,
         RequestTracker,
     },
     util::{RecvStream, RecvStreamExt, SendStream, SendStreamExt},
-    Hash,
 };
 pub mod events;
 use events::EventSender;
@@ -324,7 +324,7 @@ pub trait ErrorHandler {
     fn reset(writer: &mut Self::W, code: VarInt) -> impl Future<Output = ()>;
 }
 
-async fn handle_read_request_result<R: RecvStream, W: SendStream, T, E: HasErrorCode>(
+fn handle_read_request_result<R: RecvStream, W: SendStream, T, E: HasErrorCode>(
     pair: &mut StreamPair<R, W>,
     r: Result<T, E>,
 ) -> Result<T, E> {
@@ -463,7 +463,7 @@ pub async fn handle_get<R: RecvStream, W: SendStream>(
     request: GetRequest,
 ) -> n0_error::Result<()> {
     let res = pair.get_request(|| request.clone()).await;
-    let tracker = handle_read_request_result(&mut pair, res).await?;
+    let tracker = handle_read_request_result(&mut pair, res)?;
     let mut writer = pair.into_writer(tracker).await?;
     let res = handle_get_impl(store, request, &mut writer).await;
     handle_write_result(&mut writer, res).await?;
@@ -512,7 +512,7 @@ pub async fn handle_get_many<R: RecvStream, W: SendStream>(
     request: GetManyRequest,
 ) -> n0_error::Result<()> {
     let res = pair.get_many_request(|| request.clone()).await;
-    let tracker = handle_read_request_result(&mut pair, res).await?;
+    let tracker = handle_read_request_result(&mut pair, res)?;
     let mut writer = pair.into_writer(tracker).await?;
     let res = handle_get_many_impl(store, request, &mut writer).await;
     handle_write_result(&mut writer, res).await?;
@@ -585,7 +585,7 @@ pub async fn handle_push<R: RecvStream, W: SendStream>(
     request: PushRequest,
 ) -> n0_error::Result<()> {
     let res = pair.push_request(|| request.clone()).await;
-    let tracker = handle_read_request_result(&mut pair, res).await?;
+    let tracker = handle_read_request_result(&mut pair, res)?;
     let mut reader = pair.into_reader(tracker).await?;
     let res = handle_push_impl(store, request, &mut reader).await;
     handle_read_result(&mut reader, res).await?;
@@ -677,15 +677,18 @@ pub async fn handle_observe<R: RecvStream, W: SendStream>(
     request: ObserveRequest,
 ) -> n0_error::Result<()> {
     let res = pair.observe_request(|| request.clone()).await;
-    let tracker = handle_read_request_result(&mut pair, res).await?;
+    let tracker = handle_read_request_result(&mut pair, res)?;
     let mut writer = pair.into_writer(tracker).await?;
     let res = handle_observe_impl(store, request, &mut writer).await;
     handle_write_result(&mut writer, res).await?;
     Ok(())
 }
 
+#[derive(derive_more::Debug)]
 pub struct ProgressReader<R: RecvStream = DefaultReader> {
+    #[debug(skip)]
     inner: R,
+    #[debug(skip)]
     context: ReaderContext,
 }
 

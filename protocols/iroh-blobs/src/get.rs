@@ -18,7 +18,7 @@
 //! [iroh]: https://docs.rs/iroh
 use std::fmt::{self, Debug};
 
-use bao_tree::{io::fsm::BaoContentItem, ChunkNum};
+use bao_tree::{ChunkNum, io::fsm::BaoContentItem};
 use fsm::RequestCounters;
 use n0_error::Result;
 use n0_future::time::{Duration, Instant};
@@ -26,10 +26,10 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
+    Hash,
     protocol::ChunkRangesSeq,
     store::IROH_BLOCK_SIZE,
     util::{RecvStream, SendStream},
-    Hash,
 };
 
 mod error;
@@ -39,10 +39,13 @@ pub use error::{GetError, GetResult};
 type DefaultReader = iroh::endpoint::RecvStream;
 type DefaultWriter = iroh::endpoint::SendStream;
 
+#[derive(derive_more::Debug)]
 pub struct StreamPair<R: RecvStream = DefaultReader, W: SendStream = DefaultWriter> {
     pub connection_id: u64,
     pub t0: Instant,
+    #[debug(skip)]
     pub recv: R,
+    #[debug(skip)]
     pub send: W,
 }
 
@@ -106,18 +109,18 @@ pub mod fsm {
     use std::{io, result};
 
     use bao_tree::{
-        io::fsm::{OutboardMut, ResponseDecoder, ResponseDecoderNext},
         BaoTree, ChunkRanges, TreeNode,
+        io::fsm::{OutboardMut, ResponseDecoder, ResponseDecoderNext},
     };
     use derive_more::From;
     use iroh::endpoint::Connection;
     use iroh_io::AsyncSliceWriter;
-    use n0_error::{e, stack_error, AnyError};
+    use n0_error::{AnyError, e, stack_error};
 
     use super::*;
     use crate::{
         protocol::{
-            GetManyRequest, GetRequest, NonEmptyRequestRangeSpecIter, Request, MAX_MESSAGE_SIZE,
+            GetManyRequest, GetRequest, MAX_MESSAGE_SIZE, NonEmptyRequestRangeSpecIter, Request,
         },
         util::{RecvStream, RecvStreamAsyncStreamReader, SendStream},
     };

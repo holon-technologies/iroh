@@ -33,6 +33,7 @@
 //! [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf
 //! [iroh]: https://docs.rs/iroh
 mod hash;
+pub mod limits;
 pub mod store;
 pub use hash::{BlobFormat, Hash, HashAndFormat};
 pub mod api;

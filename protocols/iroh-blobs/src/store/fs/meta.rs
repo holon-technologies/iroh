@@ -11,13 +11,14 @@ use std::{
 use bao_tree::BaoTree;
 use bytes::Bytes;
 use irpc::channel::mpsc;
-use n0_error::{anyerr, e, stack_error, AnyError};
+use n0_error::{AnyError, anyerr, e, stack_error};
 use redb::{Database, DatabaseError, ReadableDatabase, ReadableTable};
 use tokio::pin;
 
 use crate::{
+    Hash,
     api::{
-        self,
+        self, Tag,
         blobs::BlobStatus,
         proto::{
             BlobDeleteRequest, BlobStatusMsg, BlobStatusRequest, ClearProtectedMsg,
@@ -25,23 +26,21 @@ use crate::{
             ListTagsRequest, RenameTagRequest, SetTagRequest, ShutdownMsg, SyncDbMsg,
         },
         tags::TagInfo,
-        Tag,
     },
     util::channel::oneshot,
-    Hash,
 };
 mod proto;
 pub use proto::*;
 pub(crate) mod tables;
 use tables::{ReadOnlyTables, ReadableTables, Tables};
-use tracing::{debug, error, info_span, trace, Span};
+use tracing::{Span, debug, error, info_span, trace};
 
 use super::{
+    BaoFilePart,
     delete_set::DeleteHandle,
     entry_state::{DataLocation, EntryState, OutboardLocation},
     options::BatchOptions,
     util::PeekableReceiver,
-    BaoFilePart,
 };
 use crate::store::IROH_BLOCK_SIZE;
 

@@ -13,10 +13,10 @@ pub use super::proto::{
     TagInfo,
 };
 use super::{
-    proto::{CreateTempTagRequest, Scope},
     ApiClient, Tag, TempTag,
+    proto::{CreateTempTagRequest, Scope},
 };
-use crate::{api::proto::ListTempTagsRequest, HashAndFormat};
+use crate::{HashAndFormat, api::proto::ListTempTagsRequest};
 
 /// The API for interacting with tags and temp tags.
 #[derive(Debug, Clone, ref_cast::RefCast)]

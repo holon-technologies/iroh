@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use iroh::{endpoint::presets, protocol::Router, Endpoint};
-use iroh_blobs::{store::mem::MemStore, ticket::BlobTicket, BlobsProtocol};
+use iroh::{Endpoint, endpoint::presets, protocol::Router};
+use iroh_blobs::{BlobsProtocol, store::mem::MemStore, ticket::BlobTicket};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

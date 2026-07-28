@@ -2,18 +2,17 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use iroh::{address_lookup::MemoryLookup, endpoint::presets, SecretKey};
+use iroh::{EndpointId, SecretKey, endpoint::presets};
 use iroh_blobs::{
+    HashAndFormat,
     api::downloader::Shuffled,
     provider::events::{AbortReason, EventMask, EventSender, ProviderMessage},
     store::fs::FsStore,
     test::{add_hash_sequences, create_random_blobs},
-    HashAndFormat,
 };
-use iroh_tickets::endpoint::EndpointTicket;
 use irpc::RpcMessage;
 use n0_future::StreamExt;
-use rand::{rngs::StdRng, RngExt, SeedableRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::signal::ctrl_c;
 use tracing::info;
 
@@ -80,7 +79,7 @@ pub struct RequestArgs {
     pub content: Vec<HashAndFormat>,
 
     /// Nodes to request from
-    pub nodes: Vec<EndpointTicket>,
+    pub nodes: Vec<EndpointId>,
 
     /// Split large requests
     #[arg(long, default_value_t = false)]
@@ -243,9 +242,8 @@ async fn provide(args: ProvideArgs) -> anyhow::Result<()> {
         .accept(iroh_blobs::ALPN, blobs)
         .spawn();
     let addr = router.endpoint().addr();
-    let ticket = EndpointTicket::from(addr.clone());
     println!("Node address: {addr:?}");
-    println!("ticket:\n{ticket}");
+    println!("Endpoint ID:\n{}", addr.id);
     ctrl_c().await?;
     router.shutdown().await?;
     dump_task.abort();
@@ -265,20 +263,9 @@ async fn request(args: RequestArgs) -> anyhow::Result<()> {
         .unwrap_or_else(|| tempdir.as_ref().unwrap().path().to_path_buf());
     let store = FsStore::load(&path).await?;
     println!("Using store at: {}", path.display());
-    let sp = MemoryLookup::new();
-    let endpoint = iroh::Endpoint::builder(presets::N0)
-        .address_lookup(sp.clone())
-        .bind()
-        .await?;
+    let endpoint = iroh::Endpoint::builder(presets::N0).bind().await?;
     let downloader = store.downloader(&endpoint);
-    for ticket in &args.nodes {
-        sp.add_endpoint_info(ticket.endpoint_addr().clone());
-    }
-    let nodes = args
-        .nodes
-        .iter()
-        .map(|ticket| ticket.endpoint_addr().id)
-        .collect::<Vec<_>>();
+    let nodes = args.nodes;
     for content in args.content {
         let mut progress = downloader
             .download(content, Shuffled::new(nodes.clone()))

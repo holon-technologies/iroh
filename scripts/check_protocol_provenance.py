@@ -21,6 +21,18 @@ def load_toml(path: Path) -> dict:
         return tomllib.load(source)
 
 
+def resolve_package_field(manifest: dict, repo_root: Path, field: str) -> object:
+    """Resolve a package field, including Cargo's `{ workspace = true }` form."""
+    value = manifest.get("package", {}).get(field)
+    if value == {"workspace": True}:
+        workspace_manifest_path = repo_root / "Cargo.toml"
+        if not workspace_manifest_path.is_file():
+            return None
+        workspace_manifest = load_toml(workspace_manifest_path)
+        return workspace_manifest.get("workspace", {}).get("package", {}).get(field)
+    return value
+
+
 def validate_baselines(policy: dict, repo_root: Path) -> list[str]:
     failures: list[str] = []
     if policy.get("schema_version") != 1:
@@ -118,7 +130,7 @@ def validate_baselines(policy: dict, repo_root: Path) -> list[str]:
             manifest_path = imported_root / "Cargo.toml"
             if manifest_path.is_file() and isinstance(expected_license, str):
                 manifest = load_toml(manifest_path)
-                actual_license = manifest.get("package", {}).get("license")
+                actual_license = resolve_package_field(manifest, repo_root, "license")
                 if actual_license != expected_license:
                     failures.append(
                         f"{name} package.license must be {expected_license!r}, "

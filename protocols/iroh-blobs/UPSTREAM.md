@@ -43,9 +43,9 @@ The dedicated cleanup immediately following the import merge:
 - registers the imported state in the architecture and provenance policies.
 
 Source, tests, examples, regression fixtures, design documentation, assets, changelog, licenses,
-and the standalone `Cargo.lock` remain. The removed files are recoverable from the import merge.
-The next porting commit may change Rust APIs and workspace metadata, but it must first freeze and
-then preserve the imported wire, ticket, hash, range, and persistent-state behavior.
+and the standalone `Cargo.lock` remained at this stage. The removed files are recoverable from the
+import merge. The following port froze and preserved the imported wire, ticket, hash, range, and
+persistent-state behavior before adapting the Rust implementation.
 
 ## Import validation
 
@@ -60,3 +60,34 @@ The following checks passed before the cleanup commit was finalized:
 - the root Cargo package set and first-party dependency graph are unchanged; and
 - `cargo test --manifest-path protocols/iroh-blobs/Cargo.toml --locked` passed with 100 tests
   passed, two upstream-ignored tests, and 17 documentation tests passed.
+
+## V2 port
+
+The monorepo port keeps the crate private (`publish = false`) and makes it a root workspace member.
+It adopts the workspace edition, MSRV, lints, repository metadata, dependency lockfile, and local
+`iroh` v2 core. The imported standalone lockfile was removed after its release baseline was
+validated; it remains recoverable from the import merge.
+
+Compatibility is frozen by `tests/compat/v0_103_0.rs` and the filesystem metadata tests. The port
+preserves:
+
+- ALPN `/iroh-bytes/4`;
+- request, range, hash, hash-sequence, `HashAndFormat`, and blob-ticket encodings;
+- the v0.103 ticket prefix and lowercase unpadded-base32 representation; and
+- redb entry-state type names, table names, and postcard payloads.
+
+The Rust source hard cut replaces Iroh 1.x endpoint calls with the local v2 endpoint facade,
+localizes the former `iroh-util` connection pool, and removes `iroh-tickets` from the production
+graph while retaining its exact blob-ticket codec. Imported examples now use bounded v2
+`EndpointAddr` construction; the old mDNS example documents direct-address discovery because the
+external adapter still targets Iroh 1.x.
+
+The port also adds named limits for decoded requests, range transitions and boundaries, multi-blob
+requests, provider connections, store tasks, imports, downloads, child fan-out, RPC/progress
+queues, connection-pool queues, and graceful shutdown. Invalid peer dimensions are rejected before
+protocol work begins, while actor queues provide backpressure at their ownership boundaries.
+
+The excluded `compat/iroh-blobs-v0-103-interop` driver links the crates.io v0.103.0 stack and local
+v2 port in one diagnostic binary without adding Iroh 1.x to the production workspace. It verifies
+direct QUIC blob transfers in both directions with per-phase timeouts. Run it through
+`scripts/tests/check-blobs-v0-interop.sh`.

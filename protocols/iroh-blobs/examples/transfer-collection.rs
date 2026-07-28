@@ -9,14 +9,14 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 use iroh::{
-    address_lookup::MemoryLookup, endpoint::presets, protocol::Router, Endpoint, EndpointAddr,
-    RelayMode,
+    Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
+    protocol::Router,
 };
 use iroh_blobs::{
-    api::{downloader::Shuffled, Store, TempTag},
+    BlobsProtocol, Hash, HashAndFormat,
+    api::{Store, TempTag, downloader::Shuffled},
     format::collection::Collection,
     store::mem::MemStore,
-    BlobsProtocol, Hash, HashAndFormat,
 };
 
 /// Node is something you'd define in your application. It can contain whatever

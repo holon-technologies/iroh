@@ -1,8 +1,8 @@
 //! Utilities
 pub(crate) mod channel;
+pub mod connection_pool;
 mod stream;
 pub(crate) mod temp_tag;
-pub use iroh_util::connection_pool;
 pub use stream::{
     AsyncReadRecvStream, AsyncReadRecvStreamExtra, AsyncWriteSendStream, AsyncWriteSendStreamExtra,
     RecvStream, RecvStreamAsyncStreamReader, SendStream,
@@ -15,9 +15,9 @@ pub(crate) mod serde {
         use std::{fmt, io};
 
         use serde::{
+            Deserializer, Serializer,
             de::{self, SeqAccess, Visitor},
             ser::SerializeTuple,
-            Deserializer, Serializer,
         };
 
         fn error_kind_to_u8(kind: io::ErrorKind) -> u8 {
@@ -225,13 +225,12 @@ pub(crate) mod outboard_with_progress {
     use std::io::{self, BufReader, Read};
 
     use bao_tree::{
-        blake3,
+        BaoTree, ChunkNum, blake3,
         io::{
             outboard::PreOrderOutboard,
             sync::{OutboardMut, WriteAt},
         },
         iter::BaoChunk,
-        BaoTree, ChunkNum,
     };
     use smallvec::SmallVec;
 
@@ -256,7 +255,7 @@ pub(crate) mod outboard_with_progress {
         right_child: &blake3::Hash,
         is_root: bool,
     ) -> blake3::Hash {
-        use blake3::hazmat::{merge_subtrees_non_root, merge_subtrees_root, ChainingValue, Mode};
+        use blake3::hazmat::{ChainingValue, Mode, merge_subtrees_non_root, merge_subtrees_root};
         let left_child: ChainingValue = *left_child.as_bytes();
         let right_child: ChainingValue = *right_child.as_bytes();
         if is_root {
@@ -338,14 +337,13 @@ pub(crate) mod outboard_with_progress {
     #[cfg(test)]
     mod tests {
         use bao_tree::{
-            blake3,
+            BaoTree, blake3,
             io::{outboard::PreOrderOutboard, sync::CreateOutboard},
-            BaoTree,
         };
         use testresult::TestResult;
 
         use crate::{
-            store::{fs::tests::test_data, IROH_BLOCK_SIZE},
+            store::{IROH_BLOCK_SIZE, fs::tests::test_data},
             util::{outboard_with_progress::init_outboard, sink::Drain},
         };
 
@@ -450,8 +448,11 @@ pub(crate) mod sink {
         }
     }
 
+    #[derive(derive_more::Debug)]
     pub struct WithMapErr<P, F> {
+        #[debug(skip)]
         inner: P,
+        #[debug(skip)]
         f: F,
     }
 
@@ -473,8 +474,11 @@ pub(crate) mod sink {
         }
     }
 
+    #[derive(derive_more::Debug)]
     pub struct WithMap<P, F> {
+        #[debug(skip)]
         inner: P,
+        #[debug(skip)]
         f: F,
     }
 

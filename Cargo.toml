@@ -8,13 +8,14 @@ members = [
   "iroh/bench",
   "iroh-relay",
   "iroh-runtime",
+  "protocols/iroh-blobs",
   "tools/determinism-checker",
 ]
 exclude = [
+  "compat/iroh-blobs-v0-103-interop",
   "compat/relay-v1-interop",
   "fuzz",
   "iroh-sim",
-  "protocols/iroh-blobs",
   "vendor/hickory-server-0.26.1",
   "vendor/noq-1.1.0",
   "vendor/rustls-0.23.41",
@@ -36,6 +37,7 @@ iroh-dns = { version = "2.0.0", path = "iroh-dns" }
 iroh-dns-server = { version = "2.0.0", path = "iroh-dns-server" }
 iroh-relay = { version = "2.0.0", path = "iroh-relay", default-features = false }
 iroh-runtime = { version = "2.0.0", path = "iroh-runtime" }
+iroh-blobs = { version = "2.0.0", path = "protocols/iroh-blobs" }
 
 [profile.release]
 debug = true
@@ -68,7 +70,7 @@ unused_must_use = "deny"
 # do.  To enable for a crate set `#![cfg_attr(iroh_docsrs,
 # feature(doc_cfg))]` in the crate.
 # We also have our own `iroh_loom` cfg to enable tokio-rs/loom testing.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_blobs_docsrs)", "cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
 
 [workspace.lints.clippy]
 correctness = { level = "deny", priority = -1 }

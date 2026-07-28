@@ -1,9 +1,8 @@
 //! Tickets for blobs.
-use std::{collections::BTreeSet, net::SocketAddr, str::FromStr};
+use std::{collections::BTreeSet, fmt, net::SocketAddr, str::FromStr};
 
 use iroh::{EndpointAddr, EndpointId, RelayUrl};
-use iroh_tickets::{ParseError, Ticket};
-use n0_error::Result;
+use n0_error::{Result, e, stack_error};
 use serde::{Deserialize, Serialize};
 
 use crate::{BlobFormat, Hash, HashAndFormat};
@@ -11,8 +10,7 @@ use crate::{BlobFormat, Hash, HashAndFormat};
 /// A token containing everything to get a file from the provider.
 ///
 /// It is a single item which can be easily serialized and deserialized.
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
-#[display("{}", Ticket::encode_string(self))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlobTicket {
     /// The provider to get a file from.
     addr: EndpointAddr,
@@ -20,6 +18,27 @@ pub struct BlobTicket {
     format: BlobFormat,
     /// The hash to retrieve.
     hash: Hash,
+}
+
+/// An error parsing a [`BlobTicket`].
+#[stack_error(derive, add_meta, from_sources)]
+#[non_exhaustive]
+pub enum ParseError {
+    /// The string does not start with the blob-ticket prefix.
+    #[error("wrong prefix, expected {expected}")]
+    Kind { expected: &'static str },
+    /// The ticket payload is not valid postcard data.
+    #[error(transparent)]
+    Postcard {
+        #[error(source, std_err)]
+        source: postcard::Error,
+    },
+    /// The ticket payload is not valid unpadded base32.
+    #[error(transparent)]
+    Encoding {
+        #[error(source, std_err)]
+        source: data_encoding::DecodeError,
+    },
 }
 
 impl From<BlobTicket> for HashAndFormat {
@@ -61,10 +80,12 @@ struct Variant0AddrInfo {
     direct_addresses: BTreeSet<SocketAddr>,
 }
 
-impl Ticket for BlobTicket {
-    const KIND: &'static str = "blob";
+impl BlobTicket {
+    /// String prefix identifying blob tickets.
+    pub const KIND: &'static str = "blob";
 
-    fn encode_bytes(&self) -> Vec<u8> {
+    /// Encode this ticket to its v0.103-compatible binary representation.
+    pub fn encode_bytes(&self) -> Vec<u8> {
         let data = TicketWireFormat::Variant0(Variant0BlobTicket {
             node: Variant0NodeAddr {
                 endpoint_id: self.addr.id,
@@ -79,7 +100,8 @@ impl Ticket for BlobTicket {
         postcard::to_stdvec(&data).expect("postcard serialization failed")
     }
 
-    fn decode_bytes(bytes: &[u8]) -> std::result::Result<Self, ParseError> {
+    /// Decode the v0.103-compatible binary representation.
+    pub fn decode_bytes(bytes: &[u8]) -> std::result::Result<Self, ParseError> {
         let res: TicketWireFormat = postcard::from_bytes(bytes)?;
         let TicketWireFormat::Variant0(Variant0BlobTicket { node, format, hash }) = res;
         let mut addr = EndpointAddr::new(node.endpoint_id);
@@ -91,13 +113,38 @@ impl Ticket for BlobTicket {
         }
         Ok(Self { addr, format, hash })
     }
+
+    /// Encode this ticket as lowercase, unpadded base32 with the `blob` prefix.
+    pub fn encode_string(&self) -> String {
+        let mut output = Self::KIND.to_owned();
+        data_encoding::BASE32_NOPAD.encode_append(&self.encode_bytes(), &mut output);
+        output.make_ascii_lowercase();
+        output
+    }
+
+    /// Decode the canonical string representation.
+    pub fn decode_string(value: &str) -> std::result::Result<Self, ParseError> {
+        let Some(payload) = value.strip_prefix(Self::KIND) else {
+            return Err(e!(ParseError::Kind {
+                expected: Self::KIND,
+            }));
+        };
+        let bytes = data_encoding::BASE32_NOPAD.decode(payload.to_ascii_uppercase().as_bytes())?;
+        Self::decode_bytes(&bytes)
+    }
+}
+
+impl fmt::Display for BlobTicket {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.encode_string())
+    }
 }
 
 impl FromStr for BlobTicket {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ticket::decode_string(s)
+        Self::decode_string(s)
     }
 }
 
@@ -183,7 +230,7 @@ mod tests {
         let addr = SocketAddr::from_str("127.0.0.1:1234").unwrap();
         BlobTicket {
             hash,
-            addr: EndpointAddr::from_parts(peer, [TransportAddr::Ip(addr)]),
+            addr: EndpointAddr::try_from_parts(peer, [TransportAddr::Ip(addr)]).unwrap(),
             format: BlobFormat::HashSeq,
         }
     }

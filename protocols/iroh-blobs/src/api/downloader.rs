@@ -12,24 +12,27 @@ use irpc::{
     channel::{mpsc, oneshot},
     rpc_requests,
 };
-use n0_error::{anyerr, Result};
+use n0_error::{Result, anyerr};
 use n0_future::{
-    future, stream,
+    BufferedStreamExt, Stream, StreamExt, future, stream,
     task::{JoinError, JoinSet},
-    BufferedStreamExt, Stream, StreamExt,
 };
 use rand::seq::SliceRandom;
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 use tracing::instrument::Instrument;
 
 use super::Store;
 use crate::{
+    BlobFormat, Hash, HashAndFormat,
+    limits::{
+        CHILD_PROGRESS_QUEUE_CAPACITY, DOWNLOADER_COMMAND_QUEUE_CAPACITY,
+        INTERNAL_PROGRESS_QUEUE_CAPACITY, MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_SPLIT_DOWNLOADS,
+    },
     protocol::{GetManyRequest, GetRequest},
     util::{
         connection_pool::ConnectionPool,
         sink::{Drain, IrpcSenderRefSink, Sink, TokioMpscSenderSink},
     },
-    BlobFormat, Hash, HashAndFormat,
 };
 
 #[derive(Debug, Clone)]
@@ -92,7 +95,7 @@ impl DownloaderActor {
     async fn run(mut self, mut rx: tokio::sync::mpsc::Receiver<SwarmMsg>) {
         loop {
             tokio::select! {
-                msg = rx.recv() => {
+                msg = rx.recv(), if self.tasks.len() < MAX_CONCURRENT_DOWNLOADS => {
                     let Some(msg) = msg else { break };
                     match msg {
                         SwarmMsg::Download(request) => {
@@ -176,7 +179,7 @@ async fn handle_download_split_impl(
 ) -> Result<()> {
     let providers = request.providers;
     let requests = split_request(&request.request, &providers, &pool, &store, Drain).await?;
-    let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(32);
+    let (progress_tx, progress_rx) = tokio::sync::mpsc::channel(INTERNAL_PROGRESS_QUEUE_CAPACITY);
     let mut futs = stream::iter(requests.into_iter().enumerate())
         .map(|(id, request)| {
             let pool = pool.clone();
@@ -185,14 +188,16 @@ async fn handle_download_split_impl(
             let progress_tx = progress_tx.clone();
             async move {
                 let hash = request.hash;
-                let (tx, rx) = tokio::sync::mpsc::channel::<(usize, DownloadProgressItem)>(16);
+                let (tx, rx) = tokio::sync::mpsc::channel::<(usize, DownloadProgressItem)>(
+                    CHILD_PROGRESS_QUEUE_CAPACITY,
+                );
                 progress_tx.send(rx).await.ok();
                 let sink = TokioMpscSenderSink(tx).with_map(move |x| (id, x));
                 let res = execute_get(&pool, Arc::new(request), &providers, &store, sink).await;
                 (hash, res)
             }
         })
-        .buffered_unordered(32);
+        .buffered_unordered(MAX_CONCURRENT_SPLIT_DOWNLOADS);
     let mut progress_stream = {
         let mut offsets = HashMap::new();
         let mut total = 0;
@@ -342,7 +347,9 @@ impl<'de> Deserialize<'de> for DownloadRequest {
 
 pub type DownloadOptions = DownloadRequest;
 
+#[derive(derive_more::Debug)]
 pub struct DownloadProgress {
+    #[debug(skip)]
     fut: future::Boxed<irpc::Result<mpsc::Receiver<DownloadProgressItem>>>,
 }
 
@@ -395,7 +402,7 @@ impl Downloader {
         endpoint: &Endpoint,
         pool_options: crate::util::connection_pool::Options,
     ) -> Self {
-        let (tx, rx) = tokio::sync::mpsc::channel::<SwarmMsg>(32);
+        let (tx, rx) = tokio::sync::mpsc::channel::<SwarmMsg>(DOWNLOADER_COMMAND_QUEUE_CAPACITY);
         let actor = DownloaderActor::new_with_opts(store.clone(), endpoint.clone(), pool_options);
         n0_future::task::spawn(actor.run(rx));
         Self { client: tx.into() }
@@ -600,6 +607,7 @@ mod tests {
     use testresult::TestResult;
 
     use crate::{
+        Hash,
         api::{
             blobs::AddBytesOptions,
             downloader::{DownloadOptions, Downloader, Shuffled, SplitStrategy},
@@ -607,7 +615,6 @@ mod tests {
         hashseq::HashSeq,
         protocol::{GetManyRequest, GetRequest},
         tests::node_test_setup_fs,
-        Hash,
     };
 
     #[tokio::test]
@@ -785,9 +792,9 @@ mod tests {
 
         tokio::time::timeout(std::time::Duration::from_secs(5), swarm.wait_idle())
             .await
-            .map_err(|_| {
-                "wait_idle did not resolve within 5s — DownloaderActor JoinSet not draining"
-            })??;
+            .map_err(
+                |_| "wait_idle did not resolve within 5s — DownloaderActor JoinSet not draining",
+            )??;
 
         Ok(())
     }

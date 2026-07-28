@@ -2,10 +2,10 @@ use std::{collections::HashSet, pin::Pin, sync::Arc};
 
 use bao_tree::ChunkRanges;
 use genawaiter::sync::{Co, Gen};
-use n0_future::{time::Duration, Stream, StreamExt};
+use n0_future::{Stream, StreamExt, time::Duration};
 use tracing::{debug, error, info, warn};
 
-use crate::{api::Store, Hash, HashAndFormat};
+use crate::{Hash, HashAndFormat, api::Store};
 
 /// An event related to GC
 #[derive(Debug)]
@@ -251,9 +251,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        api::{blobs::AddBytesOptions, ExportBaoError, RequestError, Store},
-        hashseq::HashSeq,
         BlobFormat,
+        api::{ExportBaoError, RequestError, Store, blobs::AddBytesOptions},
+        hashseq::HashSeq,
     };
 
     async fn gc_smoke(store: &Store) -> TestResult<()> {

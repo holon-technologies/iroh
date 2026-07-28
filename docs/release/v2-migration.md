@@ -26,6 +26,32 @@ This is a deliberate major-version source cut. There is no compatibility module 
 old Rust paths. Relay V1/V2 bytes and negotiation remain compatible; Rust imports, Cargo features,
 and test-only construction code must be migrated.
 
+## Blob protocol workspace port
+
+`iroh-blobs` v0.103.0 is now preserved under `protocols/iroh-blobs` and ported as the private
+workspace crate `iroh-blobs` 2.0. Rust source compatibility is not guaranteed, but the imported
+ALPN, wire requests, range encoding, hash semantics, ticket strings, and filesystem metadata remain
+frozen by compatibility fixtures.
+
+The crate now uses the local `iroh` v2 endpoint facade directly. It no longer depends on
+`iroh-util`, `iroh-tickets`, or the Iroh 1.x core graph. `BlobTicket` keeps the canonical `blob`
+prefix and v0.103 lowercase unpadded-base32 bytes; its parse error is now
+`iroh_blobs::ticket::ParseError` rather than `iroh_tickets::ParseError`.
+
+The imported `mdns-address-lookup` example now demonstrates explicit direct-address discovery.
+The external `iroh-mdns-address-lookup` adapter targets Iroh 1.x and cannot be mixed with v2
+endpoint types. Applications can supply a custom v2 discovery implementation or construct a
+bounded `EndpointAddr` with `EndpointAddr::try_from_parts`.
+
+Blob providers and stores now enforce finite defaults for request bytes, range complexity,
+multi-blob count, provider connections, queued actor commands, active store/import/download work,
+progress queues, and graceful shutdown. Treat limit rejection as recoverable overload and split
+large application requests instead of increasing all limits together.
+
+Run `scripts/tests/check-blobs-v0-interop.sh` to exercise a live transfer in both directions between
+the crates.io v0.103.0 stack and the local v2 port. The driver is an excluded compatibility crate;
+its Iroh 1.x dependencies never enter the production workspace graph.
+
 The endpoint implementation is now split behind a narrow `iroh::endpoint` facade. Public endpoint
 imports (`iroh::Endpoint`, `iroh::endpoint::Builder`, connection types, relay status, and lifecycle
 types) are unchanged by that structural move; the new `endpoint::{builder,handle,lifecycle,

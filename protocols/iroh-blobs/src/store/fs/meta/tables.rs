@@ -2,7 +2,7 @@
 use redb::{ReadableTable, TableDefinition, TableError};
 
 use super::EntryState;
-use crate::{api::Tag, store::fs::delete_set::FileTransaction, Hash, HashAndFormat};
+use crate::{Hash, HashAndFormat, api::Tag, store::fs::delete_set::FileTransaction};
 
 pub(super) const BLOBS_TABLE: TableDefinition<Hash, EntryState> = TableDefinition::new("blobs-0");
 

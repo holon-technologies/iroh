@@ -72,27 +72,26 @@ use std::{
     ops::Deref,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
 use bao_tree::{
-    blake3,
+    BaoTree, ChunkNum, ChunkRanges, blake3,
     io::{
-        mixed::{traverse_ranges_validated, EncodedItem, ReadBytesAt},
+        BaoContentItem, Leaf,
+        mixed::{EncodedItem, ReadBytesAt, traverse_ranges_validated},
         outboard::PreOrderOutboard,
         sync::ReadAt,
-        BaoContentItem, Leaf,
     },
-    BaoTree, ChunkNum, ChunkRanges,
 };
 use bytes::Bytes;
 use delete_set::{BaoFilePart, ProtectHandle};
 use entity_manager::{EntityManagerState, SpawnArg};
 use entry_state::{DataLocation, OutboardLocation};
 use import::{ImportEntry, ImportSource};
-use irpc::{channel::mpsc, RpcMessage};
+use irpc::{RpcMessage, channel::mpsc};
 use meta::list_blobs;
 use n0_error::{Result, StdResultExt};
 use n0_future::{future::yield_now, io};
@@ -102,17 +101,23 @@ use tokio::task::{JoinError, JoinSet};
 use tracing::{error, instrument, trace};
 
 use crate::{
+    Hash,
     api::{
-        proto::{
-            self, bitfield::is_validated, BatchMsg, BatchResponse, Bitfield, Command,
-            CreateTempTagMsg, ExportBaoMsg, ExportBaoRequest, ExportPathMsg, ExportPathRequest,
-            ExportRangesItem, ExportRangesMsg, ExportRangesRequest, HashSpecific, ImportBaoMsg,
-            ImportBaoRequest, ObserveMsg, Scope,
-        },
         ApiClient,
+        proto::{
+            self, BatchMsg, BatchResponse, Bitfield, Command, CreateTempTagMsg, ExportBaoMsg,
+            ExportBaoRequest, ExportPathMsg, ExportPathRequest, ExportRangesItem, ExportRangesMsg,
+            ExportRangesRequest, HashSpecific, ImportBaoMsg, ImportBaoRequest, ObserveMsg, Scope,
+            bitfield::is_validated,
+        },
+    },
+    limits::{
+        DATABASE_COMMAND_QUEUE_CAPACITY, MAX_CONCURRENT_IMPORTS, MAX_CONCURRENT_STORE_TASKS,
+        STORE_COMMAND_QUEUE_CAPACITY,
     },
     protocol::ChunkRangesExt,
     store::{
+        IROH_BLOCK_SIZE,
         fs::{
             bao_file::{
                 BaoFileStorage, BaoFileStorageSubscriber, CompleteStorage, DataReader,
@@ -122,13 +127,11 @@ use crate::{
         },
         gc::run_gc,
         util::{BaoTreeSender, FixedSize, MemOrFile, ValueOrPoisioned},
-        IROH_BLOCK_SIZE,
     },
     util::{
         channel::oneshot,
         temp_tag::{TagDrop, TempTag, TempTagScope, TempTags},
     },
-    Hash,
 };
 mod bao_file;
 use bao_file::BaoFileHandle;
@@ -139,17 +142,16 @@ mod meta;
 pub mod options;
 pub(crate) mod util;
 use entry_state::EntryState;
-use import::{import_byte_stream, import_bytes, import_path, ImportEntryMsg};
+use import::{ImportEntryMsg, import_byte_stream, import_bytes, import_path};
 use options::Options;
 use tracing::Instrument;
 
 use crate::{
-    api::{
-        self,
-        blobs::{AddProgressItem, ExportMode, ExportProgressItem},
-        Store,
-    },
     HashAndFormat,
+    api::{
+        self, Store,
+        blobs::{AddProgressItem, ExportMode, ExportProgressItem},
+    },
 };
 
 /// Maximum number of external paths we track per blob.
@@ -206,6 +208,8 @@ struct TaskContext {
     pub internal_cmd_tx: tokio::sync::mpsc::Sender<InternalCommand>,
     /// Handle to protect files from deletion.
     pub protect: ProtectHandle,
+    /// Admission guard for storage-intensive imports.
+    pub import_admission: Arc<tokio::sync::Semaphore>,
 }
 
 impl TaskContext {
@@ -439,6 +443,16 @@ impl Actor {
         self.tasks.spawn(fut.instrument(span));
     }
 
+    fn spawn_import(&mut self, fut: impl Future<Output = ()> + Send + 'static) {
+        let admission = self.context.import_admission.clone();
+        self.spawn(async move {
+            let Ok(_permit) = admission.acquire_owned().await else {
+                return;
+            };
+            fut.await;
+        });
+    }
+
     fn log_task_result(res: Result<(), JoinError>) {
         match res {
             Ok(_) => {}
@@ -533,15 +547,15 @@ impl Actor {
             }
             Command::ImportBytes(cmd) => {
                 trace!("{cmd:?}");
-                self.spawn(import_bytes(cmd, self.context()));
+                self.spawn_import(import_bytes(cmd, self.context()));
             }
             Command::ImportByteStream(cmd) => {
                 trace!("{cmd:?}");
-                self.spawn(import_byte_stream(cmd, self.context()));
+                self.spawn_import(import_byte_stream(cmd, self.context()));
             }
             Command::ImportPath(cmd) => {
                 trace!("{cmd:?}");
-                self.spawn(import_path(cmd, self.context()));
+                self.spawn_import(import_path(cmd, self.context()));
             }
             Command::ExportPath(cmd) => {
                 trace!("{cmd:?}");
@@ -602,18 +616,18 @@ impl Actor {
     async fn run(mut self) {
         loop {
             tokio::select! {
-                task = self.handles.tick() => {
+                task = self.handles.tick(), if self.tasks.len() < MAX_CONCURRENT_STORE_TASKS => {
                     if let Some(task) = task {
                         self.spawn(task);
                     }
                 }
-                cmd = self.cmd_rx.recv() => {
+                cmd = self.cmd_rx.recv(), if self.tasks.len() < MAX_CONCURRENT_STORE_TASKS => {
                     let Some(cmd) = cmd else {
                         break;
                     };
                     self.handle_command(cmd).await;
                 }
-                Some(cmd) = self.fs_cmd_rx.recv() => {
+                Some(cmd) = self.fs_cmd_rx.recv(), if self.tasks.len() < MAX_CONCURRENT_STORE_TASKS => {
                     self.handle_fs_command(cmd).await;
                 }
                 Some(res) = self.tasks.join_next(), if !self.tasks.is_empty() => {
@@ -632,6 +646,10 @@ impl Actor {
         }
     }
 
+    #[allow(
+        clippy::unused_async,
+        reason = "kept async so actor construction stays on the runtime task selected by the caller"
+    )]
     async fn new(
         db_path: PathBuf,
         rt: RtWrapper,
@@ -655,7 +673,7 @@ impl Actor {
             db_path.parent().unwrap().display()
         );
         fs::create_dir_all(db_path.parent().unwrap())?;
-        let (db_send, db_recv) = tokio::sync::mpsc::channel(100);
+        let (db_send, db_recv) = tokio::sync::mpsc::channel(DATABASE_COMMAND_QUEUE_CAPACITY);
         let (protect, ds) = delete_set::pair(Arc::new(options.path.clone()));
         let db_actor = meta::Actor::new(db_path, db_recv, ds, options.batch.clone())?;
         let slot_context = Arc::new(TaskContext {
@@ -663,6 +681,7 @@ impl Actor {
             db: meta::Db::new(db_send),
             internal_cmd_tx: fs_commands_tx,
             protect,
+            import_admission: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_IMPORTS)),
         });
         rt.spawn(db_actor.run());
         Ok(Self {
@@ -1182,7 +1201,12 @@ async fn export_ranges_impl(
         let mut offset = range.start;
         loop {
             let end: u64 = (offset + bs).min(range.end);
-            let size = (end - offset) as usize;
+            let size = usize::try_from(end - offset).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "export range exceeds address space",
+                )
+            })?;
             let res = data.read_bytes_at(offset, size);
             tx.send(ExportRangesItem::Data(Leaf { offset, data: res? }))
                 .await?;
@@ -1374,7 +1398,9 @@ async fn copy_with_progress<T: CopyProgress>(
     let mut offset = 0;
     let mut buf = vec![0u8; 1024 * 1024];
     while offset < size {
-        let remaining = buf.len().min((size - offset) as usize);
+        let remaining = buf
+            .len()
+            .min(usize::try_from(size - offset).unwrap_or(usize::MAX));
         let buf: &mut [u8] = &mut buf[..remaining];
         file.read_exact_at(offset, buf)?;
         target.write_all(buf)?;
@@ -1407,8 +1433,9 @@ impl FsStore {
             .enable_time()
             .build()?;
         let handle = rt.handle().clone();
-        let (commands_tx, commands_rx) = tokio::sync::mpsc::channel(100);
-        let (fs_commands_tx, fs_commands_rx) = tokio::sync::mpsc::channel(100);
+        let (commands_tx, commands_rx) = tokio::sync::mpsc::channel(STORE_COMMAND_QUEUE_CAPACITY);
+        let (fs_commands_tx, fs_commands_rx) =
+            tokio::sync::mpsc::channel(STORE_COMMAND_QUEUE_CAPACITY);
         let gc_config = options.gc.clone();
         let actor = handle
             .spawn(Actor::new(
@@ -1498,8 +1525,8 @@ pub mod tests {
     use core::panic;
     use std::collections::{HashMap, HashSet};
 
-    use bao_tree::{io::round_up_to_chunks_groups, ChunkRanges};
-    use n0_future::{stream, Stream, StreamExt};
+    use bao_tree::{ChunkRanges, io::round_up_to_chunks_groups};
+    use n0_future::{Stream, StreamExt, stream};
     use testresult::TestResult;
     use walkdir::WalkDir;
 
@@ -1507,8 +1534,8 @@ pub mod tests {
     use crate::{
         api::blobs::Bitfield,
         store::{
-            util::{read_checksummed, tests::create_n0_bao, SliceInfoExt, Tag},
             IROH_BLOCK_SIZE,
+            util::{SliceInfoExt, Tag, read_checksummed, tests::create_n0_bao},
         },
     };
 
@@ -1584,7 +1611,7 @@ pub mod tests {
             // Change character every 1024 bytes
             let block_num = i / 1024;
             // Map to uppercase A-Z range (65-90)
-            let ascii_val = 65 + (block_num % 26) as u8;
+            let ascii_val = 65 + u8::try_from(block_num % 26).expect("remainder is below 26");
             res.push(ascii_val);
         }
         Bytes::from(res)
@@ -2144,12 +2171,11 @@ pub mod tests {
         for entry in WalkDir::new(root_dir).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
 
-            if path.is_file() {
-                if let Some(file_ext) = path.extension() {
-                    if file_ext.to_string_lossy().to_lowercase() == ext {
-                        fs::remove_file(path)?;
-                    }
-                }
+            if path.is_file()
+                && let Some(file_ext) = path.extension()
+                && file_ext.to_string_lossy().to_lowercase() == ext
+            {
+                fs::remove_file(path)?;
             }
         }
 
@@ -2235,23 +2261,36 @@ pub mod tests {
     }
 
     pub fn file_bits(path: impl AsRef<Path>, chunk_size: u64) -> io::Result<Vec<bool>> {
+        let chunk_size = usize::try_from(chunk_size).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "chunk size exceeds address space",
+            )
+        })?;
+        if chunk_size == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "chunk size must be non-zero",
+            ));
+        }
         let file = fs::File::open(&path)?;
         let file_size = file.metadata()?.len();
-        let mut buffer = vec![0u8; chunk_size as usize];
+        let mut buffer = vec![0u8; chunk_size];
         let mut bits = Vec::new();
 
         let mut offset = 0u64;
         while offset < file_size {
             let remaining = file_size - offset;
-            let current_chunk_size = chunk_size.min(remaining);
+            let current_chunk_size =
+                chunk_size.min(usize::try_from(remaining).unwrap_or(usize::MAX));
 
-            let chunk = &mut buffer[..current_chunk_size as usize];
+            let chunk = &mut buffer[..current_chunk_size];
             file.read_exact_at(offset, chunk)?;
 
             let has_non_zero = chunk.iter().any(|&byte| byte != 0);
             bits.push(has_non_zero);
 
-            offset += current_chunk_size;
+            offset += current_chunk_size as u64;
         }
 
         Ok(bits)

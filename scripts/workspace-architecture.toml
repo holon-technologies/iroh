@@ -111,7 +111,7 @@ allowed_dev = []
 [[packages]]
 name = "iroh-blobs"
 path = "protocols/iroh-blobs"
-workspace = "excluded"
+workspace = "root"
 layer = "protocol"
-allowed_normal = ["iroh", "iroh-base"]
+allowed_normal = ["iroh"]
 allowed_dev = ["iroh"]

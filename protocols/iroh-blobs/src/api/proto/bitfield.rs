@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use smallvec::SmallVec;
 
 use crate::store::util::{
-    observer::{Combine, CombineInPlace},
     RangeSetExt,
+    observer::{Combine, CombineInPlace},
 };
 
 pub(crate) fn is_validated(size: NonZeroU64, ranges: &ChunkRanges) -> bool {
@@ -276,7 +276,7 @@ impl UpdateResult {
 #[cfg(test)]
 mod tests {
     use bao_tree::{ChunkNum, ChunkRanges};
-    use proptest::prelude::{prop, Strategy};
+    use proptest::prelude::{Strategy, prop};
     use smallvec::SmallVec;
     use test_strategy::proptest;
 

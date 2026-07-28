@@ -13,23 +13,23 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
 use anyhow::Result;
 use clap::Parser;
 use common::setup_logging;
-use iroh::{endpoint::presets, protocol::Router, EndpointAddr, EndpointId, SecretKey};
+use iroh::{EndpointAddr, EndpointId, SecretKey, endpoint::presets, protocol::Router};
 use iroh_blobs::{
+    BlobFormat, BlobsProtocol, Hash,
     provider::events::{
         AbortReason, ConnectMode, EventMask, EventSender, ProviderMessage, RequestMode,
         ThrottleMode,
     },
     store::mem::MemStore,
     ticket::BlobTicket,
-    BlobFormat, BlobsProtocol, Hash,
 };
 
 use crate::common::get_or_generate_secret_key;
@@ -176,11 +176,7 @@ fn limit_max_connections(max_connections: usize) -> EventSender {
         fn inc(&self) -> Result<usize, usize> {
             let (c, max) = &*self.0;
             c.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                if n >= *max {
-                    None
-                } else {
-                    Some(n + 1)
-                }
+                if n >= *max { None } else { Some(n + 1) }
             })
         }
 

@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tracing::{trace, warn};
 
-use crate::{api::proto::Scope, BlobFormat, Hash, HashAndFormat};
+use crate::{BlobFormat, Hash, HashAndFormat, api::proto::Scope};
 
 /// An ephemeral, in-memory tag that protects content while the process is running.
 ///
@@ -123,10 +123,10 @@ impl TempTag {
 
 impl Drop for TempTag {
     fn drop(&mut self) {
-        if let Some(on_drop) = self.on_drop.take() {
-            if let Some(on_drop) = on_drop.upgrade() {
-                on_drop.on_drop(&self.inner);
-            }
+        if let Some(on_drop) = self.on_drop.take()
+            && let Some(on_drop) = on_drop.upgrade()
+        {
+            on_drop.on_drop(&self.inner);
         }
     }
 }

@@ -14,13 +14,13 @@ use std::{
 
 use chrono::Utc;
 use iroh_blobs::{
-    api::{blobs::AddBytesOptions, Store, Tag},
+    BlobFormat, Hash,
+    api::{Store, Tag, blobs::AddBytesOptions},
     hashseq::HashSeq,
     store::{
-        fs::options::{BatchOptions, InlineOptions, Options, PathOptions},
         GcConfig,
+        fs::options::{BatchOptions, InlineOptions, Options, PathOptions},
     },
-    BlobFormat, Hash,
 };
 use n0_future::StreamExt;
 use tokio::signal::ctrl_c;

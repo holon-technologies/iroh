@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use n0_future::time::Duration;
 
 use super::{meta::raw_outboard_size, temp_name};
-use crate::{store::gc::GcConfig, Hash};
+use crate::{Hash, store::gc::GcConfig};
 
 /// Options for directories used by the file store.
 #[derive(Debug, Clone)]

@@ -7,7 +7,7 @@ use std::{
 use bytes::Bytes;
 use iroh::endpoint::{ReadExactError, VarInt};
 use iroh_io::AsyncStreamReader;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// An abstract `iroh::endpoint::SendStream`.
@@ -385,13 +385,14 @@ pub(crate) trait RecvStreamExt: RecvStream {
         let Some(n) = self.read_varint_u64().await? else {
             return Err(io::ErrorKind::UnexpectedEof.into());
         };
-        if n > max_size as u64 {
+        let n = usize::try_from(n)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "length prefix too large"))?;
+        if n > max_size {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "length prefix too large",
             ));
         }
-        let n = n as usize;
         let data = self.recv_bytes(n).await?;
         let value = postcard::from_bytes(&data)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -421,13 +422,13 @@ pub(crate) trait RecvStreamExt: RecvStream {
 
             // Read a single byte
             let res = self.read_u8().await;
-            if shift == 0 {
-                if let Err(cause) = res {
-                    if cause.kind() == io::ErrorKind::UnexpectedEof {
-                        return Ok(None);
-                    } else {
-                        return Err(cause);
-                    }
+            if shift == 0
+                && let Err(cause) = res
+            {
+                if cause.kind() == io::ErrorKind::UnexpectedEof {
+                    return Ok(None);
+                } else {
+                    return Err(cause);
                 }
             }
 

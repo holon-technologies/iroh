@@ -2,19 +2,20 @@ use std::{fmt::Debug, io, ops::Deref};
 
 use iroh::endpoint::VarInt;
 use irpc::{
+    Channels, WithChannels,
     channel::{mpsc, none::NoSender, oneshot},
-    rpc_requests, Channels, WithChannels,
+    rpc_requests,
 };
 use n0_error::{e, stack_error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    protocol::{
-        GetManyRequest, GetRequest, ObserveRequest, PushRequest, ERR_INTERNAL, ERR_LIMIT,
-        ERR_PERMISSION,
-    },
-    provider::{events::irpc_ext::IrpcClientExt, TransferStats},
     Hash,
+    protocol::{
+        ERR_INTERNAL, ERR_LIMIT, ERR_PERMISSION, GetManyRequest, GetRequest, ObserveRequest,
+        PushRequest,
+    },
+    provider::{TransferStats, events::irpc_ext::IrpcClientExt},
 };
 
 /// Mode for connect events.
@@ -341,7 +342,8 @@ impl EventSender {
     /// Log request events at trace level.
     pub fn tracing(&self, mask: EventMask) -> Self {
         use tracing::trace;
-        let (tx, mut rx) = tokio::sync::mpsc::channel(32);
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel(crate::limits::INTERNAL_PROGRESS_QUEUE_CAPACITY);
         n0_future::task::spawn(async move {
             fn log_request_events(
                 mut rx: irpc::channel::mpsc::Receiver<RequestUpdate>,
@@ -448,10 +450,10 @@ impl EventSender {
         ProviderProto: From<RequestReceived<Req>>,
         ProviderMessage: From<WithChannels<RequestReceived<Req>, ProviderProto>>,
         RequestReceived<Req>: Channels<
-            ProviderProto,
-            Tx = oneshot::Sender<EventResult>,
-            Rx = mpsc::Receiver<RequestUpdate>,
-        >,
+                ProviderProto,
+                Tx = oneshot::Sender<EventResult>,
+                Rx = mpsc::Receiver<RequestUpdate>,
+            >,
         ProviderProto: From<Notify<RequestReceived<Req>>>,
         ProviderMessage: From<WithChannels<Notify<RequestReceived<Req>>, ProviderProto>>,
         Notify<RequestReceived<Req>>:
@@ -582,7 +584,7 @@ mod proto {
     use iroh::EndpointId;
     use serde::{Deserialize, Serialize};
 
-    use crate::{provider::TransferStats, Hash};
+    use crate::{Hash, provider::TransferStats};
 
     #[derive(Debug, Serialize, Deserialize)]
     pub struct ClientConnected {
@@ -659,8 +661,8 @@ mod irpc_ext {
     use std::future::Future;
 
     use irpc::{
-        channel::{mpsc, none::NoSender},
         Channels, RpcMessage, Service, WithChannels,
+        channel::{mpsc, none::NoSender},
     };
 
     pub trait IrpcClientExt<S: Service> {

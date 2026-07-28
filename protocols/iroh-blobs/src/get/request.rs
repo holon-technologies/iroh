@@ -13,7 +13,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use bao_tree::{io::BaoContentItem, ChunkNum, ChunkRanges};
+use bao_tree::{ChunkNum, ChunkRanges, io::BaoContentItem};
 use bytes::Bytes;
 use genawaiter::sync::{Co, Gen};
 use iroh::endpoint::Connection;
@@ -23,18 +23,20 @@ use nested_enum_utils::enum_conversions;
 use rand::{Rng, RngExt};
 use tokio::sync::mpsc;
 
-use super::{fsm, GetError, GetResult, Stats};
+use super::{GetError, GetResult, Stats, fsm};
 use crate::{
+    Hash, HashAndFormat,
     hashseq::HashSeq,
     protocol::{ChunkRangesExt, ChunkRangesSeq, GetRequest},
-    Hash, HashAndFormat,
 };
 
 /// Result of a [`get_blob`] request.
 ///
 /// This is a stream of [`GetBlobItem`]s. You can also await it to get just
 /// the bytes of the blob.
+#[derive(derive_more::Debug)]
 pub struct GetBlobResult {
+    #[debug(skip)]
     rx: n0_future::stream::Boxed<GetBlobItem>,
 }
 

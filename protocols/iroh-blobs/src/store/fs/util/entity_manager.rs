@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::{fmt::Debug, future::Future, hash::Hash};
 
-use n0_future::{future, FuturesUnordered};
+use n0_future::{FuturesUnordered, future};
 use tokio::sync::{mpsc, oneshot};
 
 /// Trait to reset an entity state in place.
@@ -101,7 +101,7 @@ struct ShutdownComplete<P: Params> {
 
 mod entity_actor {
     #![allow(dead_code)]
-    use n0_future::{future, FuturesUnordered, StreamExt};
+    use n0_future::{FuturesUnordered, StreamExt, future};
     use tokio::sync::mpsc;
 
     use super::{
@@ -260,13 +260,13 @@ mod main_actor {
     #![allow(dead_code)]
     use std::{collections::HashMap, future::Future};
 
-    use n0_future::{future, FuturesUnordered};
+    use n0_future::{FuturesUnordered, future};
     use tokio::{sync::mpsc, task::JoinSet};
     use tracing::{error, warn};
 
     use super::{
-        entity_actor, EntityShutdown, Params, Reset, Shutdown, ShutdownAll, ShutdownComplete,
-        Spawn, SpawnArg,
+        EntityShutdown, Params, Reset, Shutdown, ShutdownAll, ShutdownComplete, Spawn, SpawnArg,
+        entity_actor,
     };
 
     pub(super) enum Command<P: Params> {
@@ -816,8 +816,8 @@ mod tests {
         use std::{
             collections::{HashMap, HashSet},
             sync::{
-                atomic::{AtomicUsize, Ordering},
                 Arc, Mutex,
+                atomic::{AtomicUsize, Ordering},
             },
         };
 
@@ -877,6 +877,10 @@ mod tests {
         }
 
         impl entity_actor::State<Counters> {
+            #[allow(
+                clippy::unused_async,
+                reason = "test state mirrors an actor API that may perform asynchronous storage"
+            )]
             async fn with_value(&self, f: impl FnOnce(&mut u128)) -> Result<(), &'static str> {
                 let mut state = self.state.0.borrow_mut();
                 // lazily load the data from the database
@@ -1027,7 +1031,11 @@ mod tests {
                 0,
                 "Active should have never been called, since we did not spawn the task!"
             );
-            assert_eq!(busy.load(Ordering::SeqCst), 2, "Busy should have been called two times, since we sent 10 msgs to a queue with capacity 8, and nobody is draining it");
+            assert_eq!(
+                busy.load(Ordering::SeqCst),
+                2,
+                "Busy should have been called two times, since we sent 10 msgs to a queue with capacity 8, and nobody is draining it"
+            );
             Ok(())
         }
 
@@ -1103,6 +1111,10 @@ mod tests {
         }
 
         impl entity_actor::State<Counters> {
+            #[allow(
+                clippy::unused_async,
+                reason = "test state mirrors an actor API that may perform asynchronous storage"
+            )]
             async fn with_value(&self, f: impl FnOnce(&mut u128)) -> Result<(), &'static str> {
                 let Ok(mut r) = self.state.0.try_borrow_mut() else {
                     panic!("failed to borrow state mutably");

@@ -10,9 +10,9 @@ use std::{fmt, sync::OnceLock};
 pub use bao_tree::ChunkRanges;
 use bao_tree::{ChunkNum, ChunkRangesRef};
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
-use crate::protocol::ChunkRangesExt;
+use crate::protocol::{ChunkRangesExt, MAX_RANGE_BOUNDARIES_PER_BLOB, MAX_RANGE_TRANSITIONS};
 
 static CHUNK_RANGES_EMPTY: OnceLock<ChunkRanges> = OnceLock::new();
 
@@ -21,7 +21,7 @@ fn chunk_ranges_empty() -> &'static ChunkRanges {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(from = "wire::RangeSpecSeq", into = "wire::RangeSpecSeq")]
+#[serde(try_from = "wire::RangeSpecSeq", into = "wire::RangeSpecSeq")]
 pub struct ChunkRangesSeq(pub(crate) SmallVec<[(u64, ChunkRanges); 2]>);
 
 impl std::hash::Hash for ChunkRangesSeq {
@@ -143,10 +143,10 @@ impl ChunkRangesSeq {
     /// added immediately after it to terminate the sequence.
     pub fn from_ranges(ranges: impl IntoIterator<Item = ChunkRanges>) -> Self {
         let (mut res, next) = from_ranges_inner(ranges);
-        if let Some((_, r)) = res.iter().next_back() {
-            if !r.is_empty() {
-                res.push((next, ChunkRanges::empty()));
-            }
+        if let Some((_, r)) = res.iter().next_back()
+            && !r.is_empty()
+        {
+            res.push((next, ChunkRanges::empty()));
         }
         Self(res)
     }
@@ -185,6 +185,26 @@ impl ChunkRangesSeq {
             offset: 0,
             remaining: self.0.iter().peekable(),
         }
+    }
+
+    pub(crate) fn validate(&self) -> std::io::Result<()> {
+        if self.0.len() > MAX_RANGE_TRANSITIONS {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "request contains too many range transitions",
+            ));
+        }
+        if self
+            .0
+            .iter()
+            .any(|(_, ranges)| ranges.boundaries().len() > MAX_RANGE_BOUNDARIES_PER_BLOB)
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "request contains too many range boundaries",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -449,6 +469,16 @@ impl RangeSpec {
         }
         ranges
     }
+
+    pub(crate) fn validate(&self) -> std::io::Result<()> {
+        if self.0.len() > MAX_RANGE_BOUNDARIES_PER_BLOB {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "request contains too many range boundaries",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Debug for RangeSpec {
@@ -472,20 +502,30 @@ mod wire {
     use serde::{Deserialize, Serialize};
     use smallvec::SmallVec;
 
-    use super::{ChunkRangesSeq, RangeSpec};
+    use super::{ChunkRangesSeq, MAX_RANGE_BOUNDARIES_PER_BLOB, MAX_RANGE_TRANSITIONS, RangeSpec};
 
-    #[derive(Deserialize, Serialize)]
-    pub struct RangeSpecSeq(SmallVec<[(u64, RangeSpec); 2]>);
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct RangeSpecSeq(pub(super) SmallVec<[(u64, RangeSpec); 2]>);
 
-    impl From<RangeSpecSeq> for ChunkRangesSeq {
-        fn from(wire: RangeSpecSeq) -> Self {
-            let mut offset = 0;
+    impl TryFrom<RangeSpecSeq> for ChunkRangesSeq {
+        type Error = &'static str;
+
+        fn try_from(wire: RangeSpecSeq) -> Result<Self, Self::Error> {
+            if wire.0.len() > MAX_RANGE_TRANSITIONS {
+                return Err("request contains too many range transitions");
+            }
+            let mut offset: u64 = 0;
             let mut res = SmallVec::new();
             for (delta, spec) in wire.0.iter() {
-                offset += *delta;
+                if spec.0.len() > MAX_RANGE_BOUNDARIES_PER_BLOB {
+                    return Err("request contains too many range boundaries");
+                }
+                offset = offset
+                    .checked_add(*delta)
+                    .ok_or("range transition offset overflow")?;
                 res.push((offset, spec.to_chunk_ranges()));
             }
-            Self(res)
+            Ok(Self(res))
         }
     }
 
@@ -542,6 +582,27 @@ mod tests {
             .take(ranges.len())
             .cloned()
             .collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn rejects_too_many_wire_transitions() {
+        const TEST_LIMIT: usize = 4_096;
+        let transitions = (0..=TEST_LIMIT)
+            .map(|_| (1, RangeSpec::all()))
+            .collect::<SmallVec<_>>();
+        let wire = wire::RangeSpecSeq(transitions);
+
+        assert!(ChunkRangesSeq::try_from(wire).is_err());
+    }
+
+    #[test]
+    fn rejects_overflowing_wire_delta() {
+        let wire = wire::RangeSpecSeq(smallvec![
+            (u64::MAX, RangeSpec::all()),
+            (1, RangeSpec::all()),
+        ]);
+
+        assert!(ChunkRangesSeq::try_from(wire).is_err());
     }
 
     fn mk_case(case: Vec<Range<u64>>) -> Vec<ChunkRanges> {

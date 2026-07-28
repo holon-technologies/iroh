@@ -4,7 +4,7 @@ use bao_tree::io::BaoContentItem;
 use clap::Parser;
 use common::setup_logging;
 use iroh::{address_lookup::PkarrResolver, endpoint::presets};
-use iroh_blobs::{get::request::GetBlobItem, ticket::BlobTicket, BlobFormat};
+use iroh_blobs::{BlobFormat, get::request::GetBlobItem, ticket::BlobTicket};
 use n0_future::StreamExt;
 use tokio::io::AsyncWriteExt;
 
