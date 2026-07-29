@@ -10,7 +10,6 @@ use iroh_gossip::proto::{
 #[test]
 // #[traced_test]
 fn big_hyparview() {
-    tracing_subscriber::fmt::try_init().ok();
     let mut proto = Config::default();
     proto.membership.shuffle_interval = Duration::from_secs(5);
     let config = SimulatorConfig::from_env();
@@ -29,8 +28,6 @@ fn big_hyparview() {
 #[test]
 // #[traced_test]
 fn big_multiple_sender() {
-    tracing_subscriber::fmt::try_init().ok();
-
     let network_config = NetworkConfig::default();
     let config = SimulatorConfig::from_env();
     let bootstrap = BootstrapMode::default();
@@ -61,8 +58,6 @@ fn big_multiple_sender() {
 #[test]
 // #[traced_test]
 fn big_single_sender() {
-    tracing_subscriber::fmt::try_init().ok();
-
     let network_config = NetworkConfig::default();
 
     let config = SimulatorConfig::from_env();
@@ -92,7 +87,6 @@ fn big_single_sender() {
 #[test]
 // #[traced_test]
 fn big_burst() {
-    tracing_subscriber::fmt::try_init().ok();
     let network_config = NetworkConfig::default();
     let config = SimulatorConfig::from_env();
     let bootstrap = BootstrapMode::default();

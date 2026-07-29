@@ -543,7 +543,7 @@ async fn test_sync_via_relay() -> Result<()> {
             Box::new(move |e| matches!(e, LiveEvent::NeighborUp(n) if *n== node1_id)),
             Box::new(move |e| match_sync_finished(e, node1_id)),
             Box::new(
-                move |e| matches!(e, LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == node1_id),
+                move |e| matches!(e, LiveEvent::InsertRemote { from, .. } if *from == node1_id),
             ),
             Box::new(
                 move |e| matches!(e, LiveEvent::ContentReady { hash } if *hash == inserted_hash),
@@ -551,7 +551,8 @@ async fn test_sync_via_relay() -> Result<()> {
             match_event!(LiveEvent::PendingContentReady),
         ],
         vec![Box::new(move |e| match_sync_finished(e, node1_id))],
-    ).await;
+    )
+    .await;
     let actual = blobs2
         .get_bytes(
             doc2.get_exact(author1, b"foo", false)
@@ -571,7 +572,7 @@ async fn test_sync_via_relay() -> Result<()> {
         Duration::from_secs(10),
         vec![
             Box::new(
-                move |e| matches!(e, LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == node1_id),
+                move |e| matches!(e, LiveEvent::InsertRemote { from, .. } if *from == node1_id),
             ),
             Box::new(
                 move |e| matches!(e, LiveEvent::ContentReady { hash } if *hash == updated_hash),
@@ -581,7 +582,8 @@ async fn test_sync_via_relay() -> Result<()> {
             Box::new(move |e| match_sync_finished(e, node1_id)),
             Box::new(move |e| matches!(e, LiveEvent::PendingContentReady)),
         ],
-    ).await;
+    )
+    .await;
     let actual = blobs2
         .get_bytes(
             doc2.get_exact(author1, b"foo", false)

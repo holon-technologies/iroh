@@ -7,10 +7,10 @@
 //! ```rust
 //! # async fn example() -> n0_error::Result<()> {
 //! use iroh::{Endpoint, endpoint::presets, protocol::Router};
-//! use iroh_blobs::{BlobsProtocol, store, ticket::BlobTicket};
+//! use iroh_blobs::{BlobsProtocol, store::mem::MemStore, ticket::BlobTicket};
 //!
 //! // create a store
-//! let store = store::fs::FsStore::load("blobs").await?;
+//! let store = MemStore::new();
 //!
 //! // add some data
 //! let t = store.add_slice(b"hello world").await?;

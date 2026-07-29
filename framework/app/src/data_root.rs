@@ -1,6 +1,6 @@
 use std::{
     fmt,
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     sync::{
@@ -8,6 +8,9 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
+
+#[cfg(unix)]
+use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
