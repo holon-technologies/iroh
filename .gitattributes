@@ -7,6 +7,11 @@
 # not appear in GitHub's language statistics or dominate diff review.
 vendor/** linguist-vendored
 
+# Vendored trees and their patches must stay byte-identical to the upstream
+# crates.io packages, or scripts/tests/check-vendor-provenance.sh cannot verify
+# them. Exempt from the repo-wide LF normalization above.
+vendor/** -text
+
 # Machine-generated. Excluded from language statistics and collapsed in diffs.
 CHANGELOG.md linguist-generated
 CHANGELOG_old.md linguist-generated
