@@ -1,0 +1,529 @@
+--- a/src/common_state.rs
++++ b/src/common_state.rs
+@@ -1,4 +1,5 @@
+ use alloc::boxed::Box;
++use alloc::sync::Arc;
+ use alloc::vec::Vec;
+ 
+ use pki_types::CertificateDer;
+@@ -165,9 +166,9 @@
+     /// Similarly, if the [`CommonState::handshake_kind()`] is [`HandshakeKind::Resumed`]
+     /// and the [`CommonState::protocol_version()`] is TLS 1.2, then no key exchange will have
+     /// occurred and this function will return `None`.
+-    pub fn negotiated_key_exchange_group(&self) -> Option<&'static dyn SupportedKxGroup> {
+-        match self.kx_state {
+-            KxState::Complete(group) => Some(group),
++    pub fn negotiated_key_exchange_group(&self) -> Option<&dyn SupportedKxGroup> {
++        match &self.kx_state {
++            KxState::Complete(group) => Some(group.as_ref()),
+             _ => None,
+         }
+     }
+@@ -963,15 +964,15 @@
+ pub(crate) enum KxState {
+     #[default]
+     None,
+-    Start(&'static dyn SupportedKxGroup),
+-    Complete(&'static dyn SupportedKxGroup),
++    Start(Arc<dyn SupportedKxGroup>),
++    Complete(Arc<dyn SupportedKxGroup>),
+ }
+ 
+ impl KxState {
+     pub(crate) fn complete(&mut self) {
+         debug_assert!(matches!(self, Self::Start(_)));
+         if let Self::Start(group) = self {
+-            *self = Self::Complete(*group);
++            *self = Self::Complete(group.clone());
+         }
+     }
+ }
+--- a/src/crypto/mod.rs
++++ b/src/crypto/mod.rs
+@@ -198,7 +198,7 @@
+     /// and in TLS1.3 a key share for it is sent in the client hello.
+     ///
+     /// The `SupportedKxGroup` type carries both configuration and implementation.
+-    pub kx_groups: Vec<&'static dyn SupportedKxGroup>,
++    pub kx_groups: Vec<Arc<dyn SupportedKxGroup>>,
+ 
+     /// List of signature verification algorithms for use with webpki.
+     ///
+@@ -210,7 +210,7 @@
+     pub signature_verification_algorithms: WebPkiSupportedAlgorithms,
+ 
+     /// Source of cryptographically secure random numbers.
+-    pub secure_random: &'static dyn SecureRandom,
++    pub secure_random: Arc<dyn SecureRandom>,
+ 
+     /// Provider for loading private [`SigningKey`]s from [`PrivateKeyDer`].
+     pub key_provider: &'static dyn KeyProvider,
+@@ -429,6 +429,50 @@
+     }
+ }
+ 
++#[derive(Debug)]
++#[cfg(any(feature = "ring", feature = "aws_lc_rs"))]
++struct StaticKxGroup(&'static dyn SupportedKxGroup);
++
++#[cfg(any(feature = "ring", feature = "aws_lc_rs"))]
++impl SupportedKxGroup for StaticKxGroup {
++    fn start(&self) -> Result<Box<dyn ActiveKeyExchange>, Error> {
++        self.0.start()
++    }
++
++    fn start_and_complete(&self, peer_pub_key: &[u8]) -> Result<CompletedKeyExchange, Error> {
++        self.0.start_and_complete(peer_pub_key)
++    }
++
++    fn ffdhe_group(&self) -> Option<FfdheGroup<'static>> {
++        self.0.ffdhe_group()
++    }
++
++    fn name(&self) -> NamedGroup {
++        self.0.name()
++    }
++
++    fn fips(&self) -> bool {
++        self.0.fips()
++    }
++
++    fn usable_for_version(&self, version: ProtocolVersion) -> bool {
++        self.0.usable_for_version(version)
++    }
++}
++
++#[cfg(any(feature = "ring", feature = "aws_lc_rs"))]
++pub(crate) fn owned_kx_groups(
++    groups: &[&'static dyn SupportedKxGroup],
++) -> Vec<Arc<dyn SupportedKxGroup>> {
++    groups
++        .iter()
++        .map(|group| {
++            let owned: Arc<dyn SupportedKxGroup> = Arc::new(StaticKxGroup(*group));
++            owned
++        })
++        .collect()
++}
++
+ /// An in-progress key exchange originating from a [`SupportedKxGroup`].
+ pub trait ActiveKeyExchange: Send + Sync {
+     /// Completes the key exchange, given the peer's public key.
+--- a/src/crypto/aws_lc_rs/mod.rs
++++ b/src/crypto/aws_lc_rs/mod.rs
+@@ -44,23 +44,25 @@
+         cipher_suites: DEFAULT_CIPHER_SUITES.to_vec(),
+         kx_groups: default_kx_groups(),
+         signature_verification_algorithms: SUPPORTED_SIG_ALGS,
+-        secure_random: &AwsLcRs,
++        secure_random: Arc::new(AwsLcRs),
+         key_provider: &AwsLcRs,
+     }
+ }
+ 
+-fn default_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
++fn default_kx_groups() -> Vec<Arc<dyn SupportedKxGroup>> {
+     #[cfg(feature = "fips")]
+     {
+-        DEFAULT_KX_GROUPS
+-            .iter()
+-            .filter(|cs| cs.fips())
+-            .copied()
+-            .collect()
++        super::owned_kx_groups(
++            &DEFAULT_KX_GROUPS
++                .iter()
++                .filter(|cs| cs.fips())
++                .copied()
++                .collect::<Vec<_>>(),
++        )
+     }
+     #[cfg(not(feature = "fips"))]
+     {
+-        DEFAULT_KX_GROUPS.to_vec()
++        super::owned_kx_groups(DEFAULT_KX_GROUPS)
+     }
+ }
+ 
+--- a/src/crypto/ring/mod.rs
++++ b/src/crypto/ring/mod.rs
+@@ -31,9 +31,9 @@
+ pub fn default_provider() -> CryptoProvider {
+     CryptoProvider {
+         cipher_suites: DEFAULT_CIPHER_SUITES.to_vec(),
+-        kx_groups: DEFAULT_KX_GROUPS.to_vec(),
++        kx_groups: super::owned_kx_groups(DEFAULT_KX_GROUPS),
+         signature_verification_algorithms: SUPPORTED_SIG_ALGS,
+-        secure_random: &Ring,
++        secure_random: Arc::new(Ring),
+         key_provider: &Ring,
+     }
+ }
+--- a/src/client/hs.rs
++++ b/src/client/hs.rs
+@@ -94,7 +94,8 @@
+                         // we're  doing an abbreviated handshake.  See section 3.4 in
+                         // RFC5077.
+                         if !inner.ticket().0.is_empty() {
+-                            inner.session_id = SessionId::random(config.provider.secure_random)?;
++                            inner.session_id =
++                                SessionId::random(config.provider.secure_random.as_ref())?;
+                         }
+                         Some(inner.session_id)
+                     }
+@@ -113,17 +114,17 @@
+             Some(session_id) => session_id,
+             None if cx.common.is_quic() => SessionId::empty(),
+             None if !config.supports_version(ProtocolVersion::TLSv1_3) => SessionId::empty(),
+-            None => SessionId::random(config.provider.secure_random)?,
++            None => SessionId::random(config.provider.secure_random.as_ref())?,
+         };
+ 
+         let hello = ClientHelloDetails::new(
+             extra_exts.protocols.clone().unwrap_or_default(),
+-            crate::rand::random_u16(config.provider.secure_random)?,
++            crate::rand::random_u16(config.provider.secure_random.as_ref())?,
+         );
+ 
+         Ok(Self {
+             resuming,
+-            random: Random::new(config.provider.secure_random)?,
++            random: Random::new(config.provider.secure_random.as_ref())?,
+             sent_tls13_fake_ccs: false,
+             hello,
+             session_id,
+@@ -363,7 +364,7 @@
+ 
+     let ech_grease_ext = config.ech_mode.as_ref().and_then(|mode| match mode {
+         EchMode::Grease(cfg) => Some(cfg.grease_ext(
+-            config.provider.secure_random,
++            config.provider.secure_random.clone(),
+             input.server_name.clone(),
+             &chp_payload,
+         )),
+@@ -968,7 +969,7 @@
+                     ));
+                 };
+ 
+-                cx.common.kx_state = KxState::Start(skxg);
++                cx.common.kx_state = KxState::Start(skxg.clone());
+                 skxg.start()?
+             }
+             _ => offered_key_share,
+--- a/src/client/tls12.rs
++++ b/src/client/tls12.rs
+@@ -922,7 +922,7 @@
+                     .kx_groups
+                     .iter()
+                     .find(|kxg| kxg.ffdhe_group() == Some(ffdhe_group))
+-                    .copied()
++                    .cloned()
+             }
+         };
+         let Some(skxg) = maybe_skxg else {
+@@ -931,7 +931,7 @@
+                 PeerMisbehaved::SelectedUnofferedKxGroup,
+             ));
+         };
+-        cx.common.kx_state = KxState::Start(skxg);
++        cx.common.kx_state = KxState::Start(skxg.clone());
+         let kx = skxg.start()?;
+ 
+         // 4b.
+--- a/src/client/tls13.rs
++++ b/src/client/tls13.rs
+@@ -314,12 +314,12 @@
+                 .provider
+                 .kx_groups
+                 .iter()
+-                .copied()
++                .cloned()
+                 .next()
+                 .expect("No kx groups configured")
+         });
+ 
+-    *kx_state = KxState::Start(group);
++    *kx_state = KxState::Start(group.clone());
+     group.start()
+ }
+ 
+--- a/src/client/ech.rs
++++ b/src/client/ech.rs
+@@ -24,6 +24,7 @@
+ use crate::msgs::message::{Message, MessagePayload};
+ use crate::msgs::persist;
+ use crate::msgs::persist::Retrieved;
++use crate::sync::Arc;
+ use crate::tls13::key_schedule::{
+     server_ech_hrr_confirmation_secret, KeyScheduleEarly, KeyScheduleHandshakeStart,
+ };
+@@ -164,7 +165,7 @@
+             self,
+             server_name.clone(),
+             config.client_auth_cert_resolver.has_certs(),
+-            config.provider.secure_random,
++            config.provider.secure_random.clone(),
+             config.enable_sni,
+         )
+     }
+@@ -211,7 +212,7 @@
+     /// more information.
+     pub(crate) fn grease_ext(
+         &self,
+-        secure_random: &'static dyn SecureRandom,
++        secure_random: Arc<dyn SecureRandom>,
+         inner_name: ServerName<'static>,
+         outer_hello: &ClientHelloPayload,
+     ) -> Result<EncryptedClientHello, Error> {
+@@ -242,7 +243,7 @@
+             },
+             inner_name,
+             false,
+-            secure_random,
++            secure_random.clone(),
+             false, // Does not matter if we enable/disable SNI here. Inner hello is not used.
+         )?;
+ 
+@@ -301,7 +302,7 @@
+     // using this transcript for the handshake.
+     pub(crate) inner_hello_transcript: HandshakeHashBuffer,
+     // A source of secure random data.
+-    secure_random: &'static dyn SecureRandom,
++    secure_random: Arc<dyn SecureRandom>,
+     // An HPKE sealer context that can be used for encrypting ECH data.
+     sender: Box<dyn HpkeSealer>,
+     // The ID of the ECH configuration we've chosen - this is included in the outer ECH extension.
+@@ -328,7 +329,7 @@
+         config: &EchConfig,
+         inner_name: ServerName<'static>,
+         client_auth_enabled: bool,
+-        secure_random: &'static dyn SecureRandom,
++        secure_random: Arc<dyn SecureRandom>,
+         enable_sni: bool,
+     ) -> Result<Self, Error> {
+         let EchConfigPayload::V18(config_contents) = &config.config else {
+@@ -351,6 +352,7 @@
+             inner_hello_transcript.set_client_auth_enabled();
+         }
+ 
++        let inner_hello_random = Random::new(secure_random.as_ref())?;
+         Ok(Self {
+             secure_random,
+             sender,
+@@ -360,7 +362,7 @@
+             maximum_name_length: config_contents.maximum_name_length,
+             cipher_suite: config.suite.suite().sym,
+             enc,
+-            inner_hello_random: Random::new(secure_random)?,
++            inner_hello_random,
+             inner_hello_transcript,
+             early_data_key_schedule: None,
+             enable_sni,
+--- a/src/client/client_conn.rs
++++ b/src/client/client_conn.rs
+@@ -439,11 +439,11 @@
+         &self,
+         group: NamedGroup,
+         version: ProtocolVersion,
+-    ) -> Option<&'static dyn SupportedKxGroup> {
++    ) -> Option<Arc<dyn SupportedKxGroup>> {
+         self.provider
+             .kx_groups
+             .iter()
+-            .copied()
++            .cloned()
+             .find(|skxg| skxg.usable_for_version(version) && skxg.name() == group)
+     }
+ 
+--- a/src/server/hs.rs
++++ b/src/server/hs.rs
+@@ -440,7 +440,7 @@
+ 
+         debug!("decided upon suite {suite:?}");
+         cx.common.suite = Some(suite);
+-        cx.common.kx_state = KxState::Start(skxg);
++        cx.common.kx_state = KxState::Start(skxg.clone());
+ 
+         // Start handshake hash.
+         let starting_hash = suite.hash_provider();
+@@ -462,7 +462,7 @@
+         // Save their Random.
+         let randoms = ConnectionRandoms::new(
+             client_hello.random,
+-            Random::new(self.config.provider.secure_random)?,
++            Random::new(self.config.provider.secure_random.as_ref())?,
+         );
+         match suite {
+             SupportedCipherSuite::Tls13(suite) => tls13::CompleteClientHelloHandling {
+@@ -505,7 +505,7 @@
+         protocol: Protocol,
+         client_groups: &[NamedGroup],
+         client_suites: &[CipherSuite],
+-    ) -> Result<(SupportedCipherSuite, &'static dyn SupportedKxGroup), PeerIncompatible> {
++    ) -> Result<(SupportedCipherSuite, Arc<dyn SupportedKxGroup>), PeerIncompatible> {
+         // Determine which `KeyExchangeAlgorithm`s are theoretically possible, based
+         // on the offered and supported groups.
+         let mut ecdhe_possible = false;
+@@ -514,9 +514,15 @@
+         let mut supported_groups = Vec::with_capacity(client_groups.len());
+ 
+         for offered_group in client_groups {
+-            let supported = self.config.provider.kx_groups.iter().find(|skxg| {
+-                skxg.usable_for_version(selected_version) && skxg.name() == *offered_group
+-            });
++            let supported = self
++                .config
++                .provider
++                .kx_groups
++                .iter()
++                .find(|skxg| {
++                    skxg.usable_for_version(selected_version) && skxg.name() == *offered_group
++                })
++                .cloned();
+ 
+             match offered_group.key_exchange_algorithm() {
+                 KeyExchangeAlgorithm::DHE => {
+@@ -531,19 +537,21 @@
+             supported_groups.push(supported);
+         }
+ 
+-        let first_supported_dhe_kxg =
+-            if selected_version == ProtocolVersion::TLSv1_2 {
+-                // https://datatracker.ietf.org/doc/html/rfc7919#section-4 (paragraph 2)
+-                let first_supported_dhe_kxg =
+-                    self.config.provider.kx_groups.iter().find(|skxg| {
+-                        skxg.name().key_exchange_algorithm() == KeyExchangeAlgorithm::DHE
+-                    });
+-                ffdhe_possible |= !ffdhe_offered && first_supported_dhe_kxg.is_some();
+-                first_supported_dhe_kxg
+-            } else {
+-                // In TLS1.3, the server may only directly negotiate a group.
+-                None
+-            };
++        let first_supported_dhe_kxg = if selected_version == ProtocolVersion::TLSv1_2 {
++            // https://datatracker.ietf.org/doc/html/rfc7919#section-4 (paragraph 2)
++            let first_supported_dhe_kxg = self
++                .config
++                .provider
++                .kx_groups
++                .iter()
++                .find(|skxg| skxg.name().key_exchange_algorithm() == KeyExchangeAlgorithm::DHE)
++                .cloned();
++            ffdhe_possible |= !ffdhe_offered && first_supported_dhe_kxg.is_some();
++            first_supported_dhe_kxg
++        } else {
++            // In TLS1.3, the server may only directly negotiate a group.
++            None
++        };
+ 
+         if !ecdhe_possible && !ffdhe_possible {
+             return Err(PeerIncompatible::NoKxGroupsInCommon);
+@@ -587,24 +595,24 @@
+             .find_map(|maybe_skxg| match maybe_skxg {
+                 Some(skxg) => suite
+                     .usable_for_kx_algorithm(skxg.name().key_exchange_algorithm())
+-                    .then_some(*skxg),
++                    .then_some(skxg.clone()),
+                 None => None,
+             });
+ 
+         if selected_version == ProtocolVersion::TLSv1_3 {
+             // This unwrap is structurally guaranteed by the early return for `!ffdhe_possible && !ecdhe_possible`
+-            return Ok((*suite, *maybe_skxg.unwrap()));
++            return Ok((*suite, maybe_skxg.unwrap()));
+         }
+ 
+         // For TLS1.2, the server can unilaterally choose a DHE group if it has one and
+         // there was no better option.
+         match maybe_skxg {
+-            Some(skxg) => Ok((*suite, *skxg)),
++            Some(skxg) => Ok((*suite, skxg)),
+             None if suite.usable_for_kx_algorithm(KeyExchangeAlgorithm::DHE) => {
+                 // If kx for the selected cipher suite is DHE and no DHE groups are specified in the extension,
+                 // the server is free to choose DHE params, we choose the first DHE kx group of the provider.
+                 if let Some(server_selected_ffdhe_skxg) = first_supported_dhe_kxg {
+-                    Ok((*suite, *server_selected_ffdhe_skxg))
++                    Ok((*suite, server_selected_ffdhe_skxg))
+                 } else {
+                     Err(PeerIncompatible::NoKxGroupsInCommon)
+                 }
+--- a/src/server/tls12.rs
++++ b/src/server/tls12.rs
+@@ -67,7 +67,7 @@
+             server_key: ActiveCertifiedKey<'_>,
+             chm: &Message<'_>,
+             client_hello: &ClientHelloPayload,
+-            selected_kxg: &'static dyn SupportedKxGroup,
++            selected_kxg: Arc<dyn SupportedKxGroup>,
+             sigschemes_ext: Vec<SignatureScheme>,
+             tls13_enabled: bool,
+         ) -> hs::NextStateOrError<'static> {
+@@ -168,10 +168,10 @@
+             if !self.config.session_storage.can_cache() {
+                 self.session_id = SessionId::empty();
+             } else if self.session_id.is_empty() && !ticket_received {
+-                self.session_id = SessionId::random(self.config.provider.secure_random)?;
++                self.session_id = SessionId::random(self.config.provider.secure_random.as_ref())?;
+             }
+ 
+-            cx.common.kx_state = KxState::Start(selected_kxg);
++            cx.common.kx_state = KxState::Start(selected_kxg.clone());
+             cx.common.handshake_kind = Some(HandshakeKind::Full);
+ 
+             let mut flight = HandshakeFlightTls12::new(&mut self.transcript);
+@@ -196,7 +196,7 @@
+             let server_kx = emit_server_kx(
+                 &mut flight,
+                 sigschemes,
+-                selected_kxg,
++                selected_kxg.as_ref(),
+                 server_key.get_key(),
+                 &self.randoms,
+             )?;
+@@ -355,7 +355,7 @@
+     fn emit_server_kx(
+         flight: &mut HandshakeFlightTls12<'_>,
+         sigschemes: Vec<SignatureScheme>,
+-        selected_group: &'static dyn SupportedKxGroup,
++        selected_group: &dyn SupportedKxGroup,
+         signing_key: &dyn sign::SigningKey,
+         randoms: &ConnectionRandoms,
+     ) -> Result<Box<dyn ActiveKeyExchange>, Error> {
+--- a/src/server/tls13.rs
++++ b/src/server/tls13.rs
+@@ -136,7 +136,7 @@
+             server_key: ActiveCertifiedKey<'_>,
+             chm: &Message<'_>,
+             client_hello: &ClientHelloPayload,
+-            selected_kxg: &'static dyn SupportedKxGroup,
++            selected_kxg: Arc<dyn SupportedKxGroup>,
+             mut sigschemes_ext: Vec<SignatureScheme>,
+         ) -> hs::NextStateOrError<'static> {
+             if client_hello.compression_methods.len() != 1 {
+@@ -195,7 +195,7 @@
+ 
+             // See if there is a KeyShare for the selected kx group.
+             let chosen_share_and_kxg = shares_ext.iter().find_map(|share| {
+-                (share.group == selected_kxg.name()).then_some((share, selected_kxg))
++                (share.group == selected_kxg.name()).then_some((share, selected_kxg.clone()))
+             });
+ 
+             let Some(chosen_share_and_kxg) = chosen_share_and_kxg else {
+@@ -471,7 +471,7 @@
+         suite: &'static Tls13CipherSuite,
+         cx: &mut ServerContext<'_>,
+         session_id: &SessionId,
+-        share_and_kxgroup: (&KeyShareEntry, &'static dyn SupportedKxGroup),
++        share_and_kxgroup: (&KeyShareEntry, Arc<dyn SupportedKxGroup>),
+         chosen_psk_idx: Option<usize>,
+         resuming_psk: Option<&[u8]>,
+         config: &ServerConfig,
+@@ -1214,7 +1214,7 @@
+         resumption: &KeyScheduleResumption,
+         config: &ServerConfig,
+     ) -> Result<(), Error> {
+-        let secure_random = config.provider.secure_random;
++        let secure_random = config.provider.secure_random.as_ref();
+         let nonce = rand::random_vec(secure_random, 32)?;
+         let age_add = rand::random_u32(secure_random)?;
+ 
