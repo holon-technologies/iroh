@@ -551,7 +551,14 @@ impl Drop for OneConnection {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+    use std::{
+        collections::BTreeMap,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
 
     use iroh::{
         EndpointAddr, EndpointId, RelayMode, SecretKey, TransportAddr,
@@ -568,11 +575,14 @@ mod tests {
 
     const ECHO_ALPN: &[u8] = b"echo";
 
-    #[derive(Debug, Clone)]
-    struct Echo;
+    #[derive(Debug, Clone, Default)]
+    struct Echo {
+        next_connection_id: Arc<AtomicUsize>,
+    }
 
     impl ProtocolHandler for Echo {
         async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+            let echo_connection_id = self.next_connection_id.fetch_add(1, Ordering::SeqCst);
             let conn_id = connection.stable_id();
             let id = connection.remote_id();
             trace!(%id, %conn_id, "Accepting echo connection");
@@ -580,6 +590,9 @@ mod tests {
                 match connection.accept_bi().await {
                     Ok((mut send, mut recv)) => {
                         trace!(%id, %conn_id, "Accepted echo request");
+                        send.write_all(&echo_connection_id.to_le_bytes())
+                            .await
+                            .anyerr()?;
                         tokio::io::copy(&mut recv, &mut send).await?;
                         send.finish().map_err(AcceptError::from_err)?;
                     }
@@ -593,7 +606,7 @@ mod tests {
         }
     }
 
-    async fn echo_client(conn: &Connection, text: &[u8]) -> Result<Vec<u8>> {
+    async fn echo_client(conn: &Connection, text: &[u8]) -> Result<(usize, Vec<u8>)> {
         let conn_id = conn.stable_id();
         let id = conn.remote_id();
         trace!(%id, %conn_id, "Sending echo request");
@@ -602,7 +615,13 @@ mod tests {
         send.finish().anyerr()?;
         let response = recv.read_to_end(1000).await.anyerr()?;
         trace!(%id, %conn_id, "Received echo response");
-        Ok(response)
+        let (echo_connection_id, response) = response.split_at(size_of::<usize>());
+        let echo_connection_id = usize::from_le_bytes(
+            echo_connection_id
+                .try_into()
+                .expect("echo server returned a fixed-width connection ID"),
+        );
+        Ok((echo_connection_id, response.to_vec()))
     }
 
     async fn echo_server() -> TestResult<(EndpointAddr, Router)> {
@@ -613,7 +632,7 @@ mod tests {
         endpoint.online().await;
         let addr = endpoint.addr();
         let router = iroh::protocol::Router::builder(endpoint)
-            .accept(ECHO_ALPN, Echo)
+            .accept(ECHO_ALPN, Echo::default())
             .spawn();
 
         Ok((addr, router))
@@ -660,9 +679,8 @@ mod tests {
             text: Vec<u8>,
         ) -> Result<Result<(usize, Vec<u8>), AnyError>, PoolConnectError> {
             let conn = self.pool.get_or_connect(id).await?;
-            let id = conn.stable_id();
             match echo_client(&conn, &text).await {
-                Ok(res) => Ok(Ok((id, res))),
+                Ok(res) => Ok(Ok(res)),
                 Err(e) => Ok(Err(e)),
             }
         }
@@ -860,11 +878,11 @@ mod tests {
 
         let pool = ConnectionPool::new(endpoint.clone(), ECHO_ALPN, test_options());
         let conn = pool.get_or_connect(ids[0]).await?;
-        let cid1 = conn.stable_id();
+        let (cid1, _) = echo_client(&conn, b"before close").await?;
         conn.close(0u32.into(), b"test");
         n0_future::time::sleep(Duration::from_millis(500)).await;
         let conn = pool.get_or_connect(ids[0]).await?;
-        let cid2 = conn.stable_id();
+        let (cid2, _) = echo_client(&conn, b"after close").await?;
         assert_ne!(cid1, cid2);
         shutdown_routers(routers).await;
         endpoint.close().await;
