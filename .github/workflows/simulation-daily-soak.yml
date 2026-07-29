@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Build the fresh-process simulator
         run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
       - name: Stage simulator and checksum
@@ -36,7 +36,7 @@ jobs:
           cd "$RUNNER_TEMP/cargo-sim"
           sha256sum cargo-sim > cargo-sim.sha256
       - name: Upload source-bound simulator
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
@@ -96,9 +96,9 @@ jobs:
             lane_slug: relay-production-provider
             lane_index: 13
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: Download source-bound simulator
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
           name: iroh-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
@@ -133,7 +133,7 @@ jobs:
           exit 0
       - name: Upload lane report and failure artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-soak-${{ matrix.lane_slug }}-${{ github.run_id }}
           path: ${{ runner.temp }}/daily-soak
@@ -157,10 +157,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: Download lane evidence
         continue-on-error: true
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
           pattern: iroh-sim-soak-*-${{ github.run_id }}
           path: ${{ runner.temp }}/lane-results
@@ -249,7 +249,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Download source-bound simulator for confirmed failures
         if: always() && steps.aggregate.outputs.status == '1'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
           name: iroh-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
@@ -334,7 +334,7 @@ jobs:
           exit 0
       - name: Upload aggregate report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-soak-aggregate-${{ github.run_id }}
           path: ${{ runner.temp }}/aggregate
@@ -342,7 +342,7 @@ jobs:
           retention-days: 14
       - name: Upload replay, minimization, and issue evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-soak-triage-${{ github.run_id }}
           path: ${{ runner.temp }}/triage

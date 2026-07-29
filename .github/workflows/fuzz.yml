@@ -29,13 +29,13 @@ jobs:
           - config_deserialize
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
         with:
           toolchain: nightly-2026-07-19
       - name: Install cargo-fuzz
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e  # v2
         with:
           tool: cargo-fuzz
       - name: Check bounded fuzz tooling contract
@@ -48,7 +48,7 @@ jobs:
             --artifacts "$RUNNER_TEMP/fuzz-artifacts"
       - name: Retain crash artifacts and summaries
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: bounded-fuzz-${{ matrix.target }}-${{ github.run_id }}
           path: ${{ runner.temp }}/fuzz-artifacts
