@@ -8,3 +8,6 @@
 /logs
 iroh.config.toml
 /.patchbay
+
+# Agent scratch workspace (ledgers, briefs, review packages).
+.superpowers/

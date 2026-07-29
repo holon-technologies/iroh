@@ -221,9 +221,14 @@ iroh.config.toml
 # on an individual's ~/.config/git/ignore.
 .claude/settings.local.json
 .claude/*.local.json
+
+# Agent scratch workspace (ledgers, briefs, review packages).
+.superpowers/
 ```
 
 Note `/.patchbay` is intentionally dropped — Task 9 deletes `patchbay.yml`.
+
+The `.superpowers/` entry is load-bearing: it is already present in the file before this task runs, and this rewrite must not drop it.
 
 - [ ] **Step 3: Verify the probe is now ignored**
 
@@ -1013,16 +1018,16 @@ gh api repos/holon-technologies/iroh/rulesets/19774422 --jq '.rules[].type'
 ```
 Expected: `deletion`, `non_fast_forward`, `pull_request`, `required_status_checks`.
 
-Then confirm direct pushes are rejected:
+Then confirm direct pushes are rejected. Use `--dry-run` so nothing can land even if the ruleset failed to apply, and do not touch `README.md` — the Global Constraints forbid modifying it:
 
 ```bash
-git checkout main && git pull
-echo "# probe" >> README.md && git add README.md && git commit -m "probe: verify branch protection"
-git push origin main; echo "exit=$?"
-git reset --hard origin/main
+git fetch origin
+git push --dry-run origin HEAD:main; echo "exit=$?"
 ```
 
-Expected: push REJECTED with a protected-branch error, non-zero exit.
+Expected: REJECTED with a protected-branch error and a non-zero exit, provided local `HEAD` is ahead of `origin/main`. If `HEAD` equals `origin/main` there is nothing to push and the check is vacuous — commit something first (any task's work will do) or run this at the end of the plan when commits are pending.
+
+A dry-run push is refused by the server's pre-receive ruleset exactly as a real one is, so this is a genuine negative test, not a simulation.
 
 ---
 
