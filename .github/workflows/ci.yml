@@ -664,6 +664,8 @@ jobs:
     name: Checking docs
     runs-on: ubuntu-latest
     env:
+      # Moving nightly toolchains can deprecate APIs that remain required by the stable MSRV.
+      RUSTFLAGS: ""
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
       RUSTDOCFLAGS: --cfg docsrs
