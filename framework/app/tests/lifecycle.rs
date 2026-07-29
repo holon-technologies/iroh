@@ -7,10 +7,12 @@ use std::{
     time::Duration,
 };
 
+#[cfg(unix)]
+use iroh_app::FileIdentityStore;
 use iroh_app::{
     AppBuilder, AppConfig, Component, ComponentContext, ComponentError, ComponentFuture,
-    FileIdentityStore, IdentityError, IdentityPolicy, IdentityStore, LifecycleState,
-    MemoryIdentityStore, ProtocolRegistry, RegistryError, StartedComponent,
+    IdentityError, IdentityPolicy, IdentityStore, LifecycleState, MemoryIdentityStore,
+    ProtocolRegistry, RegistryError, StartedComponent,
 };
 use tokio::sync::Notify;
 

@@ -1797,7 +1797,10 @@ mod tests {
         );
 
         let mut replica = store.new_replica(namespace.clone())?;
-        let t = system_time_now() + MAX_TIMESTAMP_FUTURE_SHIFT + 10000;
+        // Keep the rejection margin well above slow CI scheduling delays. A 10 ms
+        // margin can elapse before validation on constrained architectures.
+        let rejection_margin_micros = 60 * 1_000_000;
+        let t = system_time_now() + MAX_TIMESTAMP_FUTURE_SHIFT + rejection_margin_micros;
         let record = Record::from_data(b"2", t);
         let entry3 = SignedEntry::from_parts(&namespace, &author, key, record);
         let res = replica.insert_entry(entry3, InsertOrigin::Local).await;
