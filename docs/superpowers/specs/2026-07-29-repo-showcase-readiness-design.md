@@ -135,11 +135,40 @@ exists, the exact delta, the update procedure, and the non-removal rationale.
 Add `vendor/README.md` indexing all three vendored trees, and check in a `*.patch` per vendor so
 each delta is reviewable without diffing against crates.io.
 
-A whitespace formatter was run across the vendored trees, modifying an Apache license file and
-unrelated upstream prose. Each `IROH-VENDOR.md` claims its directory is "an exact copy of the
-crates.io package plus a narrow patch", which is now false. Restore the affected license and
-documentation files byte-identical to upstream, and exclude `vendor/**` from
-`scripts/run-format.sh` so the claim stays true.
+The audit reported this as a whitespace formatter touching a license file and some prose. Direct
+comparison against the crates.io packages shows something more serious, and the remedy is
+correspondingly different.
+
+Measured against `rustls-0.23.41` from crates.io, the vendored tree differs in **81 source
+files**. Normalizing the pristine package with default `rustfmt --edition 2021` reduces that to
+**12**. So 69 files carry no change other than having been reformatted with default rustfmt,
+which overwrote rustls's own upstream style.
+
+The 12 files holding the genuine patch are `src/common_state.rs`, `src/crypto/mod.rs`,
+`src/crypto/aws_lc_rs/mod.rs`, `src/crypto/ring/mod.rs`, `src/client/{hs,tls12,tls13,ech,
+client_conn}.rs`, and `src/server/{hs,tls12,tls13}.rs`. The patch is roughly 529 diff lines: it
+changes `KxState` to hold `Arc<dyn SupportedKxGroup>`, adds a public
+`negotiated_key_exchange_group()` accessor, and threads `provider.secure_random` through session-ID
+and `Random` construction.
+
+That is a public-API change to a TLS library, and it is currently indistinguishable from
+formatting noise in any diff — in the one vendored tree with no `IROH-VENDOR.md` at all. This is
+the repo's least reviewable change and it sits in the security-critical dependency.
+
+For contrast, `noq-1.1.0` differs in 6 `.rs` files and `hickory-server-0.26.1` in 2, both
+consistent with their documented narrow patches. Only rustls has the problem.
+
+The remedy is therefore not to exclude `vendor/**` from `scripts/run-format.sh`. That script runs
+`cargo fmt --all` against the root and `iroh-sim` workspaces, neither of which has the vendored
+trees as members, so it could not have caused this and excluding it would fix nothing. Instead:
+
+1. Restore `vendor/rustls-0.23.41` to the pristine crates.io package.
+2. Reapply only the 12-file semantic patch, checked in as `vendor/rustls-0.23.41.patch`.
+3. Write `vendor/rustls-0.23.41/IROH-VENDOR.md` documenting the key-exchange and entropy changes.
+4. Add a CI guard asserting each vendored tree equals upstream-package-plus-checked-in-patch.
+
+The guard is the durable fix: it makes the provenance claim machine-checked rather than asserted,
+and it prevents recurrence regardless of which tool caused the drift.
 
 ### A3. Repository attribution
 
@@ -296,8 +325,9 @@ Each change is verified by the mechanism it affects, not by inspection:
 
 - **A1**: `docker build` context size measured before and after; assert the reported context is
   bounded. Confirm a simulated vendor version bump leaves no unignored `target/`.
-- **A2**: `diff` each vendored tree against the crates.io package at its pinned version; the only
-  differences must be the checked-in patch and the `IROH-VENDOR.md`.
+- **A2**: for each vendored tree, download the crates.io package at its pinned version, apply the
+  checked-in `*.patch`, and assert the result is byte-identical to the vendored directory ignoring
+  `.cargo-ok`, `IROH-VENDOR.md`, and `target/`. This runs in CI, not once by hand.
 - **A3**: GitHub's language statistics after merge; vendored code must no longer be attributed.
 - **A4**: run `git cliff` and confirm every emitted link targets `holon-technologies/iroh`.
 - **A5**: link-check `docs/` for dangling references; confirm no promoted rationale was lost by
