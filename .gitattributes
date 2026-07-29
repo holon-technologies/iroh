@@ -1,3 +1,14 @@
 # Set line endings to LF, even on Windows. Otherwise, execution within CI fails.
 # See https://help.github.com/articles/dealing-with-line-endings/
+* text=auto eol=lf
 *.sh text eol=lf
+
+# Upstream code carrying a narrow patch. Not this project's work, and it should
+# not appear in GitHub's language statistics or dominate diff review.
+vendor/** linguist-vendored
+
+# Machine-generated. Excluded from language statistics and collapsed in diffs.
+CHANGELOG.md linguist-generated
+CHANGELOG_old.md linguist-generated
+**/Cargo.lock linguist-generated
+docs/testing/resource-canary/** linguist-generated
