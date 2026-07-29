@@ -9,6 +9,13 @@ filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'
 threads-required = 32
 
+# Filesystem-heavy property and sync tests can exceed the generic 30-second
+# timeout on hosted Windows runners. Keep the exception narrow while retaining
+# a finite upper bound for genuine hangs.
+[[profile.ci.overrides]]
+filter = 'test(test_counters_manager_proptest_fs) | test(test_sync_many_authors_fs)'
+slow-timeout = { period = "30s", terminate-after = 4 }
+
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'

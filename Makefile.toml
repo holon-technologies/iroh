@@ -7,7 +7,16 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 # Workspace members to exclude when setting `workspace = true` for a task.
 # Must live at global env (not task-level) so it's read before workspace iteration
 # is generated. Only the `check-external-types` task uses this.
-CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["iroh/bench", "tools/determinism-checker"]
+CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = [
+  "examples/local-first-notes",
+  "framework/app",
+  "integration-tests/local-first-app",
+  "iroh/bench",
+  "protocols/iroh-blobs",
+  "protocols/iroh-docs",
+  "protocols/iroh-gossip",
+  "tools/determinism-checker",
+]
 
 [tasks.format]
 workspace = false
@@ -32,3 +41,14 @@ toolchain = "${TOOLCHAIN:nightly-2026-03-20}"
 command = "cargo"
 install_crate = false
 args = ["check-external-types", "--all-features"]
+
+[tasks.local-first-framework]
+description = "Run local-first framework, migration, compatibility, and relay acceptance checks"
+workspace = false
+command = "scripts/test-local-first-framework.sh"
+
+[tasks.local-first-release-gate]
+description = "Prove provisional protocol/framework packages remain unpublished"
+workspace = false
+command = "python3"
+args = ["scripts/check-framework-release-gate.py", "--expect-closed"]

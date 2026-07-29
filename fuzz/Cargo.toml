@@ -10,7 +10,13 @@ cargo-fuzz = true
 [dependencies]
 iroh-dns-server = { path = "../iroh-dns-server", default-features = false, features = ["test-utils"] }
 iroh-relay = { path = "../iroh-relay", default-features = false, features = ["fuzzing"] }
+iroh-base = { path = "../iroh-base", default-features = false, features = ["key"] }
+iroh-gossip = { path = "../protocols/iroh-gossip", default-features = false }
+iroh-app = { path = "../framework/app", features = ["fuzzing"] }
+iroh-blobs = { path = "../protocols/iroh-blobs", default-features = false }
+iroh-docs = { path = "../protocols/iroh-docs", default-features = false }
 libfuzzer-sys = "0.4"
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 
 [workspace]
 members = ["."]
@@ -44,6 +50,41 @@ bench = false
 [[bin]]
 name = "config_deserialize"
 path = "fuzz_targets/config_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gossip_message"
+path = "fuzz_targets/gossip_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "app_manifest"
+path = "fuzz_targets/app_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "app_protocol_registration"
+path = "fuzz_targets/app_protocol_registration.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blob_ticket"
+path = "fuzz_targets/blob_ticket.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "doc_ticket"
+path = "fuzz_targets/doc_ticket.rs"
 test = false
 doc = false
 bench = false

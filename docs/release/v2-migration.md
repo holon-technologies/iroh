@@ -26,6 +26,51 @@ This is a deliberate major-version source cut. There is no compatibility module 
 old Rust paths. Relay V1/V2 bytes and negotiation remain compatible; Rust imports, Cargo features,
 and test-only construction code must be migrated.
 
+## Blob protocol workspace port
+
+`iroh-blobs` v0.103.0 is now preserved under `protocols/iroh-blobs` and ported as the private
+workspace crate `iroh-blobs` 2.0. Rust source compatibility is not guaranteed, but the imported
+ALPN, wire requests, range encoding, hash semantics, ticket strings, and filesystem metadata remain
+frozen by compatibility fixtures.
+
+The crate now uses the local `iroh` v2 endpoint facade directly. It no longer depends on
+`iroh-util`, `iroh-tickets`, or the Iroh 1.x core graph. `BlobTicket` keeps the canonical `blob`
+prefix and v0.103 lowercase unpadded-base32 bytes; its parse error is now
+`iroh_blobs::ticket::ParseError` rather than `iroh_tickets::ParseError`.
+
+The imported `mdns-address-lookup` example now demonstrates explicit direct-address discovery.
+The external `iroh-mdns-address-lookup` adapter targets Iroh 1.x and cannot be mixed with v2
+endpoint types. Applications can supply a custom v2 discovery implementation or construct a
+bounded `EndpointAddr` with `EndpointAddr::try_from_parts`.
+
+Blob providers and stores now enforce finite defaults for request bytes, range complexity,
+multi-blob count, provider connections, queued actor commands, active store/import/download work,
+progress queues, and graceful shutdown. Treat limit rejection as recoverable overload and split
+large application requests instead of increasing all limits together.
+
+Run `scripts/tests/check-blobs-v0-interop.sh` to exercise a live transfer in both directions between
+the crates.io v0.103.0 stack and the local v2 port. The driver is an excluded compatibility crate;
+its Iroh 1.x dependencies never enter the production workspace graph.
+
+## Gossip protocol workspace port
+
+`iroh-gossip` v0.101.0 is preserved under `protocols/iroh-gossip` and ported as the private
+workspace crate `iroh-gossip` 2.0. The ALPN remains `/iroh-gossip/1`; topic IDs, HyParView control
+messages, Plumtree payload/control messages, and outer envelopes are frozen by v0.101 byte
+fixtures. The pure membership and broadcast state machines remain independent of endpoint I/O and
+wall-clock scheduling.
+
+The optional network adapter now uses the local v2 `Endpoint` and `Router` directly. Invalid
+configuration has an explicit `Config::validate`/`Builder::try_spawn` path, while `Builder::spawn`
+retains the existing convenience API and reports invalid configuration as a named invariant panic.
+Finite limits cover frames, views, shuffle fanout, topics, subscriptions, pending messages and
+sends, duplicate/payload caches, graft retries, streams, dials, connection handlers, and graceful
+shutdown.
+
+Run `scripts/tests/check-gossip-v0-interop.sh` for a live bidirectional broadcast between crates.io
+`iroh-gossip` v0.101.0 on exact Iroh v1.0.3 and the local v2 port. The compatibility driver is
+excluded from the production workspace so the Iroh 1.x graph cannot enter a release build.
+
 The endpoint implementation is now split behind a narrow `iroh::endpoint` facade. Public endpoint
 imports (`iroh::Endpoint`, `iroh::endpoint::Builder`, connection types, relay status, and lifecycle
 types) are unchanged by that structural move; the new `endpoint::{builder,handle,lifecycle,
@@ -202,3 +247,27 @@ limits with unbounded values.
 transitively for normal `iroh` and `iroh-relay` users. Direct dependencies are
 only needed for custom runtime, tracing, or deterministic simulation
 integrations.
+
+## Local-first protocol crates
+
+The fork now owns `iroh-blobs`, `iroh-gossip`, and `iroh-docs` in the same workspace on the v2
+version line. Applications should use the workspace-compatible `2.0.0` crates together; mixing
+their Rust APIs with the upstream 0.x protocol crates is unsupported.
+
+The hard cut does not change the frozen protocol and persistent formats:
+
+- blobs keeps `/iroh-bytes/4` and v0.103 request, range, hash, ticket, and store representations;
+- gossip keeps `/iroh-gossip/1` and v0.101 HyParView, Plumtree, topic, and envelope encodings; and
+- docs keeps `/iroh-sync/1`, v0.101 tickets and signed entries, reconciliation messages, redb table
+  names, and existing migrations.
+
+`DocTicket` no longer exposes the external `iroh_tickets::ParseError`. Parsing returns
+`iroh_docs::ParseError`, and `DocTicket::try_new` is the fallible constructor for untrusted peer
+lists. `DocTicket::new` remains as a trusted-state convenience and panics when its invariant is
+violated. Ticket and start-sync inputs now reject oversized peer lists or endpoint addresses.
+
+Persistent docs stores are opened and migrated as before. When an older redb file requires a
+format rewrite, keep the automatically created `.backup-redb-v1` or
+`.backup-redb-v2-tuples` sibling until the application has reopened the migrated store and
+validated its documents. Migration failure leaves that backup available for rollback; do not
+delete or rename either file while a docs process is running.
