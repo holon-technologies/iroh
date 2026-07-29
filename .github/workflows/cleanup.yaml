@@ -1,4 +1,4 @@
-# Run tests using the beta Rust compiler
+# Weekly cleanup of the generated documentation branch.
 
 name: Cleanup
 
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: beta-${{ github.workflow }}-${{ github.ref }}
+  group: cleanup-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:

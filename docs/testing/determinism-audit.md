@@ -644,7 +644,7 @@ This audit remains current only when:
 - Confirmed port-mapper wrapper: `iroh/src/portmapper.rs`.
 - Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server.rs:441-640`; `iroh-relay/src/quic.rs:97-200`.
 - Confirmed path-state ordering risks: `iroh/src/socket/biased_rtt_path_selector.rs`; `iroh/src/socket/remote_map/remote_state/path_state.rs`.
-- Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/patchbay.yml`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
+- Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
 - Confirmed recurring hosted Patchbay public-parity definition:
   `.github/workflows/patchbay-hosted-smoke.yml`;
   `scripts/tests/check-patchbay-hosted-smoke-workflow.sh`.

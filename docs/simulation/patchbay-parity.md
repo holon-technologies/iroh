@@ -54,15 +54,17 @@ commands intersect declared capabilities and fail on a semantic difference or sk
 
 ## Fresh Patchbay evidence pipeline
 
-The complete privileged matrix remains in `.github/workflows/patchbay.yml` as a manual workflow on
-its existing runner; it is the authority for the full NAT, degradation, outage, and
-interface-switching suite when a compatible runner is attached. It is not registered as an
-automatic required check while this repository has no self-hosted runner. A separate
-scheduled/manual probe in `.github/workflows/patchbay-hosted-smoke.yml` runs only
-`nat::nat_none_x_none` on `ubuntu-latest`. This bounded probe establishes whether the free hosted
-runner can support the public Patchbay case without weakening or replacing the complete matrix.
+The complete privileged matrix previously ran as a manual `.github/workflows/patchbay.yml` workflow
+on a self-hosted runner. This fork has no self-hosted runner, so those runs only queued for hours
+before an automatic cancellation; the dead workflow has been removed. The canonical definition of
+the full NAT, degradation, outage, and interface-switching suite remains
+`canonical_patchbay_scenarios()` in `iroh-sim/src/parity_catalog.rs` and `iroh/tests/patchbay/`,
+runnable manually against a compatible host. A separate scheduled/manual probe in
+`.github/workflows/patchbay-hosted-smoke.yml` runs only `nat::nat_none_x_none` on `ubuntu-latest`.
+This bounded probe establishes whether the free hosted runner can support the public Patchbay case
+without weakening or replacing the complete matrix.
 
-Neither workflow treats the checked fixture as current execution evidence. After
+The hosted-smoke workflow does not treat the checked fixture as current execution evidence. After
 `nat::nat_none_x_none` proves an authenticated relay connection, direct-path upgrade, and successful
 ping, it atomically creates a receipt at
 `IROH_PATCHBAY_PARITY_RECEIPT`. Receipt creation is part of the test result: serialization or an

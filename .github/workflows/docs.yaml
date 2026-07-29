@@ -23,7 +23,7 @@ jobs:
       pull-requests: write
     timeout-minutes: 30
     name: Docs preview
-    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) && !github.event.pull_request.head.repo.fork }}
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
@@ -35,7 +35,7 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
     - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
       with:
-        toolchain: nightly-2025-10-09
+        toolchain: nightly-2026-07-19
     - name: Install sccache
       uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
       continue-on-error: true
