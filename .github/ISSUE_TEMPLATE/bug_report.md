@@ -3,7 +3,6 @@ name: Bug report
 about: Create a report to help us improve
 title: '[description]'
 labels: bug
-projects: ["n0-computer/1"]
 assignees: ''
 type: bug
 

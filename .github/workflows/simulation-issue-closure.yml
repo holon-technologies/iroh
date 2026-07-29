@@ -29,6 +29,11 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
 
+      - name: Preflight — Issues must be enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/tests/check-issues-enabled.sh
+
       - name: Install Rust stable
         id: rust
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
