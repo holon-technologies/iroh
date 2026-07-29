@@ -13,7 +13,7 @@ vendor/** linguist-vendored
 vendor/** -text
 
 # Machine-generated. Excluded from language statistics and collapsed in diffs.
-CHANGELOG.md linguist-generated
-CHANGELOG_old.md linguist-generated
+docs/history/CHANGELOG.md linguist-generated
+docs/history/CHANGELOG_old.md linguist-generated
 **/Cargo.lock linguist-generated
 docs/testing/resource-canary/** linguist-generated
