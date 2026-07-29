@@ -22,22 +22,30 @@ out=$(docker build --no-cache --target planner -f docker/Dockerfile . 2>&1 | hea
 set -o pipefail
 echo "$out"
 
-# This daemon (legacy builder, no buildx/BuildKit plugin installed) reports:
-# "Sending build context to Docker daemon  4.314MB" using go-units decimal
-# suffixes (B, kB, MB, GB, ...). Match case-insensitively and take the last
-# occurrence in case earlier build steps echo something similar.
-line=$(grep -m1 -oE 'Sending build context to Docker daemon[[:space:]]+[0-9.]+[A-Za-z]+' <<<"$out" | tail -1)
+# Two builders report context size in two different formats, both using
+# go-units decimal suffixes (B, kB, MB, GB, ...):
+#   - legacy builder:  "Sending build context to Docker daemon  4.314MB"
+#   - BuildKit:         "transferring context: 45.31MB" (printed once per
+#                        progress update, so the size grows across repeated
+#                        lines until the transfer finishes)
+# Match case-insensitively and take the LAST match of either form: for
+# BuildKit that's the final (largest) progress line; for the legacy builder
+# there is only ever one match, so this is a no-op there.
+matches=$(grep -oE 'Sending build context to Docker daemon[[:space:]]+[0-9.]+[A-Za-z]+|[Tt]ransferring context:[[:space:]]+[0-9.]+[A-Za-z]+' <<<"$out")
+line=$(tail -n1 <<<"$matches")
 [[ -n "$line" ]] || { echo "FAIL: could not parse context size" >&2; exit 1; }
 
-raw=$(sed -E 's/.*Docker daemon[[:space:]]+([0-9.]+[A-Za-z]+)/\1/' <<<"$line")
+raw=$(grep -oE '[0-9.]+[A-Za-z]+$' <<<"$line")
 value=$(sed -E 's/^([0-9.]+).*/\1/' <<<"$raw")
 unit=$(sed -E 's/^[0-9.]+//' <<<"$raw")
 
+# Round up (ceiling), not truncate: a 200.5MB context must fail a 200MB
+# limit, not silently pass because `int()` truncated it down to 200.
 case "${unit,,}" in
   b)  mb=0 ;;
-  kb) mb=$(awk -v v="$value" 'BEGIN{printf "%d", v/1024}') ;;
-  mb) mb=$(awk -v v="$value" 'BEGIN{printf "%d", v}') ;;
-  gb) mb=$(awk -v v="$value" 'BEGIN{printf "%d", v*1024}') ;;
+  kb) mb=$(awk -v v="$value" 'BEGIN{r=v/1024; i=int(r); if (r>i) i++; printf "%d", i}') ;;
+  mb) mb=$(awk -v v="$value" 'BEGIN{r=v; i=int(r); if (r>i) i++; printf "%d", i}') ;;
+  gb) mb=$(awk -v v="$value" 'BEGIN{r=v*1024; i=int(r); if (r>i) i++; printf "%d", i}') ;;
   *)  echo "FAIL: unknown unit $unit" >&2; exit 1 ;;
 esac
 
