@@ -6,6 +6,20 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 runner="$repo_root/scripts/run-bounded-fuzz.sh"
 ci_workflow="$repo_root/.github/workflows/ci.yml"
 scheduled_workflow="$repo_root/.github/workflows/fuzz.yml"
+
+# Third-party actions are pinned to a commit SHA with a trailing `# <ref>`
+# comment (e.g. `actions/upload-artifact@<40-hex>  # v7`). Normalize both
+# workflow files back to `actions/upload-artifact@v7` before matching
+# contract literals below, so this check asserts on the human-readable ref
+# rather than a SHA that Dependabot will rotate on every bump.
+normalized_ci_workflow=$(mktemp)
+normalized_scheduled_workflow=$(mktemp)
+trap 'rm -f "$normalized_ci_workflow" "$normalized_scheduled_workflow"' EXIT
+sed -E 's/@[0-9a-f]{40}[[:space:]]+#[[:space:]]*([^[:space:]]+)/@\1/' "$ci_workflow" > "$normalized_ci_workflow"
+sed -E 's/@[0-9a-f]{40}[[:space:]]+#[[:space:]]*([^[:space:]]+)/@\1/' "$scheduled_workflow" > "$normalized_scheduled_workflow"
+ci_workflow="$normalized_ci_workflow"
+scheduled_workflow="$normalized_scheduled_workflow"
+
 readonly -a targets=(
   doh_extract
   pkarr_body

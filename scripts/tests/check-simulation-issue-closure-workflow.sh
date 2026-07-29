@@ -11,6 +11,16 @@ if [[ ! -f "$workflow" ]]; then
   exit 1
 fi
 
+# Third-party actions are pinned to a commit SHA with a trailing `# <ref>`
+# comment (e.g. `actions/checkout@<40-hex>  # v7`). Normalize that back to
+# `actions/checkout@v7` before matching contract literals below, so this
+# check asserts on the human-readable ref rather than a SHA that Dependabot
+# will rotate on every bump.
+normalized_workflow=$(mktemp)
+trap 'rm -f "$normalized_workflow"' EXIT
+sed -E 's/@[0-9a-f]{40}[[:space:]]+#[[:space:]]*([^[:space:]]+)/@\1/' "$workflow" > "$normalized_workflow"
+workflow="$normalized_workflow"
+
 required=(
   'name: Simulation Issue Closure Guard'
   'issues:'
