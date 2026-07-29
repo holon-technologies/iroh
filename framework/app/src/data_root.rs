@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use std::fs::File;
 use std::{
     fmt,
     fs::{self, OpenOptions},
@@ -8,9 +10,6 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
-
-#[cfg(unix)]
-use std::fs::File;
 
 use serde::{Deserialize, Serialize};
 
