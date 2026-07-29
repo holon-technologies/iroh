@@ -1,2 +1,26 @@
-docker
-target
+# Deny everything, then allow only what the workspace build needs.
+# docker/Dockerfile does `COPY . .` for the cargo-chef planner and builder,
+# so this allowlist is the sole bound on context size.
+*
+
+!Cargo.toml
+!Cargo.lock
+!.cargo/
+
+!iroh/
+!iroh-base/
+!iroh-dns/
+!iroh-dns-server/
+!iroh-relay/
+!iroh-resolver/
+!iroh-runtime/
+!tools/
+
+# Only the two crates referenced by [patch.crates-io] in the root Cargo.toml.
+# vendor/rustls-0.23.41 is patched in by iroh-sim and fuzz only, neither of
+# which this image builds.
+!vendor/hickory-server-0.26.1/
+!vendor/noq-1.1.0/
+
+# Re-exclude build output inside the directories allowed above.
+**/target
