@@ -752,3 +752,43 @@ jobs:
           key: pip-codespell-2.4.1
       - run: pip install --user codespell[toml]==2.4.1
       - run: codespell --ignore-words-list=ans,atmost,crate,inout,ratatui,ser,stayin,swarmin,worl,keep-alives --skip=CHANGELOG.md,vendor
+
+  ci-ok:
+    name: CI OK
+    # This is the sole required status check for `main`. Every job above must
+    # appear in `needs`, so adding a job makes it required by construction.
+    # `scripts/tests/check-ci-aggregate.sh` asserts that invariant.
+    if: always()
+    needs:
+      - tests
+      - fuzz_smoke
+      - simulation_contracts
+      - simulation_gate
+      - cross_build
+      - android
+      - cross_test
+      - wasm_test
+      - check_semver
+      - check_external_types
+      - check_fmt
+      - check_docs
+      - clippy_check
+      - check_optional_deps
+      - msrv
+      - cargo_deny
+      - netsim-integration-tests
+      - codespell
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every dependency succeeded or was skipped
+        env:
+          NEEDS_CONTEXT: ${{ toJSON(needs) }}
+        run: |
+          failed=$(echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"')
+          if [ -n "$failed" ]; then
+            echo "Failing dependencies:" >&2
+            echo "$failed" >&2
+            exit 1
+          fi
+          echo "All CI jobs succeeded or were skipped."
