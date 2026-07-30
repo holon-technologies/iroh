@@ -63,7 +63,7 @@ post_cut_ref=${baseline_values[1]:-}
 if [[ -n "$post_cut_ref" ]]; then
   mode=post-cut
   baseline_ref=$post_cut_ref
-  packages=(iroh iroh-base iroh-runtime iroh-resolver iroh-dns iroh-dns-server iroh-relay)
+  packages=(krikos krikos-base krikos-runtime krikos-resolver krikos-dns krikos-dns-server krikos-relay)
   if [[ ! "$baseline_ref" =~ ^[0-9a-f]{40}$ ]]; then
     printf '%s\n' 'post-cut API baseline must be a full lowercase 40-character commit SHA' >&2
     exit 65
@@ -71,7 +71,7 @@ if [[ -n "$post_cut_ref" ]]; then
 else
   mode=legacy-inventory
   baseline_ref=$legacy_ref
-  packages=(iroh iroh-base iroh-dns iroh-dns-server iroh-relay)
+  packages=(krikos krikos-base krikos-dns krikos-dns-server krikos-relay)
   if [[ "$baseline_ref" != "v1.0.3" ]]; then
     printf 'legacy API inventory baseline must remain v1.0.3, got %s\n' "$baseline_ref" >&2
     exit 65

@@ -72,14 +72,14 @@ unused_must_use = "deny"
 
 # We use this --cfg for documenting the cargo features on which an API
 # is available.  To preview this locally use: RUSTDOCFLAGS="--cfg
-# iroh_docsrs" cargo +nightly doc --all-features.  We use our own
-# iroh_docsrs instead of the common docsrs to avoid also enabling this
+# krikos_docsrs" cargo +nightly doc --all-features.  We use our own
+# krikos_docsrs instead of the common docsrs to avoid also enabling this
 # feature in any dependencies, because some indirect dependencies
 # require a feature enabled when using `--cfg docsrs` which we can not
-# do.  To enable for a crate set `#![cfg_attr(iroh_docsrs,
+# do.  To enable for a crate set `#![cfg_attr(krikos_docsrs,
 # feature(doc_cfg))]` in the crate.
-# We also have our own `iroh_loom` cfg to enable tokio-rs/loom testing.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_blobs_docsrs)", "cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
+# We also have our own `krikos_loom` cfg to enable tokio-rs/loom testing.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(krikos_blobs_docsrs)", "cfg(krikos_docsrs)", "cfg(krikos_loom)", "cfg(skip_patchbay)"] }
 
 [workspace.lints.clippy]
 correctness = { level = "deny", priority = -1 }
@@ -107,7 +107,7 @@ type_marked_deprecated = { required-update = "minor" }
 type_method_marked_deprecated = { required-update = "minor" }
 
 [patch.crates-io]
-# Local sources for the explicitly named, exact-version production forks. Published Iroh crates
+# Local sources for the explicitly named, exact-version production forks. Published Krikos crates
 # resolve these package names from crates.io; release verification uses packaged candidate sources.
 krikos-hickory-server = { path = "vendor/hickory-server-0.26.1" }
 krikos-noq = { path = "vendor/noq-1.1.0" }

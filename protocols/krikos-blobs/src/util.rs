@@ -343,7 +343,7 @@ pub(crate) mod outboard_with_progress {
         use testresult::TestResult;
 
         use crate::{
-            store::{IROH_BLOCK_SIZE, fs::tests::test_data},
+            store::{KRIKOS_BLOCK_SIZE, fs::tests::test_data},
             util::{outboard_with_progress::init_outboard, sink::Drain},
         };
 
@@ -352,7 +352,7 @@ pub(crate) mod outboard_with_progress {
             for size in [1024 * 18 + 1] {
                 let data = test_data(size);
                 let mut o1 = PreOrderOutboard::<Vec<u8>> {
-                    tree: BaoTree::new(data.len() as u64, IROH_BLOCK_SIZE),
+                    tree: BaoTree::new(data.len() as u64, KRIKOS_BLOCK_SIZE),
                     ..Default::default()
                 };
                 let mut o2 = o1.clone();

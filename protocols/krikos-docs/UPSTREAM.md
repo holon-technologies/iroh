@@ -1,6 +1,6 @@
 # Upstream provenance
 
-This directory preserves the `iroh-docs` source history for the Holon Iroh monorepo.
+This directory preserves the `krikos-docs` source history for the Holon Krikos monorepo.
 
 ## Pinned source
 
@@ -19,16 +19,16 @@ This directory preserves the `iroh-docs` source history for the Holon Iroh monor
 - Tool: official `git-filter-repo` tag `v2.47.0`
 - Tool source commit: `6f79afc8c90c592a3052e6cc53c2ca8907515bca`
 - Tool embedded version identifier: `a40bce548d2c`
-- Operation: `--to-subdirectory-filter protocols/iroh-docs`
+- Operation: `--to-subdirectory-filter protocols/krikos-docs`
 - Rewritten release commit: `cbd6fdc84e0a3ab359d9798d13d3871f168cb829`
 - Rewritten tree fingerprint (`git ls-tree -r --full-tree` SHA-256):
   `8d688a34ffc915b9dd80da707ae5ae8cfb0a6f8fb1cad286e821e03e37f267dc`
 - Monorepo import merge: `79bb8805bb0d5ff491ccf3e3c43a4c8956acbc09`
-- Commit map: [`docs/upstream/commit-maps/iroh-docs-v0.101.0.tsv`](../../docs/upstream/commit-maps/iroh-docs-v0.101.0.tsv)
+- Commit map: [`docs/upstream/commit-maps/krikos-docs-v0.101.0.tsv`](../../docs/upstream/commit-maps/krikos-docs-v0.101.0.tsv)
 - Commit-map SHA-256:
   `68c41b8682aca29f7a23e06194b9b2472215f5768b92235b63d6fececf0ef13b`
 
-The rewrite ran in disposable bare mirror `/tmp/iroh-docs-import.fqCUTa/iroh-docs.git`, never in
+The rewrite ran in disposable bare mirror `/tmp/krikos-docs-import.fqCUTa/krikos-docs.git`, never in
 the active monorepo or a push target. The exact path is diagnostic only and is not required to
 reproduce the import.
 
@@ -52,7 +52,7 @@ recoverable from the import merge.
 The following checks passed before the cleanup commit was finalized:
 
 - the rewritten object database passed `git fsck --full`;
-- all 59 release-tree paths were under `protocols/iroh-docs/`;
+- all 59 release-tree paths were under `protocols/krikos-docs/`;
 - the source release maps to exactly the rewritten commit recorded above;
 - retained source, tests, examples, regressions, migrations, changelog, lockfile, and licenses are
   byte-for-byte unchanged from the import merge;
@@ -66,8 +66,8 @@ implementation to the local v2 endpoint, blobs, and gossip crates.
 ## v2 workspace port
 
 The subsequent port keeps the crate private, changes its package version and metadata to the v2
-workspace line, replaces crates.io Iroh, blobs, and gossip with the local workspace packages, and
-removes the superseded standalone lockfile. The production dependency graph contains no Iroh 1.x
+workspace line, replaces crates.io Krikos, blobs, and gossip with the local workspace packages, and
+removes the superseded standalone lockfile. The production dependency graph contains no Krikos 1.x
 package; the former `iroh-tickets` dependency is replaced by a local codec that retains the exact
 `doc` prefix, lowercase unpadded-base32 representation, postcard discriminator, capability bytes,
 and endpoint-address encoding.

@@ -45,7 +45,7 @@ write_aggregate() {
       status: "success",
       coverage: {
         schema_version: 2,
-        policy_id: "iroh-network-modes-v1",
+        policy_id: "krikos-network-modes-v1",
         policy_blake3: $policy_digest,
         rolling_window_days: 7,
         completed_runs: 1,
@@ -149,7 +149,7 @@ rolling="$fixture_root/rolling.json"
 jq -e '
   .schema_version == 1
   and .status == "coverage_gaps"
-  and .policy_id == "iroh-network-modes-v1"
+  and .policy_id == "krikos-network-modes-v1"
   and .included_runs == [299, 300]
   and (.excluded_reports | any(.reason == "policy_revision_mismatch"))
   and .coverage.completed_runs == 2
@@ -168,7 +168,7 @@ jq -e '
 selection="$fixture_root/gap-selection.json"
 "$selector" \
   --rolling "$rolling" \
-  --plan "$repo_root/iroh-sim/soaks/daily.json" \
+  --plan "$repo_root/krikos-sim/soaks/daily.json" \
   --max-lanes 4 \
   --output "$selection"
 

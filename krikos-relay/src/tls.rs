@@ -1,4 +1,4 @@
-//! TLS verification configuration for iroh and iroh-relay.
+//! TLS verification configuration for krikos and krikos-relay.
 
 use std::{io, sync::Arc};
 
@@ -8,16 +8,16 @@ use rustls::{
 };
 use webpki_types::CertificateDer;
 
-/// Configures the trusted CA root certificates for non-iroh TLS connections.
+/// Configures the trusted CA root certificates for non-krikos TLS connections.
 ///
-/// These roots are used whenever iroh establishes standard TLS connections to
-/// external services, such as iroh relays, pkarr servers, or DNS-over-HTTPS
+/// These roots are used whenever krikos establishes standard TLS connections to
+/// external services, such as krikos relays, pkarr servers, or DNS-over-HTTPS
 /// resolvers.
 ///
 /// The configured Certificate Authority (CA) roots are only used for verifying
 /// the validity of TLS certificates presented by those external services. These
 /// CAs don't need to be trusted for the integrity or authenticity of native
-/// iroh connections, which rely on iroh's own cryptographic authentication mechanisms.
+/// krikos connections, which rely on krikos's own cryptographic authentication mechanisms.
 #[derive(Debug, Clone)]
 pub struct CaTlsConfig {
     mode: Mode,

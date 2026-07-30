@@ -59,7 +59,7 @@ use crate::{
     api::proto::{BatchRequest, ImportByteStreamUpdate},
     limits::{IMPORT_STREAM_QUEUE_CAPACITY, SINGLE_RESPONSE_QUEUE_CAPACITY},
     provider::events::ClientResult,
-    store::IROH_BLOCK_SIZE,
+    store::KRIKOS_BLOCK_SIZE,
     util::{RecvStreamAsyncStreamReader, temp_tag::TempTag},
 };
 
@@ -471,7 +471,7 @@ impl Blobs {
                 Err(io::Error::other("invalid size for hash").into())
             };
         };
-        let tree = BaoTree::new(size.get(), IROH_BLOCK_SIZE);
+        let tree = BaoTree::new(size.get(), KRIKOS_BLOCK_SIZE);
         let mut decoder = ResponseDecoder::new(
             hash.into(),
             ranges,

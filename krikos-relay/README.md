@@ -1,42 +1,42 @@
-# Iroh Relay
+# Krikos Relay
 
-Iroh's relay is a feature within [iroh], a peer-to-peer networking system
-designed to facilitate direct, encrypted connections between devices. Iroh aims
+Krikos's relay is a feature within [krikos], a peer-to-peer networking system
+designed to facilitate direct, encrypted connections between devices. Krikos aims
 to simplify decentralized communication by automatically handling connections
 through "relays" when direct connections aren't immediately possible. The relay
 server helps establish connections by temporarily routing encrypted traffic
 until a direct, P2P connection is feasible. Once this direct path is set up,
 the relay server steps back, and the data flows directly between devices. This
-approach allows Iroh to maintain a secure, low-latency connection, even in
+approach allows Krikos to maintain a secure, low-latency connection, even in
 challenging network situations.
 
-This crate provides a complete setup for creating and interacting with iroh
+This crate provides a complete setup for creating and interacting with krikos
 relays, including:
 - Relay Protocol: The protocol used to communicate between relay servers and
   clients
-- Relay Server: A fully-fledged iroh-relay server over HTTP or HTTPS.
+- Relay Server: A fully-fledged krikos-relay server over HTTP or HTTPS.
   Optionally will also expose a QAD endpoint and metrics.
 - Relay Client: A client for establishing connections to the relay.
 - Server Binary: A CLI for running your own relay server. It can be configured
   to also expose metrics.
 
 
-Used in [iroh], created with love by the [n0 team](https://n0.computer/).
+Used in [krikos], created with love by the [n0 team](https://n0.computer/).
 
 ## Build the server
 
-You can build an optimised release of `iroh-relay` by running `cargo build`
+You can build an optimised release of `krikos-relay` by running `cargo build`
 with the appropriate flags from the workspace parent directory as follows.
 
 ```
 cd ../
 cargo build \
   --profile optimized-release \
-  --package iroh-relay \
+  --package krikos-relay \
   --features server-ring
 ```
 
-You will find the optimised binary at `target/optimized-release/iroh-relay`.
+You will find the optimised binary at `target/optimized-release/krikos-relay`.
 
 ## Access control
 
@@ -68,7 +68,7 @@ Requires connecting clients to present one of the configured shared secrets via 
 access.shared_token = ["token-a", "token-b"]
 ```
 
-The token list can also be overridden by the `IROH_RELAY_ACCESS_TOKEN` environment
+The token list can also be overridden by the `KRIKOS_RELAY_ACCESS_TOKEN` environment
 variable, which sets a single allowed token and takes precedence over the config file
 value. A single value is used (rather than a comma-separated list) to avoid restricting
 the character set of tokens.
@@ -77,9 +77,9 @@ The token list must not be empty, and no token may be an empty string; the serve
 fail to start if either condition is violated.
 
 On the client side, set the token using
-[`RelayConfig::with_auth_token`](https://docs.rs/iroh-relay/latest/iroh_relay/struct.RelayConfig.html#method.with_auth_token)
+[`RelayConfig::with_auth_token`](https://docs.rs/iroh-relay/latest/krikos_relay/struct.RelayConfig.html#method.with_auth_token)
 or
-[`RelayMap::with_auth_token`](https://docs.rs/iroh-relay/latest/iroh_relay/struct.RelayMap.html#method.with_auth_token).
+[`RelayMap::with_auth_token`](https://docs.rs/iroh-relay/latest/krikos_relay/struct.RelayMap.html#method.with_auth_token).
 
 > **Note:** this shared token does not support revocation other than updating the config and restarting the service.
 
@@ -95,12 +95,12 @@ access.http.url = "https://your-auth-service.example.com/relay-auth"
 access.http.bearer_token = "service-to-service-secret"
 ```
 
-The bearer token can also be set via the `IROH_RELAY_HTTP_BEARER_TOKEN`
+The bearer token can also be set via the `KRIKOS_RELAY_HTTP_BEARER_TOKEN`
 environment variable.
 
 ## Local testing
 
-Advice for testing your application that uses `iroh` with a locally running `iroh-relay` server
+Advice for testing your application that uses `krikos` with a locally running `krikos-relay` server
 
 ### dev mode
 When running the relay server using the `--dev` flag, you will:
@@ -122,7 +122,7 @@ The easiest get that is to generate self-signed certificates using `rcgen`
   - cd to the `rcgen` directory
   - generate local certs using `cargo run -- -o path/to/certs`
 
-Next, add the certificate paths to your iroh-relay config, here is an example of a config.toml file that will enable quic address discovery.
+Next, add the certificate paths to your krikos-relay config, here is an example of a config.toml file that will enable quic address discovery.
 ```toml
 enable_quic_addr_discovery = true
 
@@ -133,23 +133,23 @@ manual_key_path = "/path/to/certs/cert.key.pem"
 ```
 
 Then run the server with the `--dev` flag, like you would when normally testing locally:
-`cargo run --features="server-ring" --bin iroh-relay -- --config-path=/path/to/config.toml --dev`
+`cargo run --features="server-ring" --bin krikos-relay -- --config-path=/path/to/config.toml --dev`
 
 The relay server will run over http on port 3340, as it does using the `--dev` flag, but it will also run a QUIC server on port 7824.
 
 The relay will use the configured TLS certificates for the QUIC connection, but use http (rather than https) for the server.
 
-### Using iroh-relay as a library to run in-process relays in integration tests
+### Using krikos-relay as a library to run in-process relays in integration tests
 
-When using iroh as a transport library in an application or other library, there is a simple way of running an in-process relay server:
+When using krikos as a transport library in an application or other library, there is a simple way of running an in-process relay server:
 
-- Enable `test-utils` feature of the `iroh` crate
+- Enable `test-utils` feature of the `krikos` crate
 ```toml
-iroh = { version = "0.95", features = ["test-utils"] }
+krikos = { version = "0.95", features = ["test-utils"] }
 ```
-- Spawn a relay server by calling [`iroh::test_utils::run_relay_server().await`](https://docs.rs/iroh/latest/iroh/test_utils/fn.run_relay_server.html)
+- Spawn a relay server by calling [`krikos::test_utils::run_relay_server().await`](https://docs.rs/iroh/latest/krikos/test_utils/fn.run_relay_server.html)
 This will start a relay server with a self-signed TLS certificate, listening on a localhost port, and return the server's URL.
-- For the iroh endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](https://docs.rs/iroh/latest/iroh/endpoint/struct.Builder.html#method.ca_tls_config) with  `CaRootConfig::insecure_skip_verify()`.
+- For the krikos endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Builder.html#method.ca_tls_config) with  `CaRootConfig::insecure_skip_verify()`.
 
 # License
 
@@ -168,4 +168,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in this project by you, as defined in the Apache-2.0 license,
 shall be dual licensed as above, without any additional terms or conditions.
 
-[iroh]: https://github.com/n0-computer/iroh
+[krikos]: https://github.com/n0-computer/iroh

@@ -1,7 +1,7 @@
 //! Endpoint-aware DNS discovery.
 //!
 //! Generic host, address, and TXT resolution lives in [`krikos_resolver`]. This module composes
-//! that service with Iroh endpoint-record parsing.
+//! that service with Krikos endpoint-record parsing.
 
 use krikos_base::EndpointId;
 use krikos_resolver::{DNS_TIMEOUT, DnsResolver, StaggeredError};
@@ -26,7 +26,7 @@ pub enum LookupError {
     LookupFailed { source: krikos_resolver::DnsError },
 }
 
-/// DNS service that resolves and parses Iroh endpoint records.
+/// DNS service that resolves and parses Krikos endpoint records.
 #[derive(Debug, Clone)]
 pub struct EndpointDnsResolver {
     resolver: DnsResolver,

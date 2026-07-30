@@ -1,10 +1,10 @@
-# Iroh Determinism and Testability Audit
+# Krikos Determinism and Testability Audit
 
 Status: Living audit reviewed through deterministic tooling closure, 2026-07-26
 
 ## Scope
 
-This is the living audit required before implementing Iroh's deterministic simulation platform. It covers the complete workspace, with special attention to endpoint and connection lifecycle, QUIC integration, sockets, relay, discovery, DNS, network monitoring, port mapping, path management, task ownership, existing tests, and CI.
+This is the living audit required before implementing Krikos's deterministic simulation platform. It covers the complete workspace, with special attention to endpoint and connection lifecycle, QUIC integration, sockets, relay, discovery, DNS, network monitoring, port mapping, path management, task ownership, existing tests, and CI.
 
 The canonical classifications required by the source specification are:
 
@@ -24,17 +24,17 @@ The audit is based on source, test, manifest, and workflow inspection. Re-run th
 
 ```bash
 rg -n 'tokio::spawn|tokio::task::spawn|n0_future::task::spawn|task::spawn' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 rg -n 'tokio::time|n0_future::time|Instant::now|SystemTime::now' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 rg -n 'rand::random|rand::rng\(\)|thread_rng|OsRng|getrandom|with_jitter' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 rg -n '(UdpSocket|TcpListener)::bind|resolve_host|lookup_|netmon::|interfaces::|portmapper' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 rg -n 'std::fs|tokio::fs|std::env|env::var|Command::new|thread::spawn|spawn_blocking' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 rg -n 'HashMap|HashSet|FxHashMap|FxHashSet' \
-  iroh iroh-base iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim --glob '*.rs'
+  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
 
 scripts/tests/check-determinism-boundaries.sh
 scripts/tests/check-determinism-semantic.sh
@@ -70,16 +70,16 @@ literals, resolves file-local `use` aliases, and records category, path, enclosi
 same-owner ordinal. Source-line movement alone therefore does not create semantic drift. Both
 inventories fail closed together; parse failure or drift requires explicit review and `--update`.
 
-The 2026-07-21 Stage 1 review added the `iroh-runtime` production adapters and moved existing Iroh occurrences as context plumbing and tests were introduced. `TokioClock` and `SystemWallClock` are classified as production implementations behind injectable clock traits; `RootSeed::random` is the single production behavioral-seed boundary; and `EndpointConfig::rng_seed` is now supplied from the explicit per-endpoint `endpoint/<id>/noq` decision stream. Endpoint identities, TLS token keys, and QUIC reset keys continue to use cryptographic entropy and were not routed through behavioral decisions.
+The 2026-07-21 Stage 1 review added the `krikos-runtime` production adapters and moved existing Krikos occurrences as context plumbing and tests were introduced. `TokioClock` and `SystemWallClock` are classified as production implementations behind injectable clock traits; `RootSeed::random` is the single production behavioral-seed boundary; and `EndpointConfig::rng_seed` is now supplied from the explicit per-endpoint `endpoint/<id>/noq` decision stream. Endpoint identities, TLS token keys, and QUIC reset keys continue to use cryptographic entropy and were not routed through behavioral decisions.
 
 The 2026-07-21 parity refresh added one test-only environment read in
-`iroh/tests/patchbay/nat.rs`. `IROH_PATCHBAY_PARITY_RECEIPT` selects only the immutable output path
+`krikos/tests/patchbay/nat.rs`. `KRIKOS_PATCHBAY_PARITY_RECEIPT` selects only the immutable output path
 for evidence after the privileged Patchbay assertions pass; it cannot select endpoint, protocol,
 network, clock, scheduler, or production behavior. Other row changes in this refresh are line moves
 from strict parity/campaign CLI tests and remain orchestration or test-process boundaries.
 
 The final closure audit moved seven existing `Command::new`/`temp_dir` matches in
-`iroh-sim/tests/cli.rs` while bounding and asserting the seeded zero-time-livelock regression.
+`krikos-sim/tests/cli.rs` while bounding and asserting the seeded zero-time-livelock regression.
 They remain **Acceptable nondeterminism** in child-test orchestration; the simulated scenario,
 seed, virtual clock, and scheduler are explicit and unaffected.
 
@@ -94,7 +94,7 @@ full-server simulation. The store's two native workers now have cancellation, ty
 explicit join, and nonblocking fallback drop; their production thread-construction match is an
 owned real-server boundary. New timeouts, wall-clock measurements, entropy, loopback binds, and the
 release helper thread below `#[cfg(test)]` are **Acceptable nondeterminism in regression-test
-orchestration**. The remaining Iroh address-lookup and path-state changes are reviewed line moves or
+orchestration**. The remaining Krikos address-lookup and path-state changes are reviewed line moves or
 bounded production-clock transitions with deterministic-runtime coverage described below; adding
 the crate-root unsafe prohibition only moves the existing `portmapper` match. Extending the same
 unsafe prohibition to the benchmark library/binary and `cargo-sim` binary moves only existing
@@ -247,9 +247,9 @@ coverage-fixture filesystem read, and disabled production port-mapper constructi
 external-state or network-environment boundary is introduced, and the syntax-aware inventory is
 unchanged.
 
-The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `iroh-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
+The final Stage 1 baseline additionally removes native direct-spawn roots for Noq, the socket actor, relay actor, and direct-address report runner; the matched fallback calls that remain at those sites are wasm-specific, while test-module spawns remain acceptable test orchestration. `krikos-sim` reads CLI arguments and writes only through an explicit absolute artifact root; those process/filesystem boundaries are run orchestration, not simulated behavior. Its Tokio `advance` occurrence is the deterministic runtime contract test itself.
 
-The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Iroh `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.
+The 2026-07-21 Stage 2 review added a kernel-owned virtual clock, task executor, event queue, resource ledger, synthetic IPv4/IPv6 UDP graph, and explicit Krikos `IpSocketFactory`/`NetworkMonitor` capabilities. Normal endpoints retain `netwatch` sockets and monitor construction as **Production randomness / environment input** behind those injectable dependencies; Stage 2 scenarios inject synthetic sockets and a static state, disable port mapping, relay, discovery, and external probes, and never construct the OS adapters. At that stage, token and reset keys were explicit unsafe-test-only simulation crypto material while Rustls/key-exchange entropy remained **Production randomness**. The deterministic-closure update below supersedes that historical replay-grade limitation.
 
 Stage 2 endpoint scenarios deliberately use `tokio::spawn` and paused Tokio time as a documented **Architectural problem / temporary bridge**, recorded as `tokio_scheduler` and `tokio_socket_actor_time`. The kernel returns control after every virtual event so woken production tasks run before later deadlines, but this is not a fully deterministic scheduler claim; Stage 6 removes it. Direct socket-actor `Instant`/interval occurrences remain assigned to Stage 6. Kernel-native component and packet-network tests use no Tokio task scheduling.
 
@@ -263,11 +263,11 @@ The 2026-07-21 Stage 4 review adds simulator-owned stateful NAT, firewall, port 
 interface/address/route mobility, deterministic discovery, and DNS timing/jitter injection. NAT
 allocation uses a named seeded decision stream; mappings, firewall state, record generations,
 expiry, cancellation, and resources use virtual kernel time and stable ordered collections. The
-new `lookup_*` matches in `iroh-sim` are in-memory synthetic socket or scripted resolver lookups,
+new `lookup_*` matches in `krikos-sim` are in-memory synthetic socket or scripted resolver lookups,
 not ambient DNS. `State::fake()` constructs explicit monitor input. These are **Injectable
 dependencies exercised by deterministic implementations**.
 
-`iroh-dns::DnsRuntime` now owns DNS sleep and retry-stagger behavior. The production
+`krikos-dns::DnsRuntime` now owns DNS sleep and retry-stagger behavior. The production
 implementation deliberately retains Tokio time and OS-seeded `rand::random`; these remain
 **Production randomness / production runtime behavior**. Supported simulations inject
 `DeterministicDnsRuntime`, whose sleeps are cancellable kernel events and whose jitter is drawn from
@@ -290,15 +290,15 @@ classifying these changes. The Stage 4 baseline contains 812 normalized rows and
 `1485814a3287e8783b85100d8bb3563fae1a8d092b8c7ee81a1f6c23b4f17043`.
 
 The 2026-07-21 Stage 5 review introduces an explicit native `RelayConnector` capability and lifts
-the existing duplex transport into a hidden `iroh-relay/test-utils` session API. In deterministic
+the existing duplex transport into a hidden `krikos-relay/test-utils` session API. In deterministic
 scenarios, DNS/TCP/TLS/HTTP upgrade and listeners are replaced by a bounded in-memory byte pipe;
 production WebSocket framing, challenge/signature authentication, authorization, client/server
-actors, registry, routing, and Iroh relay reconnect/path logic still execute. These are
+actors, registry, routing, and Krikos relay reconnect/path logic still execute. These are
 **Injectable dependencies exercised by production protocol handlers**. An injected connector also
 suppresses net-report QAD/HTTPS probing of synthetic relay URLs, preventing an OS-I/O escape while
 leaving the production default unchanged.
 
-Relay service lifecycle, admission, generations, and resource ownership belong to `iroh-sim`.
+Relay service lifecycle, admission, generations, and resource ownership belong to `krikos-sim`.
 The separate `RelayRoutingOracle` is a pure differential model and cannot count as production
 coverage. Production coverage observations record connection attempts, authenticated sessions,
 and routed frames without secret key material. Relay actor reconnect backoff, ping cadence,
@@ -330,9 +330,9 @@ injected clock and driver; relay pings and reconnect jitter use named decision s
 in-memory relay server's per-client actors use the same run-owned executor, monotonic clock, wall
 clock, and decision source.
 
-The isolated, non-published `iroh-sim` workspace applies a narrow Rustls 0.23.41 fork that stores
+The isolated, non-published `krikos-sim` workspace applies a narrow Rustls 0.23.41 fork that stores
 `SecureRandom` and `SupportedKxGroup` components in owned `Arc`s. The deterministic provider
-implementation now lives inside `iroh-sim`; published Iroh packages compile against public Rustls
+implementation now lives inside `krikos-sim`; published Krikos packages compile against public Rustls
 and merely accept an already constructed provider through the hidden simulation environment. The
 deterministic-test lane uses run- and endpoint-scoped deterministic random/X25519 components,
 deterministic Noq local and Initial connection IDs, and deterministic relay authentication
@@ -340,9 +340,9 @@ challenges. These inputs are independently domain-separated and require no leake
 process-global dispatch, or worker coupling.
 
 The 2026-07-25 publishable-fork boundary moved that deterministic provider implementation from
-`iroh` into `iroh-sim` and shortened the adjacent production simulation capability module. The
+`krikos` into `krikos-sim` and shortened the adjacent production simulation capability module. The
 resulting lexical inventory changes are reviewed line movement in existing network-environment
-adapters; `State::fake()` remains explicit deterministic simulation input, and the Iroh
+adapters; `State::fake()` remains explicit deterministic simulation input, and the Krikos
 `netwatch` adapters remain production environment input behind injectable dependencies. No new
 clock, entropy, scheduler, external-state, network, or unordered-iteration source was added.
 
@@ -370,10 +370,10 @@ explicit domain-separated materialization seed.
 | Layer | Confirmed current role | Determinism assessment |
 | --- | --- | --- |
 | Unit tests | Workspace-wide module tests, including Tokio paused-time tests | Useful local coverage; scheduling, entropy, and environment are not globally controlled. |
-| Property tests | Relay protocol codec/property tests in `iroh-relay/src/protos/relay.rs` | Narrow protocol serialization coverage; no stateful networking model. |
-| Endpoint integration | `iroh/tests/integration.rs` plus extensive in-module endpoint/socket tests | Runs production endpoint and QUIC code, usually over real local sockets. |
-| In-memory custom transport | `iroh/src/test_utils/test_transport.rs` | Runs production QUIC over Tokio channels, but has no virtual time, seeded scheduler, topology, NAT, fault trace, or replay identity. |
-| Patchbay | `iroh/tests/patchbay.rs` and `iroh/tests/patchbay/*` | Real Linux namespaces and kernel networking. Covers NAT matrices, degradation, outage recovery, and interface switching. Must remain the realistic Linux layer. |
+| Property tests | Relay protocol codec/property tests in `krikos-relay/src/protos/relay.rs` | Narrow protocol serialization coverage; no stateful networking model. |
+| Endpoint integration | `krikos/tests/integration.rs` plus extensive in-module endpoint/socket tests | Runs production endpoint and QUIC code, usually over real local sockets. |
+| In-memory custom transport | `krikos/src/test_utils/test_transport.rs` | Runs production QUIC over Tokio channels, but has no virtual time, seeded scheduler, topology, NAT, fault trace, or replay identity. |
+| Patchbay | `krikos/tests/patchbay.rs` and `krikos/tests/patchbay/*` | Real Linux namespaces and kernel networking. Covers NAT matrices, degradation, outage recovery, and interface switching. Must remain the realistic Linux layer. |
 | External netsim | `.github/workflows/netsim*.y*ml` and `.github/sims/**` | Runs real processes through the external `chuck` repository. Valuable integration/performance coverage, but not deterministic in-process simulation and not self-contained at a pinned source revision. |
 | Cross-platform CI | `.github/workflows/ci.yml`, `tests.yaml`, `wine.yaml` | Linux, macOS, Windows, Android, wasm, and cross-build coverage exists. |
 | Flake detection | `.github/workflows/flaky.yaml` | Daily repeated conventional tests; no seed corpus or deterministic replay. |
@@ -390,21 +390,21 @@ and the simulation guide.
 
 #### Confirmed seams
 
-- `iroh/src/runtime.rs` wraps `noq::Runtime`, owns Noq tasks with `TaskTracker`, assigns per-endpoint numeric task IDs, and coordinates cancellation.
+- `krikos/src/runtime.rs` wraps `noq::Runtime`, owns Noq tasks with `TaskTracker`, assigns per-endpoint numeric task IDs, and coordinates cancellation.
 - `noq::Runtime` already injects timer creation, `now()`, task spawning, and UDP wrapping. `noq::Endpoint::new_with_abstract_socket` accepts both an abstract socket and runtime.
-- `noq_proto::EndpointConfig::rng_seed` already allows deterministic QUIC behavioral randomness, but Iroh never supplies it.
+- `noq_proto::EndpointConfig::rng_seed` already allows deterministic QUIC behavioral randomness, but Krikos never supplies it.
 
 #### Occurrence classification
 
 | Occurrence group | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/runtime.rs`: `noq::TokioRuntime.new_timer`, default `Runtime::now`, `TaskTracker::spawn` | **Architectural problem** | Make the Iroh runtime delegate clock and executor behavior to an explicit environment. Trace task creation/completion/cancellation and timer lifecycle. |
-| `iroh/src/socket.rs:816,1098`; `address_lookup/pkarr.rs:324`; `net_report.rs:862,931`; `net_report/reportgen.rs:141`; `protocol.rs:614`; `socket/transports/relay.rs:63` | **Architectural problem** | Route all core-path root task creation through the environment with stable IDs and ownership metadata. |
+| `krikos/src/runtime.rs`: `noq::TokioRuntime.new_timer`, default `Runtime::now`, `TaskTracker::spawn` | **Architectural problem** | Make the Krikos runtime delegate clock and executor behavior to an explicit environment. Trace task creation/completion/cancellation and timer lifecycle. |
+| `krikos/src/socket.rs:816,1098`; `address_lookup/pkarr.rs:324`; `net_report.rs:862,931`; `net_report/reportgen.rs:141`; `protocol.rs:614`; `socket/transports/relay.rs:63` | **Architectural problem** | Route all core-path root task creation through the environment with stable IDs and ownership metadata. |
 | `RemoteMap`, `RemoteStateActor`, net-report, protocol router, and relay actor `JoinSet::spawn` calls | **Architectural problem** | Replace direct Tokio `JoinSet` ownership in simulator-supported paths with an environment-owned task group abstraction. |
-| `iroh-relay/src/client/tls.rs:200`, `quic.rs:124`, `server.rs:772,810,860`, `server/client.rs:146`, `server/http_server/listener.rs:323,350`, `server/http_server/upgrade.rs:113`, `server/resolver.rs:79` | **Architectural problem** | Add relay runtime/task capabilities before claiming deterministic relay coverage. |
-| DNS/HTTP server task sets and `iroh-dns-server/src/http/transport.rs` | **Acceptable nondeterminism** in the real-server backend | Listener and connection work is now owned by supervisors, bounded before spawn, and cancelled/drained on shutdown. Runtime/I/O injection remains required before full DNS-server simulation. |
-| Direct spawns in `#[cfg(test)]` regions, `tests/`, `examples/`, and `iroh/bench` | **Acceptable nondeterminism** | Do not route through production environment unless the scenario runner reuses that code. |
-| `iroh-relay/src/main.rs:627` certificate file `spawn_blocking` | **Acceptable nondeterminism** | Keep in production binary; exclude from in-process simulation. |
+| `krikos-relay/src/client/tls.rs:200`, `quic.rs:124`, `server.rs:772,810,860`, `server/client.rs:146`, `server/http_server/listener.rs:323,350`, `server/http_server/upgrade.rs:113`, `server/resolver.rs:79` | **Architectural problem** | Add relay runtime/task capabilities before claiming deterministic relay coverage. |
+| DNS/HTTP server task sets and `krikos-dns-server/src/http/transport.rs` | **Acceptable nondeterminism** in the real-server backend | Listener and connection work is now owned by supervisors, bounded before spawn, and cancelled/drained on shutdown. Runtime/I/O injection remains required before full DNS-server simulation. |
+| Direct spawns in `#[cfg(test)]` regions, `tests/`, `examples/`, and `krikos/bench` | **Acceptable nondeterminism** | Do not route through production environment unless the scenario runner reuses that code. |
+| `krikos-relay/src/main.rs:627` certificate file `spawn_blocking` | **Acceptable nondeterminism** | Keep in production binary; exclude from in-process simulation. |
 | DNS-server bounded per-IP token buckets | **Behavioral randomness** with explicit transition input | The LRU has a validated hard capacity; token transitions receive `Instant` explicitly. Only the HTTP middleware samples the production clock. There is no GC thread. |
 
 #### Gaps
@@ -419,19 +419,19 @@ and the simulation guide.
 
 | Subsystem / occurrences | Classification | Notes |
 | --- | --- | --- |
-| `iroh/src/socket.rs`: net-report timeout, 100 ms shutdown grace, re-STUN interval, network-change backoff | **Architectural problem** | Affects liveness, retries, address discovery, and cleanup. |
-| `iroh/src/socket/remote_map/remote_state.rs`: idle timeout, upgrade interval, hole-punch retry scheduling | **Architectural problem** | Core path and connection behavior. All `Instant::now()` calls must use the same clock as timers. |
-| `iroh/src/socket/remote_map/remote_state/path_state.rs`: path source timestamps and inactive pruning | **Architectural problem** | Affects which paths remain eligible. |
-| `iroh/src/socket/transports/relay/actor/mod.rs`, `session.rs`, `connect.rs`: connection timeout, retry sleeps, ping interval/timeouts, inactivity, datagram expiry | **Architectural problem** | Core relay liveness behavior. |
-| `iroh/src/net_report.rs` and `net_report/reportgen.rs`: probe deadlines, stagger, history age, captive portal delay | **Architectural problem** | Must use virtual time when net-report aggregation is in scope. Real HTTP probes remain a backend boundary. |
-| `iroh-dns/src/dns.rs`: lookup timeout and stagger; `iroh/src/address_lookup/pkarr.rs`: retry and republish | **Architectural problem** | Custom DNS responses alone are insufficient while wrapper time remains Tokio-owned. |
-| `iroh-relay/src/client/tls.rs`, `server/client.rs`, `server/streams.rs`, `ping_tracker.rs`, certificate reload interval | **Architectural problem** | Includes Happy Eyeballs, rate limiting, ping cadence, and timeout behavior. |
-| `iroh/src/endpoint/quic.rs:703-712` Noq TLS `TimeSource` | **Injectable dependency** | Set the production source to `noq::StdSystemTime`; derive the simulation source from the same deterministic wall clock used for certificates and signed records. |
-| `iroh-dns/src/pkarr.rs` wall-clock signed-packet timestamps | **Production randomness** | Production freshness uses real wall time. Simulation identities/records need an explicit deterministic wall clock without changing production security. |
-| `iroh/src/address_lookup/memory.rs:172,185` update timestamps | **Architectural problem** | These timestamps are observable through address-lookup items; use the environment wall clock so update ordering and snapshots replay. |
-| `iroh-relay/src/server/client.rs:520,527` daily unique-client reset | **Architectural problem** | Inject a relay-server wall clock or a counter policy. Hash-set membership itself is not order sensitive. |
-| `iroh-dns-server/src/store/signed_packets.rs:223,388` and `iroh-dns-server/src/lib.rs:136` | **Architectural problem** | Eviction and stored timestamps require a wall-clock provider before deterministic server lifecycle claims. The occurrence at `signed_packets.rs:446` is test-only. |
-| `iroh-dns-server/src/http.rs:290` request latency | **Acceptable nondeterminism** | It does not affect request behavior; source it from the runtime clock if deterministic metrics/trace equality is required. |
+| `krikos/src/socket.rs`: net-report timeout, 100 ms shutdown grace, re-STUN interval, network-change backoff | **Architectural problem** | Affects liveness, retries, address discovery, and cleanup. |
+| `krikos/src/socket/remote_map/remote_state.rs`: idle timeout, upgrade interval, hole-punch retry scheduling | **Architectural problem** | Core path and connection behavior. All `Instant::now()` calls must use the same clock as timers. |
+| `krikos/src/socket/remote_map/remote_state/path_state.rs`: path source timestamps and inactive pruning | **Architectural problem** | Affects which paths remain eligible. |
+| `krikos/src/socket/transports/relay/actor/mod.rs`, `session.rs`, `connect.rs`: connection timeout, retry sleeps, ping interval/timeouts, inactivity, datagram expiry | **Architectural problem** | Core relay liveness behavior. |
+| `krikos/src/net_report.rs` and `net_report/reportgen.rs`: probe deadlines, stagger, history age, captive portal delay | **Architectural problem** | Must use virtual time when net-report aggregation is in scope. Real HTTP probes remain a backend boundary. |
+| `krikos-dns/src/dns.rs`: lookup timeout and stagger; `krikos/src/address_lookup/pkarr.rs`: retry and republish | **Architectural problem** | Custom DNS responses alone are insufficient while wrapper time remains Tokio-owned. |
+| `krikos-relay/src/client/tls.rs`, `server/client.rs`, `server/streams.rs`, `ping_tracker.rs`, certificate reload interval | **Architectural problem** | Includes Happy Eyeballs, rate limiting, ping cadence, and timeout behavior. |
+| `krikos/src/endpoint/quic.rs:703-712` Noq TLS `TimeSource` | **Injectable dependency** | Set the production source to `noq::StdSystemTime`; derive the simulation source from the same deterministic wall clock used for certificates and signed records. |
+| `krikos-dns/src/pkarr.rs` wall-clock signed-packet timestamps | **Production randomness** | Production freshness uses real wall time. Simulation identities/records need an explicit deterministic wall clock without changing production security. |
+| `krikos/src/address_lookup/memory.rs:172,185` update timestamps | **Architectural problem** | These timestamps are observable through address-lookup items; use the environment wall clock so update ordering and snapshots replay. |
+| `krikos-relay/src/server/client.rs:520,527` daily unique-client reset | **Architectural problem** | Inject a relay-server wall clock or a counter policy. Hash-set membership itself is not order sensitive. |
+| `krikos-dns-server/src/store/signed_packets.rs:223,388` and `krikos-dns-server/src/lib.rs:136` | **Architectural problem** | Eviction and stored timestamps require a wall-clock provider before deterministic server lifecycle claims. The occurrence at `signed_packets.rs:446` is test-only. |
+| `krikos-dns-server/src/http.rs:290` request latency | **Acceptable nondeterminism** | It does not affect request behavior; source it from the runtime clock if deterministic metrics/trace equality is required. |
 | Test, example, and benchmark sleeps/timeouts/measurements | **Acceptable nondeterminism** | Existing test timeouts remain watchdogs; simulator correctness must use virtual bounds. |
 
 ### Randomness
@@ -440,22 +440,22 @@ and the simulation guide.
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh-base/src/key.rs:319` (`SecretKey::generate`) | **Production randomness** | Never replace the production default. Scenarios pass explicitly derived test-only keys. |
-| `iroh/src/endpoint.rs:225-236` TLS token key and `iroh/src/socket.rs:1013-1014` QUIC reset key | **Production randomness** | Production entropy remains mandatory. A simulation-only crypto-material factory may supply deterministic test keys through an explicit internal constructor. |
-| `iroh-relay/src/protos/handshake.rs:452` server challenge | **Production randomness** | Add an explicit simulation/test challenge source only when real relay handshake code is executed in simulation. |
+| `krikos-base/src/key.rs:319` (`SecretKey::generate`) | **Production randomness** | Never replace the production default. Scenarios pass explicitly derived test-only keys. |
+| `krikos/src/endpoint.rs:225-236` TLS token key and `krikos/src/socket.rs:1013-1014` QUIC reset key | **Production randomness** | Production entropy remains mandatory. A simulation-only crypto-material factory may supply deterministic test keys through an explicit internal constructor. |
+| `krikos-relay/src/protos/handshake.rs:452` server challenge | **Production randomness** | Add an explicit simulation/test challenge source only when real relay handshake code is executed in simulation. |
 | Crypto crates' internal `getrandom` / `OsRng` | **Production randomness**; **Architectural problem** if reached implicitly by simulation | Do not globally override platform entropy. Inject deterministic identities and protocol configuration at construction boundaries. |
 
 #### Behavioral randomness
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/socket.rs:2004-2017` re-STUN interval | **Behavioral randomness** | Use a named per-endpoint stream. |
-| `iroh/src/socket/transports/relay/actor/connect.rs:221-229` Backon jitter | **Behavioral randomness** | Backon supports `with_jitter_seed`; seed it from a named relay stream or replace with an environment backoff policy. |
-| `iroh/src/net_report/reportgen.rs:589` captive-portal relay choice | **Behavioral randomness** | Use the net-report stream and record the choice. |
-| `iroh-dns/src/dns.rs:978` DNS retry jitter | **Behavioral randomness** | Use a DNS-domain stream. |
-| `iroh-relay/src/server/client.rs:338` randomized ping cadence | **Behavioral randomness** | Use a per-client relay-server stream. |
-| `iroh-relay/src/ping_tracker.rs:57` ping payload | **Behavioral randomness** | Not cryptographic authentication; deterministic per-session values are appropriate in simulation. |
-| `noq_proto::EndpointConfig::rng_seed` left unset by `iroh/src/socket.rs` | **Injectable dependency** currently carrying uncontrolled **Behavioral randomness** | Derive a dedicated Noq endpoint seed from the root seed. No dependency change is required. |
+| `krikos/src/socket.rs:2004-2017` re-STUN interval | **Behavioral randomness** | Use a named per-endpoint stream. |
+| `krikos/src/socket/transports/relay/actor/connect.rs:221-229` Backon jitter | **Behavioral randomness** | Backon supports `with_jitter_seed`; seed it from a named relay stream or replace with an environment backoff policy. |
+| `krikos/src/net_report/reportgen.rs:589` captive-portal relay choice | **Behavioral randomness** | Use the net-report stream and record the choice. |
+| `krikos-dns/src/dns.rs:978` DNS retry jitter | **Behavioral randomness** | Use a DNS-domain stream. |
+| `krikos-relay/src/server/client.rs:338` randomized ping cadence | **Behavioral randomness** | Use a per-client relay-server stream. |
+| `krikos-relay/src/ping_tracker.rs:57` ping payload | **Behavioral randomness** | Not cryptographic authentication; deterministic per-session values are appropriate in simulation. |
+| `noq_proto::EndpointConfig::rng_seed` left unset by `krikos/src/socket.rs` | **Injectable dependency** currently carrying uncontrolled **Behavioral randomness** | Derive a dedicated Noq endpoint seed from the root seed. No dependency change is required. |
 | Seeded `ChaCha8Rng` uses in tests | **Acceptable nondeterminism** already controlled | Preserve or migrate into named scenario streams where tests become scenarios. |
 
 One shared mutable RNG is insufficient: adding a decision in one subsystem would perturb every later decision. Simulation must derive named streams from `(root seed, semantic path)` and trace both the path and per-stream draw index.
@@ -464,43 +464,43 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/socket/transports/ip.rs:171-184` direct `netwatch::UdpSocket::bind_full` | **Architectural problem** | Introduce an IP socket factory and socket trait that preserve the current netwatch implementation in production and accept synthetic sockets in simulation. |
+| `krikos/src/socket/transports/ip.rs:171-184` direct `netwatch::UdpSocket::bind_full` | **Architectural problem** | Introduce an IP socket factory and socket trait that preserve the current netwatch implementation in production and accept synthetic sockets in simulation. |
 | `IpNetworkChangeSender::rebind` | **Injectable dependency** requiring a simulation implementation | Simulation rebind must update virtual interfaces/NAT state and retain traceable old/new local addresses. |
-| `iroh/src/test_utils/test_transport.rs` Tokio-channel network | **Acceptable nondeterminism** and reusable test foundation | Reuse its production-QUIC proof, but do not build the final network on `CustomAddr`: doing so would bypass IP routing, NAT, interface, and IP path behavior. |
-| `noq::AsyncUdpSocket` and `UdpSender` | **Injectable dependency** | Synthetic Iroh IP transports can feed real Noq/QUIC without simulating QUIC. |
-| Relay client TCP/TLS/WebSocket dial in `iroh-relay/src/client/tls.rs` | **Production environment adapter behind an injectable dependency** | Deterministic endpoints install `RelayConnector`; normal endpoints retain the existing concrete dial without connector dispatch. |
+| `krikos/src/test_utils/test_transport.rs` Tokio-channel network | **Acceptable nondeterminism** and reusable test foundation | Reuse its production-QUIC proof, but do not build the final network on `CustomAddr`: doing so would bypass IP routing, NAT, interface, and IP path behavior. |
+| `noq::AsyncUdpSocket` and `UdpSender` | **Injectable dependency** | Synthetic Krikos IP transports can feed real Noq/QUIC without simulating QUIC. |
+| Relay client TCP/TLS/WebSocket dial in `krikos-relay/src/client/tls.rs` | **Production environment adapter behind an injectable dependency** | Deterministic endpoints install `RelayConnector`; normal endpoints retain the existing concrete dial without connector dispatch. |
 | Relay server `TcpListener::bind` and QAD `UdpSocket::bind` | **Production environment adapters** | Deterministic relay sessions enter below these mechanics; production and Patchbay preserve them. Injected connectors suppress QAD probes of synthetic relay URLs. |
-| DNS server UDP/TCP binds in `iroh-dns-server/src/dns.rs` | **Architectural problem** for full server simulation | Simulated DNS provider covers aggregation logic first; real server parity remains an integration backend. |
+| DNS server UDP/TCP binds in `krikos-dns-server/src/dns.rs` | **Architectural problem** for full server simulation | Simulated DNS provider covers aggregation logic first; real server parity remains an integration backend. |
 
 ### DNS, Discovery, and Address Management
 
-- **Injectable dependency:** `iroh_dns::dns::Resolver` already supports custom IPv4, IPv6, and TXT lookup futures plus cache reset. This is the correct response injection seam.
+- **Injectable dependency:** `krikos_dns::dns::Resolver` already supports custom IPv4, IPv6, and TXT lookup futures plus cache reset. This is the correct response injection seam.
 - **Architectural problem:** `DnsResolver::Inner::op` owns Tokio notification selection and `n0_future` timeout; deterministic response providers do not make its timing deterministic.
 - **Injectable dependency:** `AddressLookup` is a public streaming provider abstraction, and `AddressLookupServices` aggregates multiple services. Deterministic providers can model delay, stale/conflicting records, duplicates, and errors without copying aggregation logic.
 - **Architectural problem:** service task spawning, update ordering, expiry, Pkarr retry/republish, and address-source timestamps remain runtime-owned.
-- **Acceptable nondeterminism outside the deterministic backend:** external mDNS and Mainline address-lookup crates retain production integration/contract suites while the simulator exercises Iroh aggregation through controlled providers.
+- **Acceptable nondeterminism outside the deterministic backend:** external mDNS and Mainline address-lookup crates retain production integration/contract suites while the simulator exercises Krikos aggregation through controlled providers.
 
 ### Network Monitoring, Interfaces, Net Reports, and Port Mapping
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/socket.rs:1035-1088` concrete `netmon::Monitor` construction and watcher ownership | **Architectural problem** | Add a monitor capability with production and simulation implementations. |
-| `iroh/src/socket.rs:1760-1800` interface-change handling | **Injectable dependency** once its input is abstracted | Feed real logic with simulated state changes; do not create a separate simulated state machine. |
-| `iroh/src/socket.rs:1932+` `LocalAddresses` enumeration | **Architectural problem** | Source interface/address state from the environment. |
-| `iroh/src/socket/transports/relay/actor/mod.rs:632` direct `interfaces::State::new()` | **Architectural problem** | Relay address-family selection must use the same environment view. |
-| `iroh/src/portmapper.rs` concrete enabled client / disabled stub | **Injectable dependency** with an incomplete simulation seam | Generalize the existing wrapper into a port-mapper capability; simulated mappings and expiry remain in the virtual network model. |
+| `krikos/src/socket.rs:1035-1088` concrete `netmon::Monitor` construction and watcher ownership | **Architectural problem** | Add a monitor capability with production and simulation implementations. |
+| `krikos/src/socket.rs:1760-1800` interface-change handling | **Injectable dependency** once its input is abstracted | Feed real logic with simulated state changes; do not create a separate simulated state machine. |
+| `krikos/src/socket.rs:1932+` `LocalAddresses` enumeration | **Architectural problem** | Source interface/address state from the environment. |
+| `krikos/src/socket/transports/relay/actor/mod.rs:632` direct `interfaces::State::new()` | **Architectural problem** | Relay address-family selection must use the same environment view. |
+| `krikos/src/portmapper.rs` concrete enabled client / disabled stub | **Injectable dependency** with an incomplete simulation seam | Generalize the existing wrapper into a port-mapper capability; simulated mappings and expiry remain in the virtual network model. |
 | Net-report QAD/HTTPS probes | **Injectable dependency** for QAD; **Architectural problem** for HTTPS | QAD over synthetic UDP can run in simulation. HTTPS/captive-portal checks require a synthetic HTTP connector or a controlled result provider until stream networking exists. |
 
 ### Retry and Backoff
 
 All retry/backoff that affects connection establishment, discovery, relay reconnection, network-change recovery, probing, address publication, or shutdown is **Behavioral randomness**. Direct ownership by Tokio rather than an injected clock is additionally an **Architectural problem**. The primary production sites are:
 
-- relay reconnect exponential backoff and jitter in `iroh/src/socket/transports/relay/actor/connect.rs`;
+- relay reconnect exponential backoff and jitter in `krikos/src/socket/transports/relay/actor/connect.rs`;
 - socket network-change exponential polling in `socket.rs`;
 - QUIC timers controlled through `noq::Runtime`;
-- DNS staggering and jitter in `iroh-dns/src/dns.rs`;
+- DNS staggering and jitter in `krikos-dns/src/dns.rs`;
 - Pkarr publish retry in `address_lookup/pkarr.rs`;
-- relay Happy Eyeballs delays in `iroh-relay/src/client/tls.rs`;
+- relay Happy Eyeballs delays in `krikos-relay/src/client/tls.rs`;
 - net-report probe staggering and timeout logic.
 
 Every retry policy needs an observable attempt number, next deadline, decision-stream name, cancellation event, and terminal classification in the simulator trace.
@@ -509,9 +509,9 @@ Every retry policy needs an observable attempt number, next deadline, decision-s
 
 | Occurrence group | Classification | Required action |
 | --- | --- | --- |
-| Endpoint proxy variables and `IROH_FORCE_STAGING_RELAYS` in `iroh/src/endpoint.rs` | **Architectural problem** if read by simulation; otherwise explicit production configuration | Resolve environment-derived defaults before constructing the simulation identity; simulation must never read ambient environment implicitly. |
-| Relay binary access tokens, ACME variables, config/cert files in `iroh-relay/src/main.rs` | **Acceptable nondeterminism** in real-process backends | Controlled process backends record explicit config and fixtures. |
-| DNS-server config/database/cert filesystem in `iroh-dns-server/src/**` | **Acceptable nondeterminism** until full server lifecycle enters deterministic scope | Use temporary explicit fixtures in integration tests; add a storage capability if the deterministic backend owns the complete DNS server. |
+| Endpoint proxy variables and `KRIKOS_FORCE_STAGING_RELAYS` in `krikos/src/endpoint.rs` | **Architectural problem** if read by simulation; otherwise explicit production configuration | Resolve environment-derived defaults before constructing the simulation identity; simulation must never read ambient environment implicitly. |
+| Relay binary access tokens, ACME variables, config/cert files in `krikos-relay/src/main.rs` | **Acceptable nondeterminism** in real-process backends | Controlled process backends record explicit config and fixtures. |
+| DNS-server config/database/cert filesystem in `krikos-dns-server/src/**` | **Acceptable nondeterminism** until full server lifecycle enters deterministic scope | Use temporary explicit fixtures in integration tests; add a storage capability if the deterministic backend owns the complete DNS server. |
 | Example secrets, qlog paths, trace output | **Acceptable nondeterminism** | Scenario identity specifies artifact paths; event semantics must not depend on them. |
 | `chuck` workflow cloning and Python/process execution | **Acceptable nondeterminism** in a controlled real-network backend | Pin the external revision and record it in run identity; it cannot be the deterministic backend. |
 | Benchmark threads | **Acceptable nondeterminism** | Keep as performance-layer measurement. |
@@ -525,17 +525,17 @@ Unordered collection use is not automatically a defect. It is **Behavioral rando
 
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
-| `iroh/src/socket/biased_rtt_path_selector.rs` connection/path iteration | **Deterministic boundary** | `PathTieBreak` provides a total address identity key after tier and biased RTT, with reversal-tested exact ties. |
-| `iroh/src/socket/remote_map/remote_state/path_state.rs` failed-path collection and truncation | **Deterministic boundary** | Failed addresses sort before truncation, inactive ties use addresses, production retention uses stable sequence/address keys, and reversed insertion order is tested. |
-| `iroh/src/socket/remote_map/remote_state.rs` connection/path scans | **Deterministic boundary** for side effects; **Acceptable nondeterminism** for membership/counts | `sorted_map_keys` orders connection and path effects by stable IDs; remote address snapshots sort by canonical address. Tests cover both canonicalizers. |
-| `iroh/src/socket/remote_map.rs::RemoteMap::on_network_change` broadcast | **Deterministic boundary** | `ReadOnlyMap::snapshot_sorted_by_key` snapshots and sorts endpoint/sender pairs before capacity-sensitive delivery. |
-| `iroh-relay/src/server/clients.rs::Clients::shutdown` DashMap collection | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before concurrent shutdown futures start. |
-| `iroh-relay/src/server/clients.rs::Clients::unregister` `HashSet` peer-gone notifications | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before capacity-sensitive notification attempts. |
-| `iroh-relay/src/server/client.rs` daily-client `HashSet` | **Acceptable nondeterminism** | Only membership and insertion-result semantics are used. |
-| `iroh-dns/src/endpoint_info.rs` address `HashSet` | **Acceptable nondeterminism** | The set is used only for membership while a separate `Vec` retains public address order. |
-| `iroh-relay/src/server/http_server/service.rs` handler `HashMap` | **Acceptable nondeterminism** | Runtime dispatch is keyed lookup. Sort only if stable debug/trace output becomes an artifact requirement. |
-| `iroh/src/socket.rs` local-address `FxHashSet` | **Acceptable nondeterminism** | It represents membership in `NetworkChangeHint`; no choice depends on iteration order. |
-| `iroh/src/socket/mapped_addrs.rs` maps | **Acceptable nondeterminism** | Allocation and resolution are keyed operations; no production behavior iterates the maps. |
+| `krikos/src/socket/biased_rtt_path_selector.rs` connection/path iteration | **Deterministic boundary** | `PathTieBreak` provides a total address identity key after tier and biased RTT, with reversal-tested exact ties. |
+| `krikos/src/socket/remote_map/remote_state/path_state.rs` failed-path collection and truncation | **Deterministic boundary** | Failed addresses sort before truncation, inactive ties use addresses, production retention uses stable sequence/address keys, and reversed insertion order is tested. |
+| `krikos/src/socket/remote_map/remote_state.rs` connection/path scans | **Deterministic boundary** for side effects; **Acceptable nondeterminism** for membership/counts | `sorted_map_keys` orders connection and path effects by stable IDs; remote address snapshots sort by canonical address. Tests cover both canonicalizers. |
+| `krikos/src/socket/remote_map.rs::RemoteMap::on_network_change` broadcast | **Deterministic boundary** | `ReadOnlyMap::snapshot_sorted_by_key` snapshots and sorts endpoint/sender pairs before capacity-sensitive delivery. |
+| `krikos-relay/src/server/clients.rs::Clients::shutdown` DashMap collection | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before concurrent shutdown futures start. |
+| `krikos-relay/src/server/clients.rs::Clients::unregister` `HashSet` peer-gone notifications | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before capacity-sensitive notification attempts. |
+| `krikos-relay/src/server/client.rs` daily-client `HashSet` | **Acceptable nondeterminism** | Only membership and insertion-result semantics are used. |
+| `krikos-dns/src/endpoint_info.rs` address `HashSet` | **Acceptable nondeterminism** | The set is used only for membership while a separate `Vec` retains public address order. |
+| `krikos-relay/src/server/http_server/service.rs` handler `HashMap` | **Acceptable nondeterminism** | Runtime dispatch is keyed lookup. Sort only if stable debug/trace output becomes an artifact requirement. |
+| `krikos/src/socket.rs` local-address `FxHashSet` | **Acceptable nondeterminism** | It represents membership in `NetworkChangeHint`; no choice depends on iteration order. |
+| `krikos/src/socket/mapped_addrs.rs` maps | **Acceptable nondeterminism** | Allocation and resolution are keyed operations; no production behavior iterates the maps. |
 | Hash maps/sets below `#[cfg(test)]`, in `tests/`, examples, or benchmarks | **Acceptable nondeterminism** unless imported by a scenario | Stable-sort output in simulator-facing test helpers. |
 
 `BTreeMap`/`BTreeSet` use in published addresses, relay maps, and test-network registration already supplies stable key order and should be preserved.
@@ -550,17 +550,17 @@ production entropy/map boundaries, explicit saturating duration arithmetic, and 
 orchestration; it adds no ambient effect source.
 
 The 2026-07-27 architecture cut moves the existing generic DNS effect seam from
-`iroh-dns/src/dns.rs` into `iroh-resolver`. The production Hickory adapter remains a realistic
+`krikos-dns/src/dns.rs` into `krikos-resolver`. The production Hickory adapter remains a realistic
 network boundary, while `Resolver` and `DnsRuntime` preserve deterministic lookup, timeout,
-reset, and retry injection. `iroh-dns::dns::EndpointDnsResolver` only composes endpoint-record
+reset, and retry injection. `krikos-dns::dns::EndpointDnsResolver` only composes endpoint-record
 parsing over that generic seam. New resolver inventory entries are therefore relocated reviewed
 effects, not new ambient access. The same inventory update includes line movement from bounded
 relay admission tests, explicit production challenge entropy, and endpoint/DNS integration tests;
 each is test-only or an already classified production boundary.
 
 The 2026-07-28 cross-platform feature repair removes a redundant Android JNI re-export from the
-private `iroh-resolver::dns` module; the public re-export remains in `iroh-resolver::lib`. Every
-network-environment row in `iroh-resolver/src/dns.rs` therefore shifts upward by two lines while
+private `krikos-resolver::dns` module; the public re-export remains in `krikos-resolver::lib`. Every
+network-environment row in `krikos-resolver/src/dns.rs` therefore shifts upward by two lines while
 its matched source, owner, execution path, and existing **Injectable dependency** or production
 Hickory boundary classification remains unchanged. No clock, entropy, scheduling, network,
 filesystem, or unordered-iteration effect is added or removed.
@@ -568,15 +568,15 @@ filesystem, or unordered-iteration effect is added or removed.
 The follow-up TLS/doctest repair makes rcgen crypto follow the explicitly selected relay TLS
 provider and documents that the illustrative metrics-service example needs the separately owned
 `iroh-metrics/service` feature. That documentation clarification moves the existing
-`tokio::spawn(endpoint.closed()...)` example in `iroh/src/endpoint/handle.rs` down by one line. Its
+`tokio::spawn(endpoint.closed()...)` example in `krikos/src/endpoint/handle.rs` down by one line. Its
 matched source, owner, execution path, and documentation-only classification are unchanged; no
 production spawn or other ambient effect is added or removed.
 
 The 2026-07-27 simulation-environment cut replaces partial endpoint injection with one validated
 **Injectable dependency**. `SimulationEnvironment` now rejects socket factories that do not name
 an owning clock domain or that belong to a different runtime clock domain, before sockets bind or
-tasks spawn. New `netmon::State::fake` occurrences in `iroh/src/endpoint.rs` and
-`iroh/src/simulation.rs` are validation fixtures below `#[cfg(test)]`. The relay metrics listener
+tasks spawn. New `netmon::State::fake` occurrences in `krikos/src/endpoint.rs` and
+`krikos/src/simulation.rs` are validation fixtures below `#[cfg(test)]`. The relay metrics listener
 and its owned connection tasks are **Acceptable nondeterminism** in the real relay-server backend;
 they are bounded by an abort-on-drop supervisor and do not enter the deterministic simulator.
 Remaining relay/endpoint inventory movement comes from the explicit TLS provider cut and relocated
@@ -608,10 +608,10 @@ classification.
 
 | Dependency | Finding | Action |
 | --- | --- | --- |
-| `noq` / `noq-proto` 1.1.0 | Runtime, abstract UDP, `now()`, and RNG seed seams already exist. | No initial fork. Add Iroh construction plumbing; propose upstream additions only if task metadata or escape detection cannot be layered. |
+| `noq` / `noq-proto` 1.1.0 | Runtime, abstract UDP, `now()`, and RNG seed seams already exist. | No initial fork. Add Krikos construction plumbing; propose upstream additions only if task metadata or escape detection cannot be layered. |
 | `n0-future` 0.3.2 | Native time/task APIs are direct Tokio re-exports. | Stop using them in simulator-supported production paths or add an upstream runtime-context abstraction. |
-| `netwatch` 0.19.1 | Concrete monitor, interface state, and UDP socket bind/rebind are embedded. | Wrap behind Iroh capabilities first; upstream generic adapters may reduce maintenance later. |
-| `portmapper` 0.19.1 | Concrete client creates OS/network behavior internally. | Keep behind Iroh wrapper and generalize wrapper to a trait/capability. |
+| `netwatch` 0.19.1 | Concrete monitor, interface state, and UDP socket bind/rebind are embedded. | Wrap behind Krikos capabilities first; upstream generic adapters may reduce maintenance later. |
+| `portmapper` 0.19.1 | Concrete client creates OS/network behavior internally. | Keep behind Krikos wrapper and generalize wrapper to a trait/capability. |
 | `backon` 1.6.0 | Supports explicit jitter seeds. | Supply a named-stream seed; no fork required. |
 | Hickory resolver | Uses Tokio runtime and real network in production. | Use existing `Resolver` trait for deterministic providers; keep Hickory in production and integration backends. |
 | Tokio | Synchronization types and `select!` can be polled by a custom executor, but spawning, timers, I/O, and task sets bind to Tokio. | Permit Tokio synchronization where deterministic semantics are verified; ban direct runtime services in simulator-supported paths. |
@@ -648,17 +648,17 @@ This audit remains current only when:
 
 ## Evidence Map
 
-- Confirmed runtime seam: `iroh/src/runtime.rs`; `vendor/noq-1.1.0/src/runtime/mod.rs` in the vendored source (see [`vendor/README.md`](../../vendor/README.md)).
-- Confirmed endpoint construction: `iroh/src/endpoint.rs:120-270`; `iroh/src/socket.rs:874-1117`.
-- Confirmed concrete IP socket: `iroh/src/socket/transports/ip.rs:170-184`.
-- Confirmed custom in-memory transport: `iroh/src/test_utils/test_transport.rs:1-320`.
-- Confirmed DNS provider seam: `iroh-resolver/src/dns.rs`; production adapter:
-  `iroh-resolver/src/hickory.rs`; endpoint composition: `iroh-dns/src/dns.rs`.
-- Confirmed concrete network monitor: `iroh/src/socket.rs:1035-1088,1450-1800`.
-- Confirmed port-mapper wrapper: `iroh/src/portmapper.rs`.
-- Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server/listener.rs`, `connection.rs`; `iroh-relay/src/quic.rs:97-200`.
-- Confirmed path-state ordering risks: `iroh/src/socket/biased_rtt_path_selector.rs`; `iroh/src/socket/remote_map/remote_state/path_state.rs`.
-- Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
+- Confirmed runtime seam: `krikos/src/runtime.rs`; `vendor/noq-1.1.0/src/runtime/mod.rs` in the vendored source (see [`vendor/README.md`](../../vendor/README.md)).
+- Confirmed endpoint construction: `krikos/src/endpoint.rs:120-270`; `krikos/src/socket.rs:874-1117`.
+- Confirmed concrete IP socket: `krikos/src/socket/transports/ip.rs:170-184`.
+- Confirmed custom in-memory transport: `krikos/src/test_utils/test_transport.rs:1-320`.
+- Confirmed DNS provider seam: `krikos-resolver/src/dns.rs`; production adapter:
+  `krikos-resolver/src/hickory.rs`; endpoint composition: `krikos-dns/src/dns.rs`.
+- Confirmed concrete network monitor: `krikos/src/socket.rs:1035-1088,1450-1800`.
+- Confirmed port-mapper wrapper: `krikos/src/portmapper.rs`.
+- Confirmed relay bindings: `krikos-relay/src/client/tls.rs`; `krikos-relay/src/server.rs:691-878`; `krikos-relay/src/server/http_server/listener.rs`, `connection.rs`; `krikos-relay/src/quic.rs:97-200`.
+- Confirmed path-state ordering risks: `krikos/src/socket/biased_rtt_path_selector.rs`; `krikos/src/socket/remote_map/remote_state/path_state.rs`.
+- Confirmed realistic test layers: `krikos/tests/patchbay*`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
 - Confirmed recurring hosted Patchbay public-parity definition:
   `.github/workflows/patchbay-hosted-smoke.yml`;
   `scripts/tests/check-patchbay-hosted-smoke-workflow.sh`.
@@ -669,7 +669,7 @@ This audit remains current only when:
 - Confirmed recurring hosted resource-observation definition: `.github/workflows/resource-canary.yml`;
   `scripts/tests/check-resource-canary-workflow.sh`.
 - Confirmed recurring daily deterministic-soak definition:
-  `.github/workflows/simulation-daily-soak.yml`; `iroh-sim/soaks/daily.json`;
+  `.github/workflows/simulation-daily-soak.yml`; `krikos-sim/soaks/daily.json`;
   `scripts/run-daily-simulation-soak.sh`; `scripts/aggregate-daily-simulation-soak.sh`;
   `scripts/tests/check-daily-simulation-workflow.sh`.
 
@@ -684,7 +684,7 @@ This audit remains current only when:
 - Resolved: internal dependency changes, including Noq, are authorized when required for maintainable injection seams.
 - Resolved: the specification's five classification names are canonicalized above and mapped to every grouped occurrence.
 - Resolved: CI budgets, retention, triage, corpus review, and exact-source replay compatibility are
-  validated by `iroh-sim/operations-policy.json` and documented in the operations runbook.
+  validated by `krikos-sim/operations-policy.json` and documented in the operations runbook.
 - Resolved: production-duration lifecycle, exact load conservation, structured canary diagnostics,
   scheduled realistic evidence, stable semantic boundary identities, and bounded protocol fuzzing
   now have executable gates.

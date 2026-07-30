@@ -4,11 +4,11 @@
 use std::collections::BTreeMap;
 
 use clap::Parser;
-#[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
-use krikos_bench::noq;
-use krikos_bench::{Commands, Opt, configure_tracing_subscriber, iroh, rt, s2n};
 #[cfg(feature = "metrics")]
 use iroh_metrics::{MetricValue, MetricsGroup};
+#[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
+use krikos_bench::noq;
+use krikos_bench::{Commands, Opt, configure_tracing_subscriber, krikos, rt, s2n};
 use n0_error::Result;
 
 fn main() {
@@ -16,8 +16,8 @@ fn main() {
     configure_tracing_subscriber();
 
     match cmd {
-        Commands::Iroh(opt) => {
-            if let Err(e) = run_iroh(opt) {
+        Commands::Krikos(opt) => {
+            if let Err(e) = run_krikos(opt) {
                 eprintln!("failed: {e:#}");
             }
         }
@@ -35,7 +35,7 @@ fn main() {
     }
 }
 
-pub fn run_iroh(opt: Opt) -> Result<()> {
+pub fn run_krikos(opt: Opt) -> Result<()> {
     let server_span = tracing::error_span!("server");
     let runtime = rt(opt.workers_per_ep);
 
@@ -53,7 +53,7 @@ pub fn run_iroh(opt: Opt) -> Result<()> {
 
     let (server_addr, endpoint) = {
         let _guard = server_span.enter();
-        iroh::server_endpoint(&runtime, &relay_url, &opt)
+        krikos::server_endpoint(&runtime, &relay_url, &opt)
     };
 
     #[cfg(feature = "metrics")]
@@ -61,7 +61,7 @@ pub fn run_iroh(opt: Opt) -> Result<()> {
 
     let server_thread = std::thread::spawn(move || {
         let _guard = server_span.entered();
-        if let Err(e) = runtime.block_on(iroh::server(endpoint, opt)) {
+        if let Err(e) = runtime.block_on(krikos::server(endpoint, opt)) {
             eprintln!("server failed: {e:#}");
         }
     });
@@ -73,7 +73,7 @@ pub fn run_iroh(opt: Opt) -> Result<()> {
         handles.push(std::thread::spawn(move || {
             let _guard = tracing::error_span!("client", id).entered();
             let runtime = rt(opt.workers_per_ep);
-            match runtime.block_on(iroh::client(server_addr, relay_url.clone(), opt)) {
+            match runtime.block_on(krikos::client(server_addr, relay_url.clone(), opt)) {
                 Ok(stats) => Ok(stats),
                 Err(e) => {
                     eprintln!("client failed: {e:#}");

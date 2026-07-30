@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     let note = args
         .next()
         .map(|text| text.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "hello from a local-first Iroh application".to_owned());
+        .unwrap_or_else(|| "hello from a local-first Krikos application".to_owned());
     ensure!(
         args.next().is_none(),
         "usage: local-first-notes DATA_ROOT [TEXT]"

@@ -1,4 +1,4 @@
-# iroh-docs
+# krikos-docs
 
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh-docs/)
 [![Crates.io](https://img.shields.io/crates/v/iroh-docs.svg?style=flat-square)](https://crates.io/crates/iroh-docs)
@@ -39,25 +39,25 @@ the whole store with all replicas to a single file.
 
 # Getting Started
 
-The entry into the `iroh-docs` protocol is the `Docs` struct, which uses an [`Engine`](https://docs.rs/iroh-docs/latest/iroh_docs/engine/struct.Engine.html) to power the protocol.
+The entry into the `krikos-docs` protocol is the `Docs` struct, which uses an [`Engine`](https://docs.rs/iroh-docs/latest/krikos_docs/engine/struct.Engine.html) to power the protocol.
 
-`Docs` was designed to be used in conjunction with `iroh`. [Iroh](https://docs.rs/iroh) is a networking library for making direct connections, these connections are peers send sync messages and transfer data.
+`Docs` was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are peers send sync messages and transfer data.
 
-Iroh provides a [`Router`](https://docs.rs/iroh/latest/iroh/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/iroh/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
-`Docs` is a "meta protocol" that relies on the [`iroh-blobs`](https://docs.rs/iroh-blobs) and [`iroh-gossip`](https://docs.rs/iroh-gossip) protocols. Setting up `Docs` will require setting up `Blobs` and `Gossip` as well.
+`Docs` is a "meta protocol" that relies on the [`krikos-blobs`](https://docs.rs/iroh-blobs) and [`krikos-gossip`](https://docs.rs/iroh-gossip) protocols. Setting up `Docs` will require setting up `Blobs` and `Gossip` as well.
 
-Here is a basic example of how to set up `iroh-docs` with `iroh`:
+Here is a basic example of how to set up `krikos-docs` with `krikos`:
 
 ```rust
-use iroh::{endpoint::presets, protocol::Router, Endpoint};
-use iroh_blobs::{BlobsProtocol, store::mem::MemStore, ALPN as BLOBS_ALPN};
-use iroh_docs::{protocol::Docs, ALPN as DOCS_ALPN};
-use iroh_gossip::{net::Gossip, ALPN as GOSSIP_ALPN};
+use krikos::{endpoint::presets, protocol::Router, Endpoint};
+use krikos_blobs::{BlobsProtocol, store::mem::MemStore, ALPN as BLOBS_ALPN};
+use krikos_docs::{protocol::Docs, ALPN as DOCS_ALPN};
+use krikos_gossip::{net::Gossip, ALPN as GOSSIP_ALPN};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // create an iroh endpoint that includes the standard discovery mechanisms
+    // create an krikos endpoint that includes the standard discovery mechanisms
     // we've built at number0
     let endpoint = Endpoint::bind(presets::N0).await?;
 

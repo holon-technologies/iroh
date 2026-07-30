@@ -255,7 +255,7 @@ async fn main() -> Result<()> {
                     let secret = SecretKey::generate();
                     let public = secret.public();
                     allowed_endpoints.insert(public);
-                    println!("IROH_SECRET={}", hex::encode(secret.to_bytes()));
+                    println!("KRIKOS_SECRET={}", hex::encode(secret.to_bytes()));
                 }
             }
 

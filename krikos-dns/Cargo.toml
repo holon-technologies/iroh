@@ -2,11 +2,11 @@
 name = "krikos-dns"
 version.workspace = true
 edition.workspace = true
-description = "DNS-based endpoint discovery for iroh"
+description = "DNS-based endpoint discovery for krikos"
 license.workspace = true
 authors = ["n0 team"]
 repository.workspace = true
-keywords = ["networking", "pkarr", "dns", "iroh"]
+keywords = ["networking", "pkarr", "dns", "krikos"]
 rust-version.workspace = true
 
 [lints]

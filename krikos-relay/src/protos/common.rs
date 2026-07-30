@@ -56,7 +56,7 @@ pub enum FrameType {
 
     /// Sent from server to client to declare the connection health state.
     ///
-    /// Added in `iroh-relay-v2` protocol. May not be sent to `iroh-relay-v1` clients.
+    /// Added in `krikos-relay-v2` protocol. May not be sent to `krikos-relay-v1` clients.
     ///
     /// Uses a binary-encoded [`Status`] payload.
     ///

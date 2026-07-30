@@ -1,4 +1,4 @@
-//! Implementation of a DNS name server for iroh endpoint announces
+//! Implementation of a DNS name server for krikos endpoint announces
 
 use std::{
     collections::BTreeMap,

@@ -114,7 +114,7 @@ while IFS=$'\t' read -r run_id head_sha; do
   mkdir -p "$download_root"
   if ! gh run download "$run_id" \
     --repo "$repository" \
-    --name "iroh-sim-soak-aggregate-$run_id" \
+    --name "krikos-sim-soak-aggregate-$run_id" \
     --dir "$download_root" \
     >/dev/null 2>&1; then
     continue

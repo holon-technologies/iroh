@@ -5,20 +5,20 @@ use std::{
 };
 
 use bytes::Bytes;
-use krikos::endpoint::{ReadExactError, VarInt};
 use iroh_io::AsyncStreamReader;
+use krikos::endpoint::{ReadExactError, VarInt};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// An abstract `krikos::endpoint::SendStream`.
 pub trait SendStream: Send {
-    /// Send bytes to the stream. This takes a `Bytes` because iroh can directly use them.
+    /// Send bytes to the stream. This takes a `Bytes` because krikos can directly use them.
     ///
     /// This method is not cancellation safe. Even if this does not resolve, some bytes may have been written when previously polled.
     fn send_bytes(&mut self, bytes: Bytes) -> impl Future<Output = io::Result<()>> + Send;
     /// Send that sends a fixed sized buffer.
     fn send(&mut self, buf: &[u8]) -> impl Future<Output = io::Result<()>> + Send;
-    /// Sync the stream. Not needed for iroh, but needed for intermediate buffered streams such as compression.
+    /// Sync the stream. Not needed for krikos, but needed for intermediate buffered streams such as compression.
     fn sync(&mut self) -> impl Future<Output = io::Result<()>> + Send;
     /// Reset the stream with the given error code.
     fn reset(&mut self, code: VarInt) -> io::Result<()>;

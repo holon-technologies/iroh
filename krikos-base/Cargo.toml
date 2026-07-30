@@ -3,7 +3,7 @@ name = "krikos-base"
 version.workspace = true
 edition.workspace = true
 readme = "README.md"
-description = "base type and utilities for Iroh"
+description = "base type and utilities for Krikos"
 license.workspace = true
 authors = ["n0 team"]
 repository.workspace = true
@@ -59,7 +59,7 @@ relay = [
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "iroh_docsrs"]
+rustdoc-args = ["--cfg", "krikos_docsrs"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [

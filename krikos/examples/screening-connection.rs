@@ -23,7 +23,7 @@ use n0_error::{Result, StdResultExt, e};
 ///
 /// The ALPN, or application-layer protocol negotiation, is exchanged in the connection handshake,
 /// and the connection is aborted unless both endpoints pass the same bytestring.
-const ALPN: &[u8] = b"iroh-example/screening-connection/0";
+const ALPN: &[u8] = b"krikos-example/screening-connection/0";
 
 #[tokio::main]
 async fn main() -> Result<()> {

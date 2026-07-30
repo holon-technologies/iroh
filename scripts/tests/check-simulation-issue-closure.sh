@@ -49,7 +49,7 @@ jq -n \
       number: 42,
       html_url: $issue,
       body: (
-        "<!-- iroh-sim-signature:" + $signature + " -->\n\n" +
+        "<!-- krikos-sim-signature:" + $signature + " -->\n\n" +
         "- Source revision: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`\n" +
         "- Workflow run: `123`\n" +
         "- Minimized scenario SHA-256: `" + $digest + "`"
@@ -169,7 +169,7 @@ chmod +x "$failing_sim"
 assert_rejected corpus-failure "$event" "$checks" "$corpus" "$failing_sim"
 
 wrong_signature_event="$fixture_root/wrong-signature-event.json"
-jq '.issue.body = "<!-- iroh-sim-signature:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -->"' \
+jq '.issue.body = "<!-- krikos-sim-signature:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff -->"' \
   "$event" >"$wrong_signature_event"
 assert_rejected signature-mismatch "$wrong_signature_event" "$checks" "$corpus" "$fake_sim"
 

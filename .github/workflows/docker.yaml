@@ -39,7 +39,7 @@ jobs:
       - name: Download musl release bundles
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
-          pattern: iroh-*-linux-musl-bundle
+          pattern: krikos-*-linux-musl-bundle
           path: release-bundles
 
       - name: Prepare immutable container inputs
@@ -50,15 +50,15 @@ jobs:
             local target=$1
             local platform=$2
             local archive
-            archive=$(find release-bundles -type f -name "iroh-*-$target.tar.gz" -print -quit)
+            archive=$(find release-bundles -type f -name "krikos-*-$target.tar.gz" -print -quit)
             if [[ -z "$archive" ]]; then
               echo "::error::missing musl release bundle for $target"
               exit 2
             fi
             mkdir -p "bins/$platform" "extract/$target"
             tar -xzf "$archive" -C "extract/$target"
-            install -m 0755 "extract/$target/iroh-relay" "bins/$platform/iroh-relay"
-            install -m 0755 "extract/$target/iroh-dns-server" "bins/$platform/iroh-dns-server"
+            install -m 0755 "extract/$target/krikos-relay" "bins/$platform/krikos-relay"
+            install -m 0755 "extract/$target/krikos-dns-server" "bins/$platform/krikos-dns-server"
           }
           prepare_arch x86_64-unknown-linux-musl linux/amd64
           prepare_arch aarch64-unknown-linux-musl linux/arm64
@@ -77,36 +77,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build iroh-relay container
+      - name: Build krikos-relay container
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
         with:
           context: .
           file: docker/Dockerfile.ci
-          target: iroh-relay
+          target: krikos-relay
           platforms: linux/amd64,linux/arm64/v8
           push: ${{ inputs.publish }}
           provenance: mode=max
           sbom: true
           tags: |
-            ghcr.io/holon-technologies/iroh-relay:${{ inputs.release_version }}
-            ${{ inputs.mark_latest && 'ghcr.io/holon-technologies/iroh-relay:latest' || '' }}
+            ghcr.io/holon-technologies/krikos-relay:${{ inputs.release_version }}
+            ${{ inputs.mark_latest && 'ghcr.io/holon-technologies/krikos-relay:latest' || '' }}
           labels: |
             org.opencontainers.image.revision=${{ inputs.base_hash }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-      - name: Build iroh-dns-server container
+      - name: Build krikos-dns-server container
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
         with:
           context: .
           file: docker/Dockerfile.ci
-          target: iroh-dns-server
+          target: krikos-dns-server
           platforms: linux/amd64,linux/arm64/v8
           push: ${{ inputs.publish }}
           provenance: mode=max
           sbom: true
           tags: |
-            ghcr.io/holon-technologies/iroh-dns-server:${{ inputs.release_version }}
-            ${{ inputs.mark_latest && 'ghcr.io/holon-technologies/iroh-dns-server:latest' || '' }}
+            ghcr.io/holon-technologies/krikos-dns-server:${{ inputs.release_version }}
+            ${{ inputs.mark_latest && 'ghcr.io/holon-technologies/krikos-dns-server:latest' || '' }}
           labels: |
             org.opencontainers.image.revision=${{ inputs.base_hash }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

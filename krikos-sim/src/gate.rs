@@ -389,7 +389,7 @@ fn build_work<'a>(
             for ordinal in 0..runs_per_lane {
                 let lane = format!("{domain_id}/{provider}");
                 let mut hasher =
-                    blake3::Hasher::new_derive_key("iroh-sim deterministic change gate seed v1");
+                    blake3::Hasher::new_derive_key("krikos-sim deterministic change gate seed v1");
                 for part in [
                     impact_policy_blake3,
                     coverage_policy_blake3,

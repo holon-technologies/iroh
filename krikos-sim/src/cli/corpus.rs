@@ -9,7 +9,7 @@ pub(super) fn execute_corpus(operation: &str, root: Option<&Path>) -> Result<(),
     let workspace = workspace_root()?;
     let root = absolutize(
         root.map(Path::to_path_buf)
-            .unwrap_or_else(|| workspace.join("iroh-sim/corpus"))
+            .unwrap_or_else(|| workspace.join("krikos-sim/corpus"))
             .as_path(),
     )?;
     let corpus = Corpus::load(&root)?;

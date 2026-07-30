@@ -31,7 +31,7 @@ use crate::{
     Hash,
     api::blobs::Bitfield,
     store::{
-        IROH_BLOCK_SIZE,
+        KRIKOS_BLOCK_SIZE,
         fs::{HashContext, meta::raw_outboard_size, util::entity_manager},
         util::{
             DD, FixedSize, MemOrFile, PartialMemStorage, read_checksummed_and_truncate,
@@ -175,7 +175,7 @@ impl PartialFileStorage {
                 let size = read_size(&sizes).ok().unwrap_or_default();
                 let outboard = PreOrderOutboard {
                     data: &outboard,
-                    tree: BaoTree::new(size, IROH_BLOCK_SIZE),
+                    tree: BaoTree::new(size, KRIKOS_BLOCK_SIZE),
                     root: blake3::Hash::from(*hash),
                 };
                 let mut ranges = ChunkRanges::empty();
@@ -253,7 +253,7 @@ impl PartialFileStorage {
     }
 
     fn write_batch(&mut self, size: u64, batch: &[BaoContentItem]) -> io::Result<()> {
-        let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+        let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
         for item in batch {
             match item {
                 BaoContentItem::Parent(parent) => {

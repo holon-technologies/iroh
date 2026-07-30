@@ -113,7 +113,7 @@ jq -n \
     },
     coverage: {
       schema_version: 2,
-      policy_id: "iroh-network-modes-v1",
+      policy_id: "krikos-network-modes-v1",
       policy_blake3: "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978",
       rolling_window_days: 7,
       completed_runs: 1,
@@ -182,7 +182,7 @@ jq -e '
   and .totals.successful_runs == 1
   and .totals.failed_runs == 1
   and .totals.errored_runs == 0
-  and .coverage.policy_id == "iroh-network-modes-v1"
+  and .coverage.policy_id == "krikos-network-modes-v1"
   and .coverage.completed_runs == 2
   and (.seed_leases | length) == 2
   and (.epochs | length) == 2

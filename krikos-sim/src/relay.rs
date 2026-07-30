@@ -274,8 +274,11 @@ impl RelayEnvironment {
                 maximum: node.spec.max_sessions,
             });
         }
-        let mut builder =
-            ClientBuilder::new(node.url.clone(), secret_key, krikos::dns::DnsResolver::new());
+        let mut builder = ClientBuilder::new(
+            node.url.clone(),
+            secret_key,
+            krikos::dns::DnsResolver::new(),
+        );
         if let Some(token) = auth_token {
             builder = builder.auth_token(token);
         }

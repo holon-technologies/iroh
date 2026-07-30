@@ -1,4 +1,4 @@
-//! Metrics for iroh-gossip
+//! Metrics for krikos-gossip
 
 use iroh_metrics::{Counter, MetricsGroup};
 

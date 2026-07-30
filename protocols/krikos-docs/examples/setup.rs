@@ -5,7 +5,7 @@ use krikos_gossip::{ALPN as GOSSIP_ALPN, net::Gossip};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // create an iroh endpoint that includes the standard address lookup mechanisms
+    // create an krikos endpoint that includes the standard address lookup mechanisms
     // we've built at number0
     let endpoint = Endpoint::bind(presets::N0).await?;
 

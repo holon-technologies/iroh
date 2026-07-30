@@ -196,18 +196,18 @@ fn soak_plan_is_strict_ordered_and_seed_windows_do_not_overlap() {
     let valid = br#"{
       "schema_version": 2,
       "id": "fixture",
-      "coverage_policy": "iroh-sim/coverage-policy.json",
+      "coverage_policy": "krikos-sim/coverage-policy.json",
       "coverage_policy_blake3": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "lanes": [
         {
           "id": "direct/deterministic-test",
-          "swarm": "iroh-sim/swarms/direct-smoke.json",
+          "swarm": "krikos-sim/swarms/direct-smoke.json",
           "swarm_blake3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "crypto": "deterministic_test"
         },
         {
           "id": "direct/production-provider",
-          "swarm": "iroh-sim/swarms/direct-smoke.json",
+          "swarm": "krikos-sim/swarms/direct-smoke.json",
           "swarm_blake3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "crypto": "production_provider"
         }

@@ -54,29 +54,29 @@ for path in \
   docs/framework/upstream-sync.md \
   docs/release/v2-migration.md \
   docs/release/v2-release-checklist.md \
-  iroh-runtime/CHANGELOG.md \
-  iroh-runtime/README.md \
-  iroh-runtime/release.toml \
-  iroh-resolver/CHANGELOG.md \
-  iroh-resolver/README.md \
-  iroh-resolver/release.toml; do
+  krikos-runtime/CHANGELOG.md \
+  krikos-runtime/README.md \
+  krikos-runtime/release.toml \
+  krikos-resolver/CHANGELOG.md \
+  krikos-resolver/README.md \
+  krikos-resolver/release.toml; do
   require_file "$path"
 done
 
 version_manifests=(
-  iroh-base/Cargo.toml
-  iroh-runtime/Cargo.toml
-  iroh-resolver/Cargo.toml
-  iroh-dns/Cargo.toml
-  iroh-relay/Cargo.toml
-  iroh/Cargo.toml
-  iroh-dns-server/Cargo.toml
-  protocols/iroh-blobs/Cargo.toml
-  protocols/iroh-gossip/Cargo.toml
-  protocols/iroh-docs/Cargo.toml
+  krikos-base/Cargo.toml
+  krikos-runtime/Cargo.toml
+  krikos-resolver/Cargo.toml
+  krikos-dns/Cargo.toml
+  krikos-relay/Cargo.toml
+  krikos/Cargo.toml
+  krikos-dns-server/Cargo.toml
+  protocols/krikos-blobs/Cargo.toml
+  protocols/krikos-gossip/Cargo.toml
+  protocols/krikos-docs/Cargo.toml
   framework/app/Cargo.toml
-  iroh/bench/Cargo.toml
-  iroh-sim/Cargo.toml
+  krikos/bench/Cargo.toml
+  krikos-sim/Cargo.toml
 )
 
 for path in "${version_manifests[@]}"; do
@@ -84,14 +84,14 @@ for path in "${version_manifests[@]}"; do
     fail "$path package version must be exactly 2.0.0"
   fi
   if grep -Fq -- 'version = "1.0.3"' "$repo_root/$path"; then
-    fail "$path still contains a stale Iroh 1.0.3 version requirement"
+    fail "$path still contains a stale Krikos 1.0.3 version requirement"
   fi
 done
 
 python3 - \
   "$repo_root/Cargo.lock" \
   "$repo_root/fuzz/Cargo.lock" \
-  "$repo_root/iroh-sim/Cargo.lock" <<'PY' ||
+  "$repo_root/krikos-sim/Cargo.lock" <<'PY' ||
 import sys
 import tomllib
 
@@ -102,27 +102,27 @@ for lock_path in sys.argv[1:]:
         f"{package['name']} {package['version']}"
         for package in lock["package"]
         if package["name"] in {
-            "iroh",
-            "iroh-app",
-            "iroh-base",
-            "iroh-bench",
-            "iroh-blobs",
-            "iroh-dns",
-            "iroh-dns-server",
-            "iroh-docs",
-            "iroh-gossip",
-            "iroh-relay",
-            "iroh-runtime",
-            "iroh-resolver",
-            "iroh-sim",
+            "krikos",
+            "krikos-app",
+            "krikos-base",
+            "krikos-bench",
+            "krikos-blobs",
+            "krikos-dns",
+            "krikos-dns-server",
+            "krikos-docs",
+            "krikos-gossip",
+            "krikos-relay",
+            "krikos-runtime",
+            "krikos-resolver",
+            "krikos-sim",
         }
         and package["version"].startswith("1.")
     )
     if stale:
-        print(f"{lock_path} contains stale Iroh packages: {', '.join(stale)}", file=sys.stderr)
+        print(f"{lock_path} contains stale Krikos packages: {', '.join(stale)}", file=sys.stderr)
         raise SystemExit(1)
 PY
-  fail 'Cargo lockfiles contain stale Iroh 1.x package versions'
+  fail 'Cargo lockfiles contain stale Krikos 1.x package versions'
 
 portable_workflows=(
   .github/workflows/ci.yml
@@ -139,7 +139,7 @@ for path in "${portable_workflows[@]}"; do
   fi
 done
 
-require_text scripts/run-bounded-fuzz.sh 'fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"'
+require_text scripts/run-bounded-fuzz.sh 'fuzz_toolchain="${KRIKOS_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"'
 require_text scripts/run-bounded-fuzz.sh 'cargo "+$fuzz_toolchain" fuzz run'
 
 nightly="$repo_root/.github/workflows/simulation-nightly.yml"
@@ -154,8 +154,8 @@ require_text .github/workflows/simulation-nightly.yml 'resource_exhaustion:'
 require_text .github/workflows/simulation-nightly.yml 'RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
 for resource in connection relay socket stream timer trace; do
   require_text .github/workflows/simulation-nightly.yml "resource: $resource"
-  require_file "iroh-sim/corpus/resource-$resource-limit/scenario.json"
-  require_file "iroh-sim/corpus/resource-$resource-limit/metadata.json"
+  require_file "krikos-sim/corpus/resource-$resource-limit/scenario.json"
+  require_file "krikos-sim/corpus/resource-$resource-limit/metadata.json"
 done
 
 release_workflow="$repo_root/.github/workflows/release.yml"
@@ -191,7 +191,7 @@ for required in \
   'artifact-metadata: write' \
   'anchore/sbom-action@v0' \
   'actions/attest@v4' \
-  'iroh-v2-supply-chain-evidence' \
+  'krikos-v2-supply-chain-evidence' \
   'sha256'; do
   if ! grep -Fq -- "$required" "$release_workflow"; then
     fail ".github/workflows/release.yml is missing release safety contract: $required"
@@ -210,8 +210,8 @@ done
 
 for required in \
   'runs-on: ubuntu-latest' \
-  'ghcr.io/holon-technologies/iroh-relay' \
-  'ghcr.io/holon-technologies/iroh-dns-server' \
+  'ghcr.io/holon-technologies/krikos-relay' \
+  'ghcr.io/holon-technologies/krikos-dns-server' \
   'provenance: mode=max' \
   'sbom: true'; do
   if ! grep -Fq -- "$required" "$docker_workflow"; then
@@ -225,7 +225,7 @@ require_text .github/workflows/ci.yml 'scripts/run-v2-semver-checks.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-v2-semver-policy.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-local-first-framework-ci.sh'
 require_text Makefile.toml '"framework/app"'
-require_text Makefile.toml '"protocols/iroh-blobs"'
+require_text Makefile.toml '"protocols/krikos-blobs"'
 require_text Makefile.toml '[tasks.local-first-framework]'
 require_text .github/workflows/tests.yaml 'runs-on: windows-2022'
 require_text .github/workflows/tests.yaml 'toolchain: nightly-2026-07-19'
@@ -243,7 +243,7 @@ for permission in 'contents: read' 'issues: write' 'pull-requests: write'; do
     fail ".github/workflows/netsim.yml netsim-release is missing called-workflow permission: $permission"
   fi
 done
-if ! grep -Fq -- 'filter: "skip:iroh_cust_10gb,iroh_relay_only__1_to_10"' <<< "$netsim_release_job"; then
+if ! grep -Fq -- 'filter: "skip:krikos_cust_10gb,krikos_relay_only__1_to_10"' <<< "$netsim_release_job"; then
   fail '.github/workflows/netsim.yml netsim-release must exclude the soak-grade 10 GiB cases'
 fi
 if ! grep -Fq -- 'max_workers: 6' <<< "$netsim_release_job"; then
@@ -259,18 +259,18 @@ if grep -Fq -- 'cargo-semver-checks-action' "$repo_root/.github/workflows/ci.yml
 fi
 require_text .github/workflows/release.yml 'scripts/verify-release-packages.sh'
 require_text .github/workflows/release.yml 'scripts/check-framework-release-gate.py --expect-closed'
-require_text scripts/verify-release-packages.sh 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server'
+require_text scripts/verify-release-packages.sh 'krikos-noq krikos-hickory-server krikos-base krikos-runtime krikos-resolver krikos-dns krikos-relay krikos krikos-dns-server'
 require_text docs/release/v2-migration.md 'PkarrRelayClient::new'
-require_text docs/release/v2-migration.md 'iroh_resolver::Builder::build'
+require_text docs/release/v2-migration.md 'krikos_resolver::Builder::build'
 require_text docs/release/v2-migration.md 'quic::QuicClient::new'
-require_text docs/release/v2-release-checklist.md 'iroh-runtime'
+require_text docs/release/v2-release-checklist.md 'krikos-runtime'
 require_text docs/release/v2-release-checklist.md '2.0.0'
-require_text iroh-runtime/CHANGELOG.md '## Unreleased'
-require_text iroh-runtime/Cargo.toml 'readme = "README.md"'
-require_text iroh-runtime/release.toml 'pre-release-hook'
-require_text iroh-resolver/CHANGELOG.md '## Unreleased'
-require_text iroh-resolver/Cargo.toml 'readme = "README.md"'
-require_text iroh-resolver/release.toml 'pre-release-hook'
+require_text krikos-runtime/CHANGELOG.md '## Unreleased'
+require_text krikos-runtime/Cargo.toml 'readme = "README.md"'
+require_text krikos-runtime/release.toml 'pre-release-hook'
+require_text krikos-resolver/CHANGELOG.md '## Unreleased'
+require_text krikos-resolver/Cargo.toml 'readme = "README.md"'
+require_text krikos-resolver/release.toml 'pre-release-hook'
 require_text scripts/run-v2-semver-checks.sh 'mode=legacy-inventory'
 require_text scripts/run-v2-semver-checks.sh 'mode=post-cut'
 require_text scripts/run-v2-semver-checks.sh '--baseline-rustdoc'
@@ -280,8 +280,8 @@ require_text scripts/v2-api-baseline.toml 'legacy_inventory_ref = "v1.0.3"'
 if ! grep -Eq '^post_cut_ref = "([0-9a-f]{40})?"$' "$repo_root/scripts/v2-api-baseline.toml"; then
   fail 'scripts/v2-api-baseline.toml post_cut_ref must be empty or a full lowercase commit SHA'
 fi
-require_text scripts/v2-api-breaks.txt $'iroh-dns\tstruct_missing\tstruct iroh_dns::dns::DnsResolver'
-require_text docs/release/v2-migration.md 'iroh_resolver::DnsProtocol'
+require_text scripts/v2-api-breaks.txt $'krikos-dns\tstruct_missing\tstruct krikos_dns::dns::DnsResolver'
+require_text docs/release/v2-migration.md 'krikos_resolver::DnsProtocol'
 
 if ((failures != 0)); then
   printf 'v2 release-readiness contract failed with %d issue(s)\n' "$failures" >&2

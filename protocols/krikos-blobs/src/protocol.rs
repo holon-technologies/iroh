@@ -408,7 +408,7 @@ pub const ERR_LIMIT: VarInt = VarInt::from_u32(2u32);
 /// Error code for when a request is aborted due to internal error
 pub const ERR_INTERNAL: VarInt = VarInt::from_u32(3u32);
 
-/// The ALPN used with quic for the iroh blobs protocol.
+/// The ALPN used with quic for the krikos blobs protocol.
 pub const ALPN: &[u8] = b"/iroh-bytes/4";
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone, From)]

@@ -1,4 +1,4 @@
-//! DNS endpoint discovery for iroh
+//! DNS endpoint discovery for krikos
 
 use krikos_base::EndpointId;
 use krikos_dns::dns::EndpointDnsResolver;
@@ -87,7 +87,7 @@ impl DnsAddressLookup {
     ///
     /// This uses the [`N0_DNS_ENDPOINT_ORIGIN_PROD`] domain.
     ///
-    /// When running with the environment variable `IROH_FORCE_STAGING_RELAYS`
+    /// When running with the environment variable `KRIKOS_FORCE_STAGING_RELAYS`
     /// set to any non empty value the [`N0_DNS_ENDPOINT_ORIGIN_STAGING`] domain
     /// is used instead.
     pub fn n0_dns() -> DnsAddressLookupBuilder {

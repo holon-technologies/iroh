@@ -1,6 +1,6 @@
 //! Adaptation of `krikos-blobs` as an [`krikos`] [`ProtocolHandler`].
 //!
-//! This is the easiest way to share data from a [`crate::api::Store`] over iroh connections.
+//! This is the easiest way to share data from a [`crate::api::Store`] over krikos connections.
 //!
 //! # Example
 //!
@@ -15,7 +15,7 @@
 //! // add some data
 //! let t = store.add_slice(b"hello world").await?;
 //!
-//! // create an iroh endpoint
+//! // create an krikos endpoint
 //! let endpoint = Endpoint::bind(presets::N0).await?;
 //! endpoint.online().await;
 //! let addr = endpoint.addr();

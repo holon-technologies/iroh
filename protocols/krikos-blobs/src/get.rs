@@ -28,7 +28,7 @@ use tracing::{debug, error};
 use crate::{
     Hash,
     protocol::ChunkRangesSeq,
-    store::IROH_BLOCK_SIZE,
+    store::KRIKOS_BLOCK_SIZE,
     util::{RecvStream, SendStream},
 };
 
@@ -113,8 +113,8 @@ pub mod fsm {
         io::fsm::{OutboardMut, ResponseDecoder, ResponseDecoderNext},
     };
     use derive_more::From;
-    use krikos::endpoint::Connection;
     use iroh_io::AsyncSliceWriter;
+    use krikos::endpoint::Connection;
     use n0_error::{AnyError, e, stack_error};
 
     use super::*;
@@ -536,7 +536,7 @@ pub mod fsm {
             let stream = ResponseDecoder::new(
                 self.hash.into(),
                 self.ranges,
-                BaoTree::new(size, IROH_BLOCK_SIZE),
+                BaoTree::new(size, KRIKOS_BLOCK_SIZE),
                 RecvStreamAsyncStreamReader::new(self.reader),
             );
             Ok((

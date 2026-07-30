@@ -332,7 +332,7 @@ pub(super) fn parse_seed_range(value: &str) -> Result<(u64, u64), CliError> {
 }
 
 pub(super) fn campaign_seed(ordinal: u64) -> (RootSeed, String) {
-    let mut hasher = blake3::Hasher::new_derive_key("iroh-sim campaign root seed v1");
+    let mut hasher = blake3::Hasher::new_derive_key("krikos-sim campaign root seed v1");
     hasher.update(&ordinal.to_le_bytes());
     let bytes = *hasher.finalize().as_bytes();
     (
@@ -342,7 +342,7 @@ pub(super) fn campaign_seed(ordinal: u64) -> (RootSeed, String) {
 }
 
 pub(super) fn swarm_materialization_seed(runtime_seed: RootSeed) -> RootSeed {
-    let mut hasher = blake3::Hasher::new_derive_key("iroh-sim swarm materialization seed v1");
+    let mut hasher = blake3::Hasher::new_derive_key("krikos-sim swarm materialization seed v1");
     hasher.update(runtime_seed.as_bytes());
     RootSeed::new(*hasher.finalize().as_bytes())
 }

@@ -117,7 +117,7 @@ pub fn transport_config(max_streams: usize, initial_mtu: u16) -> TransportConfig
     config.ack_frequency_config(Some(acks));
 
     #[cfg(feature = "qlog")]
-    config.qlog_from_env("bench-iroh");
+    config.qlog_from_env("bench-krikos");
 
     config
 }

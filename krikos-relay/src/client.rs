@@ -63,7 +63,7 @@ pub enum ConnectError {
     #[error(transparent)]
     Websocket { source: AnyError },
     #[error(
-        "Server replied with invalid iroh-relay version header: {}",
+        "Server replied with invalid krikos-relay version header: {}",
         server_version.as_deref().unwrap_or("<empty>")
     )]
     BadVersionHeader { server_version: Option<String> },

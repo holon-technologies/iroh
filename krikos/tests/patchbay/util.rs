@@ -1,12 +1,12 @@
 use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
+#[cfg(feature = "metrics")]
+use iroh_metrics::MetricsGroupSet;
 use krikos::{
     Endpoint, EndpointAddr, RelayMap, RelayMode, TransportAddr,
     endpoint::{Connection, Path, PathEvent, presets},
     tls::CaTlsConfig,
 };
-#[cfg(feature = "metrics")]
-use iroh_metrics::MetricsGroupSet;
 use n0_error::{Result, StackResultExt, StdResultExt, anyerr, ensure_any};
 use n0_future::{StreamExt, boxed::BoxFuture, task::AbortOnDropHandle};
 use noq::Side;

@@ -225,9 +225,9 @@ for signature_file in "${signature_files[@]}"; do
   terminal_class=$(jq -r '.terminal_class' "$signature_file")
   title="[simulation] $terminal_class (${signature_digest:0:12})"
   lane_slug=${lane//\//-}
-  replay_command="gh run download $workflow_run_id --repo $repository --name iroh-sim-soak-$lane_slug-$workflow_run_id"
+  replay_command="gh run download $workflow_run_id --repo $repository --name krikos-sim-soak-$lane_slug-$workflow_run_id"
   body=$(jq -nr \
-    --arg marker "<!-- iroh-sim-signature:$signature_digest -->" \
+    --arg marker "<!-- krikos-sim-signature:$signature_digest -->" \
     --arg source_revision "$source_revision" \
     --argjson workflow_run_id "$workflow_run_id" \
     --arg lane "$lane" \
@@ -235,7 +235,7 @@ for signature_file in "${signature_files[@]}"; do
     --arg terminal_class "$terminal_class" \
     --arg minimized_scenario_sha256 "$minimized_scenario_sha256" \
     --arg replay_command "$replay_command" \
-    --arg triage_artifact "iroh-sim-soak-triage-$workflow_run_id" \
+    --arg triage_artifact "krikos-sim-soak-triage-$workflow_run_id" \
     '$marker + "\n\n" +
      "A deterministic simulation product failure replayed exactly and minimized with its signature preserved.\n\n" +
      "- Source revision: `" + $source_revision + "`\n" +

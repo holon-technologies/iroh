@@ -708,7 +708,7 @@ mod tests {
     #[derive(Debug, Clone)]
     struct Echo;
 
-    const ECHO_ALPN: &[u8] = b"/iroh/echo/1";
+    const ECHO_ALPN: &[u8] = b"/krikos/echo/1";
 
     impl ProtocolHandler for Echo {
         async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
@@ -1027,7 +1027,7 @@ mod tests {
             connections: Arc<Mutex<Vec<Connection>>>,
         }
 
-        const TEST_ALPN: &[u8] = b"/iroh/test/1";
+        const TEST_ALPN: &[u8] = b"/krikos/test/1";
 
         impl ProtocolHandler for TestProtocol {
             async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {

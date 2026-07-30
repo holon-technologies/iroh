@@ -16,8 +16,8 @@ use n0_error::{e, stack_error};
 
 use crate::pkarr;
 
-/// The DNS name for the iroh TXT record.
-pub const IROH_TXT_NAME: &str = "_iroh";
+/// The DNS name for the krikos TXT record.
+pub const KRIKOS_TXT_NAME: &str = "_iroh";
 
 #[allow(missing_docs)]
 #[stack_error(derive, add_meta)]
@@ -45,15 +45,17 @@ pub enum ParseError {
         #[error(std_err)]
         source: std::str::Utf8Error,
     },
-    #[error("Record is not an `iroh` record, expected `_iroh`, got `{label}`")]
-    NotAnIrohRecord { label: String },
+    #[error("Record is not an `krikos` record, expected `_iroh`, got `{label}`")]
+    NotAnKrikosRecord { label: String },
     #[error(transparent)]
-    DecodingError { source: krikos_base::KeyParsingError },
+    DecodingError {
+        source: krikos_base::KeyParsingError,
+    },
 }
 
-/// Parses a [`EndpointId`] from iroh DNS name.
+/// Parses a [`EndpointId`] from krikos DNS name.
 ///
-/// Takes a DNS name and expects the first label to be [`IROH_TXT_NAME`] and the second
+/// Takes a DNS name and expects the first label to be [`KRIKOS_TXT_NAME`] and the second
 /// label to be a z32 encoded [`EndpointId`]. Ignores subsequent labels.
 pub(crate) fn endpoint_id_from_txt_name(name: &str) -> Result<EndpointId, ParseError> {
     let num_labels = name.split(".").count();
@@ -62,8 +64,8 @@ pub(crate) fn endpoint_id_from_txt_name(name: &str) -> Result<EndpointId, ParseE
     }
     let mut labels = name.split(".");
     let label = labels.next().expect("checked above");
-    if label != IROH_TXT_NAME {
-        return Err(e!(ParseError::NotAnIrohRecord {
+    if label != KRIKOS_TXT_NAME {
+        return Err(e!(ParseError::NotAnKrikosRecord {
             label: label.to_string()
         }));
     }
@@ -72,14 +74,14 @@ pub(crate) fn endpoint_id_from_txt_name(name: &str) -> Result<EndpointId, ParseE
     Ok(endpoint_id)
 }
 
-/// The attributes supported by iroh for [`IROH_TXT_NAME`] DNS resource records.
+/// The attributes supported by krikos for [`KRIKOS_TXT_NAME`] DNS resource records.
 ///
 /// The resource record uses the lower-case names.
 #[derive(
     Debug, strum::Display, strum::AsRefStr, strum::EnumString, Hash, Eq, PartialEq, Ord, PartialOrd,
 )]
 #[strum(serialize_all = "kebab-case")]
-pub(crate) enum IrohAttr {
+pub(crate) enum KrikosAttr {
     /// URL of home relay.
     Relay,
     /// Address (IP or custom transport).
@@ -88,7 +90,7 @@ pub(crate) enum IrohAttr {
     UserData,
 }
 
-/// Attributes parsed from [`IROH_TXT_NAME`] TXT records.
+/// Attributes parsed from [`KRIKOS_TXT_NAME`] TXT records.
 ///
 /// This struct is generic over the key type. When using with [`String`], this will parse
 /// all attributes. Can also be used with an enum, if it implements [`FromStr`] and
@@ -162,7 +164,7 @@ impl<T: FromStr + Display + Hash + Ord> TxtAttrs<T> {
     ) -> Result<Self, ParseError> {
         let pubkey = packet.public_key();
         let endpoint_id = EndpointId::from_bytes(pubkey.as_bytes()).expect("valid key");
-        let txt_strs = packet.txt_records(IROH_TXT_NAME);
+        let txt_strs = packet.txt_records(KRIKOS_TXT_NAME);
         Self::from_strings(endpoint_id, txt_strs.into_iter())
     }
 
@@ -183,7 +185,7 @@ impl<T: FromStr + Display + Hash + Ord> TxtAttrs<T> {
     ) -> Result<pkarr::SignedPacket, EncodingError> {
         let signed_packet = pkarr::SignedPacket::from_txt_strings(
             secret_key,
-            IROH_TXT_NAME,
+            KRIKOS_TXT_NAME,
             self.to_txt_strings(),
             ttl,
         )

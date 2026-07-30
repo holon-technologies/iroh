@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "direct-smoke",
-  "base_path": "iroh-sim/corpus/stage3-trigger-stall/scenario.json",
+  "base_path": "krikos-sim/corpus/stage3-trigger-stall/scenario.json",
   "base_blake3": "4f2a60b1cf4cc43b1e1563ad586fa7b6b0a74a680bf3328acbc53262942c34b0",
   "choices": [
     {

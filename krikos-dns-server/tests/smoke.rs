@@ -24,7 +24,7 @@ async fn integration_smoke() -> Result {
         url
     };
 
-    let origin = "irohdns.example.";
+    let origin = "krikosdns.example.";
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
     let secret_key = SecretKey::from_bytes(&rng.random());
     let endpoint_id = secret_key.public();

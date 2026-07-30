@@ -1,6 +1,6 @@
 //! Default [`PathSelector`] implementation.
 //!
-//! [`BiasedRttPathSelector`] preserves iroh's historical "lowest biased RTT wins, with
+//! [`BiasedRttPathSelector`] preserves krikos's historical "lowest biased RTT wins, with
 //! stickiness against flapping" behaviour and is what's installed when no custom
 //! selector is provided.
 
@@ -125,7 +125,7 @@ impl TransportBias {
     }
 }
 
-/// The default [`PathSelector`] used by iroh.
+/// The default [`PathSelector`] used by krikos.
 ///
 /// Sorts paths by `(transport_type, biased_rtt)` (primary tier wins, then lowest biased
 /// RTT).  Within the same tier, switching only happens once a candidate's biased RTT is

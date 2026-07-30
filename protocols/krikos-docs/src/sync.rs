@@ -1,4 +1,4 @@
-//! API for iroh-docs replicas
+//! API for krikos-docs replicas
 
 // Names and concepts are roughly based on Willows design at the moment:
 //
@@ -16,7 +16,7 @@ use std::{
 use bytes::{Bytes, BytesMut};
 // `krikos::Signature` is a newtype wrapper around `ed25519_dalek::Signature` with a
 // hand-written, wire-stable `serialize_tuple` serde impl (the same impl every other
-// iroh crate uses for handshake / discovery payloads). Embedding it inside
+// krikos crate uses for handshake / discovery payloads). Embedding it inside
 // `EntrySignature` — rather than the raw dalek type — keeps the on-wire
 // `SignedEntry` format independent of upstream `ed25519` serde changes.
 use krikos::{KeyParsingError, Signature, SignatureError};
@@ -37,8 +37,8 @@ use crate::{
 /// Can be serialized to bytes with [serde] to transfer between peers.
 pub type ProtocolMessage = crate::ranger::Message<SignedEntry>;
 
-/// Byte representation of an iroh `EndpointId`.
-// TODO: Consider `krikos::EndpointId` instead of raw bytes (`iroh` re-exports it from `iroh-base`).
+/// Byte representation of an krikos `EndpointId`.
+// TODO: Consider `krikos::EndpointId` instead of raw bytes (`krikos` re-exports it from `krikos-base`).
 pub type PeerIdBytes = [u8; 32];
 
 /// Max time in the future from our wall clock time that we accept entries for.

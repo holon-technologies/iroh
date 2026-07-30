@@ -266,9 +266,9 @@ fn start_active_relay_actor(
     AbortOnDropHandle::new(task)
 }
 
-/// Starts an [`ActiveRelayActor`] as an "iroh echo endpoint".
+/// Starts an [`ActiveRelayActor`] as an "krikos echo endpoint".
 ///
-/// This actor will connect to the relay server, pretending to be an iroh endpoint, and echo
+/// This actor will connect to the relay server, pretending to be an krikos endpoint, and echo
 /// back any datagram it receives from the relay.  This is used by the
 /// [`ActiveRelayActor`] under test to check connectivity works.
 fn start_echo_endpoint(relay_url: RelayUrl) -> (EndpointId, AbortOnDropHandle<()>) {

@@ -81,7 +81,7 @@ set +e
   --repository "$repository" \
   --revision "$revision" \
   --now-unix-secs 999999999999999999999999999999 \
-  --policy "$repo_root/iroh-sim/operations-policy.json" \
+  --policy "$repo_root/krikos-sim/operations-policy.json" \
   --output "$invalid_time_output"
 invalid_time_status=$?
 set -e
@@ -96,7 +96,7 @@ run_checker() {
     --repository "$repository" \
     --revision "$revision" \
     --now-unix-secs "$now_unix_secs" \
-    --policy "$repo_root/iroh-sim/operations-policy.json" \
+    --policy "$repo_root/krikos-sim/operations-policy.json" \
     --output "$output"
 }
 
@@ -145,7 +145,7 @@ jq -n '{
   items: [{
     number: 42,
     html_url: "https://github.com/holon-technologies/iroh/issues/42",
-    body: "<!-- iroh-sim-signature:1111111111111111111111111111111111111111111111111111111111111111 -->",
+    body: "<!-- krikos-sim-signature:1111111111111111111111111111111111111111111111111111111111111111 -->",
     labels: [{name: "simulation"}]
   }]
 }' >"$open_issue"

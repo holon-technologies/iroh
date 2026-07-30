@@ -1,9 +1,9 @@
-# iroh-dns-server
+# krikos-dns-server
 
 A server that functions as a [pkarr](https://github.com/Nuhvi/pkarr/) relay and
 [DNS](https://de.wikipedia.org/wiki/Domain_Name_System) server.
 
-This server compiles to a binary `iroh-dns-server`. It needs a config file, of
+This server compiles to a binary `krikos-dns-server`. It needs a config file, of
 which there are two examples included:
 
 - [`config.dev.toml`](./config.dev.toml) - suitable for local development

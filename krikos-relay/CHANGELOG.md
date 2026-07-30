@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to iroh-relay will be documented in this file.
+All notable changes to krikos-relay will be documented in this file.
 
 ## Unreleased
 
@@ -24,7 +24,7 @@ All notable changes to iroh-relay will be documented in this file.
 
 ### 📚 Documentation
 
-- *(iroh-relay)* System deps and build command ([#4385](https://github.com/n0-computer/iroh/issues/4385)) - ([403af3c](https://github.com/n0-computer/iroh/commit/403af3c9ed8eeda07f72a4ac4617d67ca053ccb7))
+- *(krikos-relay)* System deps and build command ([#4385](https://github.com/n0-computer/iroh/issues/4385)) - ([403af3c](https://github.com/n0-computer/iroh/commit/403af3c9ed8eeda07f72a4ac4617d67ca053ccb7))
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -34,7 +34,7 @@ All notable changes to iroh-relay will be documented in this file.
 
 # Changelog
 
-All notable changes to iroh-relay will be documented in this file.
+All notable changes to krikos-relay will be documented in this file.
 
 ## [1.0.2](https://github.com/n0-computer/iroh/compare/v1.0.1..1.0.2) - 2026-07-06
 
@@ -44,7 +44,7 @@ All notable changes to iroh-relay will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-- *(iroh-relay)* Improve relay protocol proptests & properly handle invalid messages ([#4389](https://github.com/n0-computer/iroh/issues/4389)) - ([22cac74](https://github.com/n0-computer/iroh/commit/22cac742ca5e84da4542681e14b2d23b74c8330e))
+- *(krikos-relay)* Improve relay protocol proptests & properly handle invalid messages ([#4389](https://github.com/n0-computer/iroh/issues/4389)) - ([22cac74](https://github.com/n0-computer/iroh/commit/22cac742ca5e84da4542681e14b2d23b74c8330e))
 
 ### ⚙️ Miscellaneous Tasks
 

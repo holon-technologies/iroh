@@ -1,4 +1,4 @@
-//! Shared state and store for the iroh-dns-server
+//! Shared state and store for the krikos-dns-server
 
 use std::sync::Arc;
 

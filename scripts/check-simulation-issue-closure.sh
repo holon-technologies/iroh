@@ -117,7 +117,7 @@ if ! jq -e \
     and all(.issue.labels[];
       type == "object" and (.name | type == "string" and length <= 100))
     and any(.issue.labels[]; .name == "simulation")
-    and ([.issue.body | scan("<!-- iroh-sim-signature:[0-9a-f]{64} -->")] | length) == 1
+    and ([.issue.body | scan("<!-- krikos-sim-signature:[0-9a-f]{64} -->")] | length) == 1
   ' "$event" >/dev/null; then
   echo "closed issue event is not one bounded tracked simulation failure" >&2
   exit 1
@@ -127,7 +127,7 @@ issue_number=$(jq -er '.issue.number' "$event")
 issue_url=$(jq -er '.issue.html_url' "$event")
 signature_digest=$(jq -er '
   .issue.body
-  | capture("<!-- iroh-sim-signature:(?<digest>[0-9a-f]{64}) -->").digest
+  | capture("<!-- krikos-sim-signature:(?<digest>[0-9a-f]{64}) -->").digest
 ' "$event")
 
 if ! jq -e \

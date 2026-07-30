@@ -1,7 +1,7 @@
 //! Android system DNS reader for the generic resolver.
 //!
 //! Forwards to [`hickory_resolver::system_conf::read_system_conf`], which
-//! reads `LinkProperties.getDnsServers()` through [`ndk_context`]. iroh on
+//! reads `LinkProperties.getDnsServers()` through [`ndk_context`]. krikos on
 //! Android therefore requires [`ndk_context`] to be initialized before any
 //! [`DnsResolver`] is constructed, either by ndk-glue or android-activity
 //! (both do this before `main`) or by an explicit
@@ -42,7 +42,7 @@ pub(crate) fn read_system_conf() -> Result<(ResolverConfig, ResolverOpts), NetEr
     }
 }
 
-/// Exposes a JVM to iroh so that we can read the system's DNS configuration.
+/// Exposes a JVM to krikos so that we can read the system's DNS configuration.
 ///
 /// This calls [`ndk_context::initialize_android_context`] to expose a
 /// `JavaVM` and Application Context to Rust code so that we can use JNI.

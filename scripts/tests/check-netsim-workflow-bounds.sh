@@ -8,7 +8,7 @@ runner="$repo_root/.github/workflows/netsim_runner.yaml"
 ci="$repo_root/.github/workflows/ci.yml"
 
 for required in \
-  'group: iroh-netsim-${{ github.ref || inputs.iroh_ref }}' \
+  'group: krikos-netsim-${{ github.ref || inputs.krikos_ref }}' \
   'cancel-in-progress: false'; do
   grep -Fq -- "$required" "$entry" || {
     printf 'Netsim entry workflow is missing bound: %s\n' "$required" >&2
@@ -24,7 +24,7 @@ for required in \
   'maximum_cases=64' \
   'MAX_WORKERS < 1 || MAX_WORKERS > 6' \
   '${#sim_paths[@]} > 3' \
-  '^sims/(iroh|integration|paused)(/[a-z0-9_]+\.json)?$' \
+  '^sims/(krikos|integration|paused)(/[a-z0-9_]+\.json)?$' \
   'if [[ -f "../chuck/netsim/$sim_path" ]]; then' \
   'retention-days: 3' \
   '- name: Cleanup' \

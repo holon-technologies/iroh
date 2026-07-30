@@ -3,12 +3,12 @@ name = "krikos-resolver"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "Provider-neutral DNS resolution for Iroh"
+description = "Provider-neutral DNS resolution for Krikos"
 readme = "README.md"
 license.workspace = true
 authors = ["n0 team"]
 repository.workspace = true
-keywords = ["networking", "dns", "iroh"]
+keywords = ["networking", "dns", "krikos"]
 
 [lints]
 workspace = true

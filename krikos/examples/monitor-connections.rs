@@ -14,7 +14,7 @@ use tokio::{
 };
 use tracing::{Instrument, info, info_span};
 
-const ALPN: &[u8] = b"iroh/test";
+const ALPN: &[u8] = b"krikos/test";
 
 #[tokio::main]
 async fn main() -> Result {

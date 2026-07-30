@@ -32,8 +32,8 @@ before release readiness can be claimed.
 
 - Added and enforced the production dependency graph, isolated simulator workspace, and exact TLS
   provider rules.
-- Extracted generic DNS resolution to `iroh-resolver`; endpoint-record composition remains in
-  `iroh-dns`, and relay no longer depends on endpoint DNS or pkarr concerns.
+- Extracted generic DNS resolution to `krikos-resolver`; endpoint-record composition remains in
+  `krikos-dns`, and relay no longer depends on endpoint DNS or pkarr concerns.
 - Replaced partial simulation injection with one validated `SimulationEnvironment`.
 - Split endpoint, socket, relay actor, relay server/HTTP, simulator CLI, runner, and scenario-model
   responsibilities behind narrow facades.
@@ -61,15 +61,15 @@ The authoritative current design is in `docs/architecture.md`; wire obligations 
 | V1-to-v2 API audit | `scripts/run-v2-semver-checks.sh --allow-dirty` | Pass; the exact ten intentional resolver moves match `scripts/v2-api-breaks.txt` |
 | Post-cut API stability | `scripts/run-v2-semver-checks.sh --allow-dirty` | Pass against `b433041dce6fcb1f45287e4602e7cab271bf81df`; no findings across all seven public crates |
 | Workspace tests | `RUSTFLAGS='-D warnings --cfg skip_patchbay' cargo test --workspace --all-features` | Pass; Patchbay correctly excluded for its privileged lane |
-| Simulator tests and benches | `cargo test --manifest-path iroh-sim/Cargo.toml --all-targets --all-features` | Pass |
+| Simulator tests and benches | `cargo test --manifest-path krikos-sim/Cargo.toml --all-targets --all-features` | Pass |
 | All-feature lint | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | Pass |
 | Default-feature lint | `cargo clippy --workspace --all-targets --lib --bins --tests --benches --examples -- -D warnings` | Pass |
 | No-default-feature lint | `cargo clippy --workspace --no-default-features --all-targets --lib --bins --tests --benches --examples -- -D warnings` | Pass |
-| Simulator lint | `cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings` | Pass |
-| Minimal native graph | `cargo check -p iroh --no-default-features` | Pass |
+| Simulator lint | `cargo clippy --manifest-path krikos-sim/Cargo.toml --all-targets --all-features -- -D warnings` | Pass |
+| Minimal native graph | `cargo check -p krikos --no-default-features` | Pass |
 | TLS feature graph | `scripts/tests/check-relay-tls-features.sh` | Pass for provider-neutral, Ring-only, AWS-LC-only, and providerless-binary failure cases |
 | Workspace docs | `cargo doc --workspace --all-features --no-deps --document-private-items` | Pass |
-| Simulator docs | `cargo doc --manifest-path iroh-sim/Cargo.toml --all-features --no-deps --document-private-items` | Pass |
+| Simulator docs | `cargo doc --manifest-path krikos-sim/Cargo.toml --all-features --no-deps --document-private-items` | Pass |
 | External public types | `cargo make check-external-types` | Pass; warnings are retained hidden/unused allowlist diagnostics, with zero errors |
 | Dependency policy | `cargo deny check` | Pass: advisories, bans, licenses, and sources |
 | Determinism inventories | `scripts/check-determinism-boundaries.sh --check`; `scripts/check-determinism-semantic.sh --check` | Pass after reviewed classification update |

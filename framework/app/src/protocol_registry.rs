@@ -25,7 +25,7 @@ impl ProtocolRegistry {
         })
     }
 
-    /// Registers one concrete Iroh protocol handler.
+    /// Registers one concrete Krikos protocol handler.
     pub fn register<H>(&mut self, alpn: impl AsRef<[u8]>, handler: H) -> Result<(), RegistryError>
     where
         H: ProtocolHandler,
@@ -33,7 +33,7 @@ impl ProtocolRegistry {
         self.register_boxed(alpn.as_ref(), handler.into())
     }
 
-    /// Registers an already type-erased Iroh protocol handler.
+    /// Registers an already type-erased Krikos protocol handler.
     pub fn register_dyn(
         &mut self,
         alpn: impl AsRef<[u8]>,

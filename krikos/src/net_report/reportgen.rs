@@ -617,7 +617,7 @@ async fn check_captive_portal(
         .map_err(|err| e!(CaptivePortalError::CreateReqwestClient, err))?;
 
     // Note: the set of valid characters in a challenge and the total
-    // length is limited; see is_challenge_char in bin/iroh-relay for more
+    // length is limited; see is_challenge_char in bin/krikos-relay for more
     // details.
 
     let host_name = url.host_str().unwrap_or_default();
@@ -625,7 +625,7 @@ async fn check_captive_portal(
     let portal_url = format!("http://{host_name}/generate_204");
     let res = client
         .request(reqwest::Method::GET, portal_url)
-        .header("X-Iroh-Challenge", &challenge)
+        .header("X-Krikos-Challenge", &challenge)
         .send()
         .await
         .map_err(|err| e!(CaptivePortalError::HttpRequest, err))?;
@@ -633,7 +633,7 @@ async fn check_captive_portal(
     let expected_response = format!("response {challenge}");
     let is_valid_response = res
         .headers()
-        .get("X-Iroh-Response")
+        .get("X-Krikos-Response")
         .map(|s| s.to_str().unwrap_or_default())
         == Some(&expected_response);
 

@@ -1,7 +1,7 @@
 //! Patchbay network simulation tests.
 //!
 //! These tests use the [`patchbay`] crate to create virtual network topologies
-//! in Linux user namespaces, testing iroh's NAT traversal, holepunching,
+//! in Linux user namespaces, testing krikos's NAT traversal, holepunching,
 //! and connectivity under various network conditions.
 //!
 //! These tests require Linux with user namespace support. On non-Linux systems, you can use
@@ -12,14 +12,14 @@
 //!
 //! ```sh
 //! # On Linux (with user namespace support):
-//! cargo nextest run -p iroh --test patchbay --profile patchbay
+//! cargo nextest run -p krikos --test patchbay --profile patchbay
 //! # or use the `cargo make` alias:
 //! cargo make patchbay
 //! # can also pass additional args:
 //! cargo make patchbay holepunch_simple --no-capture
 //!
 //! # On macOS (runs in container via patchbay CLI):
-//! patchbay test --release -p iroh --test patchbay
+//! patchbay test --release -p krikos --test patchbay
 //! ```
 
 // patchbay only runs on linux, and is skipped in cross-compile environments

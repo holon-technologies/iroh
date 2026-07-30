@@ -225,7 +225,7 @@ impl IpTransport {
                         };
                         meta.addr = SocketAddr::new(v6_ip.into(), meta.addr.port());
                     }
-                    // The transport addresses are internal to iroh and we always want those
+                    // The transport addresses are internal to krikos and we always want those
                     // to remain the canonical address.
                     *recv_info = RecvInfo::from_addr(
                         SocketAddr::new(meta.addr.ip().to_canonical(), meta.addr.port()).into(),

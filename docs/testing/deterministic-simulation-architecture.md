@@ -12,13 +12,13 @@ and adversarial testing platform. It covers controlled runtime services, real pr
 endpoint/QUIC/path logic, synthetic networking, NAT/firewall/relay/discovery models, scenario
 execution, invariants, replay, minimization, cross-backend validation, and continuous operation.
 
-The design is intentionally broader than an initial two-endpoint proof of concept. Implementation must remain staged and reversible, but completion means the testing platform can evolve with Iroh's production protocol and supported environments.
+The design is intentionally broader than an initial two-endpoint proof of concept. Implementation must remain staged and reversible, but completion means the testing platform can evolve with Krikos's production protocol and supported environments.
 
 The authoritative source is the complete 2026-07-20 specification with SHA-256 `7a5f50cfc7e7b504e0e92c721d7f61d2506b760c8e9f2bdac91c1a5e3aeb048a`. Confirmed repository evidence is separated from proposed design below.
 
 ## Goals
 
-- Run production Iroh endpoint, connection, path-management, discovery aggregation, relay client/server, and QUIC behavior inside controlled environments wherever technically feasible.
+- Run production Krikos endpoint, connection, path-management, discovery aggregation, relay client/server, and QUIC behavior inside controlled environments wherever technically feasible.
 - Control all behaviorally relevant time, scheduling, randomness, network delivery, DNS/discovery, interface events, NAT/firewall state, port mapping, lifecycle, and resource limits.
 - Give every run a stable identity and one-command replay instruction.
 - Evaluate safety, bounded-liveness, and cleanup invariants continuously.
@@ -50,8 +50,8 @@ Endpoint::Builder
        -> net reporter                   (DNS, QUIC, HTTPS, timers)
        -> remote/path actors             (Tokio tasks and timers)
   -> noq::Endpoint
-       -> abstract Iroh Transport        (good injection seam)
-       -> iroh Runtime                   (Noq-only task/timer seam)
+       -> abstract Krikos Transport        (good injection seam)
+       -> krikos Runtime                   (Noq-only task/timer seam)
 ```
 
 The present `TestNetwork` proves that real Noq/QUIC can operate over an in-memory custom transport, but its Tokio channels, custom addresses, real clock, and lack of topology/fault modeling make it a test utility rather than the target simulator.
@@ -86,7 +86,7 @@ The central rule is: simulation-aware production code receives capabilities at c
 
 ### 1. Shared runtime capabilities
 
-A small lockstep-published workspace crate, provisionally `iroh-runtime`, owns internal contracts used by `iroh`, `iroh-dns`, and `iroh-relay`:
+A small lockstep-published workspace crate, provisionally `krikos-runtime`, owns internal contracts used by `krikos`, `krikos-dns`, and `krikos-relay`:
 
 - `Clock`: monotonic `now`, cancellable timer creation, and interval construction.
 - `WallClock`: certificate-validation time, signed-record timestamps, expiry, and calendar boundaries; production uses system time while simulation derives it from an explicit epoch plus virtual monotonic time.
@@ -97,15 +97,15 @@ A small lockstep-published workspace crate, provisionally `iroh-runtime`, owns i
 - `TraceSink`: accept structured environment and component events with a correlation context.
 - `RuntimeContext`: aggregate the above capabilities and expose a production Tokio implementation.
 
-Because the published Iroh crates consume these contracts, the crate must be published at the same version rather than relying on an unpublished path dependency. It is not a new end-user configuration surface. Once the contracts stabilize, coordinated changes may move their generic portions into `n0-future` or Noq; the source specification explicitly permits such dependency changes. Starting in Iroh keeps the first migration reviewable and avoids coupling the design to an unproven upstream API.
+Because the published Krikos crates consume these contracts, the crate must be published at the same version rather than relying on an unpublished path dependency. It is not a new end-user configuration surface. Once the contracts stabilize, coordinated changes may move their generic portions into `n0-future` or Noq; the source specification explicitly permits such dependency changes. Starting in Krikos keeps the first migration reviewable and avoids coupling the design to an unproven upstream API.
 
 Injection happens at construction boundaries. Runtime calls that are not packet-hot may use trait objects; packet send/receive and trace-disabled observation paths use the existing Noq socket abstraction, concrete adapters, or static/enum dispatch so the production path does not acquire an avoidable allocation or virtual call per packet.
 
-`iroh::runtime::Runtime` becomes a Noq adapter backed by `RuntimeContext`. It must implement `noq::Runtime::now` explicitly and delegate timers/spawns to the same clock/executor used by the rest of the endpoint.
+`krikos::runtime::Runtime` becomes a Noq adapter backed by `RuntimeContext`. It must implement `noq::Runtime::now` explicitly and delegate timers/spawns to the same clock/executor used by the rest of the endpoint.
 
-### 2. Iroh environment capabilities
+### 2. Krikos environment capabilities
 
-`iroh` composes runtime services with networking-specific capabilities:
+`krikos` composes runtime services with networking-specific capabilities:
 
 - `IpSocketFactory` / `IpSocket`: bind, poll receive, create sender, rebind, address, GSO/GRO, and fragmentation properties.
 - `NetworkMonitor`: current interface state, deterministic change stream, and explicit refresh.
@@ -115,11 +115,11 @@ Injection happens at construction boundaries. Runtime calls that are not packet-
 - `CryptoMaterial`: secure reset/token/challenge material. Production construction always installs the operating-system entropy implementation; only the explicit simulation environment can install deterministic material.
 - `ComponentObserver`: emit endpoint, connection, path, discovery, relay, and resource state transitions.
 
-`Endpoint::Builder::bind` uses the production environment by default. A deliberately separate, documented-as-unstable internal constructor accepts an explicit environment for `iroh-sim` and repository tests. Environment selection cannot be triggered by ambient environment variables or a production behavior feature flag. The constructor requires an unsafe-test marker that is recorded in the run manifest whenever deterministic cryptographic material is present.
+`Endpoint::Builder::bind` uses the production environment by default. A deliberately separate, documented-as-unstable internal constructor accepts an explicit environment for `krikos-sim` and repository tests. Environment selection cannot be triggered by ambient environment variables or a production behavior feature flag. The constructor requires an unsafe-test marker that is recorded in the run manifest whenever deterministic cryptographic material is present.
 
 ### 3. Deterministic simulator kernel
 
-A new `iroh-sim` workspace crate owns the virtual clock and deterministic scheduler:
+A new `krikos-sim` workspace crate owns the virtual clock and deterministic scheduler:
 
 - a single logical monotonic timeline represented as integer nanoseconds from a run epoch;
 - an explicit wall-clock epoch, advanced only with logical time and recorded in the run manifest;
@@ -165,7 +165,7 @@ Every injected fault records its rule ID, eligible event, decision stream/draw, 
 
 ### 5. Synthetic IP network
 
-The synthetic network implements Iroh's `IpSocket` boundary and operates on IP/UDP datagrams while real Noq implements QUIC.
+The synthetic network implements Krikos's `IpSocket` boundary and operates on IP/UDP datagrams while real Noq implements QUIC.
 
 State includes:
 
@@ -195,14 +195,14 @@ Simulator NAT models require parity scenarios against Patchbay and documented re
 Relay support is delivered in three explicit fidelity levels:
 
 1. **Reference routing model:** a pure forwarding model acts as an oracle for routing correctness and enables topology work before transport-independent relay handlers are extracted. It never satisfies production-relay coverage or relay invariants by itself.
-2. **Production client protocol:** `RelayConnector` supplies a synthetic framed stream so the real Iroh relay actor, reconnect, authentication, and client framing run in simulation.
+2. **Production client protocol:** `RelayConnector` supplies a synthetic framed stream so the real Krikos relay actor, reconnect, authentication, and client framing run in simulation.
 3. **Production client and server:** extract transport-independent relay connection/session handlers from Hyper/Tokio listeners. Synthetic listeners run the same client/server protocol code; OS TCP/TLS/WebSocket adapters remain production defaults.
 
 The platform does not claim relay coverage at level 1. The model remains useful long term for differential checks against levels 2 and 3; it is not a temporary fake implementation. Target scenarios cover relay-only connection, distinct relays, discovery/selection, restart/outage/partial loss, delay/drop/overload/rate limiting, stale configuration, direct upgrade/failure, and fallback.
 
 ### 8. Discovery and DNS
 
-Deterministic `AddressLookup` and `iroh_dns::Resolver` providers schedule versioned records through the simulator clock. They support success, delay, absence, stale/conflicting/partial records, duplicates, reordering, disagreement, outage, negative cache behavior, expiry, and resolver replacement.
+Deterministic `AddressLookup` and `krikos_dns::Resolver` providers schedule versioned records through the simulator clock. They support success, delay, absence, stale/conflicting/partial records, duplicates, reordering, disagreement, outage, negative cache behavior, expiry, and resolver replacement.
 
 Production `AddressLookupServices`, update aggregation, source tracking, expiry, and path selection remain unchanged and are observed through component events. Production DNS/Pkarr/mDNS/Mainline implementations retain separate integration suites.
 
@@ -362,7 +362,7 @@ Promotion rules move every unique minimized failure into the permanent corpus. S
 | --- | --- | --- |
 | 1. Repository audit | `docs/testing/determinism-audit.md`, Stage 0 | Revision-pinned occurrence baseline, classifications, and source-policy check pass. |
 | 2. Architecture proposal | This document | Complete design approval with no blocking open decision. |
-| 3. Runtime abstraction | `iroh-runtime`, Stages 1 and 6 | Production and deterministic adapters pass shared clock/task/cancellation contracts; no core executor escapes. |
+| 3. Runtime abstraction | `krikos-runtime`, Stages 1 and 6 | Production and deterministic adapters pass shared clock/task/cancellation contracts; no core executor escapes. |
 | 4. Deterministic clock | Simulator kernel, Stages 1 and 2 | Timer ordering/reset/cancel/leak tests and long virtual-duration scenarios replay exactly. |
 | 5. Synthetic networking | Virtual IP/UDP graph, Stage 2 | Production Noq/QUIC passes IPv4, IPv6, routing, link-fault, MTU, bandwidth, and mobility scenarios. |
 | 6. Relay simulation | Relay connector/session extraction, Stage 5 | Production client/server handlers pass relay-only, restart, outage, upgrade, direct-upgrade, fallback, and multi-relay invariants. |
@@ -394,7 +394,7 @@ Exit gate: every known nondeterministic dependency is classified and new occurre
 ### Stage 1: Shared runtime and run identity
 
 - Add runtime capability contracts and the production Tokio implementation.
-- Route core Iroh/Noq monotonic clocks, wall clocks, and root tasks through one context.
+- Route core Krikos/Noq monotonic clocks, wall clocks, and root tasks through one context.
 - Plumb Noq RNG seeds and explicit deterministic test identities.
 - Implement run manifest, normalized scenario metadata, trace schema, and replay CLI skeleton.
 
@@ -501,16 +501,16 @@ The long-term objective is achieved only when all stages' exit gates pass and ev
 
 ## Evidence
 
-- **Implemented (Stage 0–1):** the reviewed boundary manifest and CI drift gate cover production crates, `iroh-runtime`, and `iroh-sim`.
-- **Implemented (Stage 1):** Iroh and Noq use an explicitly injected runtime context for native monotonic time, timers, wall time, behavioral RNG seed, structured root tasks, cancellation, and trace sequencing; normal builders retain secure production defaults.
+- **Implemented (Stage 0–1):** the reviewed boundary manifest and CI drift gate cover production crates, `krikos-runtime`, and `krikos-sim`.
+- **Implemented (Stage 1):** Krikos and Noq use an explicitly injected runtime context for native monotonic time, timers, wall time, behavioral RNG seed, structured root tasks, cancellation, and trace sequencing; normal builders retain secure production defaults.
 - **Implemented (Stage 2, since extended):** strict `cargo sim run` and `replay` execute named IPv4/IPv6 stream, IPv6 datagram, loss-recovery, and corruption-failure scenarios; write the manifest before execution plus crash-preserving atomic trace chunks and final raw/normalized traces; and verify source/config/backend identity. Schema 3 replay now compares the manifest-selected raw or semantic trace.
 - **Implemented (Stage 2):** a single-thread kernel owns FIFO task polling, virtual monotonic/wall clocks, stable event ordering, timer reset/drop semantics, hard event/time/task/packet bounds, quiescence classification, and resource ledgers.
-- **Implemented (Stage 2):** production Iroh/Noq/QUIC uses injected production-compatible IP socket and monitor capabilities over a routed synthetic IPv4/IPv6 network with bandwidth, latency, MTU, bounded queues, partitions, loss, duplication, corruption, reordering, rebind, and structured packet creation/hop/outcome events.
+- **Implemented (Stage 2):** production Krikos/Noq/QUIC uses injected production-compatible IP socket and monitor capabilities over a routed synthetic IPv4/IPv6 network with bandwidth, latency, MTU, bounded queues, partitions, loss, duplication, corruption, reordering, rebind, and structured packet creation/hop/outcome events.
 - **Verified (Stage 2 exit gate):** production IPv4 and IPv6 QUIC streams plus IPv6 QUIC datagrams exchange application data over synthetic IP; seeded loss recovers and seeded corruption reaches its specified authenticated failure; repeated normalized traces match; multi-day virtual timers do not sleep; and successful or expected-failure shutdown reconciles Stage 2 resources to zero.
 - **Resolved (deterministic closure):** the deterministic-test lane owns TLS/KX, QUIC connection-ID, and relay-challenge entropy, records zero escapes, and requires raw replay. The production-provider lane retains only production cryptographic entropy and requires semantic replay.
 - **Verified (Stage 1 exit gate):** repeated fixed-seed timer/task/lifecycle runs produce byte-identical normalized traces and endpoint shutdown leaves the migrated structured task snapshot empty.
 - **Confirmed:** Noq runtime/socket/RNG seams exist in locked versions; see `docs/testing/determinism-audit.md`.
-- **Confirmed:** Iroh already has custom transports, discovery provider traits, DNS resolver traits, endpoint hooks, path observers, Patchbay scenarios, external process netsim, and cross-platform workflows.
+- **Confirmed:** Krikos already has custom transports, discovery provider traits, DNS resolver traits, endpoint hooks, path observers, Patchbay scenarios, external process netsim, and cross-platform workflows.
 - **Confirmed:** Production defaults retain OS socket, relay, DNS, network-monitor, and port-mapper adapters; simulator-supported paths select explicit injected capabilities.
 - **Implemented through Stage 3:** strict declarative/generated actions, continuous typed observations and ordered invariants, reference-model execution, first-class failure signatures/artifacts, exact-signature minimization, reviewed corpus enforcement, deterministic campaign batching, and PR/nightly campaign tiers.
 - **Implemented through Stage 6 task ownership:** NAT/discovery/mobility capabilities, production relay client/server sessions, seeded fair kernel scheduling, task/scheduler artifacts, direct and relay schedule replay, runtime-owned active-relay and remote-state actors, relay lifecycle/path scenarios, relay minimization/corpus/CI, and semantic parity contracts.
@@ -518,7 +518,7 @@ The long-term objective is achieved only when all stages' exit gates pass and ev
 - **Implemented (Stage 7 resource closure):** schema v3 records exact kernel resource ceilings, strictly migrates v2 effective limits, supports deterministic clock sleeps, preserves typed socket and clock failures, and replays six reviewed connection/stream/socket/timer/trace/relay exhaustion cases through runner, CLI, corpus, and the bounded nightly matrix.
 - **Remaining declared boundary:** production cryptographic entropy is intentional and isolated to the `semantically_deterministic` production-provider lane; realistic backends publish only capabilities they actually observe.
 - **Confirmed by source specification:** coordinated internal-dependency changes are permitted when needed for maintainable abstractions.
-- **Resolved operational defaults:** `iroh-sim/operations-policy.json` defines campaign budgets, artifact retention, the exact-source replay window, and corpus review requirements.
+- **Resolved operational defaults:** `krikos-sim/operations-policy.json` defines campaign budgets, artifact retention, the exact-source replay window, and corpus review requirements.
 
 ## Open Questions
 
@@ -531,7 +531,7 @@ The long-term objective is achieved only when all stages' exit gates pass and ev
 - Resolved: the lightweight relay model is a permanent differential oracle and cannot satisfy production-relay coverage.
 - Resolved: production/simulation selection uses constructor injection, not ambient state or behavior-selection feature flags.
 - Resolved: all 17 deliverables now map to an owner, migration stage, and observable acceptance evidence.
-- Resolved: internal dependency changes are allowed; the recommended first boundary is a lockstep-published `iroh-runtime` crate, with later upstreaming based on proven contracts.
+- Resolved: internal dependency changes are allowed; the recommended first boundary is a lockstep-published `krikos-runtime` crate, with later upstreaming based on proven contracts.
 - Resolved: operational budgets, retention, triage, corpus review, and replay compatibility are checked policy rather than undocumented runner assumptions.
 
 ## Change Summary

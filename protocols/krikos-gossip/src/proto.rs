@@ -1,9 +1,9 @@
-//! Implementation of the iroh-gossip protocol, as an IO-less state machine
+//! Implementation of the krikos-gossip protocol, as an IO-less state machine
 //!
-//! This module implements the iroh-gossip protocol. The entry point is [`State`], which contains
+//! This module implements the krikos-gossip protocol. The entry point is [`State`], which contains
 //! the protocol state for a node.
 //!
-//! The iroh-gossip protocol is made up from two parts: A swarm membership protocol, based on
+//! The krikos-gossip protocol is made up from two parts: A swarm membership protocol, based on
 //! [HyParView][hyparview], and a gossip broadcasting protocol, based on [PlumTree][plumtree].
 //!
 //! For a full explanation it is recommended to read the two papers. What follows is a brief

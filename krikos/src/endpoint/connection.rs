@@ -134,7 +134,7 @@ impl Future for Accept<'_> {
                         permit: Some(permit),
                     };
                     event!(
-                        target: "iroh::_events::conn::incoming",
+                        target: "krikos::_events::conn::incoming",
                         tracing::Level::DEBUG,
                         remote_addr = ?incoming.remote_addr(),
                     );
@@ -292,7 +292,7 @@ struct RetryErrorInner {
 impl RetryError {
     /// Creates a retry error without an endpoint admission permit.
     ///
-    /// This constructor retains the Iroh 1.x public signature. Errors created
+    /// This constructor retains the Krikos 1.x public signature. Errors created
     /// by [`Incoming::retry`] use the same representation while preserving the
     /// connection's owned admission permit internally.
     #[track_caller]
@@ -441,7 +441,7 @@ fn conn_from_noq_conn(
     };
 
     event!(
-        target: "iroh::_events::conn::connected",
+        target: "krikos::_events::conn::connected",
         tracing::Level::DEBUG,
         conn_id = conn.stable_id(),
         side = ?conn.side(),
@@ -1326,11 +1326,11 @@ impl Connection<IncomingZeroRtt> {
     /// we accepted the connection.
     ///
     /// This may fail with [`ConnectingError::HandshakeFailure`], if the other side
-    /// doesn't use the right TLS authentication, which usually every iroh endpoint
+    /// doesn't use the right TLS authentication, which usually every krikos endpoint
     /// uses and requires.
     ///
     /// Thus, those errors should only occur if someone connects to you with a
-    /// modified iroh endpoint or with a plain QUIC client.
+    /// modified krikos endpoint or with a plain QUIC client.
     pub async fn handshake_completed(&self) -> Result<Connection, ConnectingError> {
         self.data.accepted.clone().await
     }
@@ -1368,11 +1368,11 @@ impl Connection<OutgoingZeroRtt> {
     /// we initiated the connection.
     ///
     /// This may fail with [`ConnectingError::HandshakeFailure`], if the other side
-    /// doesn't use the right TLS authentication, which usually every iroh endpoint
+    /// doesn't use the right TLS authentication, which usually every krikos endpoint
     /// uses and requires.
     ///
     /// Thus, those errors should only occur if someone connects to you with a
-    /// modified iroh endpoint or with a plain QUIC client.
+    /// modified krikos endpoint or with a plain QUIC client.
     pub async fn handshake_completed(&self) -> Result<ZeroRttStatus, ConnectingError> {
         self.data.accepted.clone().await
     }
@@ -1456,7 +1456,7 @@ mod tests {
         test_utils::run_relay_server,
     };
 
-    const TEST_ALPN: &[u8] = b"n0/iroh/test";
+    const TEST_ALPN: &[u8] = b"n0/krikos/test";
 
     async fn spawn_0rtt_server(secret_key: SecretKey, log_span: tracing::Span) -> Result<Endpoint> {
         let server = Endpoint::builder(presets::Minimal)

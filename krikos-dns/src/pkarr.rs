@@ -419,7 +419,9 @@ pub enum SignedPacketVerifyError {
     #[error("DNS decoding error")]
     DnsError { source: AnyError },
     #[error("Invalid public key")]
-    InvalidKey { source: krikos_base::KeyParsingError },
+    InvalidKey {
+        source: krikos_base::KeyParsingError,
+    },
     #[error("Invalid signed-packet timestamp: {timestamp}")]
     InvalidTimestamp { timestamp: i64 },
 }

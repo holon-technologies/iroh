@@ -1,9 +1,9 @@
-//! Example that runs an iroh node with a direct local address and no relay server.
+//! Example that runs an krikos node with a direct local address and no relay server.
 //!
 //! You can think of this as a local version of [sendme](https://www.iroh.computer/sendme)
 //! that only works for individual files.
 //!
-//! **This example is using a non-default feature of iroh, so you need to run it with the
+//! **This example is using a non-default feature of krikos, so you need to run it with the
 //! examples feature enabled.**
 //!
 //! Run the following command to run the "accept" side, which hosts the content:
@@ -37,7 +37,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
-    /// Launch an iroh node and provide the content at the given path
+    /// Launch an krikos node and provide the content at the given path
     Accept {
         /// path to the file you want to provide
         path: PathBuf,
@@ -65,7 +65,7 @@ async fn accept(path: &Path) -> Result<()> {
 
     let key = get_or_generate_secret_key()?;
 
-    println!("Starting direct local iroh node...");
+    println!("Starting direct local krikos node...");
     // create a new node
     let endpoint = Endpoint::builder(presets::Minimal)
         .relay_mode(RelayMode::Default)
@@ -111,7 +111,7 @@ async fn connect(
 ) -> Result<()> {
     let key = SecretKey::generate();
 
-    println!("Starting direct local iroh node...");
+    println!("Starting direct local krikos node...");
     // create a new node
     let endpoint = Endpoint::builder(presets::Minimal)
         .secret_key(key)

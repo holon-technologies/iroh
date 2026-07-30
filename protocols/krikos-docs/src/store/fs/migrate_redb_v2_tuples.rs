@@ -1,4 +1,4 @@
-//! Migrate stores written by iroh-docs 0.94..=0.98 (redb 2.x) so they open under redb 4.
+//! Migrate stores written by krikos-docs 0.94..=0.98 (redb 2.x) so they open under redb 4.
 //!
 //! redb 3.0 changed the on-disk type tag for variable-width tuples. Stores written by
 //! redb 2.x carry the old tag for `records-1`, `records-by-key-1`, and `latest-by-author-1`,

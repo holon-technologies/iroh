@@ -1,6 +1,6 @@
 //! Uplink switch tests.
 //!
-//! Each test verifies that an iroh connection survives a network change on one
+//! Each test verifies that an krikos connection survives a network change on one
 //! side: the switching device replugs from one router to another, and we verify
 //! that a new direct path is established and data flows over it.
 //!

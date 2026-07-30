@@ -18,7 +18,7 @@ required=(
   'scripts/check-simulation-release-readiness.sh'
   '--repository "${{ github.repository }}"'
   '--revision "${{ needs.preflight.outputs.base_hash }}"'
-  '--policy iroh-sim/operations-policy.json'
+  '--policy krikos-sim/operations-policy.json'
   'simulation-release-readiness-${{ github.run_id }}'
   'if-no-files-found: error'
   'retention-days: 14'

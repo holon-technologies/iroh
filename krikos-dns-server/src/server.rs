@@ -19,7 +19,7 @@ use crate::{
     store::ZoneStore,
 };
 
-/// A running iroh-dns server.
+/// A running krikos-dns server.
 ///
 /// Combines a DNS listener and an HTTP/HTTPS listener into a single handle.
 /// Construct with [`Self::bind`] and drive to completion with [`Self::join`], or

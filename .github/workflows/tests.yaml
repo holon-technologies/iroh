@@ -23,8 +23,8 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   SCCACHE_CACHE_SIZE: "10G"
-  CRATES_LIST: "iroh,iroh-app,iroh-base,iroh-bench,iroh-blobs,iroh-dns,iroh-dns-server,iroh-docs,iroh-gossip,iroh-relay,iroh-resolver,iroh-runtime"
-  IROH_FORCE_STAGING_RELAYS: "1"
+  CRATES_LIST: "krikos,krikos-app,krikos-base,krikos-bench,krikos-blobs,krikos-dns,krikos-dns-server,krikos-docs,krikos-gossip,krikos-relay,krikos-resolver,krikos-runtime"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
   NEXTEST_VERSION: "0.9.80"
 
 permissions:

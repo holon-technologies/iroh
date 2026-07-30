@@ -48,7 +48,7 @@ pub enum GetError {
 }
 
 impl GetError {
-    pub fn iroh_error_code(&self) -> Option<VarInt> {
+    pub fn krikos_error_code(&self) -> Option<VarInt> {
         if let Some(ReadError::Reset(code)) = self
             .remote_read()
             .and_then(|source| source.get_ref())

@@ -1,7 +1,7 @@
 //! Defines data formats for HashSeq.
 //!
 //! The exact details how to use a HashSeq for specific purposes is up to the
-//! user. However, the following approach is used by iroh formats:
+//! user. However, the following approach is used by krikos formats:
 //!
 //! The first child blob is a metadata blob. It starts with a header, followed
 //! by serialized metadata. We mostly use [postcard] for serialization. The

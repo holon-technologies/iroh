@@ -140,7 +140,7 @@ impl Store {
                 {
                     let _ = err;
                     Err(anyhow!(
-                        "Opening the database failed: this store was written by iroh-docs 0.94..=0.98 (redb 2.x) and needs migration. Enable the `redb-v2-migration` feature on iroh-docs and re-open to migrate."
+                        "Opening the database failed: this store was written by krikos-docs 0.94..=0.98 (redb 2.x) and needs migration. Enable the `redb-v2-migration` feature on krikos-docs and re-open to migrate."
                     ))
                 }
             }

@@ -45,7 +45,7 @@ use crate::{
     },
     limits::{MAX_CONCURRENT_STORE_TASKS, STORE_COMMAND_QUEUE_CAPACITY},
     protocol::ChunkRangesExt,
-    store::{IROH_BLOCK_SIZE, mem::CompleteStorage},
+    store::{KRIKOS_BLOCK_SIZE, mem::CompleteStorage},
 };
 
 #[derive(Debug, Clone)]
@@ -290,7 +290,7 @@ async fn export_bao(
     let data = entry.data;
     let outboard = entry.outboard;
     let size = data.as_ref().len() as u64;
-    let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+    let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
     let outboard = PreOrderMemOutboard {
         root: hash.into(),
         tree,

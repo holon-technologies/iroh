@@ -1,4 +1,4 @@
-//! Keys used in iroh-docs
+//! Keys used in krikos-docs
 
 use std::{cmp::Ordering, fmt, str::FromStr};
 

@@ -1,4 +1,4 @@
-//! The collection type used by iroh
+//! The collection type used by krikos
 use std::{collections::BTreeMap, future::Future};
 
 // n0_error::Context is no longer exported; use explicit mapping instead.

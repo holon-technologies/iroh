@@ -1,4 +1,4 @@
-//! Public API for using iroh-gossip
+//! Public API for using krikos-gossip
 //!
 //! The API is usable both locally and over RPC.
 
@@ -9,8 +9,8 @@ use std::{
 };
 
 use bytes::Bytes;
-use krikos_base::EndpointId;
 use irpc::{Client, channel::mpsc, rpc_requests};
+use krikos_base::EndpointId;
 use n0_error::{e, stack_error};
 use n0_future::{Stream, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};

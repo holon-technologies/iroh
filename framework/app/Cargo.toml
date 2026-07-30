@@ -2,7 +2,7 @@
 name = "krikos-app"
 version.workspace = true
 edition.workspace = true
-description = "Experimental local-first application lifecycle for Iroh"
+description = "Experimental local-first application lifecycle for Krikos"
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

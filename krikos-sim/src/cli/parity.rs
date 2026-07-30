@@ -16,7 +16,7 @@ pub(super) fn execute_parity_export(
     let scenario_hash = blake3::hash(&case.scenario.to_canonical_json()?)
         .to_hex()
         .to_string();
-    let mut run_hasher = blake3::Hasher::new_derive_key("iroh-sim parity evidence run id v1");
+    let mut run_hasher = blake3::Hasher::new_derive_key("krikos-sim parity evidence run id v1");
     run_hasher.update(source_revision.as_bytes());
     run_hasher.update(seed.as_bytes());
     run_hasher.update(scenario_hash.as_bytes());

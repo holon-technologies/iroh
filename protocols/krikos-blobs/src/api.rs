@@ -8,7 +8,7 @@
 //! from the different store implementations
 //! (e.g. [`MemStore`](crate::store::mem::MemStore)
 //! and [`FsStore`](crate::store::fs::FsStore)) as well as on the
-//! [`BlobsProtocol`](crate::BlobsProtocol) iroh protocol handler.
+//! [`BlobsProtocol`](crate::BlobsProtocol) krikos protocol handler.
 //!
 //! You can also [`connect`](Store::connect) to a remote store that is listening
 //! to rpc requests.
@@ -177,7 +177,7 @@ impl From<irpc::channel::mpsc::RecvError> for Error {
 }
 
 #[cfg(feature = "rpc")]
-#[cfg_attr(iroh_blobs_docsrs, doc(cfg(feature = "rpc")))]
+#[cfg_attr(krikos_blobs_docsrs, doc(cfg(feature = "rpc")))]
 impl From<irpc::rpc::WriteError> for Error {
     fn from(e: irpc::rpc::WriteError) -> Self {
         Self::Io(e.into())
@@ -249,7 +249,7 @@ impl Store {
 
     /// Connect to a remote store as a rpc client.
     #[cfg(feature = "rpc")]
-    #[cfg_attr(iroh_blobs_docsrs, doc(cfg(feature = "rpc")))]
+    #[cfg_attr(krikos_blobs_docsrs, doc(cfg(feature = "rpc")))]
     pub fn connect(endpoint: noq::Endpoint, addr: std::net::SocketAddr) -> Self {
         let sender = irpc::Client::noq(endpoint, addr);
         Store::from_sender(sender)
@@ -257,7 +257,7 @@ impl Store {
 
     /// Listen on a noq endpoint for incoming rpc connections.
     #[cfg(feature = "rpc")]
-    #[cfg_attr(iroh_blobs_docsrs, doc(cfg(feature = "rpc")))]
+    #[cfg_attr(krikos_blobs_docsrs, doc(cfg(feature = "rpc")))]
     pub async fn listen(self, endpoint: noq::Endpoint) {
         use irpc::rpc::RemoteService;
 

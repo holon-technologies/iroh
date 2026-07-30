@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "nat-behavior",
-  "base_path": "iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json",
+  "base_path": "krikos-sim/corpus/stage4-nat-rebind-expiry/scenario.json",
   "base_blake3": "e239eb22aabce89e09b178fde31af0a51aa00830f1822d41d02a2de49cf21239",
   "choices": [
     {

@@ -1,14 +1,14 @@
 //! Transfer data between two endpoints and print various stats and metrics.
 //!
-//! This example implements a transfer protocol to upload or download data between two iroh endpoints
+//! This example implements a transfer protocol to upload or download data between two krikos endpoints
 //! with a time or size limit. After the transfer finishes, statistics about the transfer and the used
 //! network paths are printed.
 //!
 //! It is not the typical "simple" example, yet it may be interesting to read because it uses most of
-//! iroh's endpoint builder options. We use it for manual testing before release, and it also runs as
+//! krikos's endpoint builder options. We use it for manual testing before release, and it also runs as
 //! part of our CI infrastructure.
 //!
-//! You can use this example to easily test iroh connectivity between devices. Usage is straightforward:
+//! You can use this example to easily test krikos connectivity between devices. Usage is straightforward:
 //!
 //! ```sh
 //! # Run in release mode and with all features and print available commands and options:
@@ -65,17 +65,17 @@ use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::Subscribe
 use url::Url;
 
 /// ALPN of our transport protocol.
-const TRANSFER_ALPN: &[u8] = b"n0/iroh/transfer/example/1";
+const TRANSFER_ALPN: &[u8] = b"n0/krikos/transfer/example/1";
 
 const DEV_RELAY_URL: &str = "http://localhost:3340";
 const DEV_PKARR_RELAY_URL: &str = "http://localhost:8080/pkarr";
-const DEV_DNS_ORIGIN_DOMAIN: &str = "irohdns.example";
+const DEV_DNS_ORIGIN_DOMAIN: &str = "krikosdns.example";
 const DEV_DNS_SERVER: &str = "127.0.0.1:5300";
 
 /// Connection error code for a gracefully closed connection.
 const GRACEFUL_CLOSE: VarInt = VarInt::from_u32(1);
 
-/// Transfer data between iroh endpoints.
+/// Transfer data between krikos endpoints.
 ///
 /// This is a useful example to test connection establishment and transfer speed.
 ///
@@ -166,9 +166,9 @@ enum Env {
     /// Use localhost servers.
     ///
     /// To run the DNS server:
-    ///     cargo run --bin iroh-dns-server
+    ///     cargo run --bin krikos-dns-server
     /// To run the relay server:
-    ///     cargo run --bin iroh-relay --features server-ring -- --dev
+    ///     cargo run --bin krikos-relay --features server-ring -- --dev
     Dev,
 }
 
@@ -404,9 +404,9 @@ async fn main() -> Result<()> {
     let output = Output::new(output);
 
     // Create secret key if not set.
-    let secret_key = match std::env::var("IROH_SECRET") {
+    let secret_key = match std::env::var("KRIKOS_SECRET") {
         Ok(s) => SecretKey::from_str(&s)
-            .context("Failed to parse IROH_SECRET environment variable as iroh secret key")?,
+            .context("Failed to parse KRIKOS_SECRET environment variable as krikos secret key")?,
         Err(_) => {
             let s = SecretKey::generate();
             output.emit(SecretGenerated {
@@ -571,7 +571,7 @@ impl EndpointArgs {
         let mut cfg = QuicTransportConfig::builder();
 
         // Adjust the receive window, if configured.
-        // By default noq and iroh set the connection-level receive window to VarInt::MAX, and
+        // By default noq and krikos set the connection-level receive window to VarInt::MAX, and
         // the stream receive window to 1.25 MB (for a throughput of 100 MBit/s at 100ms latency).
         // We leave the connection-level receive window at the default and adjust the
         // stream-level receive window. The distinction between connection-level and stream-level
@@ -600,7 +600,7 @@ impl EndpointArgs {
 
         if self.mdns {
             n0_error::bail_any!(
-                "mDNS address lookup is no longer built into iroh; use the `iroh-mdns-address-lookup` crate instead",
+                "mDNS address lookup is no longer built into krikos; use the `iroh-mdns-address-lookup` crate instead",
             );
         }
 
@@ -1077,7 +1077,7 @@ impl Output {
 }
 
 #[derive(Serialize, Debug, Clone, Display)]
-#[display("Generated a new endpoint secret. To reuse, set\n\tIROH_SECRET={secret_key}")]
+#[display("Generated a new endpoint secret. To reuse, set\n\tKRIKOS_SECRET={secret_key}")]
 #[serde(tag = "kind")]
 struct SecretGenerated {
     secret_key: String,
@@ -1372,7 +1372,7 @@ pub fn init_tracing(path: Option<&Path>) {
     if let Some(path) = path {
         let file = File::create(path).expect("failed to create trace log file");
         let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("iroh=trace,transfer=trace,noq=trace"));
+            .unwrap_or_else(|_| EnvFilter::new("krikos=trace,transfer=trace,noq=trace"));
         let layer = fmt::layer().with_writer(file).with_filter(filter);
         registry().with(layer).init()
     } else {

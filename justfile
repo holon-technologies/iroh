@@ -3,7 +3,7 @@ sbx:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    sandbox_name="iroh-dev"
+    sandbox_name="krikos-dev"
     project_dir="{{ justfile_directory() }}"
 
     if sbx ls | awk 'NR > 1 { print $1 }' | grep -Fxq "${sandbox_name}"; then

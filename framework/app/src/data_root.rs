@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 use crate::DataRootError;
 
 const SCHEMA_VERSION: u32 = 1;
-const FRAMEWORK_ID: &str = "iroh-app";
+const FRAMEWORK_ID: &str = "krikos-app";
 const MANIFEST_NAME: &str = "manifest.json";
-const LOCK_NAME: &str = ".iroh-app.lock";
+const LOCK_NAME: &str = ".krikos-app.lock";
 const IDENTITY_NAME: &str = "identity.key";
 const BLOBS_DIR: &str = "blobs";
 const DOCS_DIR: &str = "docs";

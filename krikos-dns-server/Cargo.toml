@@ -6,7 +6,7 @@ description = "A pkarr relay and DNS server"
 license.workspace = true
 authors = ["Frando <franz@n0.computer>", "n0 team"]
 repository.workspace = true
-keywords = ["networking", "pkarr", "dns", "dns-server", "iroh"]
+keywords = ["networking", "pkarr", "dns", "dns-server", "krikos"]
 readme = "README.md"
 rust-version.workspace = true
 

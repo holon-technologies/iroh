@@ -13,7 +13,7 @@
 //!
 //!     cargo run --example search -- listen "hello-world" "foo-bar" "hello-moon"
 //!
-//! This spawns an iroh endpoint with three blobs. It will print the endpoint's endpoint id.
+//! This spawns an krikos endpoint with three blobs. It will print the endpoint's endpoint id.
 //!
 //! In another terminal, run
 //!
@@ -67,7 +67,7 @@ pub enum Command {
 ///
 /// The ALPN, or application-layer protocol negotiation, is exchanged in the connection handshake,
 /// and the connection is aborted unless both endpoints pass the same bytestring.
-const ALPN: &[u8] = b"iroh-example/text-search/0";
+const ALPN: &[u8] = b"krikos-example/text-search/0";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
     let endpoint = Endpoint::bind(presets::N0).await?;
 
     // Build our protocol handler. The `builder` exposes access to various subsystems in the
-    // iroh endpoint. In our case, we need a blobs client and the endpoint.
+    // krikos endpoint. In our case, we need a blobs client and the endpoint.
     let proto = BlobSearch::new(endpoint.clone());
 
     let builder = Router::builder(endpoint);
@@ -102,7 +102,7 @@ async fn main() -> Result<()> {
         Command::Query { endpoint_id, query } => {
             // Query the remote endpoint.
             // This will send the query over our protocol, read hashes on the reply stream,
-            // and download each hash over iroh-blobs.
+            // and download each hash over krikos-blobs.
             let num_matches = proto.query_remote(endpoint_id, &query).await?;
 
             // Print out our query results.
@@ -173,7 +173,7 @@ impl BlobSearch {
     /// Query a remote endpoint, download all matching blobs and print the results.
     pub async fn query_remote(&self, endpoint_id: EndpointId, query: &str) -> Result<u64> {
         // Establish a connection to our endpoint.
-        // We use the default address lookup in iroh, so we can connect by endpoint id without
+        // We use the default address lookup in krikos, so we can connect by endpoint id without
         // providing further information.
         let conn = self.endpoint.connect(endpoint_id, ALPN).await?;
 

@@ -21,12 +21,12 @@
 //!
 //! [`PkarrPublisher`] filters published addresses: only relay addresses are published by default.
 //! To change this behavior, use [`PkarrPublisherBuilder::addr_filter`] and set it to e.g. [`AddrFilter::unfiltered`].
-//! This can be useful to enable publishing IP addresses if the iroh endpoint is reachable via public
+//! This can be useful to enable publishing IP addresses if the krikos endpoint is reachable via public
 //! IP addresses.
 //!
-//! For address lookup in iroh the pkarr Resource Records contain the addressing information,
+//! For address lookup in krikos the pkarr Resource Records contain the addressing information,
 //! providing endpoints which retrieve the pkarr Resource Record with enough detail
-//! to contact the iroh endpoint.
+//! to contact the krikos endpoint.
 //!
 //! There are several Address Lookup's built on top of pkarr, which can be composed
 //! to the application's needs:
@@ -222,7 +222,7 @@ impl PkarrPublisherBuilder {
     /// By default [`AddrFilter::relay_only`] is used. This avoids leaking IP addresses to the
     /// public pkarr server.
     ///
-    /// However, enabling IP address publishing can be useful, e.g. when iroh runs on a machine
+    /// However, enabling IP address publishing can be useful, e.g. when krikos runs on a machine
     /// connected to the internet via public IP addresses without a firewall.
     /// In such cases, publishing them can make dialing such endpoints via DNS or Pkarr lookup
     /// faster, potentially skipping a relay connection altogether.
@@ -353,7 +353,7 @@ impl PkarrPublisher {
     /// [`N0_DNS_PKARR_RELAY_PROD`].
     ///
     /// When running with the environment variable
-    /// `IROH_FORCE_STAGING_RELAYS` set to any non empty value [`N0_DNS_PKARR_RELAY_STAGING`]
+    /// `KRIKOS_FORCE_STAGING_RELAYS` set to any non empty value [`N0_DNS_PKARR_RELAY_STAGING`]
     /// server is used instead.
     ///
     /// [number 0]: https://n0.computer
@@ -535,7 +535,7 @@ impl PkarrResolver {
     /// This uses the pkarr relay server operated by [number 0] at
     /// [`N0_DNS_PKARR_RELAY_PROD`].
     ///
-    /// When running with the environment variable `IROH_FORCE_STAGING_RELAYS`
+    /// When running with the environment variable `KRIKOS_FORCE_STAGING_RELAYS`
     /// set to any non empty value [`N0_DNS_PKARR_RELAY_STAGING`]
     /// server is used instead.
     ///

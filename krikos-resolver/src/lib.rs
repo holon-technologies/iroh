@@ -1,4 +1,4 @@
-//! Provider-neutral DNS resolution for Iroh.
+//! Provider-neutral DNS resolution for Krikos.
 //!
 //! This crate owns host, address, and TXT resolution. It deliberately has no knowledge of
 //! endpoint identifiers, endpoint records, pkarr, or DNS publication.

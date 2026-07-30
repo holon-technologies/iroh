@@ -4,8 +4,8 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-plan="$repo_root/iroh-sim/soaks/daily.json"
-sim_bin="$repo_root/iroh-sim/target/release/cargo-sim"
+plan="$repo_root/krikos-sim/soaks/daily.json"
+sim_bin="$repo_root/krikos-sim/target/release/cargo-sim"
 artifact_root=
 seed_window=
 lane=

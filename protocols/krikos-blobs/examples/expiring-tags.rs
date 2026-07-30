@@ -25,7 +25,7 @@ use krikos_blobs::{
 use n0_future::StreamExt;
 use tokio::signal::ctrl_c;
 
-/// Using an iroh rpc client, create a tag that is marked to expire at `expiry` for all the given hashes.
+/// Using an krikos rpc client, create a tag that is marked to expire at `expiry` for all the given hashes.
 ///
 /// The tag name will be `prefix`- followed by the expiry date in iso8601 format (e.g. `expiry-2025-01-01T12:00:00Z`).
 async fn create_expiring_tag(

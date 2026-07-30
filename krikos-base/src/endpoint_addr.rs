@@ -1,6 +1,6 @@
-//! Addressing for iroh endpoints.
+//! Addressing for krikos endpoints.
 //!
-//! This module contains some common addressing types for iroh.  An endpoint is uniquely
+//! This module contains some common addressing types for krikos.  An endpoint is uniquely
 //! identified by the [`EndpointId`] but that does not make it addressable on the network layer.
 //! For this the addition of a [`RelayUrl`] and/or direct addresses are required.
 //!
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize, de, de::VariantAccess as _};
 
 use crate::{EndpointId, PublicKey, RelayUrl};
 
-/// Network-level addressing information for an iroh endpoint.
+/// Network-level addressing information for an krikos endpoint.
 ///
 /// This combines an endpoint's identifier with network-level addressing information of how to
 /// contact the endpoint.
@@ -35,9 +35,9 @@ use crate::{EndpointId, PublicKey, RelayUrl};
 /// number of other addressing information.  It is a generic addressing type used whenever a connection
 /// to other endpoints needs to be established.
 ///
-/// [Address Lookup]: https://docs.rs/iroh/*/iroh/index.html#address-lookup
-/// [home relay]: https://docs.rs/iroh/*/iroh/relay/index.html
-/// [Relay server]: https://docs.rs/iroh/*/iroh/index.html#relay-servers
+/// [Address Lookup]: https://docs.rs/iroh/*/krikos/index.html#address-lookup
+/// [home relay]: https://docs.rs/iroh/*/krikos/relay/index.html
+/// [Relay server]: https://docs.rs/iroh/*/krikos/index.html#relay-servers
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EndpointAddr {
     /// The endpoint's identifier.
@@ -366,7 +366,7 @@ impl From<EndpointId> for EndpointAddr {
 /// A custom transport address consisting of a transport id and opaque address data.
 ///
 /// This is a generic address type that allows external crates to implement custom
-/// transports for iroh.
+/// transports for krikos.
 ///
 /// Transport ids are freely chosen u64 numbers. A registry for well-known transport ids
 /// is maintained at <https://github.com/n0-computer/iroh/blob/main/TRANSPORTS.md>.

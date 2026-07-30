@@ -98,7 +98,7 @@ async fn test_doc_import_export() -> TestResult<()> {
         .unwrap();
     let key = entry.key().to_vec();
     let path = key_to_path(key, None, Some(out_root))?;
-    // TODO(Frando): iroh-blobs should do this IMO.
+    // TODO(Frando): krikos-blobs should do this IMO.
     // tokio::fs::create_dir_all(path.parent().unwrap()).await?;
     let progress = doc
         .export_file(blobs, entry, path.clone(), ExportMode::Copy)
@@ -159,10 +159,10 @@ async fn test_authors() -> Result<()> {
 
 #[tokio::test]
 async fn test_default_author_memory() -> Result<()> {
-    let iroh = Node::memory(empty_endpoint().await?).spawn().await?;
-    let author = iroh.docs().author_default().await?;
-    assert!(iroh.docs().author_export(author).await?.is_some());
-    assert!(iroh.docs().author_delete(author).await.is_err());
+    let krikos = Node::memory(empty_endpoint().await?).spawn().await?;
+    let author = krikos.docs().author_default().await?;
+    assert!(krikos.docs().author_export(author).await?.is_some());
+    assert!(krikos.docs().author_delete(author).await.is_err());
     Ok(())
 }
 
@@ -170,92 +170,93 @@ async fn test_default_author_memory() -> Result<()> {
 #[traced_test]
 #[cfg(feature = "fs-store")]
 async fn test_default_author_persist() -> TestResult<()> {
-    let iroh_root_dir = tempfile::TempDir::new()?;
-    let iroh_root = iroh_root_dir.path();
+    let krikos_root_dir = tempfile::TempDir::new()?;
+    let krikos_root = krikos_root_dir.path();
 
     // check that the default author exists and cannot be deleted.
     let default_author = {
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await?;
-        let author = iroh.docs().author_default().await?;
-        assert!(iroh.docs().author_export(author).await?.is_some());
-        assert!(iroh.docs().author_delete(author).await.is_err());
-        iroh.shutdown().await?;
+        let author = krikos.docs().author_default().await?;
+        assert!(krikos.docs().author_export(author).await?.is_some());
+        assert!(krikos.docs().author_delete(author).await.is_err());
+        krikos.shutdown().await?;
         author
     };
 
     // check that the default author is persisted across restarts.
     {
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await?;
-        let author = iroh.docs().author_default().await?;
+        let author = krikos.docs().author_default().await?;
         assert_eq!(author, default_author);
-        assert!(iroh.docs().author_export(author).await?.is_some());
-        assert!(iroh.docs().author_delete(author).await.is_err());
-        iroh.shutdown().await?;
+        assert!(krikos.docs().author_export(author).await?.is_some());
+        assert!(krikos.docs().author_delete(author).await.is_err());
+        krikos.shutdown().await?;
     };
 
     // check that a new default author is created if the default author file is deleted
     // manually.
     let default_author = {
-        tokio::fs::remove_file(iroh_root.join("default-author")).await?;
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        tokio::fs::remove_file(krikos_root.join("default-author")).await?;
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await?;
-        let author = iroh.docs().author_default().await?;
+        let author = krikos.docs().author_default().await?;
         assert!(author != default_author);
-        assert!(iroh.docs().author_export(author).await?.is_some());
-        assert!(iroh.docs().author_delete(author).await.is_err());
-        iroh.shutdown().await?;
+        assert!(krikos.docs().author_export(author).await?.is_some());
+        assert!(krikos.docs().author_delete(author).await.is_err());
+        krikos.shutdown().await?;
         author
     };
 
     // check that the node fails to start if the default author is missing from the docs store.
     {
-        let mut docs_store = krikos_docs::store::fs::Store::persistent(iroh_root.join("docs.redb"))?;
+        let mut docs_store =
+            krikos_docs::store::fs::Store::persistent(krikos_root.join("docs.redb"))?;
         docs_store.delete_author(default_author)?;
         docs_store.flush()?;
         drop(docs_store);
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await;
-        assert!(iroh.is_err());
+        assert!(krikos.is_err());
 
         // somehow the blob store is not shutdown correctly (yet?) on macos.
         // so we give it some time until we find a proper fix.
         #[cfg(target_os = "macos")]
         n0_future::time::sleep(std::time::Duration::from_secs(1)).await;
 
-        tokio::fs::remove_file(iroh_root.join("default-author")).await?;
-        drop(iroh);
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        tokio::fs::remove_file(krikos_root.join("default-author")).await?;
+        drop(krikos);
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await;
-        if let Err(cause) = iroh.as_ref() {
+        if let Err(cause) = krikos.as_ref() {
             panic!("failed to start node: {cause:?}");
         }
-        iroh?.shutdown().await?;
+        krikos?.shutdown().await?;
     }
 
     // check that the default author can be set manually and is persisted.
     let default_author = {
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await?;
-        let author = iroh.docs().author_create().await?;
-        iroh.docs().author_set_default(author).await?;
-        assert_eq!(iroh.docs().author_default().await?, author);
-        iroh.shutdown().await?;
+        let author = krikos.docs().author_create().await?;
+        krikos.docs().author_set_default(author).await?;
+        assert_eq!(krikos.docs().author_default().await?, author);
+        krikos.shutdown().await?;
         author
     };
     {
-        let iroh = Node::persistent(iroh_root, empty_endpoint().await?)
+        let krikos = Node::persistent(krikos_root, empty_endpoint().await?)
             .spawn()
             .await?;
-        assert_eq!(iroh.docs().author_default().await?, default_author);
-        iroh.shutdown().await?;
+        assert_eq!(krikos.docs().author_default().await?, default_author);
+        krikos.shutdown().await?;
     }
 
     Ok(())

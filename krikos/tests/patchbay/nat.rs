@@ -137,7 +137,7 @@ async fn nat_none_x_none() -> Result {
 }
 
 fn write_public_parity_receipt() -> Result {
-    const OUTPUT_ENV: &str = "IROH_PATCHBAY_PARITY_RECEIPT";
+    const OUTPUT_ENV: &str = "KRIKOS_PATCHBAY_PARITY_RECEIPT";
     let Some(output) = std::env::var_os(OUTPUT_ENV) else {
         return Ok(());
     };

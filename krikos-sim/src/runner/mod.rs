@@ -1,4 +1,4 @@
-//! Declarative scenario execution against production Iroh over the deterministic backend.
+//! Declarative scenario execution against production Krikos over the deterministic backend.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -34,7 +34,7 @@ use crate::{
     StreamId,
 };
 
-const ALPN: &[u8] = b"iroh-sim/declarative/2";
+const ALPN: &[u8] = b"krikos-sim/declarative/2";
 
 mod backend;
 mod error;

@@ -2,7 +2,7 @@
 
 use iroh_metrics::{Counter, Gauge, MetricsGroup};
 
-/// Counters exposed by iroh-dns-server.
+/// Counters exposed by krikos-dns-server.
 #[derive(Debug, Default, MetricsGroup)]
 #[metrics(name = "dns_server")]
 #[non_exhaustive]

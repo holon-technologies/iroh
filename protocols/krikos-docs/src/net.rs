@@ -1,4 +1,4 @@
-//! Network implementation of the iroh-docs protocol
+//! Network implementation of the krikos-docs protocol
 
 use std::future::Future;
 
@@ -14,7 +14,7 @@ use crate::{
     net::codec::{BobState, run_alice},
 };
 
-/// The ALPN identifier for the iroh-docs protocol
+/// The ALPN identifier for the krikos-docs protocol
 pub const ALPN: &[u8] = b"/iroh-sync/1";
 
 mod codec;
@@ -100,7 +100,7 @@ pub enum AcceptOutcome {
     Reject(AbortReason),
 }
 
-/// Handle an iroh-docs connection and sync all shared documents in the replica store.
+/// Handle an krikos-docs connection and sync all shared documents in the replica store.
 pub async fn handle_connection<F, Fut>(
     sync: SyncHandle,
     connection: krikos::endpoint::Connection,

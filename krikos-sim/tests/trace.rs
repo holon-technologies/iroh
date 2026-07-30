@@ -182,7 +182,7 @@ fn event(sequence: u64, virtual_time_nanos: u64) -> TraceEvent {
 fn temp_dir() -> std::path::PathBuf {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let path = std::env::temp_dir().join(format!(
-        "iroh-sim-trace-test-{}-{}",
+        "krikos-sim-trace-test-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

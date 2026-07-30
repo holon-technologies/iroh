@@ -1,24 +1,24 @@
-# Contributing to Iroh
+# Contributing to Krikos
 
-We'd love for you to contribute to our source code to make Iroh even better!
+We'd love for you to contribute to our source code to make Krikos even better!
 
-When contributing to Iroh, you are expected to follow our [Code of Conduct][coc].
+When contributing to Krikos, you are expected to follow our [Code of Conduct][coc].
 
 Here are some of the ways in which you can contribute:
 
 ## Discussions
 
-If you want to ask a question to understand a concept regarding Iroh, or need help working with Iroh, please check the [Discussions][discussions]. If you don't find a thread that fits your needs, feel free to create a new one.
+If you want to ask a question to understand a concept regarding Krikos, or need help working with Krikos, please check the [Discussions][discussions]. If you don't find a thread that fits your needs, feel free to create a new one.
 
 ## Issues
 
-If you found unexpected behavior while using Iroh, please browse our existing [issues][issues]. If no issues fit your case, [create a new one][newissue].
+If you found unexpected behavior while using Krikos, please browse our existing [issues][issues]. If no issues fit your case, [create a new one][newissue].
 
-If you would like to suggest a new feature in Iroh, [create a new issue][newissue]. This helps have meaningful conversations about design, feasibility, and general expectations of how a feature would work. If you plan to work on this yourself, we ask you to state this as well, so that you receive the guidance you need.
+If you would like to suggest a new feature in Krikos, [create a new issue][newissue]. This helps have meaningful conversations about design, feasibility, and general expectations of how a feature would work. If you plan to work on this yourself, we ask you to state this as well, so that you receive the guidance you need.
 
 ## Pull requests
 
-Code contributions to Iroh are greatly appreciated. Here is the general workflow you should follow:
+Code contributions to Krikos are greatly appreciated. Here is the general workflow you should follow:
 
 1. **State in the associated issue your desire to work on it**
 
@@ -26,7 +26,7 @@ Code contributions to Iroh are greatly appreciated. Here is the general workflow
 
 2. **Write some code!**
 
-   If this is your first contribution to Iroh, you will need to [fork][forkiroh] and clone it using git. If you need help with the code you are working on, don't hesitate to ask questions in the associated issue. We will be happy to help you.
+   If this is your first contribution to Krikos, you will need to [fork][forkkrikos] and clone it using git. If you need help with the code you are working on, don't hesitate to ask questions in the associated issue. We will be happy to help you.
 
 3. **Open the pull request**
 
@@ -39,7 +39,7 @@ Code contributions to Iroh are greatly appreciated. Here is the general workflow
 
    - **Pull request titles**
 
-     - Iroh pull requests titles look like this: `type(crate): description`
+     - Krikos pull requests titles look like this: `type(crate): description`
 
        | **`type`** | **When to use** |
        |--:         |-- |
@@ -57,7 +57,7 @@ Code contributions to Iroh are greatly appreciated. Here is the general workflow
 
        **`description`** is a short sentence that summarizes your changes.
 
-       If there is a breaking change please use a `!` in the commit message to denote this, eg. `feat(iroh)!: break the world`.
+       If there is a breaking change please use a `!` in the commit message to denote this, eg. `feat(krikos)!: break the world`.
 
    - **Pull request descriptions**
 
@@ -91,13 +91,13 @@ Code contributions to Iroh are greatly appreciated. Here is the general workflow
 
 5. **My code is ready to be merged!**
 
-    Congratulations on becoming an official Iroh contributor!
+    Congratulations on becoming an official Krikos contributor!
 
 [coc]: https://github.com/n0-computer/iroh/blob/main/code_of_conduct.md
 [discussions]: https://github.com/n0-computer/iroh/discussions
 [issues]: https://github.com/n0-computer/iroh/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
 [newissue]: https://github.com/n0-computer/iroh/issues/new
-[forkiroh]: https://github.com/n0-computer/iroh/fork
+[forkkrikos]: https://github.com/n0-computer/iroh/fork
 [draftprs]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests
 [rustdoc]: https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html
 [docconventions]: https://rust-lang.github.io/rfcs/1574-more-api-documentation-conventions.html#appendix-a-full-conventions-text

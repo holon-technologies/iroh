@@ -1,4 +1,4 @@
-# Iroh Fork Architecture
+# Krikos Fork Architecture
 
 **Status:** implemented in the working tree; immutable candidate and hosted validation pending.
 
@@ -24,28 +24,28 @@ negotiated protocol version.
 ## Workspace boundaries
 
 The root workspace contains publishable production crates and non-published production tooling.
-`iroh-sim` is a nested, non-published workspace because it applies a deterministic Rustls patch
+`krikos-sim` is a nested, non-published workspace because it applies a deterministic Rustls patch
 that must never enter the production dependency graph. Fuzzing is also isolated from the root
 workspace.
 
 | Package | Responsibility | May depend on first-party packages |
 | --- | --- | --- |
-| `iroh-base` | Stable identity, address, relay-map, and key value types | none |
-| `iroh-runtime` | Runtime, clock, task, decision, and trace capabilities | none |
-| `iroh-resolver` | Generic bounded A, AAAA, TXT, and host resolution | none |
-| `iroh-dns` | Iroh endpoint DNS records, endpoint lookup, pkarr integration | `iroh-base`, `iroh-resolver` |
-| `iroh-relay` | Relay client, server, shared wire protocol, and sessions | `iroh-base`, `iroh-resolver`, `iroh-runtime` |
-| `iroh` | Public endpoint and connection orchestration | `iroh-base`, `iroh-dns`, `iroh-resolver`, `iroh-relay`, `iroh-runtime` |
-| `iroh-dns-server` | Deployable endpoint DNS and pkarr service | `iroh-base`, `iroh-dns`, `iroh-resolver`; `iroh` only for dev/tests |
-| `iroh-blobs` | Content-addressed storage and transfer protocol | `iroh` |
-| `iroh-gossip` | Topic-based broadcast protocol | `iroh-base`, optionally `iroh` |
-| `iroh-docs` | Local-first documents, capabilities, persistence, and synchronization | `iroh`, `iroh-base`, `iroh-blobs`, `iroh-gossip` |
-| `iroh-app` | Experimental application lifecycle and standard local-first bundle | `iroh`, `iroh-base`, `iroh-blobs`, `iroh-gossip`, `iroh-docs` |
-| `iroh-bench` | Non-published benchmarks and resource canaries | public packages it exercises |
+| `krikos-base` | Stable identity, address, relay-map, and key value types | none |
+| `krikos-runtime` | Runtime, clock, task, decision, and trace capabilities | none |
+| `krikos-resolver` | Generic bounded A, AAAA, TXT, and host resolution | none |
+| `krikos-dns` | Krikos endpoint DNS records, endpoint lookup, pkarr integration | `krikos-base`, `krikos-resolver` |
+| `krikos-relay` | Relay client, server, shared wire protocol, and sessions | `krikos-base`, `krikos-resolver`, `krikos-runtime` |
+| `krikos` | Public endpoint and connection orchestration | `krikos-base`, `krikos-dns`, `krikos-resolver`, `krikos-relay`, `krikos-runtime` |
+| `krikos-dns-server` | Deployable endpoint DNS and pkarr service | `krikos-base`, `krikos-dns`, `krikos-resolver`; `krikos` only for dev/tests |
+| `krikos-blobs` | Content-addressed storage and transfer protocol | `krikos` |
+| `krikos-gossip` | Topic-based broadcast protocol | `krikos-base`, optionally `krikos` |
+| `krikos-docs` | Local-first documents, capabilities, persistence, and synchronization | `krikos`, `krikos-base`, `krikos-blobs`, `krikos-gossip` |
+| `krikos-app` | Experimental application lifecycle and standard local-first bundle | `krikos`, `krikos-base`, `krikos-blobs`, `krikos-gossip`, `krikos-docs` |
+| `krikos-bench` | Non-published benchmarks and resource canaries | public packages it exercises |
 | `determinism-checker` | Non-published source-boundary checker | no production package may depend on it |
-| `iroh-sim` | Deterministic model, execution, evidence, and operations | production packages; never the reverse |
+| `krikos-sim` | Deterministic model, execution, evidence, and operations | production packages; never the reverse |
 
-`iroh-resolver` is the implemented generic-resolution boundary. `iroh-dns` composes it through
+`krikos-resolver` is the implemented generic-resolution boundary. `krikos-dns` composes it through
 `EndpointDnsResolver`, while relay code depends on the generic crate directly.
 
 The layer order is `foundation` → `platform` → `protocol`/`service` → `documents` → `framework`.
@@ -60,7 +60,7 @@ the policy records whether each package is still excluded or admitted to a works
 - The production graph is acyclic and points from orchestration toward stable capability/value
   crates.
 - Production packages never depend on simulator, fuzz, benchmark, or deterministic-patch code.
-- `iroh-base`, `iroh-runtime`, and `iroh-resolver` remain first-party leaves.
+- `krikos-base`, `krikos-runtime`, and `krikos-resolver` remain first-party leaves.
 - Relay code never depends on endpoint-record parsing, pkarr, DNS publication, or the DNS server.
 - Dev dependencies are checked separately from normal dependencies; a test edge never justifies a
   production edge.
@@ -112,7 +112,7 @@ Large modules are split by responsibility, not by line-count quota:
   connection handling, and relay service;
 - simulator: `engine`, `model`, `execution`, `evidence`, `operations`, and a thin `cli`.
 
-`iroh-sim` exposes public types only through those domain facades. Its scenario implementation is
+`krikos-sim` exposes public types only through those domain facades. Its scenario implementation is
 split into schema, migration, validation, builder, and generator owners; its runner is split into
 reference model, backend, orchestration, reporting, and errors; and CLI command implementations
 remain private behind the stable `cargo sim` command surface.
@@ -140,14 +140,14 @@ edge, provider leakage, a failed deterministic replay, or a relay compatibility 
 architecture work does not itself authorize tagging or publication.
 
 The imported protocol and framework packages form a separate, experimental release set. Their
-dependency order is `iroh-blobs` → `iroh-gossip` → `iroh-docs` → `iroh-app`; the first two are
+dependency order is `krikos-blobs` → `krikos-gossip` → `krikos-docs` → `krikos-app`; the first two are
 independent siblings in the graph, while this order gives packaging a stable sequence. They remain
 `publish = false` and outside the platform package verifier until
 [`framework/release-gate.toml`](../framework/release-gate.toml) records separate approval for
 package naming, registry ownership, a public API baseline, and the supported persistent-data
 schema. A platform v2 release cannot open this gate as a side effect.
 
-`iroh-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`, and
+`krikos-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`, and
 `key` also enables `relay` because key-facing endpoint/address types require relay URL support.
 Consumers seeking the smallest value-type build must use `default-features = false` and then select
 only the required features.
@@ -158,8 +158,8 @@ Three upstream crates are vendored under [`vendor/`](../vendor/README.md) becaus
 patch this project requires and upstream has not accepted. `scripts/tests/check-vendor-provenance.sh`
 asserts in CI that every vendored directory still equals upstream plus its patch.
 
-`noq` and `hickory-server` are published as differently named forks — `iroh-noq` and
-`iroh-hickory-server` — because their patches are resource-hardening deltas that only this
+`noq` and `hickory-server` are published as differently named forks — `krikos-noq` and
+`krikos-hickory-server` — because their patches are resource-hardening deltas that only this
 project's endpoint and DNS-server code needs: bounded event queues, per-poll budgets, and
 connection-lifetime ownership in Noq; pre-spawn UDP-request and TCP-connection admission limits in
 Hickory. Cargo dependency package aliases keep the Rust library names (`noq`, `hickory_server`)
@@ -170,13 +170,13 @@ explicit through the exact `-holon.N` prerelease version.
 transitive dependencies resolve the crate literally named `rustls`; a differently named fork would
 coexist as a distinct crate in the dependency graph, making its public Rustls types incompatible
 with the `rustls` types those other dependencies expect at integration boundaries. The patch that
-`iroh-sim` needs — threading `provider.secure_random` through session-ID and `Random` construction,
+`krikos-sim` needs — threading `provider.secure_random` through session-ID and `Random` construction,
 and keeping the negotiated `KxState`'s `SupportedKxGroup` alive past the handshake so simulation
 runs can replay deterministically from a seed — therefore cannot ship as a publishable production
-crate. It instead lives only in `iroh-sim`'s nested, non-published workspace via a
+crate. It instead lives only in `krikos-sim`'s nested, non-published workspace via a
 `[patch.crates-io]` entry scoped to that workspace's own lockfile; every publishable production
 crate resolves the public `rustls` crate unmodified. See [`vendor/README.md`](../vendor/README.md)
-and `vendor/rustls-0.23.41/IROH-VENDOR.md` for the exact patch contents and update procedure.
+and `vendor/rustls-0.23.41/KRIKOS-VENDOR.md` for the exact patch contents and update procedure.
 
 ## Production resource admission
 
@@ -203,10 +203,10 @@ executor ceiling firing at all means an admission invariant has regressed, which
 internal capacity violation that closes the endpoint rather than silently reverting to unbounded
 growth.
 
-The two public types that carry this contract are `EndpointLimits` (`iroh/src/endpoint/limits.rs`,
-set through `Builder::limits` in `iroh/src/endpoint/builder.rs`) — the validated, nonzero
+The two public types that carry this contract are `EndpointLimits` (`krikos/src/endpoint/limits.rs`,
+set through `Builder::limits` in `krikos/src/endpoint/builder.rs`) — the validated, nonzero
 connection/actor/task ceilings for one endpoint — and `TaskGroupLimits`
-(`iroh-runtime/src/task.rs`) — the validated, nonzero live-task ceiling for one production task
+(`krikos-runtime/src/task.rs`) — the validated, nonzero live-task ceiling for one production task
 group. The endpoint derives its requested task-group ceiling from its declared subsystem ceilings
 plus a fixed supervisor headroom, so admitted subsystem capacity always fits inside the executor
 backstop it depends on.

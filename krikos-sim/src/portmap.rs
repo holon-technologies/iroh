@@ -1,4 +1,4 @@
-//! Deterministic port-mapping capability consumed by Iroh's production socket actor.
+//! Deterministic port-mapping capability consumed by Krikos's production socket actor.
 
 use std::{
     fmt,

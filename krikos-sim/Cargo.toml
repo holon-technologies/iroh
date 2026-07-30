@@ -5,7 +5,7 @@ resolver = "2"
 name = "krikos-sim"
 version = "2.0.0"
 edition = "2024"
-description = "Deterministic simulation and replay infrastructure for Iroh"
+description = "Deterministic simulation and replay infrastructure for Krikos"
 license = "MIT OR Apache-2.0"
 authors = ["n0 team"]
 repository = "https://github.com/holon-technologies/iroh"
@@ -20,7 +20,7 @@ missing_debug_implementations = "warn"
 unsafe_code = "deny"
 unsafe_op_in_unsafe_fn = "deny"
 unused_must_use = "deny"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(krikos_docsrs)", "cfg(krikos_loom)", "cfg(skip_patchbay)"] }
 
 [workspace.lints.clippy]
 correctness = { level = "deny", priority = -1 }

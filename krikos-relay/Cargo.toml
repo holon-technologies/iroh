@@ -3,7 +3,7 @@ name = "krikos-relay"
 version.workspace = true
 edition.workspace = true
 readme = "README.md"
-description = "Iroh's relay server and client"
+description = "Krikos's relay server and client"
 license.workspace = true
 authors = ["n0 team"]
 repository.workspace = true
@@ -202,7 +202,7 @@ required-features = ["server", "relay-bin"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "iroh_docsrs"]
+rustdoc-args = ["--cfg", "krikos_docsrs"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [

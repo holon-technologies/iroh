@@ -22,7 +22,7 @@ use krikos::endpoint::{Endpoint, presets::N0};
 use n0_error::{Result, StdResultExt};
 use rustls::crypto::aws_lc_rs::{self, kx_group};
 
-const ALPN: &[u8] = b"iroh-example/prefer-pq-key-exchange/0";
+const ALPN: &[u8] = b"krikos-example/prefer-pq-key-exchange/0";
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -1,6 +1,6 @@
 {
   "schema_version": 7,
-  "owner": "Iroh connectivity and simulation maintainers",
+  "owner": "Krikos connectivity and simulation maintainers",
   "failure_triage_slo_hours": 24,
   "automation": {
     "maximum_retry_attempts": 0,

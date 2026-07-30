@@ -1,8 +1,8 @@
-//! Metrics for iroh-docs
+//! Metrics for krikos-docs
 
 use iroh_metrics::{Counter, MetricsGroup};
 
-/// Metrics for iroh-docs
+/// Metrics for krikos-docs
 #[derive(Debug, Default, MetricsGroup)]
 pub struct Metrics {
     /// Number of document entries added locally

@@ -1,10 +1,10 @@
-//! Force iroh to negotiate ONLY a post-quantum key exchange (X25519MLKEM768).
+//! Force krikos to negotiate ONLY a post-quantum key exchange (X25519MLKEM768).
 //!
 //! Requires `tls-aws-lc-rs` (the only rustls backend with ML-KEM today).
 //! Stripping `kx_groups` to the PQ group makes PQ *required* rather than
 //! *preferred*: peers without it fail the TLS handshake.
 //!
-//! Note: iroh's `crypto_provider` is shared with relay/discovery TLS, and
+//! Note: krikos's `crypto_provider` is shared with relay/discovery TLS, and
 //! n0's infra does not support PQ key exchange yet — so a PQ-only endpoint
 //! can't use n0 public relays or discovery servers.
 //!
@@ -15,7 +15,7 @@
 //!
 //!     cargo run --example pq-key-exchange --features=tls-aws-lc-rs
 //!
-//! With iroh's default features still on, both `ring` and `aws-lc-rs` get
+//! With krikos's default features still on, both `ring` and `aws-lc-rs` get
 //! linked. That's harmless — we wire the aws-lc-rs provider in directly via
 //! `Builder::crypto_provider`.
 use std::sync::Arc;
@@ -27,7 +27,7 @@ use krikos::{
 use n0_error::{Result, StdResultExt};
 use rustls::crypto::aws_lc_rs;
 
-const ALPN: &[u8] = b"iroh-example/pq-key-exchange/0";
+const ALPN: &[u8] = b"krikos-example/pq-key-exchange/0";
 
 #[tokio::main]
 async fn main() -> Result<()> {

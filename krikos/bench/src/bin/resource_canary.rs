@@ -1247,8 +1247,8 @@ fn write_run_report(
             "smoke"
         },
         evidence: mode.is_evidence(),
-        build_profile: env!("IROH_BENCH_BUILD_PROFILE"),
-        optimization_level: env!("IROH_BENCH_OPT_LEVEL"),
+        build_profile: env!("KRIKOS_BENCH_BUILD_PROFILE"),
+        optimization_level: env!("KRIKOS_BENCH_OPT_LEVEL"),
         release_build: is_release_build(),
         source_clean,
         all_lanes: lanes.len() == 3,
@@ -1280,8 +1280,8 @@ fn write_run_report(
 }
 
 fn is_release_build() -> bool {
-    env!("IROH_BENCH_BUILD_PROFILE") == "release"
-        && env!("IROH_BENCH_OPT_LEVEL") != "0"
+    env!("KRIKOS_BENCH_BUILD_PROFILE") == "release"
+        && env!("KRIKOS_BENCH_OPT_LEVEL") != "0"
         && !cfg!(debug_assertions)
 }
 

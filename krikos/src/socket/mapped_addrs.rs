@@ -190,7 +190,7 @@ pub(crate) struct EndpointIdMappedAddrError;
 
 /// An Ipv6 ULA address, identifying a relay path for a [`crate::EndpointId`].
 ///
-/// Since iroh endpoint are reachable via a relay server we have a network path indicated by
+/// Since krikos endpoint are reachable via a relay server we have a network path indicated by
 /// the `(EndpointId, RelayUrl)`.  However Noq can only handle socket addresses, so we use
 /// IPv6 addresses in a private IPv6 Unique Local Address range, which map to a unique
 /// `(EndointId, RelayUrl)` pair.
@@ -201,7 +201,7 @@ impl MappedAddr for RelayMappedAddr {
     /// Generates a globally unique fake UDP address.
     ///
     /// This generates a new IPv6 address in the Unique Local Address range (RFC 4193)
-    /// which is recognised by iroh as an IP mapped address.
+    /// which is recognised by krikos as an IP mapped address.
     fn generate() -> Self {
         let mut addr = [0u8; 16];
         addr[0] = ADDR_PREFIXL;
@@ -263,7 +263,7 @@ impl MappedAddr for CustomMappedAddr {
     /// Generates a globally unique fake UDP address.
     ///
     /// This generates a new IPv6 address in the Unique Local Address range (RFC 4193)
-    /// which is recognised by iroh as an IP mapped address.
+    /// which is recognised by krikos as an IP mapped address.
     fn generate() -> Self {
         let mut addr = [0u8; 16];
         addr[0] = ADDR_PREFIXL;

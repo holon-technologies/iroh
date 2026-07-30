@@ -1832,21 +1832,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-fuzz"
-version = "0.0.0"
-dependencies = [
- "krikos-app",
- "krikos-base",
- "krikos-blobs",
- "krikos-dns-server",
- "krikos-docs",
- "krikos-gossip",
- "krikos-relay",
- "libfuzzer-sys",
- "postcard",
-]
-
-[[package]]
 name = "iroh-io"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2255,6 +2240,21 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "krikos-fuzz"
+version = "0.0.0"
+dependencies = [
+ "krikos-app",
+ "krikos-base",
+ "krikos-blobs",
+ "krikos-dns-server",
+ "krikos-docs",
+ "krikos-gossip",
+ "krikos-relay",
+ "libfuzzer-sys",
+ "postcard",
 ]
 
 [[package]]

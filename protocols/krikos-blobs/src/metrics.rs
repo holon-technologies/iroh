@@ -1,4 +1,4 @@
-//! Metrics for iroh-blobs
+//! Metrics for krikos-blobs
 
 use iroh_metrics::{Counter, MetricsGroup};
 
@@ -6,7 +6,7 @@ use iroh_metrics::{Counter, MetricsGroup};
 #[allow(missing_docs)]
 #[allow(dead_code)]
 #[derive(Debug, Default, MetricsGroup)]
-#[metrics(name = "iroh-blobs")]
+#[metrics(name = "krikos-blobs")]
 pub struct Metrics {
     /// Total number of content bytes downloaded
     pub download_bytes_total: Counter,

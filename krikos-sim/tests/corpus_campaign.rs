@@ -282,7 +282,7 @@ fn decode_seed(hex: &str) -> [u8; 32] {
 }
 
 fn temp_dir(label: &str) -> std::path::PathBuf {
-    let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
+    let path = std::env::temp_dir().join(format!("krikos-sim-{label}-{}", std::process::id()));
     if path.exists() {
         fs::remove_dir_all(&path).unwrap();
     }

@@ -1,31 +1,31 @@
-# iroh-gossip
+# krikos-gossip
 
-This crate implements the `iroh-gossip` protocol.
+This crate implements the `krikos-gossip` protocol.
 It is based on *epidemic broadcast trees* to disseminate messages among a swarm of peers interested in a *topic*.
 The implementation is based on the papers [HyParView](https://asc.di.fct.unl.pt/~jleitao/pdf/dsn07-leitao.pdf) and [PlumTree](https://asc.di.fct.unl.pt/~jleitao/pdf/srds07-leitao.pdf).
 
 The crate is made up from two modules:
 The `proto` module is the protocol implementation, as a state machine without any IO.
-The `net` module implements networking logic for running `iroh-gossip` on `iroh` connections.
+The `net` module implements networking logic for running `krikos-gossip` on `krikos` connections.
 
 The `net` module is optional behind the `net` feature flag (enabled by default).
 
 # Getting Started
 
-The `iroh-gossip` protocol was designed to be used in conjunction with `iroh`. [Iroh](https://docs.rs/iroh) is a networking library for making direct connections, these connections are how gossip messages are sent.
+The `krikos-gossip` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are how gossip messages are sent.
 
-Iroh provides a [`Router`](https://docs.rs/iroh/latest/iroh/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/iroh/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
-Here is a basic example of how to set up `iroh-gossip` with `iroh`:
+Here is a basic example of how to set up `krikos-gossip` with `krikos`:
 ```rust,no_run
-use iroh::{protocol::Router, Endpoint, EndpointId, endpoint::presets};
-use iroh_gossip::{api::Event, Gossip, TopicId};
+use krikos::{protocol::Router, Endpoint, EndpointId, endpoint::presets};
+use krikos_gossip::{api::Event, Gossip, TopicId};
 use n0_error::{Result, StdResultExt};
 use n0_future::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // create an iroh endpoint that includes the standard discovery mechanisms
+    // create an krikos endpoint that includes the standard discovery mechanisms
     // we've built at number0
     let endpoint = Endpoint::bind(presets::N0).await?;
 
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
 
     // setup router
     let router = Router::builder(endpoint)
-        .accept(iroh_gossip::ALPN, gossip.clone())
+        .accept(krikos_gossip::ALPN, gossip.clone())
         .spawn();
 
     // gossip swarms are centered around a shared "topic id", which is a 32 byte identifier

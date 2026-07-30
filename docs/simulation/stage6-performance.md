@@ -1,13 +1,13 @@
 # Stage 6 scheduler performance
 
-Stage 6 adds a domain-separated `kernel/ready-task` draw for every kernel task poll, causal ready waves, fairness accounting, and a structured `task_scheduled` trace event. The Criterion benchmark in `iroh-sim/benches/stage6_scheduler.rs` measures the complete lifecycle of 256 immediately-ready tasks, including task admission, tracing, polling, completion, and final accounting.
+Stage 6 adds a domain-separated `kernel/ready-task` draw for every kernel task poll, causal ready waves, fairness accounting, and a structured `task_scheduled` trace event. The Criterion benchmark in `krikos-sim/benches/stage6_scheduler.rs` measures the complete lifecycle of 256 immediately-ready tasks, including task admission, tracing, polling, completion, and final accounting.
 
 ## 2026-07-21 native baseline
 
 Command:
 
 ```text
-cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler -- --sample-size 10
+cargo bench --manifest-path krikos-sim/Cargo.toml --bench stage6_scheduler -- --sample-size 10
 ```
 
 | Policy | Median time | Throughput |

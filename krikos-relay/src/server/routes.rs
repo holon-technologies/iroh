@@ -2,14 +2,14 @@ use derive_more::Debug;
 
 use super::*;
 
-pub(super) const NO_CONTENT_CHALLENGE_HEADER: &str = "X-Iroh-Challenge";
-pub(super) const NO_CONTENT_RESPONSE_HEADER: &str = "X-Iroh-Response";
+pub(super) const NO_CONTENT_CHALLENGE_HEADER: &str = "X-Krikos-Challenge";
+pub(super) const NO_CONTENT_RESPONSE_HEADER: &str = "X-Krikos-Response";
 const NOTFOUND: &[u8] = b"Not Found";
 const ROBOTS_TXT: &[u8] = b"User-agent: *\nDisallow: /\n";
 const INDEX: &[u8] = br#"<html><body>
-<h1>Iroh Relay</h1>
+<h1>Krikos Relay</h1>
 <p>
-  This is an <a href="https://iroh.computer/">Iroh</a> Relay server.
+  This is an <a href="https://iroh.computer/">Krikos</a> Relay server.
 </p>
 "#;
 pub(super) const TLS_HEADERS: [(&str, &str); 2] = [

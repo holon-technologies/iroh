@@ -134,7 +134,7 @@ pub(crate) const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 ///
 /// 15s gives 3x [`HEARTBEAT_INTERVAL`] (5s) for multiple retry chances, and enough
 /// margin for real-world outages (WiFi reconnect 2-5s, cellular handoff 2-10s).
-/// iroh 0.35 used 10s at the QUIC level; tailscale uses 45s at the WireGuard session
+/// krikos 0.35 used 10s at the QUIC level; tailscale uses 45s at the WireGuard session
 /// level with 3s heartbeats.
 pub(crate) const PATH_MAX_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -194,7 +194,7 @@ pub(crate) fn deterministic_simulation_initial_dst_cid_provider(
 ) -> Arc<dyn Fn() -> noq::ConnectionId + Send + Sync> {
     const INITIAL_DST_CID_LEN: usize = 20;
     let key = blake3::derive_key(
-        "iroh simulation QUIC initial destination connection IDs v1",
+        "krikos simulation QUIC initial destination connection IDs v1",
         &reset_key,
     );
     let counter = AtomicU64::new(0);
@@ -214,7 +214,7 @@ impl DeterministicSimulationConnectionIdGenerator {
     const CID_LEN: usize = 16;
 
     fn new(reset_key: [u8; 32]) -> Self {
-        let key = blake3::derive_key("iroh simulation QUIC connection IDs v1", &reset_key);
+        let key = blake3::derive_key("krikos simulation QUIC connection IDs v1", &reset_key);
         Self { key, counter: 0 }
     }
 }

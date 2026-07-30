@@ -2,7 +2,7 @@
 
 This monorepo never follows an upstream default branch. Every sync starts from one exact release
 tag and its resolved 40-character commit in `protocols/upstream-baselines.toml`. The imported
-protocol packages and `iroh-app` remain unpublished while `framework/release-gate.toml` is blocked.
+protocol packages and `krikos-app` remain unpublished while `framework/release-gate.toml` is blocked.
 
 ## Prepare and review a sync
 
@@ -29,7 +29,7 @@ scripts/tests/check-blobs-v0-interop.sh
 scripts/tests/check-gossip-v0-interop.sh
 scripts/tests/check-relay-compatibility.sh --golden
 scripts/tests/check-relay-compatibility.sh --live
-cargo test -p iroh-local-first-app-tests --test two_node
+cargo test -p krikos-local-first-app-tests --test two_node
 ```
 
 Replay old blob/docs stores and migrations whenever persistent code or dependency versions change.
@@ -39,5 +39,5 @@ and retained artifacts in the pull request.
 
 If a wire fixture, old store, license, provenance record, architecture edge, or bidirectional
 interop lane fails, stop the sync. Do not rewrite an already published tag or migration. Relay
-compatibility remains pinned independently to upstream Iroh `v1.0.3`; a protocol sync cannot weaken
+compatibility remains pinned independently to upstream Krikos `v1.0.3`; a protocol sync cannot weaken
 or silently replace that baseline.

@@ -18,16 +18,16 @@ use tracing::info;
 
 #[cfg(feature = "resource-canary")]
 pub mod canary;
-pub mod iroh;
+pub mod krikos;
 #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
 pub mod noq;
 pub mod s2n;
 pub mod stats;
 
 #[derive(Parser, Debug, Clone, Copy)]
-#[clap(name = "iroh-bench")]
+#[clap(name = "krikos-bench")]
 pub enum Commands {
-    Iroh(Opt),
+    Krikos(Opt),
     #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
     Noq(Opt),
     S2n(s2n::Opt),
@@ -60,7 +60,7 @@ pub struct Opt {
     /// Show connection stats the at the end of the benchmark
     #[clap(long = "stats")]
     pub stats: bool,
-    /// Show iroh library counter metrics at the end of the benchmark
+    /// Show krikos library counter metrics at the end of the benchmark
     ///
     /// These metrics are process-wide, so contain metrics for
     /// clients and the server all summed up.
@@ -99,7 +99,7 @@ pub struct Opt {
 
 #[derive(Debug)]
 pub enum EndpointSelector {
-    Iroh(::krikos::Endpoint),
+    Krikos(::krikos::Endpoint),
     #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
     Noq(::noq::Endpoint),
 }
@@ -107,7 +107,7 @@ pub enum EndpointSelector {
 impl EndpointSelector {
     pub async fn close(self) {
         match self {
-            EndpointSelector::Iroh(endpoint) => {
+            EndpointSelector::Krikos(endpoint) => {
                 endpoint.close().await;
             }
             #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
@@ -121,7 +121,7 @@ impl EndpointSelector {
 
 #[derive(Debug)]
 pub enum ConnectionSelector {
-    Iroh(::krikos::endpoint::Connection),
+    Krikos(::krikos::endpoint::Connection),
     #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
     Noq(::noq::Connection),
 }
@@ -129,7 +129,7 @@ pub enum ConnectionSelector {
 impl ConnectionSelector {
     pub fn stats(&self) {
         match self {
-            ConnectionSelector::Iroh(connection) => {
+            ConnectionSelector::Krikos(connection) => {
                 println!("{:#?}", connection.stats());
             }
             #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
@@ -141,7 +141,7 @@ impl ConnectionSelector {
 
     pub fn close(&self, error_code: u32, reason: &[u8]) {
         match self {
-            ConnectionSelector::Iroh(connection) => {
+            ConnectionSelector::Krikos(connection) => {
                 connection.close(error_code.into(), reason);
             }
             #[cfg(not(any(target_os = "freebsd", target_os = "openbsd", target_os = "netbsd")))]
@@ -248,8 +248,8 @@ pub async fn client_handler(
         let connection = connection.clone();
         tokio::spawn(async move {
             let result = match &*connection {
-                ConnectionSelector::Iroh(connection) => {
-                    iroh::handle_client_stream(connection, opt.upload_size, opt.read_unordered)
+                ConnectionSelector::Krikos(connection) => {
+                    krikos::handle_client_stream(connection, opt.upload_size, opt.read_unordered)
                         .await
                 }
                 #[cfg(not(any(

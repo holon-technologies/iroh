@@ -2,6 +2,7 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use irpc::RpcMessage;
 use krikos::{EndpointId, SecretKey, endpoint::presets};
 use krikos_blobs::{
     HashAndFormat,
@@ -10,7 +11,6 @@ use krikos_blobs::{
     store::fs::FsStore,
     test::{add_hash_sequences, create_random_blobs},
 };
-use irpc::RpcMessage;
 use n0_future::StreamExt;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::signal::ctrl_c;
@@ -87,7 +87,7 @@ pub struct RequestArgs {
 }
 
 pub fn get_or_generate_secret_key() -> Result<SecretKey> {
-    if let Ok(secret) = env::var("IROH_SECRET") {
+    if let Ok(secret) = env::var("KRIKOS_SECRET") {
         // Parse the secret key from string
         SecretKey::from_str(&secret).context("Invalid secret key format")
     } else {
@@ -95,7 +95,7 @@ pub fn get_or_generate_secret_key() -> Result<SecretKey> {
         let secret_key = SecretKey::generate();
         let secret_key_str = hex::encode(secret_key.to_bytes());
         println!("Generated new random secret key");
-        println!("To reuse this key, set the IROH_SECRET={secret_key_str}");
+        println!("To reuse this key, set the KRIKOS_SECRET={secret_key_str}");
         Ok(secret_key)
     }
 }

@@ -25,7 +25,7 @@ impl From<mpsc::error::SendError<RemoteStateMessage>> for RemoteStateActorStoppe
     }
 }
 
-/// Inner state for an iroh [`crate::Endpoint`].
+/// Inner state for an krikos [`crate::Endpoint`].
 ///
 /// Dereferences to [`Socket`], and handles closing.
 #[derive(Debug, derive_more::Deref)]
@@ -110,7 +110,7 @@ impl ShutdownState {
     }
 }
 
-/// Iroh connectivity layer.
+/// Krikos connectivity layer.
 ///
 /// This is responsible for routing packets to endpoints based on endpoint IDs, it will initially
 /// route packets via a relay and transparently try and establish an endpoint-to-endpoint
@@ -185,7 +185,7 @@ impl Socket {
         })
     }
 
-    /// Whether the iroh endpoint is closed and all its actors stopped.
+    /// Whether the krikos endpoint is closed and all its actors stopped.
     pub(crate) fn is_closed(&self) -> bool {
         self.shutdown.is_closed()
     }
@@ -864,7 +864,7 @@ impl EndpointInner {
         &self.endpoint
     }
 
-    /// Closes the iroh endpoint.
+    /// Closes the krikos endpoint.
     ///
     /// Only the first close does anything. Any later closes return nil.  Polling the socket
     /// ([`noq::AsyncUdpSocket::poll_recv`]) will return [`Poll::Pending`] indefinitely

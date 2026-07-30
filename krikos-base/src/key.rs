@@ -55,9 +55,9 @@ impl Ord for PublicKey {
     }
 }
 
-/// The identifier for an endpoint in the (iroh) network.
+/// The identifier for an endpoint in the (krikos) network.
 ///
-/// Each endpoint in iroh has a unique identifier created as a cryptographic key.  This can be
+/// Each endpoint in krikos has a unique identifier created as a cryptographic key.  This can be
 /// used to globally identify an endpoint.  Since it is also a cryptographic key it is also the
 /// mechanism by which all traffic is always encrypted for a specific endpoint only.
 ///

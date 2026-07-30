@@ -1,4 +1,4 @@
-//! Deterministic in-memory IPv4/IPv6 UDP network used by production Iroh transports.
+//! Deterministic in-memory IPv4/IPv6 UDP network used by production Krikos transports.
 
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},

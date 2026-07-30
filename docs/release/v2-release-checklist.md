@@ -1,4 +1,4 @@
-# Iroh 2.0 release checklist
+# Krikos 2.0 release checklist
 
 This is the blocking release contract for `2.0.0`. An unchecked item means the
 release is not ready. Preparing a candidate does not authorize publishing a
@@ -7,7 +7,7 @@ crate, tag, GitHub release, or container.
 ## Source and compatibility
 
 - [ ] Every publishable crate manifest and internal dependency requirement uses
-  `2.0.0`; `Cargo.lock` contains no stale Iroh `1.x` package.
+  `2.0.0`; `Cargo.lock` contains no stale Krikos `1.x` package.
 - [ ] `CHANGELOG.md` and every publishable crate changelog have complete
   `Unreleased` entries, including the fallible constructors and
   `Clients::register`.
@@ -20,9 +20,9 @@ crate, tag, GitHub release, or container.
 - [ ] `scripts/run-v2-semver-checks.sh` reports no minor-level regressions
   against that post-cut baseline. The independent upstream `v1.0.3` relay-wire
   matrix remains green.
-- [ ] `iroh-runtime` and `iroh-resolver` package successfully and their README/API
+- [ ] `krikos-runtime` and `krikos-resolver` package successfully and their README/API
   documentation accurately describes each support boundary.
-- [ ] `iroh-noq` `1.1.0-holon.1` and `iroh-hickory-server`
+- [ ] `krikos-noq` `1.1.0-holon.1` and `krikos-hickory-server`
   `0.26.1-holon.1` retain their reviewed resource-bound tests, provenance,
   licenses, and exact dependency requirements.
 - [ ] Production packages resolve one registry Rustls package; the isolated
@@ -53,8 +53,8 @@ crate, tag, GitHub release, or container.
 ## Package and binary dry runs
 
 - [ ] `scripts/verify-release-packages.sh` succeeds in dependency order:
-  `iroh-noq`, `iroh-hickory-server`, `iroh-base`, `iroh-runtime`, `iroh-resolver`,
-  `iroh-dns`, `iroh-relay`, `iroh`, then `iroh-dns-server`. Source paths bootstrap archive
+  `krikos-noq`, `krikos-hickory-server`, `krikos-base`, `krikos-runtime`, `krikos-resolver`,
+  `krikos-dns`, `krikos-relay`, `krikos`, then `krikos-dns-server`. Source paths bootstrap archive
   creation only; the authoritative build uses normalized extracted packages
   exclusively, and no patch is written into a crate archive.
 - [ ] Each packaged crate builds using only packaged content.
@@ -75,7 +75,7 @@ crate, tag, GitHub release, or container.
   `scripts/check-framework-release-gate.py --expect-closed` proves all four packages retain
   `publish = false`.
 - [ ] `scripts/check-framework-package-layout.sh` validates package contents and dependency order:
-  `iroh-blobs`, `iroh-gossip`, `iroh-docs`, then `iroh-app`.
+  `krikos-blobs`, `krikos-gossip`, `krikos-docs`, then `krikos-app`.
 - [ ] While the gate is closed, the four packages remain outside the publishable package verifier
   and the external-type/semver baseline, but retain formatting, clippy, docs, tests, migrations,
   deterministic modeling, fuzzing, resource, integration, and compatibility coverage.
@@ -93,8 +93,8 @@ crate, tag, GitHub release, or container.
 - [ ] Before any experimental framework publication, a repository owner separately approves all
   four package names, registry ownership, public API baseline, and persistent-data schema support
   commitments and opens the machine-readable framework gate.
-- [ ] The `iroh-noq` and `iroh-hickory-server` crates.io names are claimed by
-  an authorized Holon publisher before dependent Iroh crates are published.
+- [ ] The `krikos-noq` and `krikos-hickory-server` crates.io names are claimed by
+  an authorized Holon publisher before dependent Krikos crates are published.
 - [ ] A repository owner explicitly authorizes the immutable `v2.0.0` tag,
   draft GitHub release, and any GHCR publication.
 - [ ] After publication, install and smoke tests pass from crates.io, release

@@ -162,10 +162,10 @@ async fn test_subprotocol_negotiation_picks_latest() -> Result {
     let addr = server.addr();
 
     for offered in [
-        "iroh-relay-v2,iroh-relay-v1",
-        "iroh-relay-v1,iroh-relay-v2",
-        "baz, iroh-relay-v1, iroh-relay-v2, boo",
-        "foo, iroh-relay-v2, bar",
+        "krikos-relay-v2,krikos-relay-v1",
+        "krikos-relay-v1,krikos-relay-v2",
+        "baz, krikos-relay-v1, krikos-relay-v2, boo",
+        "foo, krikos-relay-v2, bar",
     ] {
         let ws_uri = format!("ws://{addr}{RELAY_PATH}");
         let (_stream, response) = tokio_websockets::ClientBuilder::new()
@@ -183,7 +183,7 @@ async fn test_subprotocol_negotiation_picks_latest() -> Result {
             .headers()
             .get(SEC_WEBSOCKET_PROTOCOL)
             .expect("Sec-WebSocket-Protocol response header is present");
-        assert_eq!(negotiated, "iroh-relay-v2", "offered={offered}");
+        assert_eq!(negotiated, "krikos-relay-v2", "offered={offered}");
     }
 
     server.shutdown();

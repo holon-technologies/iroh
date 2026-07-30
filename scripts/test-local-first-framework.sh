@@ -7,8 +7,8 @@ cd "$repo_root"
 
 python3 scripts/check-framework-release-gate.py --expect-closed
 scripts/check-framework-package-layout.sh
-cargo test -p iroh-app --all-features
-cargo test -p iroh-docs migration
-cargo test -p iroh-local-first-app-tests --test two_node
+cargo test -p krikos-app --all-features
+cargo test -p krikos-docs migration
+cargo test -p krikos-local-first-app-tests --test two_node
 scripts/tests/check-blobs-v0-interop.sh
 scripts/tests/check-gossip-v0-interop.sh

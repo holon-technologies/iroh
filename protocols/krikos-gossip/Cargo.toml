@@ -148,4 +148,4 @@ required-features = ["examples"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "iroh_docsrs"]
+rustdoc-args = ["--cfg", "krikos_docsrs"]

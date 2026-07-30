@@ -691,7 +691,7 @@ impl RemoteStateActor {
 
     fn handle_connection_close(&mut self, conn_id: ConnId, closed: Closed) {
         event!(
-            target: "iroh::_events::conn::closed",
+            target: "krikos::_events::conn::closed",
             Level::DEBUG,
             %conn_id,
             remote_id = %self.state.endpoint_id.fmt_short(),
@@ -840,7 +840,7 @@ impl RemoteStateActor {
                 }
 
                 event!(
-                    target: "iroh::_events::path::abandoned",
+                    target: "krikos::_events::path::abandoned",
                     Level::DEBUG,
                     remote = %self.state.endpoint_id.fmt_short(),
                     %conn_id,
@@ -859,8 +859,8 @@ impl RemoteStateActor {
                 // Nothing to do for these events.
             }
             _ => {
-                // We expect to keep noq and iroh in sync in all test setups, but in production it's totally possible
-                // that iroh itself is linked against a newer version of noq with additional events we don't yet
+                // We expect to keep noq and krikos in sync in all test setups, but in production it's totally possible
+                // that krikos itself is linked against a newer version of noq with additional events we don't yet
                 // know how to handle.
                 #[cfg(test)]
                 panic!("Unhandled path event: {event:?}");
@@ -885,7 +885,7 @@ impl RemoteStateActor {
         {
             let prev_remote = self.state.selected_path.replace(addr.clone());
             event!(
-                target: "iroh::_events::path::selected",
+                target: "krikos::_events::path::selected",
                 Level::DEBUG,
                 remote = %self.state.endpoint_id.fmt_short(),
                 network_path = %addr,
@@ -1226,7 +1226,7 @@ impl State {
                     .map(|addr| SocketAddr::new(addr.ip().to_canonical(), addr.port()))
                     .collect();
                 event!(
-                    target: "iroh::_events::qnt::init",
+                    target: "krikos::_events::qnt::init",
                     Level::DEBUG,
                     remote = %self.endpoint_id.fmt_short(),
                     ?local_candidates,
@@ -1276,7 +1276,7 @@ impl State {
     ) -> Option<transports::FourTuple> {
         let network_path = self.transport_tuple_for_path(path)?;
         event!(
-            target: "iroh::_events::path::open",
+            target: "krikos::_events::path::open",
             Level::DEBUG,
             remote = %self.endpoint_id.fmt_short(),
             %conn_id,
@@ -1307,7 +1307,7 @@ impl State {
             Err(error) => warn!(?error, ?network_path, ?status, "set_status failed"),
             Ok(prev_status) if prev_status != status => {
                 event!(
-                    target: "iroh::_events::path::set_status",
+                    target: "krikos::_events::path::set_status",
                     Level::DEBUG,
                     remote = %self.endpoint_id.fmt_short(),
                     %conn_id,

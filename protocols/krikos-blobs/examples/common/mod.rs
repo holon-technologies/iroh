@@ -3,13 +3,13 @@ use anyhow::Result;
 use krikos::SecretKey;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-/// Gets a secret key from the IROH_SECRET environment variable or generates a new random one.
+/// Gets a secret key from the KRIKOS_SECRET environment variable or generates a new random one.
 /// If the environment variable is set, it must be a valid string representation of a secret key.
 pub fn get_or_generate_secret_key() -> Result<SecretKey> {
     use std::{env, str::FromStr};
 
     use anyhow::Context;
-    if let Ok(secret) = env::var("IROH_SECRET") {
+    if let Ok(secret) = env::var("KRIKOS_SECRET") {
         // Parse the secret key from string
         SecretKey::from_str(&secret).context("Invalid secret key format")
     } else {
@@ -19,7 +19,7 @@ pub fn get_or_generate_secret_key() -> Result<SecretKey> {
             "Generated new secret key: {}",
             hex::encode(secret_key.to_bytes())
         );
-        println!("To reuse this key, set the IROH_SECRET environment variable to this value");
+        println!("To reuse this key, set the KRIKOS_SECRET environment variable to this value");
         Ok(secret_key)
     }
 }

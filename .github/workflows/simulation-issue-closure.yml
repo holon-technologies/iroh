@@ -18,7 +18,7 @@ jobs:
     name: Require promoted passing simulation regression
     if: >-
       contains(github.event.issue.labels.*.name, 'simulation') &&
-      contains(github.event.issue.body || '', '<!-- iroh-sim-signature:')
+      contains(github.event.issue.body || '', '<!-- krikos-sim-signature:')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Build source-bound simulator
         id: build
-        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+        run: cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
 
       - name: Validate closure prerequisites
         id: closure
@@ -68,9 +68,9 @@ jobs:
                 --event "$GITHUB_EVENT_PATH" \
                 --repository "${{ github.repository }}" \
                 --revision "$revision" \
-                --corpus iroh-sim/corpus \
+                --corpus krikos-sim/corpus \
                 --checks "$RUNNER_TEMP/check-runs.json" \
-                --sim-bin iroh-sim/target/release/cargo-sim \
+                --sim-bin krikos-sim/target/release/cargo-sim \
                 --output "$RUNNER_TEMP/simulation-issue-closure.json"
               closure_status=$?
             else

@@ -14,7 +14,7 @@ use support::{
     TraceBuffer, first_trace_divergence,
 };
 
-const ALPN: &[u8] = b"iroh-sim/endpoint-echo/1";
+const ALPN: &[u8] = b"krikos-sim/endpoint-echo/1";
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn named_ipv6_stream_scenario_runs_production_quic_to_clean_shutdown() {

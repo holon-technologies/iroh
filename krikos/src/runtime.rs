@@ -294,7 +294,7 @@ impl noq::Runtime for Runtime {
         });
     }
 
-    // We're not actually using this function in iroh
+    // We're not actually using this function in krikos
     #[cfg(not(wasm_browser))]
     fn wrap_udp_socket(
         &self,

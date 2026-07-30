@@ -1,14 +1,14 @@
-# iroh-blobs
+# krikos-blobs
 
-**NOTE: this version of iroh-blobs is not yet considered production quality. For now, if you need production quality, use iroh-blobs 0.35**
+**NOTE: this version of krikos-blobs is not yet considered production quality. For now, if you need production quality, use krikos-blobs 0.35**
 
-This crate provides blob and blob sequence transfer support for iroh. It implements a simple request-response protocol based on BLAKE3 verified streaming.
+This crate provides blob and blob sequence transfer support for krikos. It implements a simple request-response protocol based on BLAKE3 verified streaming.
 
 A request describes data in terms of BLAKE3 hashes and byte ranges. It is possible to request blobs or ranges of blobs, as well as entire sequences of blobs in one request.
 
 The requester opens a QUIC stream to the provider and sends the request. The provider answers with the requested data, encoded as [BLAKE3](https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf) verified streams, on the same QUIC stream.
 
-This crate is used together with [iroh](https://crates.io/crates/iroh). Connection establishment is left up to the user or higher level APIs.
+This crate is used together with [krikos](https://crates.io/crates/iroh). Connection establishment is left up to the user or higher level APIs.
 
 ## Concepts
 
@@ -26,19 +26,19 @@ A node can be a provider and a requester at the same time.
 
 ## Getting started
 
-The `iroh-blobs` protocol was designed to be used in conjunction with `iroh`. [Iroh](https://docs.rs/iroh) is a networking library for making direct connections, these connections are what power the data transfers in `iroh-blobs`.
+The `krikos-blobs` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are what power the data transfers in `krikos-blobs`.
 
-Iroh provides a [`Router`](https://docs.rs/iroh/latest/iroh/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/iroh/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
-Here is a basic example of how to set up `iroh-blobs` with `iroh`:
+Here is a basic example of how to set up `krikos-blobs` with `krikos`:
 
 ```rust,no_run
-use iroh::{protocol::Router, Endpoint, endpoint::presets};
-use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ticket::BlobTicket};
+use krikos::{protocol::Router, Endpoint, endpoint::presets};
+use krikos_blobs::{store::mem::MemStore, BlobsProtocol, ticket::BlobTicket};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // create an iroh endpoint that includes the standard address lookup mechanisms
+    // create an krikos endpoint that includes the standard address lookup mechanisms
     // we've built at number0
     let endpoint = Endpoint::bind(presets::N0).await?;
 
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     // build the router
     let blobs = BlobsProtocol::new(&store, None);
     let router = Router::builder(endpoint)
-        .accept(iroh_blobs::ALPN, blobs)
+        .accept(krikos_blobs::ALPN, blobs)
         .spawn();
 
     println!("We are now serving {}", ticket);
@@ -69,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
 
 ## Examples
 
-Examples that use `iroh-blobs` can be found in [this repo](https://github.com/n0-computer/iroh-blobs/tree/main/examples).
+Examples that use `krikos-blobs` can be found in [this repo](https://github.com/n0-computer/iroh-blobs/tree/main/examples).
 
 # License
 

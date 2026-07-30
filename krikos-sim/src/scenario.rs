@@ -1,4 +1,4 @@
-//! Strict Stage 2 named scenarios running production Iroh endpoints over synthetic IP.
+//! Strict Stage 2 named scenarios running production Krikos endpoints over synthetic IP.
 
 use std::{fmt, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -20,7 +20,7 @@ use crate::{
 
 /// Current strict schema for Stage 2 scenario files.
 pub const STAGE2_SCENARIO_SCHEMA_VERSION: u16 = 1;
-const ALPN: &[u8] = b"iroh-sim/scenario/1";
+const ALPN: &[u8] = b"krikos-sim/scenario/1";
 
 /// Supported handwritten Stage 2 scenario descriptor.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -271,7 +271,7 @@ impl ScenarioHarness {
         network.add_interface("server", "eth0", "lan", [IpCidr::new(server_ip, prefix)?])?;
         let client = self.bind_endpoint("client", client_addr, [1; 32]).await?;
         let server = self.bind_endpoint("server", server_addr, [2; 32]).await?;
-        let payload = b"iroh-stage2-production-path";
+        let payload = b"krikos-stage2-production-path";
 
         let server_id = server.id();
         let server_operation = {

@@ -1,10 +1,10 @@
 //! Peer-to-peer QUIC connections.
 //!
-//! iroh is a library to establish direct connectivity between peers. It exposes an
+//! krikos is a library to establish direct connectivity between peers. It exposes an
 //! interface to [QUIC] connections and streams to the user, while implementing direct
 //! connectivity using [hole punching] complemented by relay servers under the hood.
 //!
-//! An iroh endpoint is created and controlled by the [`Endpoint`], e.g. connecting to
+//! An krikos endpoint is created and controlled by the [`Endpoint`], e.g. connecting to
 //! another endpoint:
 //!
 //! ```no_run
@@ -63,7 +63,7 @@
 //!
 //! # Connection Establishment
 //!
-//! An iroh connection between two iroh endpoints is usually established with the help
+//! An krikos connection between two krikos endpoints is usually established with the help
 //! of a Relay server.  When creating the [`Endpoint`] it connects to the closest Relay
 //! server and designates this as the *home relay*.  When other endpoints want to connect they
 //! first establish connection via this home relay.  As soon as connection between the two
@@ -71,7 +71,7 @@
 //! punching] if needed.  Once the direct connection is established the relay server is no
 //! longer involved in the connection.
 //!
-//! If one of the iroh endpoints can be reached directly, connectivity can also be
+//! If one of the krikos endpoints can be reached directly, connectivity can also be
 //! established without involving a Relay server.  This is done by using the endpoint's
 //! listening addresses in the connection establishment instead of the [`RelayUrl`] which
 //! is used to identify a Relay server.  Of course it is also possible to use both a
@@ -81,12 +81,12 @@
 //! # Encryption
 //!
 //! The connection is encrypted using TLS, like standard QUIC connections.  Unlike standard
-//! QUIC there is no client, server or server TLS key and certificate chain.  Instead each iroh endpoint has a
-//! unique [`SecretKey`] used to authenticate and encrypt the connection.  When an iroh
+//! QUIC there is no client, server or server TLS key and certificate chain.  Instead each krikos endpoint has a
+//! unique [`SecretKey`] used to authenticate and encrypt the connection.  When an krikos
 //! endpoint connects, it uses the corresponding [`PublicKey`] to ensure the connection is only
 //! established with the intended peer.
 //!
-//! Since the [`PublicKey`] is also used to identify the iroh endpoint it is also known as
+//! Since the [`PublicKey`] is also used to identify the krikos endpoint it is also known as
 //! the [`EndpointId`].  As encryption is an integral part of TLS as used in QUIC this
 //! [`EndpointId`] is always a required parameter to establish a connection.
 //!
@@ -96,10 +96,10 @@
 //!
 //! # Relay Servers
 //!
-//! Relay servers exist to ensure all iroh endpoints are always reachable.  They accept
-//! **encrypted** traffic for iroh endpoints which are connected to them, forwarding it to
+//! Relay servers exist to ensure all krikos endpoints are always reachable.  They accept
+//! **encrypted** traffic for krikos endpoints which are connected to them, forwarding it to
 //! the correct destination based on the [`EndpointId`] only.  Since endpoints only send encrypted
-//! traffic, the Relay servers can not decode any traffic for other iroh endpoints and only
+//! traffic, the Relay servers can not decode any traffic for other krikos endpoints and only
 //! forward it.
 //!
 //! The connections to the Relay server are initiated as normal HTTP 1.1 connections using
@@ -109,7 +109,7 @@
 //! connection.  However if this is not possible the connection will keep flowing over the
 //! relay server as a fallback.
 //!
-//! Additionally to providing reliable connectivity between iroh endpoints, Relay servers
+//! Additionally to providing reliable connectivity between krikos endpoints, Relay servers
 //! provide some functions to assist in [hole punching].  They have various services to help
 //! endpoints understand their own network situation.  This includes offering a [QAD] server,
 //! but also a few HTTP extra endpoints as well as responding to ICMP echo requests.
@@ -119,8 +119,8 @@
 //!
 //! # Connections and Streams
 //!
-//! An iroh endpoint is managed using the [`Endpoint`] and this is used to create or accept
-//! connections to other endpoints.  To establish a connection to an iroh endpoint you need to
+//! An krikos endpoint is managed using the [`Endpoint`] and this is used to create or accept
+//! connections to other endpoints.  To establish a connection to an krikos endpoint you need to
 //! know three pieces of information:
 //!
 //! - The [`EndpointId`] of the peer to connect to.
@@ -160,7 +160,7 @@
 //! ## Address Lookup
 //!
 //! The need to know the [`RelayUrl`] *or* some direct addresses in addition to the
-//! [`EndpointId`] to connect to an iroh endpoint can be an obstacle.  To address this, the
+//! [`EndpointId`] to connect to an krikos endpoint can be an obstacle.  To address this, the
 //! [`endpoint::Builder`] allows you to configure an [`address_lookup`] service.
 //!
 //! The [`address_lookup::DnsAddressLookup`] service is an address lookup service which will publish the [`RelayUrl`]
@@ -182,7 +182,7 @@
 //! use n0_error::{Result, StackResultExt, StdResultExt};
 //!
 //! async fn connect(addr: EndpointAddr) -> Result<()> {
-//!     // The Endpoint is the central object that manages an iroh node.
+//!     // The Endpoint is the central object that manages an krikos node.
 //!     let ep = Endpoint::bind(presets::N0).await?;
 //!
 //!     // Establish a QUIC connection, open a bi-directional stream, exchange messages.
@@ -264,7 +264,7 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links, unreachable_pub)]
 #![cfg_attr(wasm_browser, allow(unused))]
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
-#![cfg_attr(iroh_docsrs, feature(doc_cfg))]
+#![cfg_attr(krikos_docsrs, feature(doc_cfg))]
 
 mod socket;
 pub mod tls;

@@ -2,7 +2,7 @@
 name = "krikos-blobs"
 version.workspace = true
 edition.workspace = true
-description = "content-addressed blobs for iroh"
+description = "content-addressed blobs for krikos"
 license.workspace = true
 authors = ["dignifiedquire <me@dignifiedquire.com>", "n0 team"]
 repository.workspace = true
@@ -77,7 +77,7 @@ cfg_aliases = "0.2.1"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "iroh_blobs_docsrs"]
+rustdoc-args = ["--cfg", "krikos_blobs_docsrs"]
 
 [package.metadata.release]
 pre-release-hook = ["git", "cliff", "--unreleased", "--tag", "{{version}}", "--prepend", "CHANGELOG.md"]

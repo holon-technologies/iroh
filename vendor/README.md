@@ -8,7 +8,7 @@ plus the sibling `*.patch` file, and nothing else.
 |---|---|---|---|
 | `noq-1.1.0/` | noq 1.1.0 | `noq-1.1.0.patch` | Production. Bounded event queues, per-poll budgets, connection-lifetime ownership. Published as `krikos-noq`. |
 | `hickory-server-0.26.1/` | hickory-server 0.26.1 | `hickory-server-0.26.1.patch` | Production. Pre-spawn UDP-request and TCP-connection admission limits. Published as `krikos-hickory-server`. |
-| `rustls-0.23.41/` | rustls 0.23.41 | `rustls-0.23.41.patch` | Simulator only. Run-scoped entropy and key-exchange visibility for deterministic replay. Patched in by `iroh-sim/Cargo.toml`; no production crate resolves it. |
+| `rustls-0.23.41/` | rustls 0.23.41 | `rustls-0.23.41.patch` | Simulator only. Run-scoped entropy and key-exchange visibility for deterministic replay. Patched in by `krikos-sim/Cargo.toml`; no production crate resolves it. |
 
 Each directory's `KRIKOS-VENDOR.md` documents the exact delta, the update
 procedure, and why the patch cannot be dropped.

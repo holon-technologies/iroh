@@ -1,4 +1,4 @@
-//! Utilities for iroh-gossip networking
+//! Utilities for krikos-gossip networking
 
 use std::{
     collections::{HashMap, hash_map},

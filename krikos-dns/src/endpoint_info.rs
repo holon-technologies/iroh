@@ -1,6 +1,6 @@
 //! Support for handling DNS resource records for dialing by [`EndpointId`].
 //!
-//! Dialing by [`EndpointId`] is supported by iroh endpoints publishing [Pkarr] records to DNS
+//! Dialing by [`EndpointId`] is supported by krikos endpoints publishing [Pkarr] records to DNS
 //! servers or the Mainline DHT.  This module supports creating and parsing these records.
 //!
 //! [`EndpointInfo`] combines an [`krikos_base::EndpointId`] with [`EndpointData`]:
@@ -14,7 +14,7 @@
 //!
 //! `_iroh.<z32-endpoint-id>.<origin-domain> TXT`
 //!
-//! - `_iroh` is the record name as defined by [`IROH_TXT_NAME`].
+//! - `_iroh` is the record name as defined by [`KRIKOS_TXT_NAME`].
 //!
 //! - `<z32-endpoint-id>` is the [z-base-32] encoding of the [`EndpointId`].
 //!
@@ -29,14 +29,14 @@
 //!
 //! - `relay=<url>`: The home [`RelayUrl`] of this endpoint.
 //!
-//! - `addr=<addr> <addr>`: A space-separated list of sockets addresses for this iroh endpoint.
+//! - `addr=<addr> <addr>`: A space-separated list of sockets addresses for this krikos endpoint.
 //!   Each address is an IPv4 or IPv6 address with a port.
 //!
 //! [Pkarr]: https://app.pkarr.org
 //! [z-base-32]: https://philzimmermann.com/docs/human-oriented-base-32-encoding.txt
 //! [RFC1464]: https://www.rfc-editor.org/rfc/rfc1464
 //! [`RelayUrl`]: krikos_base::RelayUrl
-//! [`IROH_TXT_NAME`]: crate::IROH_TXT_NAME
+//! [`KRIKOS_TXT_NAME`]: crate::KRIKOS_TXT_NAME
 //! [`N0_DNS_ENDPOINT_ORIGIN_PROD`]: crate::dns::N0_DNS_ENDPOINT_ORIGIN_PROD
 //! [`N0_DNS_ENDPOINT_ORIGIN_STAGING`]: crate::dns::N0_DNS_ENDPOINT_ORIGIN_STAGING
 
@@ -55,14 +55,14 @@ use n0_error::{ensure, stack_error};
 use url::Url;
 
 use crate::{
-    attrs::{EncodingError, IrohAttr, ParseError, TxtAttrs},
+    attrs::{EncodingError, KrikosAttr, ParseError, TxtAttrs},
     pkarr,
 };
 
 /// Data about an endpoint that may be published to and resolved from discovery services.
 ///
 /// This includes an optional [`RelayUrl`], a set of direct addresses, and the optional
-/// [`UserData`], a string that can be set by applications and is not parsed or used by iroh
+/// [`UserData`], a string that can be set by applications and is not parsed or used by krikos
 /// itself.
 ///
 /// This struct does not include the endpoint's [`EndpointId`], only the data *about* a certain
@@ -230,7 +230,7 @@ type AddrFilterFn =
     dyn Fn(&Vec<TransportAddr>) -> Cow<'_, Vec<TransportAddr>> + Send + Sync + 'static;
 
 /// A filter and/or reordering function applied to transport addresses,
-/// typically used by AddressLookup services in iroh before publishing.
+/// typically used by AddressLookup services in krikos before publishing.
 ///
 /// Takes the full set of transport addresses and returns them as an ordered `Vec`,
 /// allowing both filtering (by omitting addresses) and reordering (by controlling
@@ -298,7 +298,7 @@ impl From<EndpointAddr> for EndpointData {
 ///
 /// Under the hood this is a UTF-8 string no longer than [`UserData::MAX_LENGTH`] bytes.
 ///
-/// Iroh does not keep track of or examine the user-defined data.
+/// Krikos does not keep track of or examine the user-defined data.
 ///
 /// `UserData` implements [`FromStr`] and [`TryFrom<String>`], so you can
 /// convert `&str` and `String` into `UserData` easily.
@@ -423,7 +423,7 @@ impl EndpointInfo {
     }
 
     /// Converts to TXT attributes.
-    pub(crate) fn to_attrs(&self) -> TxtAttrs<IrohAttr> {
+    pub(crate) fn to_attrs(&self) -> TxtAttrs<KrikosAttr> {
         endpoint_info_to_attrs(self)
     }
 
@@ -455,13 +455,13 @@ impl EndpointInfo {
         domain_name: String,
         lookup: impl Iterator<Item = impl Display>,
     ) -> Result<Self, ParseError> {
-        let attrs: TxtAttrs<IrohAttr> = TxtAttrs::from_txt_lookup(domain_name, lookup)?;
+        let attrs: TxtAttrs<KrikosAttr> = TxtAttrs::from_txt_lookup(domain_name, lookup)?;
         Ok(endpoint_info_from_attrs(&attrs))
     }
 
     /// Parses a [`EndpointInfo`] from a [`pkarr::SignedPacket`].
     pub fn from_pkarr_signed_packet(packet: &pkarr::SignedPacket) -> Result<Self, ParseError> {
-        let attrs: TxtAttrs<IrohAttr> = TxtAttrs::from_pkarr_signed_packet(packet)?;
+        let attrs: TxtAttrs<KrikosAttr> = TxtAttrs::from_pkarr_signed_packet(packet)?;
         Ok(endpoint_info_from_attrs(&attrs))
     }
 
@@ -483,37 +483,37 @@ impl EndpointInfo {
 }
 
 /// Convert [`EndpointInfo`] to [`TxtAttrs`].
-fn endpoint_info_to_attrs(info: &EndpointInfo) -> TxtAttrs<IrohAttr> {
+fn endpoint_info_to_attrs(info: &EndpointInfo) -> TxtAttrs<KrikosAttr> {
     let mut attrs = vec![];
     for addr in &info.data.addrs {
         match addr {
-            TransportAddr::Relay(url) => attrs.push((IrohAttr::Relay, url.to_string())),
-            TransportAddr::Ip(addr) => attrs.push((IrohAttr::Addr, addr.to_string())),
-            TransportAddr::Custom(addr) => attrs.push((IrohAttr::Addr, addr.to_string())),
+            TransportAddr::Relay(url) => attrs.push((KrikosAttr::Relay, url.to_string())),
+            TransportAddr::Ip(addr) => attrs.push((KrikosAttr::Addr, addr.to_string())),
+            TransportAddr::Custom(addr) => attrs.push((KrikosAttr::Addr, addr.to_string())),
             _ => {}
         }
     }
 
     if let Some(user_data) = &info.data.user_data {
-        attrs.push((IrohAttr::UserData, user_data.to_string()));
+        attrs.push((KrikosAttr::UserData, user_data.to_string()));
     }
     TxtAttrs::from_parts(info.endpoint_id, attrs.into_iter())
 }
 
 /// Parse [`EndpointInfo`] from [`TxtAttrs`].
-fn endpoint_info_from_attrs(attrs: &TxtAttrs<IrohAttr>) -> EndpointInfo {
+fn endpoint_info_from_attrs(attrs: &TxtAttrs<KrikosAttr>) -> EndpointInfo {
     use krikos_base::CustomAddr;
 
     let endpoint_id = attrs.endpoint_id();
     let a = attrs.attrs();
     let relay_urls = a
-        .get(&IrohAttr::Relay)
+        .get(&KrikosAttr::Relay)
         .into_iter()
         .flatten()
         .filter_map(|s| Url::parse(s).ok())
         .map(|url| TransportAddr::Relay(url.into()));
     let addrs = a
-        .get(&IrohAttr::Addr)
+        .get(&KrikosAttr::Addr)
         .into_iter()
         .flatten()
         .filter_map(|s| {
@@ -527,7 +527,7 @@ fn endpoint_info_from_attrs(attrs: &TxtAttrs<IrohAttr>) -> EndpointInfo {
         });
 
     let user_data = a
-        .get(&IrohAttr::UserData)
+        .get(&KrikosAttr::UserData)
         .into_iter()
         .flatten()
         .next()

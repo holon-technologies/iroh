@@ -1,4 +1,4 @@
-//! HTTP server part of iroh-dns-server
+//! HTTP server part of krikos-dns-server
 
 #[cfg(feature = "test-utils")]
 use std::time::Duration;
@@ -79,7 +79,7 @@ pub struct HttpsConfig {
     pub letsencrypt_prod: Option<bool>,
 }
 
-/// The HTTP(S) server part of iroh-dns-server
+/// The HTTP(S) server part of krikos-dns-server
 #[derive(Debug)]
 pub(crate) struct HttpServer {
     tasks: JoinSet<std::io::Result<()>>,

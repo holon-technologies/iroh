@@ -26,11 +26,11 @@ cert_mode = "self_signed"
 [dns]
 port = 5300
 bind_addr = "127.0.0.1"
-default_soa = "dns1.irohdns.example hostmaster.irohdns.example 0 10800 3600 604800 3600"
+default_soa = "dns1.krikosdns.example hostmaster.krikosdns.example 0 10800 3600 604800 3600"
 default_ttl = 900
-origins = ["irohdns.example.", "."]
+origins = ["krikosdns.example.", "."]
 rr_a = "127.0.0.1"
-rr_ns = "ns1.irohdns.example."
+rr_ns = "ns1.krikosdns.example."
 
 [mainline]
 enabled = true

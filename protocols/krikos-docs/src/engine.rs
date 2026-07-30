@@ -167,7 +167,7 @@ impl Engine {
     /// Start to sync a document.
     ///
     /// If `peers` is non-empty, it will both do an initial set-reconciliation sync with each peer,
-    /// and join an iroh-gossip swarm with these peers to receive and broadcast document updates.
+    /// and join an krikos-gossip swarm with these peers to receive and broadcast document updates.
     pub async fn start_sync(&self, namespace: NamespaceId, peers: Vec<EndpointAddr>) -> Result<()> {
         if peers.len() > MAX_PEERS_PER_DOCUMENT {
             return Err(
@@ -244,8 +244,11 @@ impl Engine {
         Ok(a.or(b))
     }
 
-    /// Handle an incoming iroh-docs connection.
-    pub async fn handle_connection(&self, conn: krikos::endpoint::Connection) -> anyhow::Result<()> {
+    /// Handle an incoming krikos-docs connection.
+    pub async fn handle_connection(
+        &self,
+        conn: krikos::endpoint::Connection,
+    ) -> anyhow::Result<()> {
         self.to_live_actor
             .send(ToLiveActor::HandleConnection { conn })
             .await?;
@@ -402,7 +405,7 @@ impl DefaultAuthorStorage {
                     })?;
                     if docs_store.export_author(author_id).await?.is_none() {
                         bail!(
-                            "The default author is missing from the docs store. To recover, delete the file `{}`. Then iroh will create a new default author.",
+                            "The default author is missing from the docs store. To recover, delete the file `{}`. Then krikos will create a new default author.",
                             path.to_string_lossy()
                         )
                     }

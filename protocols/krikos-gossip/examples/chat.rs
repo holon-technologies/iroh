@@ -21,16 +21,16 @@ use n0_future::{StreamExt, task};
 use serde::{Deserialize, Serialize};
 use serde_byte_array::ByteArray;
 
-/// Chat over iroh-gossip
+/// Chat over krikos-gossip
 ///
-/// This broadcasts signed messages over iroh-gossip and verifies signatures
+/// This broadcasts signed messages over krikos-gossip and verifies signatures
 /// on received messages.
 ///
 /// By default a new endpoint id is created when starting the example. To reuse your identity,
 /// set the `--secret-key` flag with the secret key printed on a previous invocation.
 ///
 /// By default, the relay server run by n0 is used. To use a local relay server, run
-///     cargo run --bin iroh-relay --features iroh-relay -- --dev
+///     cargo run --bin krikos-relay --features krikos-relay -- --dev
 /// in another terminal and then set the `-d http://localhost:3340` flag on this example.
 #[derive(Parser, Debug)]
 struct Args {

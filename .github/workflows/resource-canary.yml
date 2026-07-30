@@ -22,7 +22,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Build optimized resource canary
         run: >-
-          cargo build --profile optimized-release -p iroh-bench
+          cargo build --profile optimized-release -p krikos-bench
           --features resource-canary --bin resource-canary
       - name: Validate hosted runner without load
         run: >-

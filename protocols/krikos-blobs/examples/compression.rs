@@ -1,4 +1,4 @@
-/// Example how to use compression with iroh-blobs
+/// Example how to use compression with krikos-blobs
 ///
 /// We create a derived protocol that compresses both requests and responses using lz4
 /// or any other compression algorithm supported by async-compression.

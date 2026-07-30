@@ -1,6 +1,6 @@
 # Relays
 
-When an Iroh endpoint starts up, it does a latency test to see which known relay endpoint it is “closest to”. That relay server is considered the Iroh endpoint's home relay server.
+When an Krikos endpoint starts up, it does a latency test to see which known relay endpoint it is “closest to”. That relay server is considered the Krikos endpoint's home relay server.
 
 An endpoint may be connected to multiple relay servers, but it will advertise its home relay endpoint as the one best used to hole-punch or relay packets through.
 

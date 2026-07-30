@@ -6,8 +6,8 @@
 use std::{fmt::Debug, future::Future, io};
 
 use bao_tree::ChunkRanges;
-use krikos::endpoint::{self, ConnectionError, VarInt};
 use iroh_io::{AsyncStreamReader, AsyncStreamWriter};
+use krikos::endpoint::{self, ConnectionError, VarInt};
 use n0_error::{Result, e, stack_error};
 use n0_future::{
     StreamExt,

@@ -607,7 +607,7 @@ fn resolve_swarm(bytes: &[u8]) -> SwarmSpec {
     match template {
         support::SwarmTemplate::Embedded(spec) => *spec,
         support::SwarmTemplate::Referenced(reference) => {
-            let relative = reference.base_path.strip_prefix("iroh-sim/").unwrap();
+            let relative = reference.base_path.strip_prefix("krikos-sim/").unwrap();
             let base =
                 std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative))
                     .unwrap();

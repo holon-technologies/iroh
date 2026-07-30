@@ -1,4 +1,4 @@
-//! Protocols used by the iroh-relay
+//! Protocols used by the krikos-relay
 
 pub mod common;
 pub mod handshake;

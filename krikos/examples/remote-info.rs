@@ -1,6 +1,6 @@
-//! Example for using an iroh hook to collect information about remote endpoints.
+//! Example for using an krikos hook to collect information about remote endpoints.
 //!
-//! This implements a [`RemoteMap`] which collects information about all connections and paths from an iroh endpoint.
+//! This implements a [`RemoteMap`] which collects information about all connections and paths from an krikos endpoint.
 //! The remote map can be cloned and inspected from other tasks at any time. It contains both data about all
 //! currently active connections, and an aggregate status for each remote that remains available even after
 //! all connections to the endpoint have been closed.
@@ -14,7 +14,7 @@ use tracing::{Instrument, info, info_span};
 
 use crate::remote_map::RemoteMap;
 
-const ALPN: &[u8] = b"iroh/test";
+const ALPN: &[u8] = b"krikos/test";
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result {
@@ -156,7 +156,7 @@ async fn run_clients(server_addr: EndpointAddr, count: usize) -> Result {
 }
 
 mod remote_map {
-    //! Implementation of a remote map and hook to track information about all remote endpoints to which an iroh endpoint
+    //! Implementation of a remote map and hook to track information about all remote endpoints to which an krikos endpoint
     //! has connections with.
 
     use std::{

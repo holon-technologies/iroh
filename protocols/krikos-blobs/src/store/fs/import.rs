@@ -44,7 +44,7 @@ use crate::{
         },
     },
     store::{
-        IROH_BLOCK_SIZE,
+        KRIKOS_BLOCK_SIZE,
         fs::reflink_or_copy_with_progress,
         util::{DD, MemOrFile},
     },
@@ -209,7 +209,7 @@ async fn import_bytes_tiny_impl(
         }
     } else {
         // we still know that computing the outboard will be super fast
-        let outboard = PreOrderMemOutboard::create(&cmd.data, IROH_BLOCK_SIZE);
+        let outboard = PreOrderMemOutboard::create(&cmd.data, KRIKOS_BLOCK_SIZE);
         ImportEntry {
             hash: outboard.root.into(),
             format: cmd.format,
@@ -377,7 +377,7 @@ async fn compute_outboard(
     tx: &mut mpsc::Sender<AddProgressItem>,
 ) -> io::Result<ImportEntry> {
     let size = source.size();
-    let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+    let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
     let root = bao_tree::blake3::Hash::from_bytes([0; 32]);
     let outboard_size = raw_outboard_size(size);
     let send_progress = OutboardProgress::ref_cast_mut(tx);
@@ -535,7 +535,7 @@ mod tests {
     async fn test_import_byte_stream_task(data: Bytes, options: Arc<Options>) -> TestResult<()> {
         let stream: BoxedByteStream =
             Box::pin(stream::iter(chunk_bytes(data.clone(), 999).map(Ok)));
-        let expected_outboard = PreOrderMemOutboard::create(data.as_ref(), IROH_BLOCK_SIZE);
+        let expected_outboard = PreOrderMemOutboard::create(data.as_ref(), KRIKOS_BLOCK_SIZE);
         // make the channel absurdly large, so we don't have to drain it
         let (mut tx, rx) = mpsc::channel(1024 * 1024);
         let data = stream.collect::<Vec<_>>().await;
@@ -564,7 +564,7 @@ mod tests {
     async fn test_import_file_task(data: Bytes, options: Arc<Options>) -> TestResult<()> {
         let path = options.path.temp_file_name();
         std::fs::write(&path, &data)?;
-        let expected_outboard = PreOrderMemOutboard::create(data.as_ref(), IROH_BLOCK_SIZE);
+        let expected_outboard = PreOrderMemOutboard::create(data.as_ref(), KRIKOS_BLOCK_SIZE);
         // make the channel absurdly large, so we don't have to drain it
         let (mut tx, rx) = mpsc::channel(1024 * 1024);
         let cmd = ImportPathRequest {

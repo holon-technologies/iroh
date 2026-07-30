@@ -20,7 +20,7 @@ pub use partial_mem_storage::PartialMemStorage;
 #[cfg(feature = "fs-store")]
 mod mem_or_file;
 #[cfg(feature = "fs-store")]
-#[cfg_attr(iroh_blobs_docsrs, doc(cfg(feature = "fs-store")))]
+#[cfg_attr(krikos_blobs_docsrs, doc(cfg(feature = "fs-store")))]
 pub use mem_or_file::{FixedSize, MemOrFile};
 
 /// A named, persistent tag.
@@ -420,12 +420,12 @@ pub mod tests {
     use bao_tree::{ChunkRanges, io::outboard::PreOrderMemOutboard};
     use n0_error::{Result, StdResultExt};
 
-    use crate::{hash::Hash, store::IROH_BLOCK_SIZE};
+    use crate::{hash::Hash, store::KRIKOS_BLOCK_SIZE};
 
     /// Create n0 flavoured bao. Note that this can be used to request ranges below a chunk group size,
     /// which can not be exported via bao because we don't store hashes below the chunk group level.
     pub fn create_n0_bao(data: &[u8], ranges: &ChunkRanges) -> Result<(Hash, Vec<u8>)> {
-        let outboard = PreOrderMemOutboard::create(data, IROH_BLOCK_SIZE);
+        let outboard = PreOrderMemOutboard::create(data, KRIKOS_BLOCK_SIZE);
         let mut encoded = Vec::new();
         let size = data.len() as u64;
         encoded.extend_from_slice(&size.to_le_bytes());

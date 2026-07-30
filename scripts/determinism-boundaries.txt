@@ -182,10 +182,10 @@ clock-timer	krikos/bench/src/canary/workloads.rs:674	let started = StdInstant::n
 clock-timer	krikos/bench/src/canary/workloads.rs:675	let rejection = tokio::time::timeout(
 clock-timer	krikos/bench/src/canary/workloads.rs:719	let next = tokio::time::Instant::now()
 clock-timer	krikos/bench/src/canary/workloads.rs:723	tokio::time::sleep_until(next).await;
-clock-timer	krikos/bench/src/iroh.rs:164	let download_start = Instant::now();
-clock-timer	krikos/bench/src/iroh.rs:244	let start = Instant::now();
-clock-timer	krikos/bench/src/iroh.rs:255	let start = Instant::now();
-clock-timer	krikos/bench/src/iroh.rs:77	let client_start = std::time::Instant::now();
+clock-timer	krikos/bench/src/krikos.rs:164	let download_start = Instant::now();
+clock-timer	krikos/bench/src/krikos.rs:244	let start = Instant::now();
+clock-timer	krikos/bench/src/krikos.rs:255	let start = Instant::now();
+clock-timer	krikos/bench/src/krikos.rs:77	let client_start = std::time::Instant::now();
 clock-timer	krikos/bench/src/lib.rs:236	let start = Instant::now();
 clock-timer	krikos/bench/src/noq.rs:131	let download_start = Instant::now();
 clock-timer	krikos/bench/src/noq.rs:211	let start = Instant::now();
@@ -225,36 +225,36 @@ clock-timer	krikos/src/endpoint/connection.rs:1736	tokio::time::pause();
 clock-timer	krikos/src/endpoint/connection.rs:1743	tokio::time::timeout(Duration::from_nanos(1), async {
 clock-timer	krikos/src/endpoint/connection.rs:1748	tokio::time::timeout(Duration::from_nanos(1), async {
 clock-timer	krikos/src/endpoint/quic.rs:711	/// Defaults to [`noq::StdSystemTime`], which simply calls [`SystemTime::now()`](std::time::SystemTime::now).
-clock-timer	krikos/src/endpoint/tests.rs:1045	let mut addr = tokio::time::timeout(Duration::from_secs(10), async move {
-clock-timer	krikos/src/endpoint/tests.rs:1243	let _conn = tokio::time::timeout(
-clock-timer	krikos/src/endpoint/tests.rs:1293	tokio::time::sleep(Duration::from_millis(100)).await;
-clock-timer	krikos/src/endpoint/tests.rs:1304	tokio::time::sleep(Duration::from_millis(100)).await;
-clock-timer	krikos/src/endpoint/tests.rs:1582	let t0 = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:1588	let t1 = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2038	tokio::time::timeout(Duration::from_secs(5), async {
-clock-timer	krikos/src/endpoint/tests.rs:2040	tokio::time::sleep(Duration::from_millis(10)).await
-clock-timer	krikos/src/endpoint/tests.rs:2104	let now = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2186	tokio::time::timeout(Duration::from_secs(1), async {
-clock-timer	krikos/src/endpoint/tests.rs:2209	tokio::time::timeout(Duration::from_secs(1), endpoint.close())
-clock-timer	krikos/src/endpoint/tests.rs:2226	let now = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2227	tokio::time::timeout(Duration::from_secs(5), ep.close())
-clock-timer	krikos/src/endpoint/tests.rs:2254	tokio::time::sleep(Duration::from_millis(10)).await;
-clock-timer	krikos/src/endpoint/tests.rs:2257	tokio::time::timeout(Duration::from_secs(5), ep.close())
-clock-timer	krikos/src/endpoint/tests.rs:2278	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2285	let res = tokio::time::timeout(Duration::from_millis(1000), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2291	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
-clock-timer	krikos/src/endpoint/tests.rs:2304	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2310	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
-clock-timer	krikos/src/endpoint/tests.rs:2354	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
-clock-timer	krikos/src/endpoint/tests.rs:2378	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
-clock-timer	krikos/src/endpoint/tests.rs:285	tokio::time::timeout(Duration::from_secs(10), async {
-clock-timer	krikos/src/endpoint/tests.rs:287	tokio::time::sleep(Duration::from_millis(10)).await;
-clock-timer	krikos/src/endpoint/tests.rs:398	let (server, client) = tokio::time::timeout(
-clock-timer	krikos/src/endpoint/tests.rs:412	let test_start = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:441	let res = tokio::time::timeout(Duration::from_secs(5), async {
-clock-timer	krikos/src/endpoint/tests.rs:442	let round_start = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:484	let round_start = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:495	let res = tokio::time::timeout(
+clock-timer	krikos/src/endpoint/tests.rs:1047	let mut addr = tokio::time::timeout(Duration::from_secs(10), async move {
+clock-timer	krikos/src/endpoint/tests.rs:1245	let _conn = tokio::time::timeout(
+clock-timer	krikos/src/endpoint/tests.rs:1295	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	krikos/src/endpoint/tests.rs:1306	tokio::time::sleep(Duration::from_millis(100)).await;
+clock-timer	krikos/src/endpoint/tests.rs:1584	let t0 = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:1590	let t1 = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:2040	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	krikos/src/endpoint/tests.rs:2042	tokio::time::sleep(Duration::from_millis(10)).await
+clock-timer	krikos/src/endpoint/tests.rs:2106	let now = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:2188	tokio::time::timeout(Duration::from_secs(1), async {
+clock-timer	krikos/src/endpoint/tests.rs:2211	tokio::time::timeout(Duration::from_secs(1), endpoint.close())
+clock-timer	krikos/src/endpoint/tests.rs:2228	let now = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:2229	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	krikos/src/endpoint/tests.rs:2256	tokio::time::sleep(Duration::from_millis(10)).await;
+clock-timer	krikos/src/endpoint/tests.rs:2259	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	krikos/src/endpoint/tests.rs:2280	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2287	let res = tokio::time::timeout(Duration::from_millis(1000), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2293	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	krikos/src/endpoint/tests.rs:2306	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2312	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	krikos/src/endpoint/tests.rs:2356	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	krikos/src/endpoint/tests.rs:2380	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
+clock-timer	krikos/src/endpoint/tests.rs:287	tokio::time::timeout(Duration::from_secs(10), async {
+clock-timer	krikos/src/endpoint/tests.rs:289	tokio::time::sleep(Duration::from_millis(10)).await;
+clock-timer	krikos/src/endpoint/tests.rs:400	let (server, client) = tokio::time::timeout(
+clock-timer	krikos/src/endpoint/tests.rs:414	let test_start = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:443	let res = tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	krikos/src/endpoint/tests.rs:444	let round_start = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:486	let round_start = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:497	let res = tokio::time::timeout(
 clock-timer	krikos/src/net_report.rs:1289	tokio::time::advance(Duration::from_secs(s.after)).await;
 clock-timer	krikos/src/net_report.rs:253	last_full: Instant::now(),
 clock-timer	krikos/src/net_report.rs:309	let now = Instant::now();
@@ -398,9 +398,9 @@ entropy-random	krikos/src/test_utils/test_transport.rs:591	let s2 = SecretKey::g
 entropy-random	krikos/src/test_utils/test_transport.rs:634	let s1 = SecretKey::generate();
 entropy-random	krikos/src/test_utils/test_transport.rs:635	let s2 = SecretKey::generate();
 entropy-random	krikos/tests/patchbay/util.rs:397	let data: [u8; 8] = rand::random();
-external-state	krikos-dns-server/examples/publish.rs:65	let secret_key = match std::env::var("IROH_SECRET") {
+external-state	krikos-dns-server/examples/publish.rs:65	let secret_key = match std::env::var("KRIKOS_SECRET") {
 external-state	krikos-dns-server/src/config.rs:590	let file = tokio::fs::File::open(path)
-external-state	krikos-dns-server/src/config.rs:624	} else if let Some(val) = env::var_os("IROH_DNS_DATA_DIR") {
+external-state	krikos-dns-server/src/config.rs:624	} else if let Some(val) = env::var_os("KRIKOS_DNS_DATA_DIR") {
 external-state	krikos-dns-server/src/http.rs:147	tokio::fs::create_dir_all(&cert_cache_dir)
 external-state	krikos-dns-server/src/http/tls.rs:206	let file = tokio::fs::File::open(filename)
 external-state	krikos-dns-server/src/http/tls/acme_cache.rs:185	std::fs::write(&path, vec![0_u8; MAX_ACME_CACHE_FILE_BYTES + 1])
@@ -409,13 +409,13 @@ external-state	krikos-dns-server/src/http/tls/acme_cache.rs:64	tokio::fs::create
 external-state	krikos-dns-server/src/http/tls/acme_cache.rs:65	tokio::fs::write(path, bytes).await
 external-state	krikos-dns-server/src/store/signed_packets.rs:462	std::fs::create_dir_all(parent).with_std_context(|_| {
 external-state	krikos-dns-server/src/store/signed_packets.rs:955	let release_thread = std::thread::spawn(move || {
-external-state	krikos-relay/src/main.rs:107	let file = std::fs::File::open(filename)
-external-state	krikos-relay/src/main.rs:261	if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
-external-state	krikos-relay/src/main.rs:269	if let Ok(env_token) = std::env::var(ENV_RELAY_ACCESS_TOKEN) {
-external-state	krikos-relay/src/main.rs:632	let file = tokio::fs::File::open(path)
-external-state	krikos-relay/src/main.rs:712	let (private_key, certs) = tokio::task::spawn_blocking(move || {
-external-state	krikos-relay/src/main.rs:734	let acme_config = if let Ok(url) = std::env::var(ENV_ACME_URL) {
-external-state	krikos-relay/src/main.rs:746	if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
+external-state	krikos-relay/src/main.rs:109	let file = std::fs::File::open(filename)
+external-state	krikos-relay/src/main.rs:263	if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
+external-state	krikos-relay/src/main.rs:271	if let Ok(env_token) = std::env::var(ENV_RELAY_ACCESS_TOKEN) {
+external-state	krikos-relay/src/main.rs:634	let file = tokio::fs::File::open(path)
+external-state	krikos-relay/src/main.rs:714	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+external-state	krikos-relay/src/main.rs:736	let acme_config = if let Ok(url) = std::env::var(ENV_ACME_URL) {
+external-state	krikos-relay/src/main.rs:748	if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
 external-state	krikos-relay/src/server/acme_cache.rs:203	std::fs::write(&account_path, oversized).expect("oversized cache fixture");
 external-state	krikos-relay/src/server/acme_cache.rs:41	let file = match tokio::fs::File::open(path).await {
 external-state	krikos-relay/src/server/acme_cache.rs:66	tokio::fs::create_dir_all(&self.root).await?;
@@ -439,51 +439,51 @@ external-state	krikos-sim/src/corpus.rs:439	std::fs::create_dir(root.path().join
 external-state	krikos-sim/src/corpus.rs:450	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
 external-state	krikos-sim/src/corpus.rs:451	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
 external-state	krikos-sim/src/corpus.rs:452	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
-external-state	krikos-sim/tests/cli.rs:1016	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1037	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1118	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1184	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1017	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1038	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1119	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1185	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:121	let drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1218	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1271	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1314	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1327	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:1343	let path = std::env::temp_dir().join(format!(
+external-state	krikos-sim/tests/cli.rs:1219	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1272	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1315	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1328	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:1344	let path = std::env::temp_dir().join(format!(
 external-state	krikos-sim/tests/cli.rs:158	let digest_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:195	let coverage_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:237	let domain_drifted = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:25	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:260	let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:303	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:379	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:412	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:439	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:455	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:304	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:380	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:413	let export = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:440	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:456	let overwrite = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:46	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:478	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:513	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:535	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:551	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:569	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:587	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:622	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:645	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:669	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:700	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:725	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:744	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:777	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:802	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:819	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:837	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:861	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:888	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:922	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:948	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/cli.rs:973	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
-external-state	krikos-sim/tests/corpus_campaign.rs:285	let path = std::env::temp_dir().join(format!("iroh-sim-{label}-{}", std::process::id()));
+external-state	krikos-sim/tests/cli.rs:479	let difference = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:514	let imported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:536	let exported = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:552	let comparison = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:570	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:588	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:623	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:646	let divergent = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:670	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:701	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:726	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:745	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:778	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:803	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:820	let explained = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:838	let minimized = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:862	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:889	let resumed = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:923	let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:949	let replay = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/cli.rs:974	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
+external-state	krikos-sim/tests/corpus_campaign.rs:285	let path = std::env::temp_dir().join(format!("krikos-sim-{label}-{}", std::process::id()));
 external-state	krikos-sim/tests/coverage.rs:612	std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative))
-external-state	krikos-sim/tests/failure_replay.rs:210	std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
+external-state	krikos-sim/tests/failure_replay.rs:210	std::env::temp_dir().join(format!("krikos-sim-failure-{label}-{}", std::process::id()));
 external-state	krikos-sim/tests/trace.rs:184	let path = std::env::temp_dir().join(format!(
 external-state	krikos/bench/build.rs:3	use std::env;
 external-state	krikos/bench/build.rs:6	let profile = env::var("PROFILE").expect("Cargo always sets PROFILE for build scripts");
@@ -503,9 +503,9 @@ external-state	krikos/bench/src/bin/resource_canary.rs:1728	let mut file = OpenO
 external-state	krikos/bench/src/bin/resource_canary.rs:1813	let mut digest_file = OpenOptions::new()
 external-state	krikos/bench/src/bin/resource_canary.rs:1832	let mut file = File::open(path)?;
 external-state	krikos/bench/src/bin/resource_canary.rs:6	fs::{self, File, OpenOptions},
-external-state	krikos/examples/0rtt.rs:30	if let Ok(secret) = env::var("IROH_SECRET") {
+external-state	krikos/examples/0rtt.rs:30	if let Ok(secret) = env::var("KRIKOS_SECRET") {
 external-state	krikos/examples/transfer.rs:137	std::fs::create_dir_all(&dir)
-external-state	krikos/examples/transfer.rs:407	let secret_key = match std::env::var("IROH_SECRET") {
+external-state	krikos/examples/transfer.rs:407	let secret_key = match std::env::var("KRIKOS_SECRET") {
 external-state	krikos/examples/transfer.rs:589	match (std::env::var("QLOGDIR").ok(), log) {
 external-state	krikos/src/endpoint.rs:202	if let Some(url) = std::env::var("HTTP_PROXY")
 external-state	krikos/src/endpoint.rs:212	if let Some(url) = std::env::var("http_proxy")
@@ -513,7 +513,7 @@ external-state	krikos/src/endpoint.rs:218	if let Some(url) = std::env::var("HTTP
 external-state	krikos/src/endpoint.rs:224	if let Some(url) = std::env::var("https_proxy")
 external-state	krikos/src/endpoint.rs:239	std::env::var_os("REQUEST_METHOD").is_some()
 external-state	krikos/src/endpoint/relay_status.rs:88	matches!(std::env::var(ENV_FORCE_STAGING_RELAYS), Ok(value) if !value.is_empty())
-external-state	krikos/src/test_utils/qlog.rs:77	if std::env::var("IROH_TEST_QLOG").is_ok() {
+external-state	krikos/src/test_utils/qlog.rs:77	if std::env::var("KRIKOS_TEST_QLOG").is_ok() {
 external-state	krikos/tests/patchbay/nat.rs:14	use std::{fs::OpenOptions, io::Write, time::Duration};
 external-state	krikos/tests/patchbay/nat.rs:141	let Some(output) = std::env::var_os(OUTPUT_ENV) else {
 external-state	krikos/tests/patchbay/nat.rs:170	let mut file = OpenOptions::new()
@@ -633,8 +633,8 @@ network-environment	krikos-resolver/src/hickory.rs:277	fn lookup_ipv6(&self, _ho
 network-environment	krikos-resolver/src/hickory.rs:282	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
 network-environment	krikos-sim/benches/stage4_environment.rs:77	group.bench_function("production_builder_portmapper_disabled", |b| {
 network-environment	krikos-sim/benches/stage4_environment.rs:80	krikos::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
-network-environment	krikos-sim/src/backend.rs:364	) -> netwatch::netmon::State {
-network-environment	krikos-sim/src/backend.rs:365	let mut state = netwatch::netmon::State::fake();
+network-environment	krikos-sim/src/backend.rs:365	) -> netwatch::netmon::State {
+network-environment	krikos-sim/src/backend.rs:366	let mut state = netwatch::netmon::State::fake();
 network-environment	krikos-sim/src/monitor.rs:7	use netwatch::netmon::State;
 network-environment	krikos-sim/src/network.rs:1783	lookup_socket(&mut state, &destination_host, datagram.destination)
 network-environment	krikos-sim/src/network.rs:2221	fn lookup_socket(
@@ -702,12 +702,12 @@ network-environment	krikos/src/endpoint/builder.rs:761	pub fn portmapper_config(
 network-environment	krikos/src/endpoint/builder.rs:762	self.portmapper_config = config;
 network-environment	krikos/src/endpoint/builder.rs:89	address_lookup_user_data: Default::default(),
 network-environment	krikos/src/endpoint/builder.rs:99	portmapper_config: Default::default(),
-network-environment	krikos/src/endpoint/tests.rs:1199	let sock = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
-network-environment	krikos/src/endpoint/tests.rs:1203	let sock = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
-network-environment	krikos/src/endpoint/tests.rs:1730	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
-network-environment	krikos/src/endpoint/tests.rs:1756	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
-network-environment	krikos/src/endpoint/tests.rs:1786	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
-network-environment	krikos/src/endpoint/tests.rs:1810	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	krikos/src/endpoint/tests.rs:1201	let sock = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+network-environment	krikos/src/endpoint/tests.rs:1205	let sock = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+network-environment	krikos/src/endpoint/tests.rs:1732	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	krikos/src/endpoint/tests.rs:1758	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	krikos/src/endpoint/tests.rs:1788	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+network-environment	krikos/src/endpoint/tests.rs:1812	let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
 network-environment	krikos/src/endpoint/tests.rs:43	struct StableMonitor(n0_watcher::Watchable<netwatch::netmon::State>);
 network-environment	krikos/src/endpoint/tests.rs:47	fn interface_state(&self) -> n0_watcher::Direct<netwatch::netmon::State> {
 network-environment	krikos/src/endpoint/tests.rs:59	netwatch::netmon::State::fake(),
@@ -834,7 +834,7 @@ spawn-task	krikos-dns-server/src/http/transport.rs:185	let task = tokio::spawn(s
 spawn-task	krikos-dns-server/src/http/transport.rs:45	let mut connections = JoinSet::new();
 spawn-task	krikos-dns-server/src/store/signed_packets.rs:955	let release_thread = std::thread::spawn(move || {
 spawn-task	krikos-relay/src/client/tls.rs:200	task::spawn(async move {
-spawn-task	krikos-relay/src/main.rs:712	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+spawn-task	krikos-relay/src/main.rs:714	let (private_key, certs) = tokio::task::spawn_blocking(move || {
 spawn-task	krikos-relay/src/quic.rs:189	let task = tokio::task::spawn(
 spawn-task	krikos-relay/src/quic.rs:191	let mut set = JoinSet::new();
 spawn-task	krikos-relay/src/quic.rs:30	use tokio::{sync::Semaphore, task::JoinSet};
@@ -882,8 +882,8 @@ spawn-task	krikos/bench/src/canary/workloads.rs:2229	let mut h2_connect_tasks = 
 spawn-task	krikos/bench/src/canary/workloads.rs:2246	let mut http_connect_tasks = JoinSet::new();
 spawn-task	krikos/bench/src/canary/workloads.rs:2297	let mut http_request_tasks = JoinSet::new();
 spawn-task	krikos/bench/src/canary/workloads.rs:47	task::JoinSet,
-spawn-task	krikos/bench/src/iroh.rs:280	server_tasks.push(tokio::spawn(async move {
-spawn-task	krikos/bench/src/iroh.rs:292	tokio::spawn(async move {
+spawn-task	krikos/bench/src/krikos.rs:280	server_tasks.push(tokio::spawn(async move {
+spawn-task	krikos/bench/src/krikos.rs:292	tokio::spawn(async move {
 spawn-task	krikos/bench/src/lib.rs:249	tokio::spawn(async move {
 spawn-task	krikos/bench/src/noq.rs:247	server_tasks.push(tokio::spawn(async move {
 spawn-task	krikos/bench/src/noq.rs:259	tokio::spawn(async move {
@@ -925,34 +925,34 @@ spawn-task	krikos/src/address_lookup/pkarr.rs:341	let join_handle = task::spawn(
 spawn-task	krikos/src/endpoint/connection.rs:1499	tokio::spawn({
 spawn-task	krikos/src/endpoint/handle.rs:424	/// tokio::spawn(endpoint_closed.run_until(async move {
 spawn-task	krikos/src/endpoint/handle.rs:917	/// tokio::spawn(endpoint.closed().run_until(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1142	let p1_accept = tokio::spawn(
-spawn-task	krikos/src/endpoint/tests.rs:1149	let p2_accept = tokio::spawn(
-spawn-task	krikos/src/endpoint/tests.rs:1156	let p1_connect = tokio::spawn(connect_hello(ep1.clone(), ep2_endpointid).instrument(
-spawn-task	krikos/src/endpoint/tests.rs:1163	let p2_connect = tokio::spawn(connect_hello(ep2.clone(), ep1_endpointid).instrument(
-spawn-task	krikos/src/endpoint/tests.rs:1234	let accept = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1329	let server_task = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1377	let server_task = tokio::task::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1434	let server_task = tokio::spawn({
-spawn-task	krikos/src/endpoint/tests.rs:1905	let server_task = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1908	let stats_task = tokio::spawn(collect_stats(conn.path_events()));
-spawn-task	krikos/src/endpoint/tests.rs:1919	let client_stats_task = tokio::spawn(collect_stats(conn.path_events()));
-spawn-task	krikos/src/endpoint/tests.rs:2246	let accept_task = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:2290	let task = tokio::task::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:2309	let task = tokio::task::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:328	let server = tokio::spawn(
-spawn-task	krikos/src/endpoint/tests.rs:358	let client = tokio::spawn(
-spawn-task	krikos/src/endpoint/tests.rs:435	let server = tokio::spawn(
-spawn-task	krikos/src/endpoint/tests.rs:482	let client = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:553	let task = tokio::spawn({
-spawn-task	krikos/src/endpoint/tests.rs:636	let ep1_accept = tokio::spawn(accept(ep1.clone(), ep2.id()));
-spawn-task	krikos/src/endpoint/tests.rs:637	let ep2_connect = tokio::spawn(connect(ep2.clone(), ep1_nodeaddr));
-spawn-task	krikos/src/endpoint/tests.rs:743	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx, qlog.clone()));
-spawn-task	krikos/src/endpoint/tests.rs:744	let client_task = tokio::spawn(connect(relay_map, node_addr_rx, qlog));
-spawn-task	krikos/src/endpoint/tests.rs:841	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
-spawn-task	krikos/src/endpoint/tests.rs:842	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
-spawn-task	krikos/src/endpoint/tests.rs:957	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
-spawn-task	krikos/src/endpoint/tests.rs:958	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
-spawn-task	krikos/src/endpoint/tests.rs:986	let task = tokio::spawn({
+spawn-task	krikos/src/endpoint/tests.rs:1144	let p1_accept = tokio::spawn(
+spawn-task	krikos/src/endpoint/tests.rs:1151	let p2_accept = tokio::spawn(
+spawn-task	krikos/src/endpoint/tests.rs:1158	let p1_connect = tokio::spawn(connect_hello(ep1.clone(), ep2_endpointid).instrument(
+spawn-task	krikos/src/endpoint/tests.rs:1165	let p2_connect = tokio::spawn(connect_hello(ep2.clone(), ep1_endpointid).instrument(
+spawn-task	krikos/src/endpoint/tests.rs:1236	let accept = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1331	let server_task = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1379	let server_task = tokio::task::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1436	let server_task = tokio::spawn({
+spawn-task	krikos/src/endpoint/tests.rs:1907	let server_task = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1910	let stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	krikos/src/endpoint/tests.rs:1921	let client_stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	krikos/src/endpoint/tests.rs:2248	let accept_task = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:2292	let task = tokio::task::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:2311	let task = tokio::task::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:330	let server = tokio::spawn(
+spawn-task	krikos/src/endpoint/tests.rs:360	let client = tokio::spawn(
+spawn-task	krikos/src/endpoint/tests.rs:437	let server = tokio::spawn(
+spawn-task	krikos/src/endpoint/tests.rs:484	let client = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:555	let task = tokio::spawn({
+spawn-task	krikos/src/endpoint/tests.rs:638	let ep1_accept = tokio::spawn(accept(ep1.clone(), ep2.id()));
+spawn-task	krikos/src/endpoint/tests.rs:639	let ep2_connect = tokio::spawn(connect(ep2.clone(), ep1_nodeaddr));
+spawn-task	krikos/src/endpoint/tests.rs:745	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx, qlog.clone()));
+spawn-task	krikos/src/endpoint/tests.rs:746	let client_task = tokio::spawn(connect(relay_map, node_addr_rx, qlog));
+spawn-task	krikos/src/endpoint/tests.rs:843	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
+spawn-task	krikos/src/endpoint/tests.rs:844	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
+spawn-task	krikos/src/endpoint/tests.rs:959	let server_task = tokio::spawn(accept(relay_map.clone(), node_addr_tx));
+spawn-task	krikos/src/endpoint/tests.rs:960	let client_task = tokio::spawn(connect(relay_map, node_addr_rx));
+spawn-task	krikos/src/endpoint/tests.rs:988	let task = tokio::spawn({
 spawn-task	krikos/src/net_report.rs:38	use tokio::task::JoinSet;
 spawn-task	krikos/src/net_report.rs:511	let mut v4_buf = JoinSet::new();
 spawn-task	krikos/src/net_report.rs:513	let mut v6_buf = JoinSet::new();

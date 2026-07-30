@@ -72,12 +72,12 @@ if ! jq -e '
   def digest: type == "string" and test("^[0-9a-f]{64}$");
   def revision: type == "string" and test("^[0-9a-f]{40}$");
   def swarm($domain):
-    if $domain == "direct" then "iroh-sim/swarms/direct-smoke.json"
-    elif $domain == "discovery" then "iroh-sim/swarms/discovery-timing.json"
-    elif $domain == "mobility" then "iroh-sim/swarms/mobility-timing.json"
-    elif $domain == "nat" then "iroh-sim/swarms/nat-behavior.json"
-    elif $domain == "ready-order" then "iroh-sim/swarms/ready-order-pressure.json"
-    elif $domain == "relay" then "iroh-sim/swarms/relay-lifecycle.json"
+    if $domain == "direct" then "krikos-sim/swarms/direct-smoke.json"
+    elif $domain == "discovery" then "krikos-sim/swarms/discovery-timing.json"
+    elif $domain == "mobility" then "krikos-sim/swarms/mobility-timing.json"
+    elif $domain == "nat" then "krikos-sim/swarms/nat-behavior.json"
+    elif $domain == "ready-order" then "krikos-sim/swarms/ready-order-pressure.json"
+    elif $domain == "relay" then "krikos-sim/swarms/relay-lifecycle.json"
     else null
     end;
   def valid_work($kind):

@@ -13,11 +13,11 @@ trap cleanup EXIT
 
 expected="$fixture_root/expected.txt"
 actual="$fixture_root/actual.txt"
-printf 'iroh-dns\tstruct_missing\tstruct iroh_dns::dns::DnsResolver\n' >"$expected"
+printf 'krikos-dns\tstruct_missing\tstruct krikos_dns::dns::DnsResolver\n' >"$expected"
 cp "$expected" "$actual"
 "$inventory_check" "$expected" "$actual" >/dev/null
 
-printf 'iroh-dns\ttrait_missing\ttrait iroh_dns::dns::Resolver\n' >>"$actual"
+printf 'krikos-dns\ttrait_missing\ttrait krikos_dns::dns::Resolver\n' >>"$actual"
 if "$inventory_check" "$expected" "$actual" >/dev/null 2>&1; then
   printf '%s\n' 'undocumented legacy API break must fail the inventory gate' >&2
   exit 1
@@ -29,13 +29,13 @@ if "$inventory_check" "$expected" "$actual" >/dev/null 2>&1; then
   exit 1
 fi
 
-"$result_check" legacy-inventory iroh-dns 100
-if "$result_check" legacy-inventory iroh-dns 101 >/dev/null 2>&1; then
+"$result_check" legacy-inventory krikos-dns 100
+if "$result_check" legacy-inventory krikos-dns 101 >/dev/null 2>&1; then
   printf '%s\n' 'legacy inventory must not hide tool or build failures' >&2
   exit 1
 fi
-"$result_check" post-cut iroh-dns 0
-if "$result_check" post-cut iroh-dns 100 >/dev/null 2>&1; then
+"$result_check" post-cut krikos-dns 0
+if "$result_check" post-cut krikos-dns 100 >/dev/null 2>&1; then
   printf '%s\n' 'post-cut semver incompatibility must fail' >&2
   exit 1
 fi

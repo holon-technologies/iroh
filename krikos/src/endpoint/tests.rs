@@ -36,7 +36,7 @@ use crate::{
     },
 };
 
-const TEST_ALPN: &[u8] = b"n0/iroh/test";
+const TEST_ALPN: &[u8] = b"n0/krikos/test";
 
 #[cfg(not(wasm_browser))]
 #[derive(Debug)]
@@ -96,8 +96,10 @@ fn builder_retains_one_complete_simulation_environment() {
         crypto,
     )
     .expect("coherent test environment");
-    let builder = Builder::empty()
-        .simulation_environment_for_test(environment, krikos_runtime::UnsafeTestOnly::acknowledge());
+    let builder = Builder::empty().simulation_environment_for_test(
+        environment,
+        krikos_runtime::UnsafeTestOnly::acknowledge(),
+    );
     let installed = builder
         .simulation_environment
         .as_ref()
@@ -2032,7 +2034,7 @@ async fn same_endpoint_id_relay() -> Result {
     // so we resort to log assertions.
     // TODO(Frando): Replace once we add a proper API for this.
     let expected_log_line = format!(
-        "ep2:endpoint{{id={}}}:relay-actor:active-relay{{url={relay_url}}}:connected: iroh::_events::relay::connected",
+        "ep2:endpoint{{id={}}}:relay-actor:active-relay{{url={relay_url}}}:connected: krikos::_events::relay::connected",
         ep2.id().fmt_short()
     );
     tokio::time::timeout(Duration::from_secs(5), async {

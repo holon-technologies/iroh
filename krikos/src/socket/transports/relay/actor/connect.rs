@@ -282,7 +282,7 @@ impl ActiveRelayActor {
         let prev = std::mem::replace(&mut self.is_home_relay, is_home);
         if self.is_home_relay != prev {
             event!(
-                target: "iroh::_events::relay::home_changed",
+                target: "krikos::_events::relay::home_changed",
                 Level::DEBUG,
                 url = %self.url,
                 home_relay = self.is_home_relay,
@@ -494,7 +494,7 @@ impl ActiveRelayActor {
     ) -> Result<(), RelayConnectionError> {
         trace!("Actor loop: connected to relay");
         event!(
-            target: "iroh::_events::relay::connected",
+            target: "krikos::_events::relay::connected",
             Level::DEBUG,
             url = %self.url,
             home_relay = self.is_home_relay,
@@ -784,7 +784,7 @@ impl ActiveRelayActor {
                 warn!("Relay server reports problem: {problem}");
             }
             _ => unreachable!(
-                "got unknown RelayToClientMsg but iroh is released in sync with iroh-relay"
+                "got unknown RelayToClientMsg but krikos is released in sync with krikos-relay"
             ),
         }
     }

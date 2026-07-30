@@ -1,4 +1,4 @@
-//! TLS configuration for iroh.
+//! TLS configuration for krikos.
 //!
 //! Currently there is one mechanism available:
 //! - Raw Public Keys, using the TLS extension described in [RFC 7250]
@@ -134,7 +134,7 @@ pub enum TlsConfigError {
         #[error(std_err)]
         source: noq::crypto::rustls::NoInitialCipherSuite,
     },
-    #[error("The configured crypto provider is incompatible with iroh and QUIC encryption")]
+    #[error("The configured crypto provider is incompatible with krikos and QUIC encryption")]
     CryptoProviderIncompatible {
         #[error(std_err)]
         source: rustls::Error,

@@ -6,7 +6,7 @@ use bao_tree::{
 };
 
 use super::{SparseMemFile, size_info::SizeInfo};
-use crate::{api::blobs::Bitfield, store::IROH_BLOCK_SIZE};
+use crate::{api::blobs::Bitfield, store::KRIKOS_BLOCK_SIZE};
 
 /// An incomplete entry, with all the logic to keep track of the state of the entry
 /// and for observing changes.
@@ -28,7 +28,7 @@ impl PartialMemStorage {
     }
 
     pub fn write_batch(&mut self, size: u64, batch: &[BaoContentItem]) -> io::Result<()> {
-        let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+        let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
         for item in batch {
             match item {
                 BaoContentItem::Parent(parent) => {

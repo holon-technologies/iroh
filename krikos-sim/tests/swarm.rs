@@ -575,7 +575,7 @@ fn referenced_template_resolves_only_the_digest_bound_canonical_base() {
     let referenced = ReferencedSwarmSpec {
         schema_version: SWARM_SCHEMA_VERSION,
         id: "referenced".into(),
-        base_path: "iroh-sim/corpus/referenced/scenario.json".into(),
+        base_path: "krikos-sim/corpus/referenced/scenario.json".into(),
         base_blake3: blake3::hash(&base_bytes).to_hex().to_string(),
         safety_liveness: None,
         choices: fixture().choices,
@@ -595,7 +595,7 @@ fn referenced_template_rejects_host_absolute_traversal_and_malformed_digest() {
     let valid = ReferencedSwarmSpec {
         schema_version: SWARM_SCHEMA_VERSION,
         id: "referenced".into(),
-        base_path: "iroh-sim/corpus/referenced/scenario.json".into(),
+        base_path: "krikos-sim/corpus/referenced/scenario.json".into(),
         base_blake3: "00".repeat(32),
         safety_liveness: None,
         choices: fixture().choices,
@@ -604,7 +604,7 @@ fn referenced_template_rejects_host_absolute_traversal_and_malformed_digest() {
         "../outside.json",
         "/tmp/outside.json",
         "https://example.com/scenario.json",
-        "iroh-sim/corpus/./scenario.json",
+        "krikos-sim/corpus/./scenario.json",
     ] {
         let mut invalid = valid.clone();
         invalid.base_path = path.into();

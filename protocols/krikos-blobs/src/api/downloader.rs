@@ -7,11 +7,11 @@ use std::{
 };
 
 use genawaiter::sync::Gen;
-use krikos::{Endpoint, EndpointId};
 use irpc::{
     channel::{mpsc, oneshot},
     rpc_requests,
 };
+use krikos::{Endpoint, EndpointId};
 use n0_error::{Result, anyerr};
 use n0_future::{
     BufferedStreamExt, Stream, StreamExt, future, stream,

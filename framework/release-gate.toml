@@ -9,20 +9,20 @@ data_schema_support = false
 
 [[packages]]
 order = 1
-name = "iroh-blobs"
-path = "protocols/iroh-blobs"
+name = "krikos-blobs"
+path = "protocols/krikos-blobs"
 
 [[packages]]
 order = 2
-name = "iroh-gossip"
-path = "protocols/iroh-gossip"
+name = "krikos-gossip"
+path = "protocols/krikos-gossip"
 
 [[packages]]
 order = 3
-name = "iroh-docs"
-path = "protocols/iroh-docs"
+name = "krikos-docs"
+path = "protocols/krikos-docs"
 
 [[packages]]
 order = 4
-name = "iroh-app"
+name = "krikos-app"
 path = "framework/app"

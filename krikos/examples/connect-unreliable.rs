@@ -4,7 +4,7 @@
 //!
 //! This example uses the default relay servers to attempt to holepunch, and will use that relay server to relay packets if the two devices cannot establish a direct UDP connection.
 //!
-//! Run the `listen-unreliable` example first (`iroh/examples/listen-unreliable.rs`), which will give you instructions on how to run this example to watch two endpoints connect and exchange bytes.
+//! Run the `listen-unreliable` example first (`krikos/examples/listen-unreliable.rs`), which will give you instructions on how to run this example to watch two endpoints connect and exchange bytes.
 use std::net::SocketAddr;
 
 use clap::Parser;
@@ -14,7 +14,7 @@ use n0_error::{Result, StdResultExt};
 use tracing::info;
 
 // An example ALPN that we are using to communicate over the `Endpoint`
-const EXAMPLE_ALPN: &[u8] = b"n0/iroh/examples/0";
+const EXAMPLE_ALPN: &[u8] = b"n0/krikos/examples/0";
 
 #[derive(Debug, Parser)]
 struct Cli {

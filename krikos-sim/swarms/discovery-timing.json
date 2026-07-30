@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "discovery-timing",
-  "base_path": "iroh-sim/corpus/stage4-discovery-conflict/scenario.json",
+  "base_path": "krikos-sim/corpus/stage4-discovery-conflict/scenario.json",
   "base_blake3": "fde53817858cf8c26b392d94d94404fedf831457b3b6d88c11dbcaadb623bc15",
   "choices": [
     {

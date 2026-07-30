@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "relay-lifecycle",
-  "base_path": "iroh-sim/corpus/stage5-relay-restart/scenario.json",
+  "base_path": "krikos-sim/corpus/stage5-relay-restart/scenario.json",
   "base_blake3": "f85cfe4f9a429144db41e6f68319929c9c1f0d497e8eb54d2a28efb55ff612c1",
   "safety_liveness": {
     "safety_action": "05-relay-offline",

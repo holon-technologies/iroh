@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
 
 jobs:
   tests:

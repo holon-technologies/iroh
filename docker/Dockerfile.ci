@@ -1,33 +1,33 @@
-### Base image for iroh-relay and iroh-dns-server
+### Base image for krikos-relay and krikos-dns-server
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS base
 RUN apk update && apk add ca-certificates && update-ca-certificates
 
 ### Target image
-FROM base AS iroh-relay
+FROM base AS krikos-relay
 ARG TARGETPLATFORM
 
-COPY bins/${TARGETPLATFORM}/iroh-relay /iroh-relay
+COPY bins/${TARGETPLATFORM}/krikos-relay /krikos-relay
 
-RUN chmod +x /iroh-relay
+RUN chmod +x /krikos-relay
 
 WORKDIR /
 
 # expose the default ports
 # http, https, stun, metrics
 EXPOSE  80 443 3478/udp 9090
-ENTRYPOINT ["/iroh-relay"]
+ENTRYPOINT ["/krikos-relay"]
 
 ### Target image
-FROM base AS iroh-dns-server
+FROM base AS krikos-dns-server
 ARG TARGETPLATFORM
 
-COPY bins/${TARGETPLATFORM}/iroh-dns-server /iroh-dns-server
+COPY bins/${TARGETPLATFORM}/krikos-dns-server /krikos-dns-server
 
-RUN chmod +x /iroh-dns-server
+RUN chmod +x /krikos-dns-server
 
 WORKDIR /
 
 # expose the default ports
 # dns, metrics
 EXPOSE 53/udp 9090
-ENTRYPOINT ["/iroh-dns-server"]
+ENTRYPOINT ["/krikos-dns-server"]

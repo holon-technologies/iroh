@@ -1,17 +1,17 @@
 //! Exporting and encapsulating structs from noq
 //!
-//! Co-locates all iroh-noq exports.
+//! Co-locates all krikos-noq exports.
 //!
 //! There are some structs that we use in particular ways, where we would like
-//! to limit or expand how those structs are used in iroh. By encapsulating them
-//! we can ensure the functionality needed to make iroh work.
+//! to limit or expand how those structs are used in krikos. By encapsulating them
+//! we can ensure the functionality needed to make krikos work.
 
 #[cfg(feature = "qlog")]
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
-/// `noq` types that are used in the public iroh API.
-// Each type is notated with the iroh type or noq type that uses it.
+/// `noq` types that are used in the public krikos API.
+// Each type is notated with the krikos type or noq type that uses it.
 pub use noq::{
     AcceptBi,             // krikos::endpoint::Connection
     AcceptUni,            // krikos::endpoint::Connection
@@ -45,8 +45,8 @@ pub use noq::{
 };
 #[cfg(feature = "qlog")]
 pub use noq::{QlogConfig, QlogFactory, QlogFileFactory};
-/// `noq_proto` types that are used in the public iroh API.
-// Each type is notated with the iroh type or noq type that uses it.
+/// `noq_proto` types that are used in the public krikos API.
+// Each type is notated with the krikos type or noq type that uses it.
 pub use noq_proto::{
     ApplicationClose,                 // noq::ConnectionError
     Chunk,                            // noq::RecvStream
@@ -106,7 +106,7 @@ pub struct QuicTransportConfigBuilder(noq::TransportConfig);
 ///
 /// Use the [`QuicTransportConfigBuilder`] to customize these tunable fields.
 ///
-/// In iroh, the config has some specific default values that make iroh's holepunching work
+/// In krikos, the config has some specific default values that make krikos's holepunching work
 /// well with QUIC multipath. Adjusting those settings may cause suboptimal usage.
 ///
 /// Look at the following methods for more details:
@@ -525,7 +525,7 @@ impl QuicTransportConfigBuilder {
     /// Sets the maximum number of nat traversal addresses this endpoint allows the remote to
     /// advertise.
     ///
-    /// Setting this to any nonzero value will enable Iroh's holepunching, loosely based in the Nat
+    /// Setting this to any nonzero value will enable Krikos's holepunching, loosely based in the Nat
     /// Traversal Extension for QUIC, see
     /// <https://www.ietf.org/archive/id/draft-seemann-quic-nat-traversal-02.html>
     ///

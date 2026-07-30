@@ -11,7 +11,7 @@ use crate::{
     TraceRecorder,
 };
 
-const DERIVATION_CONTEXT: &str = "iroh-runtime behavioral decision stream v1";
+const DERIVATION_CONTEXT: &str = "krikos-runtime behavioral decision stream v1";
 const MAX_PATH_LEN: usize = 256;
 
 /// Root seed identifying all behavioral decisions in one simulation run.

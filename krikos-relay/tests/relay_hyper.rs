@@ -1,6 +1,6 @@
 //! Embeds the relay inside a plain hyper HTTP server. Routes `/relay`
 //! through [`RelayServiceWithNotify`] and serves a `/ping` probe matching
-//! the iroh-relay server's built-in probe.
+//! the krikos-relay server's built-in probe.
 
 #![cfg(feature = "server")]
 

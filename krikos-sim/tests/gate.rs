@@ -61,7 +61,7 @@ fn mapped_changes_select_only_owned_domains_for_both_providers() {
         Some(BASE),
         CANDIDATE,
         SimulationGateTier::PullRequest,
-        &["iroh/src/discovery/pkarr.rs".to_owned()],
+        &["krikos/src/discovery/pkarr.rs".to_owned()],
         true,
     )
     .unwrap();

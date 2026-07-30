@@ -1,6 +1,6 @@
-//! A fully-fledged iroh-relay server over HTTP or HTTPS.
+//! A fully-fledged krikos-relay server over HTTP or HTTPS.
 //!
-//! This module provides an API to run a full fledged iroh-relay server.  It is primarily
+//! This module provides an API to run a full fledged krikos-relay server.  It is primarily
 //! used by the `krikos-relay` binary in this crate.  It can be used to run a relay server in
 //! other locations however.
 //!

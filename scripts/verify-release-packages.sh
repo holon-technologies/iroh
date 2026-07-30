@@ -28,28 +28,28 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 69
 fi
 
-packages="iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server"
+packages="krikos-noq krikos-hickory-server krikos-base krikos-runtime krikos-resolver krikos-dns krikos-relay krikos krikos-dns-server"
 read -r -a package_order <<< "$packages"
 candidate_patches=()
 declare -A candidate_manifests=()
 source_bootstrap_patches=(
-  --config "patch.crates-io.iroh-noq.path=\"$repo_root/vendor/noq-1.1.0\""
-  --config "patch.crates-io.iroh-hickory-server.path=\"$repo_root/vendor/hickory-server-0.26.1\""
-  --config "patch.crates-io.iroh-base.path=\"$repo_root/iroh-base\""
-  --config "patch.crates-io.iroh-runtime.path=\"$repo_root/iroh-runtime\""
-  --config "patch.crates-io.iroh-resolver.path=\"$repo_root/iroh-resolver\""
-  --config "patch.crates-io.iroh-dns.path=\"$repo_root/iroh-dns\""
-  --config "patch.crates-io.iroh-relay.path=\"$repo_root/iroh-relay\""
-  --config "patch.crates-io.iroh.path=\"$repo_root/iroh\""
-  --config "patch.crates-io.iroh-dns-server.path=\"$repo_root/iroh-dns-server\""
+  --config "patch.crates-io.krikos-noq.path=\"$repo_root/vendor/noq-1.1.0\""
+  --config "patch.crates-io.krikos-hickory-server.path=\"$repo_root/vendor/hickory-server-0.26.1\""
+  --config "patch.crates-io.krikos-base.path=\"$repo_root/krikos-base\""
+  --config "patch.crates-io.krikos-runtime.path=\"$repo_root/krikos-runtime\""
+  --config "patch.crates-io.krikos-resolver.path=\"$repo_root/krikos-resolver\""
+  --config "patch.crates-io.krikos-dns.path=\"$repo_root/krikos-dns\""
+  --config "patch.crates-io.krikos-relay.path=\"$repo_root/krikos-relay\""
+  --config "patch.crates-io.krikos.path=\"$repo_root/krikos\""
+  --config "patch.crates-io.krikos-dns-server.path=\"$repo_root/krikos-dns-server\""
 )
 
 package_manifest() {
   case "$1" in
-    iroh-noq)
+    krikos-noq)
       printf '%s\n' "$repo_root/vendor/noq-1.1.0/Cargo.toml"
       ;;
-    iroh-hickory-server)
+    krikos-hickory-server)
       printf '%s\n' "$repo_root/vendor/hickory-server-0.26.1/Cargo.toml"
       ;;
     *)
@@ -158,9 +158,9 @@ for package in "${package_order[@]}"; do
 done
 
 verify_dependency_identity "$repo_root/Cargo.toml" rustls registry
-verify_dependency_identity "$repo_root/Cargo.toml" iroh-noq path
-verify_dependency_identity "$repo_root/Cargo.toml" iroh-hickory-server path
-verify_dependency_identity "$repo_root/iroh-sim/Cargo.toml" rustls path
-verify_dependency_identity "$repo_root/iroh-sim/Cargo.toml" iroh-noq path
+verify_dependency_identity "$repo_root/Cargo.toml" krikos-noq path
+verify_dependency_identity "$repo_root/Cargo.toml" krikos-hickory-server path
+verify_dependency_identity "$repo_root/krikos-sim/Cargo.toml" rustls path
+verify_dependency_identity "$repo_root/krikos-sim/Cargo.toml" krikos-noq path
 
 printf '%s\n' 'Release package verification passed'

@@ -224,12 +224,24 @@ reason = "vendored upstream crate patched only for deterministic simulation entr
 # stale exemption would silently no-op on real *violations*).
 
 [[exemptions]]
+path = ".github/sims/**"
+reason = "sim scenario configs are entirely consumed by the external, pinned-commit-SHA n0-computer/chuck netsim runner (see .github/workflows/netsim_runner.yaml): node `cmd` fields invoke binaries netsim_runner.yaml copies into chuck's own tree under matching iroh-prefixed names, and `parser`/`param_parser`/`integration` fields are registry keys chuck's own code recognizes by these exact strings. Renaming any of it independently of chuck (which this repository does not control and cannot edit) would desync the contract, so the whole directory is treated as chuck-facing configuration -- the same reasoning as compat/**'s upstream-name exemption, just for a different external dependency."
+
+[[exemptions]]
+path = ".img/iroh_wordmark.svg"
+reason = "n0's actual wordmark logo: a vector graphic tracing the letterforms of \"iroh\" as bezier paths (not <text>), i.e. the image itself visually is the string this checker looks for. Replacing it needs a real Krikos logo asset, which is a design deliverable this mechanical rename cannot produce -- ADR-0002 covers package/library/directory naming, not visual identity. Flagged in task-5-report.md for the docs/branding owner (Task 7 / Project D) to replace with real Krikos artwork."
+
+[[exemptions]]
+path = "protocols/krikos-blobs/.img/iroh_wordmark.svg"
+reason = "the same n0 wordmark asset, vendored a second time for this protocol crate's own README; see the .img/iroh_wordmark.svg exemption above."
+
+[[exemptions]]
 path = "vendor/*/src/**"
 reason = "byte-verified against the upstream crates.io package by check-vendor-provenance.sh; nothing here is ever rewritten. NOTE: currently matches 147 tracked files but zero occurrences of `iroh`, because hickory-server, noq and rustls are foreign upstream crates with no inherent reason to mention this project's name -- see task-1-report.md. Kept because it encodes the correct, forward-looking policy boundary, not because it currently suppresses anything."
 
 [[exemptions]]
 path = "compat/**"
-reason = "interop crates reference upstream package names, versions and import paths on purpose -- they exist to test against upstream (ADR-0002)"
+reason = "interop crates deliberately depend on two sides at once to test wire compatibility across the v1/v2 architecture cut, and the two sides are exempt for different reasons: the `*-v1` Cargo dependency aliases (`iroh-v1`, `iroh-base-v1`, `iroh-dns-v1`, `iroh-relay-v1`, `iroh-blobs-v1`, `iroh-gossip-v1`, ...) pin genuine upstream packages by crates.io version or git rev and are named for the real upstream package on purpose (ADR-0002); the `*-v2`/`*-current` aliases (`iroh-v2`, `iroh-base-current`, `iroh-resolver-current`, `iroh-relay-current`, ...) are local Cargo dependency identifiers that PATH-ALIAS this repository's own renamed krikos-* packages, e.g. `iroh-v2 = { package = \"krikos\", path = \"../../krikos\" }` -- their alias names still say `iroh` only as a label meaning 'the v1/upstream side of this interop pair', not because they reference anything upstream. The whole directory stays exempted because both halves are compat-test wiring this checker should not try to selectively rewrite (renaming only the `-v1` half would misleadingly imply the `-v2`/`-current` half is also upstream, and renaming only the alias identifiers without renaming the crate names inside `*-v1`'s own `package = \"iroh...\"` fields would break the dependency), but the two halves are exempt for opposite reasons and neither reason is 'references upstream' on its own."
 
 [[exemptions]]
 path = "docs/upstream/**"
@@ -237,7 +249,7 @@ reason = "provenance filenames and records name the upstream packages they were 
 
 [[exemptions]]
 path = "protocols/upstream-baselines.toml"
-reason = "records the upstream package names, source URLs and import prefixes each protocol crate was imported from"
+reason = "records upstream provenance (`name`, `source_url`, `tag`, `source_commit`) by the upstream project's own identity, which stays as-is on purpose. `import_prefix`, by contrast, is NOT upstream provenance -- it is the current local path scripts/tests/check-protocol-provenance.sh looks under, so it is kept up to date with the actual renamed directory (protocols/krikos-blobs, protocols/krikos-gossip, protocols/krikos-docs) even though this file's path stays exempt for the `name`/`source_url` fields."
 
 [[exemptions]]
 path = "docs/history/**"
@@ -262,6 +274,166 @@ reason = "this file. It records old_package/old_lib/old_dir/exemption-path value
 [[exemptions]]
 path = "scripts/tests/check-rebrand-complete.sh"
 reason = "the completeness checker's own source necessarily contains the literal search term it looks for, the same way a profanity filter's source contains the words it filters"
+
+# --- Pattern exemptions ------------------------------------------------
+# Literal substrings that are correct wherever they occur, in files that
+# otherwise carry ordinary renamable content (so a whole-file `path`
+# exemption would hide real violations on other lines of the same file).
+# Each `pattern` is matched as a plain, case-sensitive substring; every
+# non-overlapping occurrence anywhere in a tracked file's content is masked
+# before that file's lines are checked for any remaining, uncovered `iroh`.
+
+[[exemptions]]
+pattern = "iroh-metrics-derive"
+reason = "crates.io package name of n0's real, external telemetry-derive dependency (Cargo.lock); not part of this rename's package set"
+
+[[exemptions]]
+pattern = "iroh-metrics"
+reason = "crates.io package name of n0's real, external telemetry dependency, depended on by krikos, krikos-relay, krikos-dns-server, krikos-bench and the protocol crates; not part of this rename's package set"
+
+[[exemptions]]
+pattern = "iroh_metrics"
+reason = "Rust identifier form of the iroh-metrics dependency above (`use iroh_metrics::...`, intra-doc links, and the local `record_iroh_metrics` helper named after it)"
+
+[[exemptions]]
+pattern = "iroh-io"
+reason = "crates.io package name of n0's real, external async-IO dependency used by protocols/krikos-blobs; not part of this rename's package set"
+
+[[exemptions]]
+pattern = "iroh_io"
+reason = "Rust identifier form of the iroh-io dependency above (`use iroh_io::...`)"
+
+[[exemptions]]
+pattern = "iroh-test(?!-env)"
+reason = "crates.io package name of n0's real, external test-utilities dependency used by protocols/krikos-blobs (also incidentally covers the unrelated internal `x-iroh-test-hold-millis` canary header, a harmless over-match); not part of this rename's package set"
+
+[[exemptions]]
+pattern = "iroh_test"
+reason = "Rust identifier form of the iroh-test dependency above (`use iroh_test::...`; also incidentally covers the internal `/__iroh_test/hold` canary route, a harmless over-match)"
+
+[[exemptions]]
+pattern = "/iroh-gossip/1"
+reason = "GOSSIP_ALPN, the QUIC ALPN protocol identifier protocols/krikos-gossip negotiates connections with. This is wire protocol, not naming: compat/iroh-gossip-v0-101-interop/src/main.rs asserts `iroh_gossip_v1::ALPN == iroh_gossip_v2::ALPN` by name (\"gossip ALPN changed\") -- upstream and this fork's gossip endpoints must offer the identical ALPN to negotiate a connection at all, so renaming the byte string (not just the Rust identifier around it) would break that proven, tested compatibility guarantee, which ADR-0002 forbids changing."
+
+[[exemptions]]
+pattern = "/iroh-bytes/4"
+reason = "the QUIC ALPN protocol identifier protocols/krikos-blobs negotiates connections with. Same wire-protocol reasoning as /iroh-gossip/1: compat/iroh-blobs-v0-103-interop/src/main.rs connects a v1 (upstream) endpoint to a v2 (this fork) endpoint and vice versa using each side's own `::ALPN` constant to dial the other, which only succeeds if the two are byte-identical -- a proven, exercised compatibility guarantee."
+
+[[exemptions]]
+pattern = "/iroh-sync/1"
+reason = "the QUIC ALPN protocol identifier protocols/krikos-docs negotiates connections with; kept unrenamed for the same wire-protocol reasoning as /iroh-gossip/1 and /iroh-bytes/4 -- it is one of the same three imported protocol crates (blobs, gossip, docs), just without its own compat/*-interop crate yet, so nothing currently exercises it, but its ALPN is exactly the kind of external-negotiation identifier ADR-0002's wire-protocol guarantee covers."
+
+[[exemptions]]
+pattern = "/iroh-qad/0"
+reason = "ALPN_QUIC_ADDR_DISC, the relay's QUIC address-discovery ALPN identifier. Relay wire compatibility with upstream v1.0.3 is an explicit ADR-0002 guarantee; this is part of that wire protocol, not a name."
+
+[[exemptions]]
+pattern = "iroh/resource-canary/1"
+reason = "CANARY_ALPN, the ALPN krikos/bench's production resource canaries connect with; per the root README these are \"production resource canaries\" (ongoing operational monitoring), so this is treated as a live wire identifier rather than a benchmark-only convenience name, consistent with the other ALPN exemptions above."
+
+[[exemptions]]
+pattern = "iroh-blobs-v0-103-interop"
+reason = "the compat/** interop crate's actual directory and package name (see rename-map.toml's [[not_renamed]] entry for it -- it tests against the upstream iroh-blobs package by its upstream name on purpose). References to it from outside compat/** (root Cargo.toml workspace.exclude, .github/workflows/ci.yml, scripts/tests/check-blobs-v0-interop.sh, scripts/apply-rebrand.sh) must keep pointing at the real, unrenamed path."
+
+[[exemptions]]
+pattern = "iroh-gossip-v0-101-interop"
+reason = "the compat/** interop crate's actual directory and package name (see rename-map.toml's [[not_renamed]] entry for it); same reasoning as iroh-blobs-v0-103-interop above -- references from outside compat/** must keep pointing at the real, unrenamed path."
+
+[[exemptions]]
+pattern = "iroh-relay handshake v1"
+reason = "cryptographic domain-separation labels in krikos-relay/src/protos/handshake.rs (DOMAIN_SEP_TLS_EXPORT_LABEL, fed to TLS export_keying_material, and DOMAIN_SEP_CHALLENGE, which this pattern also covers as a prefix, fed to blake3::derive_key for the challenge signature). These are wire bytes, not names: scripts/tests/check-relay-compatibility.sh --golden byte-compares the handshake output against a recorded upstream v1.0.3 fixture, and renaming either label changes the derived key material and therefore every downstream handshake byte -- caught by that golden test failing (`handshake encoding changed from upstream v1.0.3 fixture`) the first time this rename touched them. This is exactly the relay wire-compatibility guarantee ADR-0002 says this rebrand must not break."
+
+[[exemptions]]
+pattern = "iroh_wordmark\\.svg"
+reason = "filename of the exempted n0 wordmark logo asset (see the .img/iroh_wordmark.svg path exemption); README references to it must keep pointing at the file that actually exists on disk, which is not renamed"
+
+[[exemptions]]
+pattern = "iroh-mainline-address-lookup"
+reason = "name of a real external crate (not part of this rename's package set), linked from krikos/src/address_lookup doc comments as a companion adapter"
+
+[[exemptions]]
+pattern = "iroh-mdns-address-lookup"
+reason = "name of a real external crate (not part of this rename's package set), linked from doc comments and an example as a companion adapter"
+
+[[exemptions]]
+pattern = "iroh-tickets"
+reason = "name of a real, currently-published external crate (not part of this rename's package set), linked from doc comments"
+
+[[exemptions]]
+pattern = "iroh_tickets"
+reason = "Rust-identifier form of the iroh-tickets external crate name, used in a docs.rs URL path"
+
+[[exemptions]]
+pattern = "iroh\\.link"
+reason = "n0's real production/staging DNS and relay hostnames (dns.iroh.link, staging-dns.iroh.link, use1-1.relay.n0.iroh.link and siblings, the bare `iroh.link` apex used in prose): this fork's default Endpoint and pkarr-resolver configuration point at n0's actual, live infrastructure by default (krikos/src/defaults.rs, krikos/src/endpoint/relay_status.rs, krikos/src/address_lookup/{dns,pkarr}.rs, krikos-dns/src/dns.rs, krikos/src/endpoint/presets.rs, and their tests). Renaming the literal hostname would silently point default endpoint discovery at a server that does not exist -- a functional break, not a naming change, which ADR-0002's wire-protocol/public-API-surface guarantee forbids."
+
+[[exemptions]]
+pattern = "iroh\\.network"
+reason = "a real production relay hostname format (relay.iroh.network) referenced in krikos-dns/src/endpoint_info.rs doc comments and tests; same live-infrastructure reasoning as iroh.link above"
+
+[[exemptions]]
+pattern = "iroh\\.computer"
+reason = "n0's real marketing/docs/perf website (iroh.computer, docs.iroh.computer, perf.iroh.computer), including the krikos-relay root HTTP page's attribution link to it; genuine external reference, not renamed"
+
+[[exemptions]]
+pattern = "n0-computer/iroh"
+reason = "GitHub path prefix for n0's real upstream repositories (n0-computer/iroh, iroh-blobs, iroh-gossip, iroh-docs, iroh-doctor, iroh-ffi, iroh-examples, iroh-experiments); genuine external links, not renamed"
+
+[[exemptions]]
+pattern = "holon-technologies/iroh(?![A-Za-z0-9_-])"
+reason = "this repository's actual current GitHub path. ADR-0002 explicitly does not decide whether the GitHub organisation or repository itself is renamed, so badge and CI links using the real, current URL are correct as written"
+
+[[exemptions]]
+pattern = "docs\\.rs/iroh"
+reason = "docs.rs page for n0's currently-published iroh/iroh-dns crate family; used in the README badges and in doc-comment cross-links as a genuine external/current-state reference, not a self-link -- none of this repository's krikos-* packages are published yet (ADR-0002)"
+
+[[exemptions]]
+pattern = "crates\\.io/crates/iroh"
+reason = "crates.io page for n0's actual, currently-published iroh crate; genuine external reference in the README badge describing who owns that name today (ADR-0002), not this fork's unpublished krikos crate"
+
+[[exemptions]]
+pattern = "crates/v/iroh"
+reason = "shields.io badge URL rendering the crates.io version badge for n0's actual, currently-published iroh crate; same reasoning as crates.io/crates/iroh above"
+
+[[exemptions]]
+pattern = "crates/d/iroh"
+reason = "shields.io badge URL rendering the crates.io downloads badge for n0's actual, currently-published iroh crate; same reasoning as crates.io/crates/iroh above"
+
+[[exemptions]]
+pattern = "(?<![A-Za-z])_iroh"
+reason = "the DNS TXT record name that is this project's endpoint-discovery wire format (`IROH_TXT_NAME = \"_iroh\"` in krikos-dns/src/attrs.rs, documented in krikos-dns/src/{dns,endpoint_info}.rs and krikos/src/address_lookup/dns.rs, exercised by krikos-dns-server's own HTTP/DNS handlers and tests). Nodes and resolvers -- including n0's own dns.iroh.link service that this fork's defaults point at -- must agree on this exact label to find each other; renaming it is a protocol change, not a naming one, which ADR-0002 forbids. Also covers krikos-dns-server's `_iroh-resource-canary-hold` canary label and the unrelated `__iroh_test` internal test-route names (harmless over-matches: both are internal-only strings that stay self-consistent whichever way they are spelled). The negative lookbehind (no letter immediately before `_iroh`) is required so this doesn't also swallow `run_iroh`/`record_iroh_metrics`-style identifiers, where `_iroh` is a continuation of a longer name rather than the freestanding wire-format token -- those must still be renamed."
+
+[[exemptions]]
+pattern = "magic_iroh_client_json"
+reason = "integration-adapter registry key recognized by the external, pinned-commit-SHA n0-computer/chuck netsim runner's own code (scripts/tests/test_validate_netsim_reports.py and scripts/tests/check-netsim-workflow-bounds.sh assert against the same literal chuck expects)"
+
+[[exemptions]]
+pattern = "iroh_endpoint_json"
+reason = "parser registry key recognized by the external chuck netsim runner; same reasoning as magic_iroh_client_json above"
+
+[[exemptions]]
+pattern = "iroh_json"
+reason = "parser registry key recognized by the external chuck netsim runner; same reasoning as magic_iroh_client_json above"
+
+[[exemptions]]
+pattern = "sims/iroh/iroh\\.json"
+reason = "the relative path (inside chuck's mount) to one exempted .github/sims/iroh/*.json scenario file, referenced from ci.yml's default sim_paths and check-netsim-workflow-bounds.sh's assertion of it"
+
+[[exemptions]]
+pattern = "sims/iroh"
+reason = "the relative directory path (inside chuck's mount) to the exempted .github/sims/iroh/ directory, referenced from netsim_runner.yaml's and netsim.yml's sim_paths defaults and its cp destination; must stay consistent with the directory it points at, which is not renamed (see the .github/sims/** path exemption)"
+
+[[exemptions]]
+pattern = "bins/iroh-transfer"
+reason = "destination filename netsim_runner.yaml copies the transfer example binary to inside chuck's tree, matching the `./bins/iroh-transfer` cmd path the exempted .github/sims/**/*.json scenario files invoke"
+
+[[exemptions]]
+pattern = "bins/iroh-relay"
+reason = "destination filename netsim_runner.yaml copies the krikos-relay binary to inside chuck's tree, matching the `./bins/iroh-relay` cmd path the exempted .github/sims/**/*.json scenario files invoke"
+
+[[exemptions]]
+pattern = "bins/iroh-dns-server"
+reason = "destination filename netsim_runner.yaml copies the krikos-dns-server binary to inside chuck's tree, matching the `./bins/iroh-dns-server` cmd path the exempted .github/sims/**/*.json scenario files invoke"
 
 # docs/release/v2-migration.md was considered and deliberately NOT exempted.
 # It documents this fork's own v1 -> v2 architecture cut (module paths like

@@ -1,4 +1,4 @@
-//! Bounded virtual-time address lookup providers consumed by production Iroh discovery logic.
+//! Bounded virtual-time address lookup providers consumed by production Krikos discovery logic.
 
 use std::{
     collections::BTreeMap,

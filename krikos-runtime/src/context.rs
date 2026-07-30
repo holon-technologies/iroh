@@ -7,7 +7,7 @@ use crate::{
     TokioExecutor, TraceDecisionObserver, TraceRecorder, TraceSink, WallClock,
 };
 
-/// One coherent set of runtime capabilities for an Iroh endpoint.
+/// One coherent set of runtime capabilities for an Krikos endpoint.
 ///
 /// Keeping these capabilities together prevents production and simulation code from
 /// accidentally mixing clock domains, identity spaces, decision seeds, or trace sequences.

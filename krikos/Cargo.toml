@@ -169,7 +169,7 @@ unstable-net-report = []
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "iroh_docsrs"]
+rustdoc-args = ["--cfg", "krikos_docsrs"]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
@@ -177,7 +177,7 @@ allowed_external_types = [
     "krikos_base::*",
     "krikos_dns::*",
     "krikos_relay::*",
-    # `iroh::dns` intentionally re-exports the resolver crate as a module.
+    # `krikos::dns` intentionally re-exports the resolver crate as a module.
     "krikos_resolver",
     "krikos_resolver::*",
     "krikos_runtime::*",

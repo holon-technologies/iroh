@@ -10,13 +10,13 @@ use krikos_relay::{
 fn v1_v2_public_wire_registry_is_frozen() {
     assert_eq!(RELAY_PATH, "/relay");
     assert_eq!(RELAY_PROBE_PATH, "/ping");
-    assert_eq!(CLIENT_AUTH_HEADER.as_str(), "x-iroh-relay-client-auth-v1");
+    assert_eq!(CLIENT_AUTH_HEADER.as_str(), "x-krikos-relay-client-auth-v1");
     assert_eq!(
         ProtocolVersion::ALL,
         &[ProtocolVersion::V2, ProtocolVersion::V1]
     );
-    assert_eq!(ProtocolVersion::V1.to_str(), "iroh-relay-v1");
-    assert_eq!(ProtocolVersion::V2.to_str(), "iroh-relay-v2");
+    assert_eq!(ProtocolVersion::V1.to_str(), "krikos-relay-v1");
+    assert_eq!(ProtocolVersion::V2.to_str(), "krikos-relay-v2");
 
     let tags = [
         (FrameType::ServerChallenge, 0),

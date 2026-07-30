@@ -1,11 +1,11 @@
 use std::{fmt::Debug, io, ops::Deref};
 
-use krikos::endpoint::VarInt;
 use irpc::{
     Channels, WithChannels,
     channel::{mpsc, none::NoSender, oneshot},
     rpc_requests,
 };
+use krikos::endpoint::VarInt;
 use n0_error::{e, stack_error};
 use serde::{Deserialize, Serialize};
 

@@ -13,8 +13,8 @@ use bao_tree::{
     io::{BaoContentItem, Leaf},
 };
 use genawaiter::sync::{Co, Gen};
-use krikos::endpoint::Connection;
 use irpc::util::{AsyncReadVarintExt, WriteVarintExt};
+use krikos::endpoint::Connection;
 use n0_error::{AnyError, Result, StdResultExt, e, stack_error};
 use n0_future::{Stream, StreamExt, io};
 use ref_cast::RefCast;
@@ -41,7 +41,7 @@ use crate::{
         PushRequest, Request, RequestType,
     },
     provider::events::{ClientResult, ProgressError},
-    store::IROH_BLOCK_SIZE,
+    store::KRIKOS_BLOCK_SIZE,
     util::{
         RecvStream, SendStream,
         sink::{Sink, TokioMpscSenderSink},
@@ -886,7 +886,7 @@ impl GetStreamPair for Connection {
 }
 
 fn get_buffer_size(size: NonZeroU64) -> usize {
-    (size.get() / (IROH_BLOCK_SIZE.bytes() as u64) + 2).min(64) as usize
+    (size.get() / (KRIKOS_BLOCK_SIZE.bytes() as u64) + 2).min(64) as usize
 }
 
 async fn get_blob_ranges_impl<R: RecvStream>(

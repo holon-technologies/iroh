@@ -1,7 +1,7 @@
-//! Implementation of authentication using iroh hooks
+//! Implementation of authentication using krikos hooks
 //!
-//! This implements an auth protocol that works with iroh hooks.
-//! It allows to put authentication in front of iroh protocols. The protocols don't need any special support.
+//! This implements an auth protocol that works with krikos hooks.
+//! It allows to put authentication in front of krikos protocols. The protocols don't need any special support.
 //! Authentication is handled prior to establishing the connections, over a separate connection.
 
 use krikos::{Endpoint, EndpointAddr, endpoint::presets, protocol::Router};
@@ -76,7 +76,7 @@ mod echo {
     #[derive(Debug, Clone)]
     pub struct Echo;
 
-    pub const ALPN: &[u8] = b"iroh-example/echo/0";
+    pub const ALPN: &[u8] = b"krikos-example/echo/0";
 
     impl Echo {
         pub async fn connect(
@@ -132,7 +132,7 @@ mod auth {
     };
     use tracing::debug;
 
-    pub const ALPN: &[u8] = b"iroh-example/auth/0";
+    pub const ALPN: &[u8] = b"krikos-example/auth/0";
 
     const CLOSE_ACCEPTED: u32 = 1;
     const CLOSE_DENIED: u32 = 403;

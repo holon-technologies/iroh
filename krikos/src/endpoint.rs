@@ -1,12 +1,12 @@
-//! The [`Endpoint`] allows establishing connections to other iroh endpoints.
+//! The [`Endpoint`] allows establishing connections to other krikos endpoints.
 //!
-//! The [`Endpoint`] is the main API interface to manage a local iroh endpoint.  It allows
+//! The [`Endpoint`] is the main API interface to manage a local krikos endpoint.  It allows
 //! connecting to and accepting connections from other endpoints.  See the [module docs] for
-//! more details on how iroh connections work.
+//! more details on how krikos connections work.
 //!
 //! The main items in this module are:
 //!
-//! - [`Endpoint`] to establish iroh connections with other endpoints.
+//! - [`Endpoint`] to establish krikos connections with other endpoints.
 //! - [`Builder`] to create an [`Endpoint`].
 //!
 //! [module docs]: crate

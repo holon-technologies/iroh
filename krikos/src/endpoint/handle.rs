@@ -1,14 +1,14 @@
 use super::*;
 
-/// Controls an iroh endpoint, establishing connections with other endpoints.
+/// Controls an krikos endpoint, establishing connections with other endpoints.
 ///
 /// This is the main API interface to create connections to, and accept connections from
-/// other iroh endpoints.  The connections are peer-to-peer and encrypted, a Relay server is
+/// other krikos endpoints.  The connections are peer-to-peer and encrypted, a Relay server is
 /// used to make the connections reliable.  See the [crate docs] for a more detailed
-/// overview of iroh.
+/// overview of krikos.
 ///
 /// It is recommended to only create a single instance per application.  This ensures all
-/// the connections made share the same peer-to-peer connections to other iroh endpoints,
+/// the connections made share the same peer-to-peer connections to other krikos endpoints,
 /// while still remaining independent connections.  This will result in more optimal network
 /// behaviour.
 ///
@@ -32,7 +32,7 @@ use super::*;
 /// [`krikos_dns::install_android_jni_context`] for details (the function is also
 /// exported as `krikos::dns::install_android_jni_context`).
 ///
-/// If no JNI context is installed, iroh relies on panic unwinding to detect
+/// If no JNI context is installed, krikos relies on panic unwinding to detect
 /// the error, and will then use Google's fallback DNS servers. Note that if
 /// your compilation profile sets `panic = "abort"`, this can't work, and thus
 /// your app will panic if using a default `DnsResolver` without first initializing
@@ -41,7 +41,7 @@ use super::*;
 /// [QUIC]: https://quicwg.org
 /// [`DnsResolver`]: crate::dns::DnsResolver
 /// [`ndk_context`]: https://docs.rs/ndk-context
-/// [`krikos_dns::install_android_jni_context`]: https://docs.rs/iroh-dns/latest/iroh_dns/fn.install_android_jni_context.html
+/// [`krikos_dns::install_android_jni_context`]: https://docs.rs/iroh-dns/latest/krikos_dns/fn.install_android_jni_context.html
 // The last link can't be a normal doclink, because #[cfg(doc)] can't cross crate boundaries unfortunately.
 #[derive(Clone, Debug)]
 pub struct Endpoint {
@@ -274,7 +274,7 @@ impl Endpoint {
         })?;
 
         event!(
-            target: "iroh::_events::conn::connecting",
+            target: "krikos::_events::conn::connecting",
             tracing::Level::DEBUG,
             remote_id = %endpoint_id.fmt_short(),
             alpn = %String::from_utf8_lossy(alpn),
@@ -641,11 +641,11 @@ impl Endpoint {
     /// Returns the [`rustls::ClientConfig`] used by the endpoint for connecting to external services.
     ///
     /// This might be useful for address lookup services or other functions
-    /// that want to use the same trust anchors as iroh does for verifying the
+    /// that want to use the same trust anchors as krikos does for verifying the
     /// validity of TLS certificates presented by external services.
     ///
-    /// Note that this TLS config is unrelated to how iroh validates the authenticity
-    /// of iroh connections itself.
+    /// Note that this TLS config is unrelated to how krikos validates the authenticity
+    /// of krikos connections itself.
     ///
     /// The config is based on the trust anchors set via [`Builder::ca_tls_config`].
     pub fn tls_config(&self) -> &rustls::ClientConfig {
@@ -820,13 +820,13 @@ impl Endpoint {
 
     /// Notifies the system of potential network changes.
     ///
-    /// On many systems iroh is able to detect network changes by itself, however
+    /// On many systems krikos is able to detect network changes by itself, however
     /// some systems like android do not expose this functionality to native code.
     /// Android does however provide this functionality to Java code.  This
-    /// function allows for notifying iroh of any potential network changes like
+    /// function allows for notifying krikos of any potential network changes like
     /// this.
     ///
-    /// Even when the network did not change, or iroh was already able to detect
+    /// Even when the network did not change, or krikos was already able to detect
     /// the network change itself, there is no harm in calling this function.
     ///
     /// If the endpoint is closed, this method will log a warning and ignore the request.

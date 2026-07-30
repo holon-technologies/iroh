@@ -240,8 +240,8 @@ impl Builder {
             .await?;
         debug!(
             id = %inner.static_config.tls_config.secret_key.public(),
-            iroh_version = %env!("CARGO_PKG_VERSION"),
-            "iroh endpoint bound"
+            krikos_version = %env!("CARGO_PKG_VERSION"),
+            "krikos endpoint bound"
         );
 
         let ep = Endpoint {
@@ -516,7 +516,7 @@ impl Builder {
 
     /// Sets the relay servers to assist in establishing connectivity.
     ///
-    /// Relay servers are used to establish initial connection with another iroh endpoint.
+    /// Relay servers are used to establish initial connection with another krikos endpoint.
     /// They also perform various functions related to hole punching, see the [crate docs]
     /// for more details.
     ///
@@ -609,7 +609,7 @@ impl Builder {
     /// with the endpoint's addresses and relay URL. When other endpoints discover this endpoint,
     /// they retrieve the [`UserData`] in addition to the addressing info.
     ///
-    /// Iroh itself does not interpret the user-defined data in any way, it is purely left
+    /// Krikos itself does not interpret the user-defined data in any way, it is purely left
     /// for applications to parse and use.
     pub fn user_data_for_address_lookup(mut self, user_data: UserData) -> Self {
         self.address_lookup_user_data = Some(user_data);
@@ -678,13 +678,13 @@ impl Builder {
         self
     }
 
-    /// Sets the trusted CA root certificates for non-iroh TLS connections.
+    /// Sets the trusted CA root certificates for non-krikos TLS connections.
     ///
     /// These Certificate Authority roots are used as trust anchors for verifying
     /// the validity of TLS certificates presented by external services, such as
-    /// iroh relays, pkarr servers, or DNS-over-HTTPS resolvers.
+    /// krikos relays, pkarr servers, or DNS-over-HTTPS resolvers.
     /// They don't need to be trusted for the integrity or authenticity of native
-    /// iroh connections, which rely on iroh's own cryptographic authentication mechanisms.
+    /// krikos connections, which rely on krikos's own cryptographic authentication mechanisms.
     pub fn ca_tls_config(mut self, ca_tls_config: CaTlsConfig) -> Self {
         self.ca_tls_config = Some(ca_tls_config);
         self
@@ -722,14 +722,14 @@ impl Builder {
     /// Specify the rustls cryptography to use for all TLS operations.
     ///
     /// This includes
-    /// - TLS for encryption and authentication of iroh connections themselves, but also
+    /// - TLS for encryption and authentication of krikos connections themselves, but also
     /// - HTTPS connections to relays
     /// - Pkarr relay publishing HTTPS connections
     /// - and any other Address Lookup services that decide to use [`Endpoint::tls_config`].
     ///
     /// The two most common crypto providers in use today are `ring` as well as `aws-lc-rs`.
     ///
-    /// If either the `tls-ring` or `tls-aws-lc-rs` feature is set in iroh, this function doesn't
+    /// If either the `tls-ring` or `tls-aws-lc-rs` feature is set in krikos, this function doesn't
     /// need to be called.
     ///
     /// If none of these features are set, then calling this function in the builder is mandatory.
@@ -793,7 +793,7 @@ impl Builder {
     /// Sets a custom [`PathSelector`] for this endpoint.
     ///
     /// The path selector decides which path to use among the candidate paths to a
-    /// remote endpoint.  By default iroh uses a built-in selector that sorts paths by
+    /// remote endpoint.  By default krikos uses a built-in selector that sorts paths by
     /// biased RTT (with IPv6 preferred over IPv4 and relay treated as backup) and is
     /// sticky to avoid flapping.  Pass a custom [`PathSelector`] here to override that
     /// policy — for example, to make a custom transport always win over IP.

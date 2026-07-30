@@ -1,6 +1,6 @@
-# iroh-base
+# krikos-base
 
-This crate provides base types and utilities used throughout Iroh.
+This crate provides base types and utilities used throughout Krikos.
 
 # License
 

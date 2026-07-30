@@ -12,11 +12,11 @@
 #   2. Every `Cargo.toml`: `name =`, `[lib] name =`, `path =` dependency
 #      values, bare dependency-table keys, workspace `members`/`exclude`
 #      arrays, `[workspace.dependencies]`, feature-forwarding strings
-#      ("iroh-blobs/rpc", "dep:iroh") -- everything else (repository URLs,
+#      ("krikos-blobs/rpc", "dep:krikos") -- everything else (repository URLs,
 #      descriptions, license, comments, third-party deps like iroh-metrics/
 #      iroh-io/iroh-test) is deliberately left alone.
 #   3. Every `.rs` file: identifiers matching an `old_lib`/`old_package`
-#      token exactly, bounded so `iroh-metrics`, `iroh_docsrs` and similar
+#      token exactly, bounded so `iroh-metrics`, `krikos_docsrs` and similar
 #      unrelated or intentionally-out-of-scope identifiers are never
 #      corrupted.
 #   4. A narrow, separately-reported exception: the `path =`/`package =`
@@ -54,9 +54,9 @@ m = tomllib.load(open(root / "scripts" / "rename-map.toml", "rb"))
 pairs = [(p["old_dir"], p["new_dir"]) for p in m["packages"] if p["old_dir"] != p["new_dir"]]
 # Independently re-derive the safe order for DIRECTORY paths: sort longest
 # old_dir first. This does NOT necessarily match old_package's order --
-# e.g. old_dir "protocols/iroh-gossip" (21 chars) is longer than old_dir
-# "iroh-runtime" (12 chars) even though old_package "iroh-gossip" is
-# shorter than old_package "iroh-runtime" -- so it must be computed fresh,
+# e.g. old_dir "protocols/krikos-gossip" (21 chars) is longer than old_dir
+# "krikos-runtime" (12 chars) even though old_package "krikos-gossip" is
+# shorter than old_package "krikos-runtime" -- so it must be computed fresh,
 # not inherited from the packages list's own order.
 pairs.sort(key=lambda t: -len(t[0]))
 for i, (a, _) in enumerate(pairs):
@@ -105,9 +105,9 @@ done <<< "$mv_plan"
 
 if [[ "$mode" == "--apply" ]]; then
   # Sanity-check the nested case explicitly: krikos/bench must now exist as
-  # a consequence of the iroh -> krikos move, with no separate mv needed.
+  # a consequence of the krikos -> krikos move, with no separate mv needed.
   if [[ ! -d krikos/bench ]]; then
-    echo "FATAL: krikos/bench does not exist after the iroh -> krikos move" >&2
+    echo "FATAL: krikos/bench does not exist after the krikos -> krikos move" >&2
     exit 1
   fi
 fi
@@ -217,10 +217,10 @@ def is_exempt(path):
 # Bounded-token substitution helpers.
 #
 # Hyphen is included in the "word" class for package/dir matching: without
-# this, a bounded search for old_package "iroh" WOULD match inside the
+# this, a bounded search for old_package "krikos" WOULD match inside the
 # unrelated third-party dependency "iroh-metrics" (boundary chars on a
 # naive [A-Za-z0-9_] class are "-" on both sides, which look like valid
-# boundaries but aren't -- "iroh-metrics" is a different word, not "iroh"
+# boundaries but aren't -- "iroh-metrics" is a different word, not "krikos"
 # followed by more of "iroh-metrics"). Requiring the char immediately
 # outside the match to be outside [A-Za-z0-9_-] rejects that while still
 # matching the old_package/old_dir string's OWN internal hyphens, which are
@@ -233,9 +233,9 @@ def bounded_hyphen_sub(text, old, new):
 
 def bounded_word_sub(text, old, new):
     # Underscore is a legal identifier character, so it stays in the word
-    # class here -- this is what keeps "iroh_docsrs" / "iroh_loom" /
-    # "iroh_blobs_docsrs" (cfg names not in the map) untouched by the plain
-    # "iroh" / "iroh_blobs" lib rules.
+    # class here -- this is what keeps "krikos_docsrs" / "krikos_loom" /
+    # "krikos_blobs_docsrs" (cfg names not in the map) untouched by the plain
+    # "krikos" / "krikos_blobs" lib rules.
     pattern = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(old) + r"(?![A-Za-z0-9_])")
     return pattern.subn(new, text)
 
@@ -256,7 +256,7 @@ def sub_dirs_in_value(value):
 # `repository = "https://github.com/holon-technologies/iroh"` is a real,
 # unrenamed GitHub repository (the ADR explicitly leaves the GitHub org/repo
 # name out of scope) and sits right next to legitimate renames in the same
-# file; a blind substitution would corrupt it (the trailing "iroh" in that
+# file; a blind substitution would corrupt it (the trailing "krikos" in that
 # URL is boundary-legal the same way a real package token is). Only the
 # fields below are ever touched.
 # ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ KEY_RE = re.compile(r'^(\s*)("?)([A-Za-z0-9_.-]+)\2(\s*=\s*)(.*)$')
 # `key.workspace = true` dotted shorthand (Cargo's alternative to
 # `key = { workspace = true }`). Checked separately from KEY_RE because
 # KEY_RE's char class includes "." for this exact reason and would
-# otherwise capture "iroh-resolver.workspace" as one opaque key that never
+# otherwise capture "krikos-resolver.workspace" as one opaque key that never
 # equality-matches a bare old_package.
 DOTTED_WORKSPACE_KEY_RE = re.compile(r'^(\s*)("?)([A-Za-z0-9_-]+)\2(\.workspace\s*=\s*.*)$')
 PATH_FIELD_RE = re.compile(r'(path\s*=\s*")([^"]*)(")')
@@ -286,8 +286,8 @@ QUOTED_RE = re.compile(r'"([^"]*)"')
 
 def sub_lib_in_value(value):
     # `[package.metadata.cargo_check_external_types]`'s allowed_external_types
-    # array holds Rust path strings like "iroh_resolver" (bare) or
-    # "iroh_resolver::*" (wildcard) -- lib-form (underscore) identifiers,
+    # array holds Rust path strings like "krikos_resolver" (bare) or
+    # "krikos_resolver::*" (wildcard) -- lib-form (underscore) identifiers,
     # not directory paths, so this uses lib_pairs/exact-or-"::"-prefix
     # matching rather than sub_dirs_in_value's bounded substring search.
     for old, new in lib_pairs:
@@ -451,11 +451,11 @@ def _rs_lib_patterns(old):
     # contains these same tokens and MUST survive unchanged:
     #   - wire-protocol domain-separation / header strings, e.g.
     #     `"iroh-relay handshake v1 challenge signature"`,
-    #     `"x-iroh-relay-client-auth-v1"`, `"iroh-relay-v1"`
-    #     (iroh-relay/src/protos/handshake.rs, .../tests/wire_compat.rs) --
+    #     `"x-krikos-relay-client-auth-v1"`, `"krikos-relay-v1"`
+    #     (krikos-relay/src/protos/handshake.rs, .../tests/wire_compat.rs) --
     #     renaming these would silently break wire compatibility, which
     #     ADR-0002 explicitly puts out of scope.
-    #   - production relay hostnames baked into iroh/src/defaults.rs, e.g.
+    #   - production relay hostnames baked into krikos/src/defaults.rs, e.g.
     #     "use1-1.relay.n0.iroh.link.", and the "iroh.link"/"iroh.computer"
     #     domains referenced elsewhere -- real infrastructure, not an
     #     identifier.
@@ -464,7 +464,7 @@ def _rs_lib_patterns(old):
     #     un-renamed github.com/holon-technologies/iroh, ...).
     # A blind bounded-token substitution would corrupt all of the above,
     # because plain string literals and URLs satisfy the same "not
-    # [A-Za-z0-9_]" boundary test that a real `iroh_base::Foo` path does.
+    # [A-Za-z0-9_]" boundary test that a real `krikos_base::Foo` path does.
     # So: whitelist the syntactic positions instead of blacklisting data.
     esc = re.escape(old)
     return [
@@ -481,14 +481,14 @@ def _rs_lib_patterns(old):
 
 def _rs_lib_doc_backtick_pattern(old):
     # `` `TOKEN` `` / `` `TOKEN::Item` `` inside a doc-comment intra-doc
-    # link, e.g. [`iroh_base::Foo`] or the bare `` `iroh` ``.
+    # link, e.g. [`krikos_base::Foo`] or the bare `` `krikos` ``.
     return re.compile(r"(?<=`)" + re.escape(old) + r"(?=`|::)")
 
 
 def _rs_lib_doc_bracket_pattern(old):
     # `[TOKEN]` shortcut reference-style doc link, e.g. "used from the
-    # [iroh] crate" -- restricted to rustdoc comment lines only (see
-    # caller), since outside a doc comment `[iroh]` is not idiomatic Rust
+    # [krikos] crate" -- restricted to rustdoc comment lines only (see
+    # caller), since outside a doc comment `[krikos]` is not idiomatic Rust
     # and the extra restriction costs nothing.
     return re.compile(r"(?<=\[)" + re.escape(old) + r"(?=\])")
 
@@ -520,12 +520,12 @@ def _string_literal_mask(line):
     # double-quoted string literal, so CODE-syntax patterns (TOKEN::, use
     # TOKEN, extern crate TOKEN) never rewrite the same-looking text when it
     # is DATA rather than a real path. Concretely:
-    # `redb::TypeName::new("iroh_blobs::Hash")` in
-    # protocols/iroh-blobs/src/hash.rs is a stable on-disk type tag read by
+    # `redb::TypeName::new("krikos_blobs::Hash")` in
+    # protocols/krikos-blobs/src/hash.rs is a stable on-disk type tag read by
     # the redb embedded database's schema check -- renaming the STRING
     # (as opposed to the real `redb::TypeName` path outside the quotes)
     # would make a database written by a prior build fail to open under a
-    # rebuilt binary. `event!(target: "iroh::_events::...")` tracing
+    # rebuilt binary. `event!(target: "krikos::_events::...")` tracing
     # target strings are the same shape; both are conservatively left
     # alone here rather than trying to classify which string literals are
     # "just" a local convention vs. a persisted/external contract.
@@ -558,11 +558,11 @@ def _in_ranges(pos, ranges):
 
 def _apply_masked(line, patterns, new):
     # More than one whitelist pattern can match the exact same span --
-    # `use iroh_base::Foo` satisfies both "TOKEN followed by ::" and "TOKEN
+    # `use krikos_base::Foo` satisfies both "TOKEN followed by ::" and "TOKEN
     # preceded by 'use '" at identical (start, end) offsets. Without
     # deduplication the same span gets spliced twice, and the second splice
     # uses offsets computed against the pre-edit line, corrupting the
-    # result (observed: "iroh_base" -> "krikos_basese"). Keep exactly one
+    # result (observed: "krikos_base" -> "krikos_basese"). Keep exactly one
     # match per unique (start, end) span.
     mask = _string_literal_mask(line)
     seen_spans = set()

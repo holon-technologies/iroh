@@ -10,7 +10,7 @@ pub(super) struct ResolveRawPublicKeyCert {
 
 impl ResolveRawPublicKeyCert {
     pub(super) fn new(secret_key: &SecretKey) -> Self {
-        let client_private_key = Arc::new(IrohSecretKey::from(secret_key.clone()));
+        let client_private_key = Arc::new(KrikosSecretKey::from(secret_key.clone()));
         let client_public_key = client_private_key.spki_public_key();
         let client_public_key_as_cert = CertificateDer::from(client_public_key.to_vec());
 
@@ -55,12 +55,12 @@ impl rustls::server::ResolvesServerCert for ResolveRawPublicKeyCert {
 }
 
 #[derive(Debug, Clone, derive_more::From)]
-struct IrohSecretKey {
+struct KrikosSecretKey {
     #[from]
     key: SecretKey,
 }
 
-impl IrohSecretKey {
+impl KrikosSecretKey {
     fn spki_public_key(&self) -> webpki_types::SubjectPublicKeyInfoDer<'static> {
         rustls::sign::public_key_to_spki(
             &webpki_types::alg_id::ED25519,
@@ -68,7 +68,7 @@ impl IrohSecretKey {
         )
     }
 }
-impl rustls::sign::SigningKey for IrohSecretKey {
+impl rustls::sign::SigningKey for KrikosSecretKey {
     fn choose_scheme(
         &self,
         offered: &[rustls::SignatureScheme],
@@ -89,7 +89,7 @@ impl rustls::sign::SigningKey for IrohSecretKey {
     }
 }
 
-impl rustls::sign::Signer for IrohSecretKey {
+impl rustls::sign::Signer for KrikosSecretKey {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         Ok(self.key.sign(message).to_bytes().to_vec())
     }

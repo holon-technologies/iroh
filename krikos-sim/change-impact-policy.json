@@ -1,31 +1,31 @@
 {
   "schema_version": 1,
-  "policy_id": "iroh-change-impact-v1",
+  "policy_id": "krikos-change-impact-v1",
   "maximum_changed_paths": 4096,
   "domains": [
     {
       "id": "direct",
-      "swarm": "iroh-sim/swarms/direct-smoke.json"
+      "swarm": "krikos-sim/swarms/direct-smoke.json"
     },
     {
       "id": "discovery",
-      "swarm": "iroh-sim/swarms/discovery-timing.json"
+      "swarm": "krikos-sim/swarms/discovery-timing.json"
     },
     {
       "id": "mobility",
-      "swarm": "iroh-sim/swarms/mobility-timing.json"
+      "swarm": "krikos-sim/swarms/mobility-timing.json"
     },
     {
       "id": "nat",
-      "swarm": "iroh-sim/swarms/nat-behavior.json"
+      "swarm": "krikos-sim/swarms/nat-behavior.json"
     },
     {
       "id": "ready-order",
-      "swarm": "iroh-sim/swarms/ready-order-pressure.json"
+      "swarm": "krikos-sim/swarms/ready-order-pressure.json"
     },
     {
       "id": "relay",
-      "swarm": "iroh-sim/swarms/relay-lifecycle.json"
+      "swarm": "krikos-sim/swarms/relay-lifecycle.json"
     }
   ],
   "ignored_prefixes": [
@@ -36,24 +36,24 @@
     ".github/workflows/ci.yml",
     "Cargo.lock",
     "Cargo.toml",
-    "iroh-runtime/",
-    "iroh-sim/"
+    "krikos-runtime/",
+    "krikos-sim/"
   ],
   "mappings": [
     {
-      "prefix": "iroh-relay/",
+      "prefix": "krikos-relay/",
       "domains": [
         "relay"
       ]
     },
     {
-      "prefix": "iroh/src/discovery/",
+      "prefix": "krikos/src/discovery/",
       "domains": [
         "discovery"
       ]
     },
     {
-      "prefix": "iroh/src/endpoint/",
+      "prefix": "krikos/src/endpoint/",
       "domains": [
         "direct",
         "discovery",
@@ -63,7 +63,7 @@
       ]
     },
     {
-      "prefix": "iroh/src/socket/",
+      "prefix": "krikos/src/socket/",
       "domains": [
         "direct",
         "mobility",

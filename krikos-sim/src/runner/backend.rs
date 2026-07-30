@@ -119,9 +119,9 @@ impl DeterministicScenarioBackend {
     }
 
     async fn bind_endpoint(&self, spec: &EndpointSpec) -> Result<Endpoint, RunnerError> {
-        let secret = derive_material("iroh-sim endpoint identity v1", spec.identity_ordinal);
-        let token = derive_material("iroh-sim token material v1", spec.identity_ordinal);
-        let reset = derive_material("iroh-sim reset material v1", spec.identity_ordinal);
+        let secret = derive_material("krikos-sim endpoint identity v1", spec.identity_ordinal);
+        let token = derive_material("krikos-sim token material v1", spec.identity_ordinal);
+        let reset = derive_material("krikos-sim reset material v1", spec.identity_ordinal);
         let mut environment = self
             .backend
             .endpoint_environment(&spec.host, SimulationCryptoMaterial::new(token, reset))?;
@@ -781,7 +781,7 @@ impl ScenarioBackend for DeterministicScenarioBackend {
                         .map(|running| running.endpoint.id())
                         .unwrap_or_else(|| {
                             SecretKey::from_bytes(&derive_material(
-                                "iroh-sim endpoint identity v1",
+                                "krikos-sim endpoint identity v1",
                                 spec.identity_ordinal,
                             ))
                             .public()

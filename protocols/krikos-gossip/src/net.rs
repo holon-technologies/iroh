@@ -10,12 +10,12 @@ use std::{
 
 use bytes::Bytes;
 use futures_concurrency::stream::{StreamGroup, stream_group};
+use irpc::WithChannels;
 use krikos::{
     Endpoint, EndpointAddr, EndpointId, PublicKey, RelayUrl, Watcher,
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use irpc::WithChannels;
 use n0_error::{e, stack_error};
 use n0_future::{
     Stream, StreamExt as _,
@@ -176,7 +176,7 @@ impl Builder {
     /// Set the ALPN this gossip instance uses.
     ///
     /// It has to be the same for all peers in the network. If you set a custom ALPN,
-    /// you have to use the same ALPN when registering the [`Gossip`] in on a iroh
+    /// you have to use the same ALPN when registering the [`Gossip`] in on a krikos
     /// router with [`RouterBuilder::accept`].
     ///
     /// [`RouterBuilder::accept`]: krikos::protocol::RouterBuilder::accept
@@ -1772,7 +1772,7 @@ pub(crate) mod tests {
             let secret_key = SecretKey::from_bytes(&rng.random());
             async move {
                 let (router, gossip) = spawn_gossip(secret_key, relay_map).await?;
-                // wait for the relay to be set. iroh currently has issues when trying
+                // wait for the relay to be set. krikos currently has issues when trying
                 // to immediately reconnect with changed direct addresses, but when the
                 // relay path is available it works.
                 // See https://github.com/n0-computer/iroh/pull/3372

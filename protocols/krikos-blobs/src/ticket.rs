@@ -219,8 +219,8 @@ impl<'de> Deserialize<'de> for BlobTicket {
 mod tests {
     use std::net::SocketAddr;
 
-    use krikos::{PublicKey, SecretKey, TransportAddr};
     use iroh_test::{assert_eq_hex, hexdump::parse_hexdump};
+    use krikos::{PublicKey, SecretKey, TransportAddr};
 
     use super::*;
 

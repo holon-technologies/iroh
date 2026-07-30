@@ -74,7 +74,7 @@ pub struct Config {
 
     /// Location where the server stores its data.
     ///
-    /// When `None`, [`Self::data_dir`] falls back to the `IROH_DNS_DATA_DIR`
+    /// When `None`, [`Self::data_dir`] falls back to the `KRIKOS_DNS_DATA_DIR`
     /// environment variable, then to the platform's standard data directory.
     pub data_dir: Option<PathBuf>,
 }
@@ -615,19 +615,19 @@ impl Config {
     ///
     /// Resolution order:
     /// 1. The [`Self::data_dir`] field, if set.
-    /// 2. The `IROH_DNS_DATA_DIR` environment variable.
+    /// 2. The `KRIKOS_DNS_DATA_DIR` environment variable.
     /// 3. An `krikos-dns` subdirectory of the platform's standard data directory,
     ///    as reported by `dirs_next::data_dir`.
     pub fn data_dir(&self) -> Result<PathBuf> {
         let dir = if let Some(dir) = &self.data_dir {
             dir.clone()
-        } else if let Some(val) = env::var_os("IROH_DNS_DATA_DIR") {
+        } else if let Some(val) = env::var_os("KRIKOS_DNS_DATA_DIR") {
             PathBuf::from(val)
         } else {
             let path = dirs_next::data_dir()
                 .std_context("operating environment provides no directory for application data")?;
 
-            path.join("iroh-dns")
+            path.join("krikos-dns")
         };
         Ok(dir)
     }
@@ -684,15 +684,16 @@ impl Default for Config {
             dns: DnsConfig {
                 port: 5300,
                 bind_addr: None,
-                origins: vec!["irohdns.example.".to_string(), ".".to_string()],
+                origins: vec!["krikosdns.example.".to_string(), ".".to_string()],
 
-                default_soa: "irohdns.example hostmaster.irohdns.example 0 10800 3600 604800 3600"
-                    .to_string(),
+                default_soa:
+                    "krikosdns.example hostmaster.krikosdns.example 0 10800 3600 604800 3600"
+                        .to_string(),
                 default_ttl: 900,
 
                 rr_a: Some(Ipv4Addr::LOCALHOST),
                 rr_aaaa: None,
-                rr_ns: Some("ns1.irohdns.example.".to_string()),
+                rr_ns: Some("ns1.krikosdns.example.".to_string()),
             },
             zone_store: None,
             metrics: None,

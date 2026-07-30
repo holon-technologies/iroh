@@ -2,7 +2,7 @@ use std::io;
 
 use bao_tree::io::sync::WriteAt;
 
-use crate::store::IROH_BLOCK_SIZE;
+use crate::store::KRIKOS_BLOCK_SIZE;
 
 /// Keep track of the most precise size we know of.
 ///
@@ -18,7 +18,7 @@ pub struct SizeInfo {
 impl SizeInfo {
     /// Create a new size info for a complete file of size `size`.
     pub(crate) fn complete(size: u64) -> Self {
-        let mask = (1 << IROH_BLOCK_SIZE.chunk_log()) - 1;
+        let mask = (1 << KRIKOS_BLOCK_SIZE.chunk_log()) - 1;
         // offset of the last bao chunk in a file of size `size`
         let last_chunk_offset = size & mask;
         Self {
@@ -43,7 +43,7 @@ impl SizeInfo {
 
     /// Persist into a file where each chunk has its own slot.
     pub fn persist(&self, mut target: impl WriteAt) -> io::Result<()> {
-        let size_offset = (self.offset >> IROH_BLOCK_SIZE.chunk_log()) << 3;
+        let size_offset = (self.offset >> KRIKOS_BLOCK_SIZE.chunk_log()) << 3;
         target.write_all_at(size_offset, self.size.to_le_bytes().as_slice())?;
         Ok(())
     }

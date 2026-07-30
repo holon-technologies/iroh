@@ -1,6 +1,6 @@
-//! A simple iroh connection pool.
+//! A simple krikos connection pool.
 //!
-//! Adapted from `iroh-util` 0.6.0 for the local Iroh v2 API. The original source is licensed
+//! Adapted from `krikos-util` 0.6.0 for the local Krikos v2 API. The original source is licensed
 //! `MIT OR Apache-2.0` by the n0 team.
 //!
 //! Entry point is [`ConnectionPool`]. You create a connection pool for a specific
@@ -114,7 +114,7 @@ impl ConnectionRef {
 
 /// Error when a connection can not be acquired
 ///
-/// This includes the normal iroh connection errors as well as pool specific
+/// This includes the normal krikos connection errors as well as pool specific
 /// errors such as timeouts and connection limits.
 #[stack_error(derive, add_meta)]
 #[derive(Clone)]

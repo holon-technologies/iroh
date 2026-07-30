@@ -68,7 +68,9 @@ impl CryptoLane {
     const fn simulation_mode(self) -> krikos::simulation::SimulationCryptoMode {
         match self {
             Self::DeterministicTest => krikos::simulation::SimulationCryptoMode::DeterministicTest,
-            Self::ProductionProvider => krikos::simulation::SimulationCryptoMode::ProductionProvider,
+            Self::ProductionProvider => {
+                krikos::simulation::SimulationCryptoMode::ProductionProvider
+            }
         }
     }
 

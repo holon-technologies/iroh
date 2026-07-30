@@ -38,7 +38,7 @@ pub async fn endpoint(
         .await
 }
 
-/// An iroh node that just has the blobs transport
+/// An krikos node that just has the blobs transport
 #[derive(Debug)]
 pub struct Node {
     router: krikos::protocol::Router,
@@ -73,7 +73,7 @@ impl Client {
     }
 }
 
-/// An iroh node builder
+/// An krikos node builder
 #[derive(derive_more::Debug)]
 pub struct Builder {
     endpoint: krikos::Endpoint,

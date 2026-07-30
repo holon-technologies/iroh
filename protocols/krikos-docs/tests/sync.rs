@@ -1166,7 +1166,7 @@ impl PartialEq<ExpectedEntry> for (Entry, Bytes) {
 #[cfg(feature = "fs-store")]
 async fn doc_delete() -> Result<()> {
     let tempdir = tempdir()?;
-    // TODO(Frando): iroh-blobs has gc only for fs store atm, change test to test both
+    // TODO(Frando): krikos-blobs has gc only for fs store atm, change test to test both
     // mem and persistent once this changes.
     let ep = empty_endpoint().await?;
     let node = Node::persistent(tempdir.path(), ep)

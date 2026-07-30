@@ -118,7 +118,7 @@ mod dns_and_pkarr_servers {
     impl DnsPkarrServer {
         /// Run DNS and Pkarr servers on localhost.
         pub async fn run() -> std::io::Result<Self> {
-            Self::run_with_origin("dns.iroh.test".to_string()).await
+            Self::run_with_origin("dns.krikos.test".to_string()).await
         }
 
         /// Run DNS and Pkarr servers on localhost with the specified `endpoint_origin` domain.
@@ -368,7 +368,7 @@ pub(crate) mod pkarr_dns_state {
     };
 
     use krikos_base::EndpointId;
-    use krikos_dns::{IROH_TXT_NAME, endpoint_info::EndpointInfo, pkarr::SignedPacket};
+    use krikos_dns::{KRIKOS_TXT_NAME, endpoint_info::EndpointInfo, pkarr::SignedPacket};
     use tracing::debug;
 
     use crate::test_utils::dns_server::QueryHandler;
@@ -492,14 +492,14 @@ pub(crate) mod pkarr_dns_state {
     /// Parses a [`EndpointId`] from a DNS domain name.
     ///
     /// Splits the domain name into labels on each dot. Expects the first label to be
-    /// [`IROH_TXT_NAME`] and the second label to be a z32 encoded [`EndpointId`]. Ignores
+    /// [`KRIKOS_TXT_NAME`] and the second label to be a z32 encoded [`EndpointId`]. Ignores
     /// subsequent labels.
     ///
     /// Returns a [`EndpointId`] if parsed successfully, otherwise `None`.
     fn endpoint_id_from_domain_name(name: &str) -> Option<EndpointId> {
         let mut labels = name.split(".");
         let label = labels.next()?;
-        if label != IROH_TXT_NAME {
+        if label != KRIKOS_TXT_NAME {
             return None;
         }
         let label = labels.next()?;
@@ -526,7 +526,7 @@ pub(crate) mod pkarr_dns_state {
         ttl: u32,
     ) -> impl Iterator<Item = hickory_resolver::proto::rr::Record> + '_ {
         use hickory_resolver::proto::rr;
-        let name = format!("{IROH_TXT_NAME}.{}.{origin}", endpoint_id.to_z32());
+        let name = format!("{KRIKOS_TXT_NAME}.{}.{origin}", endpoint_id.to_z32());
         let name = rr::Name::from_utf8(name).expect("invalid name");
         txt_strings.into_iter().map(move |s| {
             let txt = rr::rdata::TXT::new(vec![s]);

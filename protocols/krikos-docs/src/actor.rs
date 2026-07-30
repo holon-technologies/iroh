@@ -8,8 +8,8 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
-use krikos_blobs::Hash;
 use irpc::channel::mpsc;
+use krikos_blobs::Hash;
 use n0_future::{TryFutureExt, task::JoinSet, time::Duration};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
@@ -605,7 +605,7 @@ impl SyncHandle {
         self.tx
             .send(action)
             .await
-            .context("sending to iroh_docs actor failed")?;
+            .context("sending to krikos_docs actor failed")?;
         Ok(())
     }
     async fn send_replica(&self, namespace: NamespaceId, action: ReplicaAction) -> Result<()> {

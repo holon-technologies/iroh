@@ -117,7 +117,7 @@ use crate::{
     },
     protocol::ChunkRangesExt,
     store::{
-        IROH_BLOCK_SIZE,
+        KRIKOS_BLOCK_SIZE,
         fs::{
             bao_file::{
                 BaoFileStorage, BaoFileStorageSubscriber, CompleteStorage, DataReader,
@@ -385,7 +385,7 @@ impl SyncEntityApi for HashContext {
 impl HashContext {
     /// The outboard for the file.
     pub fn outboard(&self) -> io::Result<PreOrderOutboard<OutboardReader>> {
-        let tree = BaoTree::new(self.current_size()?, IROH_BLOCK_SIZE);
+        let tree = BaoTree::new(self.current_size()?, KRIKOS_BLOCK_SIZE);
         let outboard = self.outboard_reader();
         Ok(PreOrderOutboard {
             root: blake3::Hash::from(self.id),
@@ -1426,7 +1426,7 @@ impl FsStore {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .thread_name_fn(|| {
                 format!(
-                    "iroh-blob-store-{}",
+                    "krikos-blob-store-{}",
                     THREAD_NR.fetch_add(1, Ordering::Relaxed)
                 )
             })
@@ -1534,7 +1534,7 @@ pub mod tests {
     use crate::{
         api::blobs::Bitfield,
         store::{
-            IROH_BLOCK_SIZE,
+            KRIKOS_BLOCK_SIZE,
             util::{SliceInfoExt, Tag, read_checksummed, tests::create_n0_bao},
         },
     };
@@ -1563,7 +1563,7 @@ pub mod tests {
         } else {
             ranges.clone()
         };
-        round_up_to_chunks_groups(ranges, IROH_BLOCK_SIZE)
+        round_up_to_chunks_groups(ranges, KRIKOS_BLOCK_SIZE)
     }
 
     fn create_n0_bao_full(
@@ -1676,7 +1676,7 @@ pub mod tests {
         let store = FsStore::load(db_dir).await?;
         for size in INTERESTING_SIZES
             .into_iter()
-            .filter(|x| *x != 0 && *x <= IROH_BLOCK_SIZE.bytes())
+            .filter(|x| *x != 0 && *x <= KRIKOS_BLOCK_SIZE.bytes())
         {
             let expected = test_data(size);
             let expected_hash = Hash::new(&expected);
@@ -2153,7 +2153,7 @@ pub mod tests {
         for (_hash, _bao_tree) in bao_by_hash {
             // let mut reader = Cursor::new(bao_tree);
             // let size = reader.read_u64_le().await?;
-            // let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+            // let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
             // let ranges = ChunkRanges::all();
             // let mut decoder = DecodeResponseIter::new(hash, tree, reader, &ranges);
             // while let Some(item) = decoder.next() {

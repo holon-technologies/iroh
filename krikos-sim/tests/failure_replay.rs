@@ -207,7 +207,7 @@ fn trace(count: u64) -> Vec<TraceEvent> {
 
 fn temp_dir(label: &str) -> std::path::PathBuf {
     let path =
-        std::env::temp_dir().join(format!("iroh-sim-failure-{label}-{}", std::process::id()));
+        std::env::temp_dir().join(format!("krikos-sim-failure-{label}-{}", std::process::id()));
     if path.exists() {
         fs::remove_dir_all(&path).unwrap();
     }

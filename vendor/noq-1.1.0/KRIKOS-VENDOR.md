@@ -5,7 +5,7 @@ remains `noq` so the fork is source-compatible at import sites. The package name
 prerelease version make downstream dependency provenance explicit.
 
 This directory is an exact copy of the crates.io `noq` 1.1.0 package plus a narrow
-resource-accounting patch owned by the Iroh project.
+resource-accounting patch owned by the Krikos project.
 
 ## Why it is vendored
 
@@ -16,7 +16,7 @@ connection-lifetime permit. A peer can therefore grow queued event memory, while
 cannot prove that a released application handle also means the Noq driver and shared state have
 finished.
 
-The Iroh delta adds:
+The Krikos delta adds:
 
 - explicit finite `EventQueueLimits` on endpoint construction;
 - per-connection packet-item and endpoint-wide packet-byte accounting;
@@ -24,7 +24,7 @@ The Iroh delta adds:
 - reserved terminal-event credits and coalesced close/rebind/address-change state;
 - fixed-cardinality queue rejection diagnostics;
 - an opaque `ConnectionLifetimeToken` retained through final Noq connection-state drop;
-- guarded connect and accept entry points used by Iroh and relay QAD; and
+- guarded connect and accept entry points used by Krikos and relay QAD; and
 - saturation, recovery, token-conservation, and raw-sender-bypass tests.
 
 Packet admission failure behaves as QUIC packet loss. Control admission failure closes only the
@@ -37,7 +37,7 @@ never silently discarded.
 2. Reapply only the queue-budget wrappers, lifetime token, explicit-limit constructors, and tests.
 3. Review upstream Noq for equivalent item, byte, control, terminal, and connection-lifetime
    bounds.
-4. Run the vendored Noq tests plus Iroh endpoint, simulation, relay-QAD, and browser checks.
+4. Run the vendored Noq tests plus Krikos endpoint, simulation, relay-QAD, and browser checks.
 5. Increment the Holon prerelease revision, update exact `krikos-noq` dependencies, the local source
    patch, package verifier, lockfiles, changelog, and this document together.
 

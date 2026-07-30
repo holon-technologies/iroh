@@ -560,7 +560,7 @@ fn validate_base_path(value: &str) -> Result<(), SwarmError> {
     let segments_are_normal = value
         .split('/')
         .all(|segment| !segment.is_empty() && !matches!(segment, "." | ".."));
-    let is_workspace_scenario = value.starts_with("iroh-sim/") && value.ends_with(".json");
+    let is_workspace_scenario = value.starts_with("krikos-sim/") && value.ends_with(".json");
     (valid_bytes && segments_are_normal && is_workspace_scenario)
         .then_some(())
         .ok_or(SwarmError::InvalidBasePath)

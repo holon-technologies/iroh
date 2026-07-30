@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to iroh-dns will be documented in this file.
+All notable changes to krikos-dns will be documented in this file.
 
 ## Unreleased
 
@@ -22,7 +22,7 @@ All notable changes to iroh-dns will be documented in this file.
 
 # Changelog
 
-All notable changes to iroh-dns will be documented in this file.
+All notable changes to krikos-dns will be documented in this file.
 
 ## [1.0.2](https://github.com/n0-computer/iroh/compare/v1.0.1..1.0.2) - 2026-07-06
 

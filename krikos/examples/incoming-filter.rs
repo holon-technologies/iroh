@@ -29,7 +29,7 @@ use krikos::{
 };
 use n0_error::{Result, StdResultExt};
 
-const ALPN: &[u8] = b"iroh-example/incoming-filter/0";
+const ALPN: &[u8] = b"krikos-example/incoming-filter/0";
 
 #[derive(Debug, Clone)]
 struct Echo;

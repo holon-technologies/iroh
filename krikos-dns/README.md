@@ -1,8 +1,8 @@
-# iroh-dns
+# krikos-dns
 
-DNS-based endpoint discovery for Iroh.
+DNS-based endpoint discovery for Krikos.
 
-This crate contains the core types for publishing and resolving iroh endpoint information via DNS, using the [pkarr](pkarr.org) signed packet format.
+This crate contains the core types for publishing and resolving krikos endpoint information via DNS, using the [pkarr](pkarr.org) signed packet format.
 
 # License
 

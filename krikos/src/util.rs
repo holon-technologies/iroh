@@ -31,7 +31,7 @@ mod reqwest_dns_resolver {
 
     /// Implementation of [`reqwest::dns::Resolve`] for [`DnsResolver`].
     ///
-    /// Wrapped in a newtype to not expose this in the public iroh API.
+    /// Wrapped in a newtype to not expose this in the public krikos API.
     pub(super) struct ReqwestDnsResolver(pub(super) DnsResolver);
 
     impl reqwest::dns::Resolve for ReqwestDnsResolver {

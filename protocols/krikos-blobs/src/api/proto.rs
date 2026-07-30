@@ -200,7 +200,7 @@ pub struct ImportPathRequest {
     pub scope: Scope,
 }
 
-/// Import bao encoded data for the given hash with the iroh block size.
+/// Import bao encoded data for the given hash with the krikos block size.
 ///
 /// The result is just a single item, indicating if a write error occurred.
 /// To observe the incoming data more granularly, use the `Observe` command
@@ -217,7 +217,7 @@ pub struct ObserveRequest {
     pub hash: Hash,
 }
 
-/// Export the given ranges in bao format, with the iroh block size.
+/// Export the given ranges in bao format, with the krikos block size.
 ///
 /// The returned stream should be verified by the store.
 #[derive(Debug, Serialize, Deserialize)]

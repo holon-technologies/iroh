@@ -1,6 +1,6 @@
 <h1 align="center">
 <a href="https://iroh.computer">
-<img alt="iroh" src="https://raw.githubusercontent.com/n0-computer/iroh/main/.img/iroh_wordmark.svg" width="100" />
+<img alt="krikos" src="https://raw.githubusercontent.com/n0-computer/iroh/main/.img/iroh_wordmark.svg" width="100" />
 </a>
 </h1>
 
@@ -28,22 +28,22 @@ less net work for networks
 </div>
 <br/>
 
-Iroh is a Rust library to establish direct connections between endpoints.
+Krikos is a Rust library to establish direct connections between endpoints.
 It gives you an API for dialing by public key. You say "connect to that
-endpoint", and iroh finds and maintains the best connection for you.
+endpoint", and krikos finds and maintains the best connection for you.
 
-Under the hood iroh establishes peer-to-peer [QUIC] connections between
-endpoints. The fastest route is a direct connection, so iroh tries to
+Under the hood krikos establishes peer-to-peer [QUIC] connections between
+endpoints. The fastest route is a direct connection, so krikos tries to
 [hole-punch] one whenever it can. If that fails it falls back to using
 relay servers.
 
-Because iroh is built on [QUIC], all connections are end-to-end encrypted and may
+Because krikos is built on [QUIC], all connections are end-to-end encrypted and may
 carry any number of concurrent streams. Dialing by public key also makes them mutually
 authenticated, because each endpoint's public key is its TLS identity.
 
 ## Overview
 
-An iroh endpoint is created and controlled by the [`Endpoint`]. Each endpoint
+An krikos endpoint is created and controlled by the [`Endpoint`]. Each endpoint
 has a unique [`SecretKey`], whose public key is the endpoint's identity, the
 [`EndpointId`]. Connections are authenticated against this key, which means an
 [`EndpointId`] can't be impersonated.
@@ -61,7 +61,7 @@ cannot read any traffic between endpoints.
 Endpoints can also connect directly without a relay, as long as the accepting
 endpoint is directly reachable at one of its addresses.
 
-To discover addressing information for an endpoint, iroh uses
+To discover addressing information for an endpoint, krikos uses
 [address lookup services]. With address lookup, you can connect to other
 endpoints with only their [`EndpointId`]. Addressing information will then
 be resolved on-demand.
@@ -75,14 +75,14 @@ This is an echo protocol: the accepting side copies back whatever it receives.
 The full, commented version is in [`echo.rs`](examples/echo.rs).
 
 ```rust
-use iroh::{
+use krikos::{
     Endpoint,
     endpoint::{Connection, presets},
     protocol::{AcceptError, ProtocolHandler, Router},
 };
 
 /// Each protocol is identified by its ALPN, exchanged during the handshake.
-const ALPN: &[u8] = b"iroh-example/echo/0";
+const ALPN: &[u8] = b"krikos-example/echo/0";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -128,25 +128,25 @@ impl ProtocolHandler for Echo {
 }
 ```
 
-More examples live in [`iroh/examples`](examples). Run them with
+More examples live in [`krikos/examples`](examples). Run them with
 `cargo run --example NAME`. Details for each are in the file itself.
 
 ## Compose protocols
 
 Instead of writing your own, you can build on protocols that already exist on
-top of iroh:
+top of krikos:
 
-- [iroh-blobs] for [BLAKE3]-based content-addressed blob transfer, scaling from
+- [krikos-blobs] for [BLAKE3]-based content-addressed blob transfer, scaling from
   kilobytes to terabytes.
-- [iroh-gossip] for publish-subscribe overlay networks that scale down to what
+- [krikos-gossip] for publish-subscribe overlay networks that scale down to what
   an average phone can handle.
 - and many more.
 
-To use iroh from other languages, see [iroh-ffi].
+To use krikos from other languages, see [krikos-ffi].
 
 ## Development
 
-For notes on iroh's structured events and how to build the documentation, see
+For notes on krikos's structured events and how to build the documentation, see
 [DEVELOPMENT.md](DEVELOPMENT.md).
 
 # License
@@ -172,12 +172,12 @@ shall be dual licensed as above, without any additional terms or conditions.
 [QUIC]: https://en.wikipedia.org/wiki/QUIC
 [hole-punch]: https://en.wikipedia.org/wiki/Hole_punching_(networking)
 [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3
-[`Endpoint`]: https://docs.rs/iroh/latest/iroh/struct.Endpoint.html
-[`SecretKey`]: https://docs.rs/iroh/latest/iroh/struct.SecretKey.html
-[`EndpointId`]: https://docs.rs/iroh/latest/iroh/struct.EndpointId.html
-[address lookup services]: https://docs.rs/iroh/latest/iroh/address_lookup/index.html
-[`N0` preset]: https://docs.rs/iroh/latest/iroh/endpoint/presets/struct.N0.html
-[iroh-blobs]: https://github.com/n0-computer/iroh-blobs
-[iroh-gossip]: https://github.com/n0-computer/iroh-gossip
-[iroh-ffi]: https://github.com/n0-computer/iroh-ffi
+[`Endpoint`]: https://docs.rs/iroh/latest/krikos/struct.Endpoint.html
+[`SecretKey`]: https://docs.rs/iroh/latest/krikos/struct.SecretKey.html
+[`EndpointId`]: https://docs.rs/iroh/latest/krikos/struct.EndpointId.html
+[address lookup services]: https://docs.rs/iroh/latest/krikos/address_lookup/index.html
+[`N0` preset]: https://docs.rs/iroh/latest/krikos/endpoint/presets/struct.N0.html
+[krikos-blobs]: https://github.com/n0-computer/iroh-blobs
+[krikos-gossip]: https://github.com/n0-computer/iroh-gossip
+[krikos-ffi]: https://github.com/n0-computer/iroh-ffi
 [n0]: https://n0.computer

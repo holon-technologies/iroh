@@ -2,7 +2,7 @@
 
 **Status:** normative for the v2 architecture cut.
 
-The fork must share relay infrastructure with upstream-compatible Iroh deployments. This contract
+The fork must share relay infrastructure with upstream-compatible Krikos deployments. This contract
 defines wire compatibility independently from Rust source compatibility, Cargo features, operator
 configuration, CLI flags, metrics, and deployment manifests.
 
@@ -19,11 +19,11 @@ Baseline protocol-source SHA-256 values provide provenance for fixture generatio
 
 | Path at `v1.0.3` | SHA-256 |
 | --- | --- |
-| `iroh-relay/src/http.rs` | `ea9bbf0087b35ffe6ab6c428cb86b128fd520270fa5ea17b6daab3e2f9e21793` |
-| `iroh-relay/src/protos/common.rs` | `60df8d490d301b75f9fe8d51ea9839ecedc900fe7fc140a967bc014d41a1c87d` |
-| `iroh-relay/src/protos/handshake.rs` | `fae68739f3cd9bc8683abb6f769298a93cea4bf53029886b4720858e1ea53913` |
-| `iroh-relay/src/protos/relay.rs` | `9cc04ec4f104b4a0f89afcc4937333fb7cee5af029acad7015f9a60c26b8530f` |
-| `iroh-relay/src/protos/streams.rs` | `cb426bd98b3fe1f9168f5660f39d097294715a7bada901d7dbd64d42eabc38df` |
+| `krikos-relay/src/http.rs` | `ea9bbf0087b35ffe6ab6c428cb86b128fd520270fa5ea17b6daab3e2f9e21793` |
+| `krikos-relay/src/protos/common.rs` | `60df8d490d301b75f9fe8d51ea9839ecedc900fe7fc140a967bc014d41a1c87d` |
+| `krikos-relay/src/protos/handshake.rs` | `fae68739f3cd9bc8683abb6f769298a93cea4bf53029886b4720858e1ea53913` |
+| `krikos-relay/src/protos/relay.rs` | `9cc04ec4f104b4a0f89afcc4937333fb7cee5af029acad7015f9a60c26b8530f` |
+| `krikos-relay/src/protos/streams.rs` | `cb426bd98b3fe1f9168f5660f39d097294715a7bada901d7dbd64d42eabc38df` |
 
 ## HTTP and negotiation constants
 
@@ -33,10 +33,10 @@ Baseline protocol-source SHA-256 values provide provenance for fixture generatio
 | Probe path | `/ping` |
 | WebSocket upgrade protocol | `websocket` |
 | Supported WebSocket version | `13` |
-| Client authentication header | `x-iroh-relay-client-auth-v1` |
+| Client authentication header | `x-krikos-relay-client-auth-v1` |
 | Browser/query token parameter | `token` |
-| Relay V1 subprotocol | `iroh-relay-v1` |
-| Relay V2 subprotocol | `iroh-relay-v2` |
+| Relay V1 subprotocol | `krikos-relay-v1` |
+| Relay V2 subprotocol | `krikos-relay-v2` |
 | Preference order | V2, then V1 |
 
 The server chooses the highest mutually supported version. A V1-only peer must remain usable.

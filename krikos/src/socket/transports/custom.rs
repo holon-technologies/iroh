@@ -18,7 +18,7 @@ use super::{RecvInfo, Transmit};
 /// Usually a transport will only deal with a single custom address type, but
 /// the signature allows for dealing with multiple custom address types.
 ///
-/// A transport is a factory for custom endpoints. Whenever an iroh endpoint is
+/// A transport is a factory for custom endpoints. Whenever an krikos endpoint is
 /// created using [crate::endpoint::Builder::bind], a new custom endpoint will
 /// be created using [CustomTransport::bind].
 pub trait CustomTransport: std::fmt::Debug + Send + Sync + 'static {
@@ -92,7 +92,7 @@ pub trait CustomSender: std::fmt::Debug + Send + Sync + 'static {
     fn is_valid_send_addr(&self, addr: &CustomAddr) -> bool;
     /// poll sending a packet on this sender.
     ///
-    /// This will only be called from iroh with addresses for which [CustomSender::is_valid_send_addr] returns true.
+    /// This will only be called from krikos with addresses for which [CustomSender::is_valid_send_addr] returns true.
     ///
     /// You should handle invalid addresses by returning an error.
     fn poll_send(

@@ -34,7 +34,7 @@ pub const DNS_TIMEOUT: Duration = Duration::from_secs(3);
 /// Maximum number of returned address records for one IP family and lookup.
 pub const MAX_ADDRESS_RECORDS_PER_FAMILY: usize = 64;
 
-/// Trait for DNS resolvers used in iroh.
+/// Trait for DNS resolvers used in krikos.
 pub trait Resolver: fmt::Debug + Send + Sync + 'static {
     /// Looks up an IPv4 address.
     fn lookup_ipv4(&self, host: String) -> BoxFuture<Result<BoxIter<Ipv4Addr>, DnsError>>;

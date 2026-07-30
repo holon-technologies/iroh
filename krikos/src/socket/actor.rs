@@ -80,7 +80,7 @@ pub(super) struct Actor {
     /// lifetime of it since it's lifetime is shorter than that one that's stored in the
     /// [`crate::Endpoint`].
     pub(super) endpoint: noq::Endpoint,
-    /// Shared state between an awful lot of iroh subsystems.
+    /// Shared state between an awful lot of krikos subsystems.
     ///
     /// In particular both the [`EndpointInner`] as well as this actor itself have a
     /// copy. But also other subsystems that consequently have access to way to much state.
@@ -271,7 +271,7 @@ impl Actor {
                     };
                     let is_major = state.is_major_change(&current_netmon_state);
                     event!(
-                        target: "iroh::_events::link_change",
+                        target: "krikos::_events::link_change",
                         Level::DEBUG,
                         ?state,
                         is_major

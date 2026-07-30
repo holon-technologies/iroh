@@ -224,7 +224,7 @@ fn write_temporary(
     fs::create_dir_all(parent).map_err(|_| IdentityError::unavailable(operation))?;
     let sequence = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let temp = parent.join(format!(
-        ".iroh-identity-{}-{sequence}.tmp",
+        ".krikos-identity-{}-{sequence}.tmp",
         std::process::id()
     ));
     let mut options = OpenOptions::new();

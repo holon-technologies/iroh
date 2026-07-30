@@ -4,21 +4,21 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 runner="$repo_root/scripts/run-simulation-gate.sh"
-sim_bin="$repo_root/iroh-sim/target/debug/cargo-sim"
+sim_bin="$repo_root/krikos-sim/target/debug/cargo-sim"
 
 if [[ ! -x "$runner" ]]; then
   echo "simulation gate runner is missing or not executable" >&2
   exit 1
 fi
 bash -n "$runner"
-cargo build --quiet --manifest-path "$repo_root/iroh-sim/Cargo.toml" --bin cargo-sim
+cargo build --quiet --manifest-path "$repo_root/krikos-sim/Cargo.toml" --bin cargo-sim
 
 fixture_root=$(mktemp -d)
 trap 'rm -rf "$fixture_root"' EXIT
 printf '%s\n' '[]' >"$fixture_root/changes.json"
 "$sim_bin" gate-select \
-  --impact-policy "$repo_root/iroh-sim/change-impact-policy.json" \
-  --coverage-policy "$repo_root/iroh-sim/coverage-policy.json" \
+  --impact-policy "$repo_root/krikos-sim/change-impact-policy.json" \
+  --coverage-policy "$repo_root/krikos-sim/coverage-policy.json" \
   --base-revision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --candidate-revision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --tier pull-request \

@@ -46,7 +46,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("soak")
-        .args(["--plan", "iroh-sim/soaks/daily.json"])
+        .args(["--plan", "krikos-sim/soaks/daily.json"])
         .args(["--lane", "relay/production-provider"])
         .args(["--epoch", "0", "--seed-window", "1"])
         .args(["--wall-seconds", "1", "--jobs", "1"])
@@ -78,7 +78,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert_eq!(summary["lanes"].as_array().unwrap().len(), 1);
     assert_eq!(summary["lanes"][0]["id"], "relay/production-provider");
     assert_eq!(summary["coverage"]["schema_version"], 2);
-    assert_eq!(summary["coverage"]["policy_id"], "iroh-network-modes-v1");
+    assert_eq!(summary["coverage"]["policy_id"], "krikos-network-modes-v1");
     assert_eq!(summary["coverage"]["completed_runs"], 1);
     assert!(
         !summary["coverage"]["observed_individuals"]
@@ -107,7 +107,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     );
 
     let mut drifted_plan: serde_json::Value =
-        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+        serde_json::from_slice(&fs::read(workspace.join("krikos-sim/soaks/daily.json")).unwrap())
             .unwrap();
     drifted_plan["lanes"][0]["crypto"] = serde_json::Value::String("production_provider".into());
     drifted_plan["lanes"][1]["crypto"] = serde_json::Value::String("deterministic_test".into());
@@ -145,7 +145,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert!(!drifted_artifact_root.exists());
 
     let mut digest_drifted_plan: serde_json::Value =
-        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+        serde_json::from_slice(&fs::read(workspace.join("krikos-sim/soaks/daily.json")).unwrap())
             .unwrap();
     digest_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String("a".repeat(64));
     let digest_drifted_plan_path = root.join("digest-drifted-plan.json");
@@ -182,7 +182,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert!(!digest_drifted_artifact_root.exists());
 
     let mut coverage_drifted_plan: serde_json::Value =
-        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+        serde_json::from_slice(&fs::read(workspace.join("krikos-sim/soaks/daily.json")).unwrap())
             .unwrap();
     coverage_drifted_plan["coverage_policy_blake3"] = serde_json::Value::String("a".repeat(64));
     let coverage_drifted_plan_path = root.join("coverage-drifted-plan.json");
@@ -215,15 +215,15 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert!(!coverage_drifted_artifact_root.exists());
 
     let mut domain_drifted_plan: serde_json::Value =
-        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+        serde_json::from_slice(&fs::read(workspace.join("krikos-sim/soaks/daily.json")).unwrap())
             .unwrap();
     domain_drifted_plan["lanes"][0]["swarm"] =
-        serde_json::Value::String("iroh-sim/swarms/relay-lifecycle.json".to_owned());
+        serde_json::Value::String("krikos-sim/swarms/relay-lifecycle.json".to_owned());
     domain_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
         "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4".to_owned(),
     );
     domain_drifted_plan["lanes"][12]["swarm"] =
-        serde_json::Value::String("iroh-sim/swarms/direct-smoke.json".to_owned());
+        serde_json::Value::String("krikos-sim/swarms/direct-smoke.json".to_owned());
     domain_drifted_plan["lanes"][12]["swarm_blake3"] = serde_json::Value::String(
         "19a07d67146f1a1146652bb0772fcf3fc2ceceb668b61ba80c67716ae8f42a06".to_owned(),
     );
@@ -260,7 +260,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     let unknown = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("soak")
-        .args(["--plan", "iroh-sim/soaks/daily.json"])
+        .args(["--plan", "krikos-sim/soaks/daily.json"])
         .args(["--lane", "missing/lane"])
         .args(["--epoch", "0", "--seed-window", "1"])
         .args(["--wall-seconds", "1", "--jobs", "1"])
@@ -288,11 +288,12 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
         .parent()
         .unwrap();
     let mut plan: serde_json::Value =
-        serde_json::from_slice(&fs::read(workspace.join("iroh-sim/soaks/daily.json")).unwrap())
+        serde_json::from_slice(&fs::read(workspace.join("krikos-sim/soaks/daily.json")).unwrap())
             .unwrap();
     for lane_index in [0, 1] {
-        plan["lanes"][lane_index]["swarm"] =
-            serde_json::Value::String("iroh-sim/tests/fixtures/soak-failure-swarm.json".to_owned());
+        plan["lanes"][lane_index]["swarm"] = serde_json::Value::String(
+            "krikos-sim/tests/fixtures/soak-failure-swarm.json".to_owned(),
+        );
         plan["lanes"][lane_index]["swarm_blake3"] = serde_json::Value::String(
             "b52aed003f2de3c2126ea11db29bd939915d2c4338336302f77fb77e71cb0673".to_owned(),
         );
@@ -583,7 +584,7 @@ fn stage_two_run_writes_immutable_artifacts_and_replays_exactly() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let scenario = workspace.join("iroh-sim/tests/fixtures/ipv4-stream.json");
+    let scenario = workspace.join("krikos-sim/tests/fixtures/ipv4-stream.json");
     let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("run")
@@ -665,7 +666,7 @@ fn production_crypto_run_records_semantic_contract_and_replays() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let scenario = workspace.join("iroh-sim/tests/fixtures/v2-ipv4-stream.json");
+    let scenario = workspace.join("krikos-sim/tests/fixtures/v2-ipv4-stream.json");
     let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("run")
@@ -719,7 +720,7 @@ fn versioned_declarative_run_and_expected_failure_replay_through_the_same_cli() 
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let fixture = workspace.join("iroh-sim/tests/fixtures/schema-v2-ipv4-stream.json");
+    let fixture = workspace.join("krikos-sim/tests/fixtures/schema-v2-ipv4-stream.json");
 
     let success_dir = root.join("success");
     let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
@@ -922,7 +923,7 @@ fn all_resource_exhaustion_corpus_entries_run_and_replay_through_cli() {
         let run = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
             .current_dir(workspace)
             .arg("run")
-            .arg(workspace.join(format!("iroh-sim/corpus/{name}/scenario.json")))
+            .arg(workspace.join(format!("krikos-sim/corpus/{name}/scenario.json")))
             .args(["--seed", &"aa".repeat(32), "--artifacts"])
             .arg(&artifacts)
             .output()
@@ -969,7 +970,7 @@ fn generated_campaign_respects_operation_payload_limits() {
         .parent()
         .unwrap();
     let campaign_root = root.join("campaign");
-    let scenario = workspace.join("iroh-sim/tests/fixtures/v2-ipv4-stream.json");
+    let scenario = workspace.join("krikos-sim/tests/fixtures/v2-ipv4-stream.json");
     let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("campaign")
@@ -1012,7 +1013,7 @@ fn corpus_and_parallel_campaign_collect_all_expected_failure_artifacts() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let corpus_root = workspace.join("iroh-sim/corpus");
+    let corpus_root = workspace.join("krikos-sim/corpus");
     let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("corpus")
@@ -1157,7 +1158,7 @@ fn referenced_swarm_campaign_resolves_workspace_base_and_records_source_identity
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let base_path = "iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json";
+    let base_path = "krikos-sim/corpus/stage4-nat-rebind-expiry/scenario.json";
     let base_bytes = fs::read(workspace.join(base_path)).unwrap();
     let template = ReferencedSwarmSpec {
         schema_version: SWARM_SCHEMA_VERSION,
@@ -1218,7 +1219,7 @@ fn campaign_supports_and_records_the_production_crypto_soak_lane() {
     let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
         .current_dir(workspace)
         .arg("campaign")
-        .arg("iroh-sim/corpus/stage6-rare-ready-order/scenario.json")
+        .arg("krikos-sim/corpus/stage6-rare-ready-order/scenario.json")
         .args([
             "--seeds",
             "0..1",
@@ -1302,7 +1303,7 @@ fn default_in_worktree_artifacts_do_not_change_replay_source_identity() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let scenario = workspace.join("iroh-sim/tests/fixtures/ipv4-stream.json");
+    let scenario = workspace.join("krikos-sim/tests/fixtures/ipv4-stream.json");
     let ordinal = NEXT.fetch_add(1, Ordering::Relaxed);
     let seed_prefix = format!("{:08x}{:08x}", std::process::id(), ordinal);
     let seed = seed_prefix.repeat(4);
@@ -1341,7 +1342,7 @@ fn default_in_worktree_artifacts_do_not_change_replay_source_identity() {
 
 fn temp_dir() -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
-        "iroh-sim-cli-test-{}-{}",
+        "krikos-sim-cli-test-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

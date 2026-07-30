@@ -6,7 +6,7 @@
 //! be able to be removed again once you know it is no longer useful.
 //!
 //! This is where the [`MemoryLookup`] is useful: it allows applications to add and
-//! retract endpoint addressing information that is otherwise out-of-band to iroh.
+//! retract endpoint addressing information that is otherwise out-of-band to krikos.
 //!
 //! [`EndpointTicket`]: https://docs.rs/iroh-tickets/latest/iroh_tickets/endpoint/struct.EndpointTicket.html
 
@@ -32,7 +32,7 @@ use super::{AddressLookup, EndpointData, EndpointInfo, Error, Item};
 /// be able to be removed again once you know it is no longer useful.
 ///
 /// This is where the [`MemoryLookup`] is useful: it allows applications to add and
-/// retract endpoint addressing information that is otherwise out-of-band to iroh.
+/// retract endpoint addressing information that is otherwise out-of-band to krikos.
 ///
 /// # Examples
 ///
@@ -96,7 +96,7 @@ impl MemoryLookup {
     /// The provenance string for this Address Lookup implementation.
     ///
     /// This is mostly used for debugging information and allows understanding the origin of
-    /// addressing information used by an iroh [`Endpoint`].
+    /// addressing information used by an krikos [`Endpoint`].
     ///
     /// [`Endpoint`]: crate::Endpoint
     pub const PROVENANCE: &'static str = "memory_lookup";
@@ -110,7 +110,7 @@ impl MemoryLookup {
     ///
     /// The provenance is part of [`address_lookup::Item`]s returned from [`Self::resolve`].
     /// It is mostly used for debugging information and allows understanding the origin of
-    /// addressing information used by an iroh [`Endpoint`].
+    /// addressing information used by an krikos [`Endpoint`].
     ///
     /// [`Endpoint`]: crate::Endpoint
     /// [`address_lookup::Item`]: crate::address_lookup::Item

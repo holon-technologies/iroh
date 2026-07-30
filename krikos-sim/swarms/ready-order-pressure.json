@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "ready-order-pressure",
-  "base_path": "iroh-sim/corpus/stage6-rare-ready-order/scenario.json",
+  "base_path": "krikos-sim/corpus/stage6-rare-ready-order/scenario.json",
   "base_blake3": "f5b118ab67931b3f937e4e9bc5100d867440b3b7a895469bcc83598811f338d4",
   "choices": [
     {

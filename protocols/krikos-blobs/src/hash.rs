@@ -1,4 +1,4 @@
-//! The blake3 hash used in Iroh.
+//! The blake3 hash used in Krikos.
 
 use std::{borrow::Borrow, fmt, str::FromStr};
 
@@ -312,7 +312,7 @@ mod redb_support {
         }
 
         fn type_name() -> redb::TypeName {
-            redb::TypeName::new("iroh_blobs::Hash")
+            redb::TypeName::new("krikos_blobs::Hash")
         }
     }
 
@@ -350,7 +350,7 @@ mod redb_support {
         }
 
         fn type_name() -> redb::TypeName {
-            redb::TypeName::new("iroh_blobs::HashAndFormat")
+            redb::TypeName::new("krikos_blobs::HashAndFormat")
         }
     }
 }
@@ -500,7 +500,7 @@ mod tests {
         assert_eq!(<Hash as RedbValue>::fixed_width(), Some(32));
         assert_eq!(
             <Hash as RedbValue>::type_name(),
-            redb::TypeName::new("iroh_blobs::Hash")
+            redb::TypeName::new("krikos_blobs::Hash")
         );
         let serialized = <Hash as RedbValue>::as_bytes(&hash);
         assert_eq!(serialized, &bytes);
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(<HashAndFormat as RedbValue>::fixed_width(), Some(33));
         assert_eq!(
             <HashAndFormat as RedbValue>::type_name(),
-            redb::TypeName::new("iroh_blobs::HashAndFormat")
+            redb::TypeName::new("krikos_blobs::HashAndFormat")
         );
         let serialized = <HashAndFormat as RedbValue>::as_bytes(&haf);
         let mut bytes = [0u8; 33];

@@ -1,7 +1,7 @@
-//! Example for adding a custom protocol to a iroh node.
+//! Example for adding a custom protocol to a krikos node.
 //!
-//! We are building a very simple custom protocol here, and make our iroh nodes speak this protocol
-//! in addition to a protocol that is provider by number0, iroh-blobs.
+//! We are building a very simple custom protocol here, and make our krikos nodes speak this protocol
+//! in addition to a protocol that is provider by number0, krikos-blobs.
 //!
 //! Our custom protocol allows querying the blob store of other nodes for text matches. For
 //! this, we keep a very primitive index of the UTF-8 text of our blobs.
@@ -9,7 +9,7 @@
 //! The example is contrived - we only use memory nodes, and our database is a hashmap in a mutex,
 //! and our queries just match if the query string appears as-is in a blob.
 //! Nevertheless, this shows how powerful systems can be built with custom protocols by also using
-//! the existing iroh protocols (blobs in this case).
+//! the existing krikos protocols (blobs in this case).
 //!
 //! ## Usage
 //!
@@ -17,7 +17,7 @@
 //!
 //!     cargo run --example custom-protocol -- listen "hello-world" "foo-bar" "hello-moon"
 //!
-//! This spawns an iroh node with three blobs. It will print the node's endpoint id.
+//! This spawns an krikos node with three blobs. It will print the node's endpoint id.
 //!
 //! In another terminal, run
 //!
@@ -25,7 +25,7 @@
 //!
 //! Replace <endpoint-id> with the endpoint id from above. This will connect to the listening node with our
 //! custom protocol and query for the string `hello`. The listening node will return a list of
-//! blob hashes that contain `hello`. We will then download all these blobs with iroh-blobs,
+//! blob hashes that contain `hello`. We will then download all these blobs with krikos-blobs,
 //! and then print a list of the hashes with their content.
 //!
 //! For this example, this will print:
@@ -78,7 +78,7 @@ pub enum Command {
 ///
 /// The ALPN, or application-layer protocol negotiation, is exchanged in the connection handshake,
 /// and the connection is aborted unless both nodes pass the same bytestring.
-const ALPN: &[u8] = b"iroh-example/text-search/0";
+const ALPN: &[u8] = b"krikos-example/text-search/0";
 
 async fn listen(text: Vec<String>) -> Result<()> {
     // allow the user to provide a secret so we can have a stable endpoint id.
@@ -92,16 +92,16 @@ async fn listen(text: Vec<String>) -> Result<()> {
         .bind()
         .await?;
     // Build our custom protocol handler. The `builder` exposes access to various subsystems in the
-    // iroh node. In our case, we need a blobs client and the endpoint.
+    // krikos node. In our case, we need a blobs client and the endpoint.
     let proto = BlobSearch::new(&store);
     // Insert the text strings as blobs and index them.
     for text in text.into_iter() {
         proto.insert_and_index(text).await?;
     }
-    // Build the iroh-blobs protocol handler, which is used to download blobs.
+    // Build the krikos-blobs protocol handler, which is used to download blobs.
     let blobs = BlobsProtocol::new(&store, None);
 
-    // create a router that handles both our custom protocol and the iroh-blobs protocol.
+    // create a router that handles both our custom protocol and the krikos-blobs protocol.
     let node = Router::builder(endpoint)
         .accept(ALPN, proto.clone())
         .accept(krikos_blobs::ALPN, blobs.clone())
@@ -130,7 +130,7 @@ async fn query(endpoint_id: EndpointId, query: String) -> Result<()> {
         .await?;
     // Query the remote node.
     // This will send the query over our custom protocol, read hashes on the reply stream,
-    // and download each hash over iroh-blobs.
+    // and download each hash over krikos-blobs.
     let hashes = query_remote(&endpoint, &store, endpoint_id, &query).await?;
 
     // Print out our query results.
@@ -234,7 +234,7 @@ impl BlobSearch {
 
     /// Insert a text string into the database.
     ///
-    /// This first imports the text as a blob into the iroh blob store, and then inserts a
+    /// This first imports the text as a blob into the krikos blob store, and then inserts a
     /// reference to that hash in our (primitive) text database.
     pub async fn insert_and_index(&self, text: String) -> Result<Hash> {
         let hash = self.blobs.add_bytes(text.into_bytes()).await?.hash;
@@ -273,7 +273,7 @@ pub async fn query_remote(
     query: &str,
 ) -> Result<Vec<Hash>> {
     // Establish a connection to our node.
-    // We use the default node address lookup in iroh, so we can connect by endpoint id without
+    // We use the default node address lookup in krikos, so we can connect by endpoint id without
     // providing further information.
     let conn = endpoint.connect(endpoint_id, ALPN).await?;
     let blobs_conn = endpoint.connect(endpoint_id, krikos_blobs::ALPN).await?;
@@ -307,7 +307,7 @@ pub async fn query_remote(
         };
         // Upcast the raw bytes to the `Hash` type.
         let hash = Hash::from_bytes(hash_bytes);
-        // Download the content via iroh-blobs.
+        // Download the content via krikos-blobs.
         store.remote().fetch(blobs_conn.clone(), hash).await?;
         out.push(hash);
     }

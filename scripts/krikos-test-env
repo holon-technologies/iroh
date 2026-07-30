@@ -8,17 +8,17 @@ script_dir="$(dirname "$script_path")"
 readonly script_dir
 default_repo_root="$(git -C "$script_dir/.." rev-parse --show-toplevel)"
 readonly default_repo_root
-readonly repo_root="${IROH_REPO_ROOT:-$default_repo_root}"
-readonly dockerfile="${IROH_TEST_DOCKERFILE:-$repo_root/docker/Dockerfile.test-env}"
-readonly entrypoint="${IROH_TEST_ENTRYPOINT:-$repo_root/docker/test-env-entrypoint}"
-readonly build_jobs="${IROH_TEST_BUILD_JOBS:-2}"
+readonly repo_root="${KRIKOS_REPO_ROOT:-$default_repo_root}"
+readonly dockerfile="${KRIKOS_TEST_DOCKERFILE:-$repo_root/docker/Dockerfile.test-env}"
+readonly entrypoint="${KRIKOS_TEST_ENTRYPOINT:-$repo_root/docker/test-env-entrypoint}"
+readonly build_jobs="${KRIKOS_TEST_BUILD_JOBS:-2}"
 
-if [[ -n "${IROH_TEST_IMAGE:-}" ]]; then
-    readonly image="$IROH_TEST_IMAGE"
+if [[ -n "${KRIKOS_TEST_IMAGE:-}" ]]; then
+    readonly image="$KRIKOS_TEST_IMAGE"
 else
     dockerfile_hash="$(sha256sum "$dockerfile" | cut -d ' ' -f 1)"
     readonly dockerfile_hash
-    readonly image="iroh-test-env:ubuntu-24.04-${dockerfile_hash:0:12}"
+    readonly image="krikos-test-env:ubuntu-24.04-${dockerfile_hash:0:12}"
 fi
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then

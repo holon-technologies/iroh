@@ -10,7 +10,7 @@ use support::{spawn_server, test_resolver};
 
 #[tokio::test]
 #[traced_test]
-#[ignore = "manual mainline testnet coverage; run with `cargo test -p iroh-dns-server --test mainline -- --ignored`"]
+#[ignore = "manual mainline testnet coverage; run with `cargo test -p krikos-dns-server --test mainline -- --ignored`"]
 async fn integration_mainline() -> Result {
     let dir = tempfile::tempdir()?;
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
@@ -19,7 +19,7 @@ async fn integration_mainline() -> Result {
     let bootstrap = testnet.bootstrap.clone();
     let server = spawn_server(dir.path(), Some(bootstrap.clone())).await?;
 
-    let origin = "irohdns.example.";
+    let origin = "krikosdns.example.";
     let secret_key = SecretKey::from_bytes(&rng.random());
     let endpoint_id = secret_key.public();
     let relay_url: RelayUrl = "https://relay.example.".parse()?;

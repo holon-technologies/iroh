@@ -1,8 +1,8 @@
-//! Embeds iroh-relay into an [`axum::Router`].
+//! Embeds krikos-relay into an [`axum::Router`].
 //!
 //! The relay handler upgrades the WebSocket via axum's [`WebSocketUpgrade`]
 //! extractor, wraps the resulting [`WebSocket`] into a [`BytesStreamSink`]
-//! as expected by iroh-relay's protocol handler, and then runs the
+//! as expected by krikos-relay's protocol handler, and then runs the
 //! handshake plus client registration directly.
 //!
 //! [`BytesStreamSink`]: krikos_relay::protos::streams::BytesStreamSink
@@ -103,7 +103,7 @@ async fn ping_handler() -> impl axum::response::IntoResponse {
     (StatusCode::OK, [(ACCESS_CONTROL_ALLOW_ORIGIN, "*")])
 }
 
-/// Bridges axum's [`WebSocket`] to iroh-relay's [`BytesStreamSink`].
+/// Bridges axum's [`WebSocket`] to krikos-relay's [`BytesStreamSink`].
 struct AxumWebSocketAdapter {
     inner: Pin<Box<WebSocket>>,
 }

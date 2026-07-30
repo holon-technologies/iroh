@@ -7,9 +7,9 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
 packages=(
-  protocols/iroh-blobs
-  protocols/iroh-gossip
-  protocols/iroh-docs
+  protocols/krikos-blobs
+  protocols/krikos-gossip
+  protocols/krikos-docs
   framework/app
 )
 
@@ -28,7 +28,7 @@ for package in "${packages[@]}"; do
   fi
 done
 
-for package in protocols/iroh-blobs protocols/iroh-gossip protocols/iroh-docs; do
+for package in protocols/krikos-blobs protocols/krikos-gossip protocols/krikos-docs; do
   listing="$scratch/${package//\//-}.txt"
   grep -Fxq 'LICENSE-APACHE' "$listing"
   grep -Fxq 'LICENSE-MIT' "$listing"

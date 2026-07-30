@@ -15,7 +15,7 @@ use crate::{
     ClientStats, ConnectionSelector, EndpointSelector, Opt, client_handler, stats::TransferResult,
 };
 
-pub const ALPN: &[u8] = b"n0/iroh-bench/0";
+pub const ALPN: &[u8] = b"n0/krikos-bench/0";
 
 /// Creates a server endpoint which runs on the given runtime
 pub fn server_endpoint(
@@ -78,8 +78,8 @@ pub async fn client(
     let (endpoint, connection) = connect_client(server_addr, relay_url, opt).await?;
     let client_connect_time = client_start.elapsed();
     let mut res = client_handler(
-        EndpointSelector::Iroh(endpoint),
-        ConnectionSelector::Iroh(connection),
+        EndpointSelector::Krikos(endpoint),
+        ConnectionSelector::Krikos(connection),
         opt,
     )
     .await?;
@@ -149,7 +149,7 @@ pub fn transport_config(max_streams: usize, initial_mtu: u16) -> QuicTransportCo
 
     #[cfg(feature = "qlog")]
     {
-        builder = builder.qlog_from_env("bench-iroh");
+        builder = builder.qlog_from_env("bench-krikos");
     }
 
     builder.build()

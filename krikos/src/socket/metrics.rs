@@ -1,7 +1,7 @@
 use iroh_metrics::{Counter, MetricsGroup};
 use serde::{Deserialize, Serialize};
 
-/// Metrics collected by the iroh socket.
+/// Metrics collected by the krikos socket.
 #[derive(Debug, Serialize, Deserialize, MetricsGroup)]
 #[non_exhaustive]
 #[metrics(name = "socket", default)]

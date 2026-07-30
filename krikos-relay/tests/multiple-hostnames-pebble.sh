@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# End-to-end test for iroh-relay multi-hostname ACME support against a local
+# End-to-end test for krikos-relay multi-hostname ACME support against a local
 # pebble ACME server, exercising real TLS-ALPN-01 challenge validation.
 #
-# Starts pebble, then iroh-relay in LetsEncrypt cert mode pointed at pebble via
-# IROH_RELAY_ACME_URL / IROH_RELAY_ACME_CA, and checks with curl that:
+# Starts pebble, then krikos-relay in LetsEncrypt cert mode pointed at pebble via
+# KRIKOS_RELAY_ACME_URL / KRIKOS_RELAY_ACME_CA, and checks with curl that:
 #   - every configured hostname is served a cert signed by pebble's CA,
 #   - an unconfigured hostname is refused at the TLS handshake, and
 #   - pebble actually completed a challenge (no PEBBLE_VA_ALWAYS_VALID).
@@ -18,7 +18,7 @@
 #
 # Exits 0 if all checks pass, 1 otherwise.
 #
-# Requirements: docker (Linux host networking), curl, jq, the iroh-relay sources.
+# Requirements: docker (Linux host networking), curl, jq, the krikos-relay sources.
 
 set -euo pipefail
 
@@ -31,7 +31,7 @@ RELAY_HTTPS_PORT="${RELAY_HTTPS_PORT:-8443}"
 # path the user supplied, no matter how the environment is set. The pebble
 # container name is derived from it, so a run never force-removes a container it
 # did not create.
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/iroh-relay-pebble.XXXXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/krikos-relay-pebble.XXXXXXXX")"
 PEBBLE_NAME="${PEBBLE_NAME:-$(basename "$WORK")}"
 
 # Reject non-numeric ports so a bad value cannot leak into the generated config
@@ -102,7 +102,7 @@ done
 ok "pebble up (validation port = ${RELAY_HTTPS_PORT})"
 
 # pebble.minica.pem signs pebble's own ACME/management TLS, so the relay must
-# trust it (IROH_RELAY_ACME_CA). The certs pebble *issues* chain to a separate
+# trust it (KRIKOS_RELAY_ACME_CA). The certs pebble *issues* chain to a separate
 # root served by the management interface, which curl needs to verify the relay.
 docker cp "$PEBBLE_NAME:/test/certs/pebble.minica.pem" "$WORK/pebble.minica.pem" >/dev/null
 curl -s --cacert "$WORK/pebble.minica.pem" "$PEBBLE_MGMT_URL/roots/0" -o "$WORK/pebble-issuer-root.pem"
@@ -121,15 +121,15 @@ http_bind_addr = "0.0.0.0:${RELAY_HTTP_PORT}"
 https_bind_addr = "0.0.0.0:${RELAY_HTTPS_PORT}"
 hostname = [ ${hostnames%, } ]
 cert_mode = "LetsEncrypt"
-contact = "test@iroh.test"
+contact = "test@krikos.test"
 cert_dir = "${WORK}/certs"
 EOF
 
-log "starting iroh-relay (hostnames: ${HOSTS[*]})"
-IROH_RELAY_ACME_URL="$PEBBLE_DIR_URL" \
-IROH_RELAY_ACME_CA="$WORK/pebble.minica.pem" \
-RUST_LOG="${RUST_LOG:-iroh_relay=debug,rustls_acme=info,warn}" \
-    cargo run --quiet --bin iroh-relay --features server-ring -- \
+log "starting krikos-relay (hostnames: ${HOSTS[*]})"
+KRIKOS_RELAY_ACME_URL="$PEBBLE_DIR_URL" \
+KRIKOS_RELAY_ACME_CA="$WORK/pebble.minica.pem" \
+RUST_LOG="${RUST_LOG:-krikos_relay=debug,rustls_acme=info,warn}" \
+    cargo run --quiet --bin krikos-relay --features server-ring -- \
     --config-path "$WORK/relay.toml" > "$WORK/relay.log" 2>&1 &
 RELAY_PID=$!
 

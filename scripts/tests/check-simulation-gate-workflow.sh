@@ -17,10 +17,10 @@ required=(
   '--base-revision "$BASE_REVISION"'
   '--candidate-revision "$CANDIDATE_REVISION"'
   '--tier "$GATE_TIER"'
-  '--impact-policy iroh-sim/change-impact-policy.json'
-  '--coverage-policy iroh-sim/coverage-policy.json'
+  '--impact-policy krikos-sim/change-impact-policy.json'
+  '--coverage-policy krikos-sim/coverage-policy.json'
   'scripts/run-simulation-gate.sh'
-  'cargo-sim corpus test iroh-sim/corpus'
+  'cargo-sim corpus test krikos-sim/corpus'
   'Propagate deterministic gate result'
   'retention-days: 14'
 )

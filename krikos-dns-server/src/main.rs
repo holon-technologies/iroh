@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn cli_reports_package_version() {
-        let error = Cli::try_parse_from(["iroh-dns-server", "--version"])
+        let error = Cli::try_parse_from(["krikos-dns-server", "--version"])
             .expect_err("--version exits after displaying version information");
 
         assert_eq!(error.kind(), ErrorKind::DisplayVersion);

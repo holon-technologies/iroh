@@ -2,7 +2,7 @@
 //!
 //! These APIs are deliberately not selected by normal endpoint builders. They are public only so
 //! the private `krikos-sim` workspace crate can supply implementations without creating a dependency
-//! cycle. They are not covered by Iroh's stable public API guarantees.
+//! cycle. They are not covered by Krikos's stable public API guarantees.
 
 #![doc(hidden)]
 
@@ -275,7 +275,7 @@ impl fmt::Display for RelayConnectError {
 #[cfg(not(wasm_browser))]
 impl std::error::Error for RelayConnectError {}
 
-/// Simulation-only connection factory consumed by Iroh's production relay actor.
+/// Simulation-only connection factory consumed by Krikos's production relay actor.
 #[cfg(not(wasm_browser))]
 pub trait RelayConnector: fmt::Debug + Send + Sync + 'static {
     /// Starts one owned relay connection attempt.
@@ -343,7 +343,7 @@ pub trait IpSocketFactory: fmt::Debug + Send + Sync + 'static {
     fn bind(&self, addr: SocketAddr) -> io::Result<Arc<dyn IpSocket>>;
 }
 
-/// Bound IP/UDP socket consumed by Iroh's production IP transport.
+/// Bound IP/UDP socket consumed by Krikos's production IP transport.
 pub trait IpSocket: fmt::Debug + Send + Sync + 'static {
     /// Creates an independent sender with its own readiness registration.
     fn create_sender(self: Arc<Self>) -> Pin<Box<dyn IpSocketSender>>;

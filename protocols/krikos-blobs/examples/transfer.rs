@@ -6,12 +6,12 @@ use krikos_blobs::{BlobsProtocol, store::mem::MemStore, ticket::BlobTicket};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Create an endpoint, it allows creating and accepting
-    // connections in the iroh p2p world
+    // connections in the krikos p2p world
     let endpoint = Endpoint::bind(presets::N0).await?;
 
-    // We initialize an in-memory backing store for iroh-blobs
+    // We initialize an in-memory backing store for krikos-blobs
     let store = MemStore::new();
-    // Then we initialize a struct that can accept blobs requests over iroh connections
+    // Then we initialize a struct that can accept blobs requests over krikos connections
     let blobs = BlobsProtocol::new(&store, None);
 
     // Grab all passed in arguments, the first one is the binary itself, so we skip it.
@@ -57,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
             let ticket: BlobTicket = ticket.parse()?;
 
             // For receiving files, we create a "downloader" that allows us to fetch files
-            // from other nodes via iroh connections
+            // from other nodes via krikos connections
             let downloader = store.downloader(&endpoint);
 
             println!("Starting download.");

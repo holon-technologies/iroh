@@ -8,7 +8,7 @@ use krikos_resolver::DnsResolver;
 use n0_error::{Result, StackResultExt, StdResultExt};
 
 const DEV_DNS_SERVER: &str = "127.0.0.1:5300";
-const DEV_DNS_ORIGIN_DOMAIN: &str = "irohdns.example";
+const DEV_DNS_ORIGIN_DOMAIN: &str = "krikosdns.example";
 
 #[derive(ValueEnum, Clone, Debug, Default)]
 pub enum Env {

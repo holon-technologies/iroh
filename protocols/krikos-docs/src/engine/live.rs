@@ -39,9 +39,9 @@ use crate::{
     },
 };
 
-/// An iroh-docs operation
+/// An krikos-docs operation
 ///
-/// This is the message that is broadcast over iroh-gossip.
+/// This is the message that is broadcast over krikos-gossip.
 #[derive(Debug, Clone, Serialize, Deserialize, strum::Display)]
 pub enum Op {
     /// A new entry was inserted into the document.

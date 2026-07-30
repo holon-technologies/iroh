@@ -58,7 +58,7 @@ use crate::{
     limits::{MAX_CONCURRENT_IMPORTS, MAX_CONCURRENT_STORE_TASKS, STORE_COMMAND_QUEUE_CAPACITY},
     protocol::ChunkRangesExt,
     store::{
-        IROH_BLOCK_SIZE,
+        KRIKOS_BLOCK_SIZE,
         gc::{GcConfig, run_gc},
         util::{SizeInfo, SparseMemFile, Tag},
     },
@@ -658,7 +658,7 @@ async fn import_bao(
             entry.size.write(0, size);
             false
         });
-    let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+    let tree = BaoTree::new(size, KRIKOS_BLOCK_SIZE);
     while let Some(item) = stream.recv().await.unwrap() {
         entry.0.state.send_if_modified(|state| {
             let BaoFileStorage::Partial(partial) = state else {
@@ -734,7 +734,7 @@ async fn import_bytes(
 ) -> Result<ImportEntry> {
     tx.send(AddProgressItem::Size(data.len() as u64)).await?;
     tx.send(AddProgressItem::CopyDone).await?;
-    let outboard = PreOrderMemOutboard::create(&data, IROH_BLOCK_SIZE);
+    let outboard = PreOrderMemOutboard::create(&data, KRIKOS_BLOCK_SIZE);
     Ok(ImportEntry {
         data,
         outboard,
@@ -982,7 +982,7 @@ impl BaoFileHandle {
     pub fn outboard_reader(&self) -> OutboardReader {
         let entry = self.0.state.borrow();
         let hash = self.hash.into();
-        let tree = BaoTree::new(entry.size(), IROH_BLOCK_SIZE);
+        let tree = BaoTree::new(entry.size(), KRIKOS_BLOCK_SIZE);
         OutboardReader {
             hash,
             tree,
@@ -1028,7 +1028,7 @@ pub struct CompleteStorage {
 
 impl CompleteStorage {
     pub fn create(data: Bytes) -> (Hash, Self) {
-        let outboard = PreOrderMemOutboard::create(&data, IROH_BLOCK_SIZE);
+        let outboard = PreOrderMemOutboard::create(&data, KRIKOS_BLOCK_SIZE);
         let hash = outboard.root().into();
         let outboard = outboard.data.into();
         let entry = Self::new(data, outboard);

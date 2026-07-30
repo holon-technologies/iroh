@@ -46,11 +46,11 @@ impl Preset for Empty {
 ///
 /// At the moment the only mandatory option to set on the endpoint builder is
 /// [`Builder::crypto_provider`]. This preset makes a choice for that based on
-/// the current set of enabled features in iroh, which is why it's only available
+/// the current set of enabled features in krikos, which is why it's only available
 /// with the `tls-ring` or `tls-aws-lc-rs` feature flag.
 ///
 /// It uses either [ring] or [aws-lc-rs], depending on which feature is enabled
-/// on iroh (preferring ring if both are enabled).
+/// on krikos (preferring ring if both are enabled).
 ///
 /// [ring]: rustls::crypto::ring::default_provider
 /// [aws-lc-rs]: rustls::crypto::aws_lc_rs::default_provider
@@ -84,7 +84,7 @@ impl Preset for Minimal {
 /// - the DNS Address Lookup service.
 /// - the default relay servers provided by Number 0.
 /// - setting the [`rustls::crypto::CryptoProvider`] to [ring] or [aws-lc-rs], depending
-///   on which feature is enabled in iroh (preferring ring if both are enabled).
+///   on which feature is enabled in krikos (preferring ring if both are enabled).
 ///
 /// Due to the last point, this preset is only available with the `tls-ring` or
 /// `tls-aws-lc-rs` feature enabled.
@@ -146,7 +146,7 @@ impl Preset for N0 {
 /// - the DNS Address Lookup service, that publishes IP addresses rather than
 ///   relay urls.
 /// - setting the [`rustls::crypto::CryptoProvider`] to [ring] or [aws-lc-rs], depending
-///   on which feature is enabled in iroh (preferring ring if both are enabled).
+///   on which feature is enabled in krikos (preferring ring if both are enabled).
 ///
 /// Due to the last point, this preset is only available with the `tls-ring` or
 /// `tls-aws-lc-rs` feature enabled.

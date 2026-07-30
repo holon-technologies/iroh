@@ -38,7 +38,7 @@ pub(crate) struct Options {
     /// Proxy configuration.
     pub(crate) proxy_url: Option<Url>,
 
-    /// TLS configuration for HTTPS and non-iroh-QUIC connections.
+    /// TLS configuration for HTTPS and non-krikos-QUIC connections.
     pub(crate) tls_config: rustls::ClientConfig,
 
     /// ServerConfig for the internal QUIC endpoint

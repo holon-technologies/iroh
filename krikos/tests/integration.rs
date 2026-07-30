@@ -1,4 +1,4 @@
-//! Basic integration tests for iroh that can be run both in browsers & natively.
+//! Basic integration tests for krikos that can be run both in browsers & natively.
 //!
 //! At the moment, these tests unfortunately interact with deployed services, specifically
 //! the "real" DNS server infrastructure and "real" relays.

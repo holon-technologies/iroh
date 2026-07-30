@@ -13,7 +13,7 @@ use n0_error::{Result, StdResultExt};
 use tracing::{debug, info, warn};
 
 // An example ALPN that we are using to communicate over the `Endpoint`
-const EXAMPLE_ALPN: &[u8] = b"n0/iroh/examples/0";
+const EXAMPLE_ALPN: &[u8] = b"n0/krikos/examples/0";
 
 #[tokio::main]
 async fn main() -> Result<()> {

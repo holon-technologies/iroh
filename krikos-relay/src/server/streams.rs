@@ -1,4 +1,4 @@
-//! Streams used in the server-side implementation of iroh relays.
+//! Streams used in the server-side implementation of krikos relays.
 
 use std::{
     pin::Pin,

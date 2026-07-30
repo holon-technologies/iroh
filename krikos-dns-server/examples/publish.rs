@@ -11,14 +11,14 @@ use krikos::{
     endpoint_info::EndpointInfo,
     tls::{CaTlsConfig, default_provider},
 };
-use krikos_dns::IROH_TXT_NAME;
+use krikos_dns::KRIKOS_TXT_NAME;
 use krikos_resolver::DnsResolver;
 use n0_error::{Result, StackResultExt};
 use url::Url;
 
 const DEV_PKARR_RELAY_URL: &str = "http://localhost:8080/pkarr";
-const DEV_DNS_ORIGIN_DOMAIN: &str = "irohdns.example";
-const EXAMPLE_RELAY_URL: &str = "https://relay.iroh.example";
+const DEV_DNS_ORIGIN_DOMAIN: &str = "krikosdns.example";
+const EXAMPLE_RELAY_URL: &str = "https://relay.krikos.example";
 
 #[derive(ValueEnum, Clone, Debug, Default, Copy, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
@@ -32,9 +32,9 @@ pub enum Env {
     Dev,
 }
 
-/// Publish a record to an irohdns server.
+/// Publish a record to an krikosdns server.
 ///
-/// You have to set the IROH_SECRET environment variable to the endpoint secret for which to publish.
+/// You have to set the KRIKOS_SECRET environment variable to the endpoint secret for which to publish.
 #[derive(Parser, Debug)]
 struct Cli {
     /// Environment to publish to.
@@ -62,14 +62,14 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let args = Cli::parse();
 
-    let secret_key = match std::env::var("IROH_SECRET") {
+    let secret_key = match std::env::var("KRIKOS_SECRET") {
         Ok(s) => SecretKey::from_str(&s)
-            .context("failed to parse IROH_SECRET environment variable as iroh secret key")?,
+            .context("failed to parse KRIKOS_SECRET environment variable as krikos secret key")?,
         Err(_) => {
             let s = SecretKey::generate();
             println!("Generated a new endpoint secret. To reuse, set");
             println!(
-                "\tIROH_SECRET={}",
+                "\tKRIKOS_SECRET={}",
                 data_encoding::HEXLOWER.encode(&s.to_bytes())
             );
             s
@@ -151,5 +151,5 @@ async fn main() -> Result<()> {
 }
 
 fn fmt_domain(endpoint_id: &EndpointId, origin: &str) -> String {
-    format!("{IROH_TXT_NAME}.{}.{origin}", endpoint_id.to_z32())
+    format!("{KRIKOS_TXT_NAME}.{}.{origin}", endpoint_id.to_z32())
 }

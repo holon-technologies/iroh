@@ -42,7 +42,7 @@ use super::{
     options::BatchOptions,
     util::PeekableReceiver,
 };
-use crate::store::IROH_BLOCK_SIZE;
+use crate::store::KRIKOS_BLOCK_SIZE;
 
 /// Error type for message handler functions of the redb actor.
 ///
@@ -943,7 +943,7 @@ fn load_outboard(
 }
 
 pub(crate) fn raw_outboard_size(size: u64) -> u64 {
-    BaoTree::new(size, IROH_BLOCK_SIZE).outboard_size()
+    BaoTree::new(size, KRIKOS_BLOCK_SIZE).outboard_size()
 }
 
 pub async fn list_blobs(snapshot: ReadOnlyTables, cmd: ListBlobsMsg) {

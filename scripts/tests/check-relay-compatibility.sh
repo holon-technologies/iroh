@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 mode=${1:---golden}
 baseline_commit=f2eb930dda3779c6d852b72f3712aacd6e573ab1
-fixture="$repo_root/iroh-relay/tests/fixtures/compat/v1.0.3/wire.txt"
+fixture="$repo_root/krikos-relay/tests/fixtures/compat/v1.0.3/wire.txt"
 contract="$repo_root/docs/relay-compatibility.md"
 
 case "$mode" in
@@ -28,7 +28,7 @@ require_text() {
 for path in \
   "$contract" \
   "$fixture" \
-  "$repo_root/iroh-relay/tests/wire_compat.rs" \
+  "$repo_root/krikos-relay/tests/wire_compat.rs" \
   "$repo_root/compat/relay-v1-interop/Cargo.toml" \
   "$repo_root/compat/relay-v1-interop/Cargo.lock"; do
   if [[ ! -f "$path" ]]; then
@@ -38,9 +38,9 @@ for path in \
 done
 
 require_text "$contract" "$baseline_commit"
-require_text "$contract" 'iroh-relay-v1'
-require_text "$contract" 'iroh-relay-v2'
-require_text "$contract" 'x-iroh-relay-client-auth-v1'
+require_text "$contract" 'krikos-relay-v1'
+require_text "$contract" 'krikos-relay-v2'
+require_text "$contract" 'x-krikos-relay-client-auth-v1'
 require_text "$contract" 'iroh-relay handshake v1 challenge signature'
 require_text "$contract" '64 KiB'
 require_text "$contract" '1 MiB'
@@ -56,23 +56,23 @@ if ((fixture_count != 17)); then
   exit 1
 fi
 
-require_text "$repo_root/iroh-relay/src/http.rs" 'pub const RELAY_PATH: &str = "/relay";'
-require_text "$repo_root/iroh-relay/src/http.rs" 'pub const RELAY_PROBE_PATH: &str = "/ping";'
-require_text "$repo_root/iroh-relay/src/http.rs" '"x-iroh-relay-client-auth-v1"'
-require_text "$repo_root/iroh-relay/src/protos/handshake.rs" \
+require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PATH: &str = "/relay";'
+require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PROBE_PATH: &str = "/ping";'
+require_text "$repo_root/krikos-relay/src/http.rs" '"x-krikos-relay-client-auth-v1"'
+require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \
   '"iroh-relay handshake v1 challenge signature"'
-require_text "$repo_root/iroh-relay/src/protos/handshake.rs" \
+require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \
   'b"iroh-relay handshake v1"'
-require_text "$repo_root/iroh-relay/src/protos/relay.rs" \
+require_text "$repo_root/krikos-relay/src/protos/relay.rs" \
   'pub const MAX_PACKET_SIZE: usize = 64 * 1024;'
-require_text "$repo_root/iroh-relay/src/protos/relay.rs" \
+require_text "$repo_root/krikos-relay/src/protos/relay.rs" \
   'pub(crate) const MAX_FRAME_SIZE: usize = 1024 * 1024;'
 
 (
   cd "$repo_root"
-  cargo test -p iroh-relay --test wire_compat
-  cargo test -p iroh-relay --features server-ring,test-utils frames_match_v1_0_3_fixtures
-  cargo test -p iroh-relay --features server-ring,test-utils frames_snapshot
+  cargo test -p krikos-relay --test wire_compat
+  cargo test -p krikos-relay --features server-ring,test-utils frames_match_v1_0_3_fixtures
+  cargo test -p krikos-relay --features server-ring,test-utils frames_snapshot
 )
 
 if [[ "$mode" == "--live" ]]; then
