@@ -301,6 +301,10 @@ reason = "this file. It records old_package/old_lib/old_dir/exemption-path value
 path = "scripts/tests/check-rebrand-complete.sh"
 reason = "the completeness checker's own source necessarily contains the literal search term it looks for, the same way a profanity filter's source contains the words it filters"
 
+[[exemptions]]
+path = "scripts/tests/check-rebrand-unknown-crates.sh"
+reason = "the unknown-krikos-token checker's own source cites the specific falsified strings (krikos-net, krikos-util, krikos-tor, krikos-net-report, krikos-willow) that motivated writing it, the same way check-rebrand-complete.sh's self-exemption above does."
+
 # --- Pattern exemptions ------------------------------------------------
 # Literal substrings that are correct wherever they occur, in files that
 # otherwise carry ordinary renamable content (so a whole-file `path`
@@ -442,12 +446,20 @@ pattern = "upstream iroh-blobs 0\\.35"
 reason = "protocols/krikos-blobs/README.md's production-quality note recommends the real, currently-published upstream crate (iroh-blobs 0.35 on crates.io) as a fallback for users who need a stable release today, since this fork's krikos-blobs is unpublished; a genuine external reference, not this crate's own identity"
 
 [[exemptions]]
+pattern = "iroh-willow"
+reason = "name of a real, external n0 experimental crate implementing the Willow protocol (part of the n0-computer/iroh-experiments family), referenced alongside the real [krikos-docs] link in protocols/krikos-blobs/DESIGN.md as an example of another small-blob-heavy document store; not part of this rename's package set. Found by the unknown-krikos-token sweep: an earlier pass had rewritten it to `krikos-willow`, which corresponds to no package in this workspace, while correctly leaving its sibling `[iroh-docs]` -> `[krikos-docs]` alone (that one IS a real local package)."
+
+[[exemptions]]
 pattern = "iroh-tickets"
 reason = "name of a real, currently-published external crate (not part of this rename's package set), linked from doc comments"
 
 [[exemptions]]
 pattern = "iroh-util"
 reason = "name of a real, external n0-published crate (not part of this rename's package set) that protocols/krikos-blobs's connection-pool code was originally adapted from and no longer depends on; referenced from a source doc comment attributing the adaptation (protocols/krikos-blobs/src/util/connection_pool.rs) and from prose describing the same historical fact (docs/release/v2-migration.md, protocols/krikos-blobs/UPSTREAM.md). Found by code review: an earlier pass had rewritten all three to the nonexistent `krikos-util`, which breaks both the attribution (the original crate really is named iroh-util) and, in the source file, the MIT/Apache-2.0-required credit to its original author."
+
+[[exemptions]]
+pattern = "iroh-net-report"
+reason = "name of a real upstream crate (introduced in n0-computer/iroh commit a5e92833f7, later merged back into `iroh` proper) that krikos/src/net_report/defaults.rs's doc comment names as the historical origin of its timeout constants. No `krikos-net-report` package exists or ever existed in this fork -- `net_report` is a module inside `krikos`, not a separate crate. Found by the unknown-krikos-token sweep: an earlier pass had rewritten this to `krikos-net-report`, which does not correspond to any package in `cargo metadata`."
 
 [[exemptions]]
 pattern = "iroh_tickets"

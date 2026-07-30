@@ -30,7 +30,7 @@ E.g. playing back videos from this database would be orders of magnitude slower 
 
 This is a perfectly valid approach when dealing exclusively with complete, large files. You just store the data file and the outboard file in the file system, using the hash as file name. But this approach has multiple downsides as well.
 
-First of all, it is very inefficient if you deal with a large number of tiny blobs, like we frequently do when working with [krikos-docs] or [krikos-willow] documents. Just the file system metadata for a tiny file will vastly exceed the storage needed for the data itself.
+First of all, it is very inefficient if you deal with a large number of tiny blobs, like we frequently do when working with [krikos-docs] or [iroh-willow] documents. Just the file system metadata for a tiny file will vastly exceed the storage needed for the data itself.
 
 Also, now we are very much dependent on the quirks of whatever file system our target operating system has. Many older file systems like FAT32 or EXT2 are notoriously bad in handling directories with millions of files. And we can't just limit ourselves to e.g. linux servers with modern file systems, since we also want to support mobile platforms and windows PCs.
 
