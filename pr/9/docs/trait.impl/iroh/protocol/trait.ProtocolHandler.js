@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["iroh",[]],["iroh_blobs",[["impl <a class=\"trait\" href=\"iroh/protocol/trait.ProtocolHandler.html\" title=\"trait iroh::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"iroh_blobs/struct.BlobsProtocol.html\" title=\"struct iroh_blobs::BlobsProtocol\">BlobsProtocol</a>",0]]],["iroh_docs",[["impl <a class=\"trait\" href=\"iroh/protocol/trait.ProtocolHandler.html\" title=\"trait iroh::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"iroh_docs/protocol/struct.Docs.html\" title=\"struct iroh_docs::protocol::Docs\">Docs</a>",0]]],["iroh_gossip",[["impl <a class=\"trait\" href=\"iroh/protocol/trait.ProtocolHandler.html\" title=\"trait iroh::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"iroh_gossip/net/struct.Gossip.html\" title=\"struct iroh_gossip::net::Gossip\">Gossip</a>",0]]],["iroh_local_first_app_tests",[["impl <a class=\"trait\" href=\"iroh/protocol/trait.ProtocolHandler.html\" title=\"trait iroh::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"iroh_local_first_app_tests/struct.Echo.html\" title=\"struct iroh_local_first_app_tests::Echo\">Echo</a>",0]]],["local_first_notes",[["impl <a class=\"trait\" href=\"iroh/protocol/trait.ProtocolHandler.html\" title=\"trait iroh::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"local_first_notes/struct.Echo.html\" title=\"struct local_first_notes::Echo\">Echo</a>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[11,296,285,287,317,290]}
