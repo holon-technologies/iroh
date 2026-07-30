@@ -8,7 +8,7 @@
   "issue": "stage5-direct-relay-fallback-exit-fixture",
   "minimum_scenario_schema": 3,
   "maximum_scenario_schema": 3,
-  "minimum_simulator_version": "1.0.3",
+  "minimum_simulator_version": "1.0.0",
   "maximum_simulator_version": null,
   "review_state": "reviewed",
   "inventory": {
