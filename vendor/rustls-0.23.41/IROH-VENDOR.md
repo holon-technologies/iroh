@@ -12,6 +12,23 @@ replays identically from a seed. Upstream rustls draws session identifiers and
 `Random` values from an ambient source and does not expose which key-exchange
 group a connection negotiated, both of which make replay impossible.
 
+## Why a patch, not a wrapper
+
+Rustls 0.23's public `CryptoProvider` stores `secure_random: &'static dyn SecureRandom` and
+`kx_groups: Vec<&'static dyn SupportedKxGroup>`. A provider whose entropy and X25519 state are
+owned by one simulation run cannot be built through the public API, because that API requires
+`'static` references: it would have to leak run state to obtain `'static`, dispatch through
+process-global or thread-local state, or use a forked provider API. The first two were rejected —
+they violate `iroh-sim`'s run-scoping and no-leak invariants (a leaked or globally dispatched
+provider would couple concurrent simulation workers and make cleanup between runs unsound). A
+fourth alternative, dropping raw ciphertext replay and keeping only the production-crypto
+semantic-parity lane, was also rejected because it would remove an already-established
+byte-exact replay guarantee. The chosen approach — this narrow fork, whose provider owns
+`secure_random` and `kx_groups` through `Arc` instead of `&'static` — is therefore the only option
+that keeps both lanes (byte-exact deterministic replay and production-crypto semantic parity;
+see [`docs/testing/determinism-audit.md`](../../docs/testing/determinism-audit.md)) without leaking
+state or introducing global mutable dispatch.
+
 ## The patch
 
 `vendor/rustls-0.23.41.patch`, roughly 529 lines across 12 files:
