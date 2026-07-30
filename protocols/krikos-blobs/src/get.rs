@@ -15,7 +15,7 @@
 //! For some states you have to provide additional arguments when calling next,
 //! or you can choose to finish early.
 //!
-//! [krikos]: https://docs.rs/iroh
+//! [krikos]: https://docs.rs/krikos
 use std::fmt::{self, Debug};
 
 use bao_tree::{ChunkNum, io::fsm::BaoContentItem};

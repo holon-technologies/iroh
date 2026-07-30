@@ -1,27 +1,16 @@
-<h1 align="center">
-<a href="https://iroh.computer">
-<img alt="krikos" src="https://raw.githubusercontent.com/n0-computer/iroh/main/.img/iroh_wordmark.svg" width="100" />
-</a>
-</h1>
+<h1 align="center">Krikos</h1>
 
 <h3 align="center">
 less net work for networks
 </h3>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh/)
-[![Crates.io](https://img.shields.io/crates/v/iroh.svg?style=flat-square)](https://crates.io/crates/iroh)
-[![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
-[![Youtube](https://img.shields.io/badge/YouTube-red?logo=youtube&logoColor=white&style=flat-square)](https://www.youtube.com/@n0computer)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
 
 <div align="center">
   <h3>
-    <a href="https://iroh.computer/docs">
-      Docs Site
-    </a>
-    <span> | </span>
-    <a href="https://docs.rs/iroh">
+    <a href="https://docs.rs/krikos">
       Rust Docs
     </a>
   </h3>
@@ -142,8 +131,6 @@ top of krikos:
   an average phone can handle.
 - and many more.
 
-To use krikos from other languages, see [krikos-ffi].
-
 ## Development
 
 For notes on krikos's structured events and how to build the documentation, see
@@ -162,7 +149,7 @@ at your option.
 
 ### Contribution
 
-See [CONTRIBUTING.md](https://github.com/n0-computer/iroh/blob/main/CONTRIBUTING.md)
+See [CONTRIBUTING.md](../CONTRIBUTING.md)
 for how to get involved.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
@@ -172,12 +159,11 @@ shall be dual licensed as above, without any additional terms or conditions.
 [QUIC]: https://en.wikipedia.org/wiki/QUIC
 [hole-punch]: https://en.wikipedia.org/wiki/Hole_punching_(networking)
 [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3
-[`Endpoint`]: https://docs.rs/iroh/latest/krikos/struct.Endpoint.html
-[`SecretKey`]: https://docs.rs/iroh/latest/krikos/struct.SecretKey.html
-[`EndpointId`]: https://docs.rs/iroh/latest/krikos/struct.EndpointId.html
-[address lookup services]: https://docs.rs/iroh/latest/krikos/address_lookup/index.html
-[`N0` preset]: https://docs.rs/iroh/latest/krikos/endpoint/presets/struct.N0.html
-[krikos-blobs]: https://github.com/n0-computer/iroh-blobs
-[krikos-gossip]: https://github.com/n0-computer/iroh-gossip
-[krikos-ffi]: https://github.com/n0-computer/iroh-ffi
+[`Endpoint`]: https://docs.rs/krikos/latest/krikos/struct.Endpoint.html
+[`SecretKey`]: https://docs.rs/krikos/latest/krikos/struct.SecretKey.html
+[`EndpointId`]: https://docs.rs/krikos/latest/krikos/struct.EndpointId.html
+[address lookup services]: https://docs.rs/krikos/latest/krikos/address_lookup/index.html
+[`N0` preset]: https://docs.rs/krikos/latest/krikos/endpoint/presets/struct.N0.html
+[krikos-blobs]: ../protocols/krikos-blobs
+[krikos-gossip]: ../protocols/krikos-gossip
 [n0]: https://n0.computer

@@ -451,7 +451,7 @@ def _rs_lib_patterns(old):
     # contains these same tokens and MUST survive unchanged:
     #   - wire-protocol domain-separation / header strings, e.g.
     #     `"iroh-relay handshake v1 challenge signature"`,
-    #     `"x-krikos-relay-client-auth-v1"`, `"krikos-relay-v1"`
+    #     `"x-iroh-relay-client-auth-v1"`, `"iroh-relay-v1"`
     #     (krikos-relay/src/protos/handshake.rs, .../tests/wire_compat.rs) --
     #     renaming these would silently break wire compatibility, which
     #     ADR-0002 explicitly puts out of scope.

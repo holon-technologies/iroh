@@ -12,9 +12,9 @@ The `net` module is optional behind the `net` feature flag (enabled by default).
 
 # Getting Started
 
-The `krikos-gossip` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are how gossip messages are sent.
+The `krikos-gossip` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/krikos) is a networking library for making direct connections, these connections are how gossip messages are sent.
 
-Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/krikos/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/krikos/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
 Here is a basic example of how to set up `krikos-gossip` with `krikos`:
 ```rust,no_run

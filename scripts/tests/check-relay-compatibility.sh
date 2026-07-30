@@ -38,9 +38,9 @@ for path in \
 done
 
 require_text "$contract" "$baseline_commit"
-require_text "$contract" 'krikos-relay-v1'
-require_text "$contract" 'krikos-relay-v2'
-require_text "$contract" 'x-krikos-relay-client-auth-v1'
+require_text "$contract" 'iroh-relay-v1'
+require_text "$contract" 'iroh-relay-v2'
+require_text "$contract" 'x-iroh-relay-client-auth-v1'
 require_text "$contract" 'iroh-relay handshake v1 challenge signature'
 require_text "$contract" '64 KiB'
 require_text "$contract" '1 MiB'
@@ -58,7 +58,7 @@ fi
 
 require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PATH: &str = "/relay";'
 require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PROBE_PATH: &str = "/ping";'
-require_text "$repo_root/krikos-relay/src/http.rs" '"x-krikos-relay-client-auth-v1"'
+require_text "$repo_root/krikos-relay/src/http.rs" '"x-iroh-relay-client-auth-v1"'
 require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \
   '"iroh-relay handshake v1 challenge signature"'
 require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \

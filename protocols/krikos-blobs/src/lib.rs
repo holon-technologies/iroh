@@ -31,7 +31,7 @@
 //! - `metrics`: Enables prometheus metrics for stores and the protocol.
 //!
 //! [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf
-//! [krikos]: https://docs.rs/iroh
+//! [krikos]: https://docs.rs/krikos
 mod hash;
 pub mod limits;
 pub mod store;

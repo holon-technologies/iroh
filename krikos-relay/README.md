@@ -77,9 +77,9 @@ The token list must not be empty, and no token may be an empty string; the serve
 fail to start if either condition is violated.
 
 On the client side, set the token using
-[`RelayConfig::with_auth_token`](https://docs.rs/iroh-relay/latest/krikos_relay/struct.RelayConfig.html#method.with_auth_token)
+[`RelayConfig::with_auth_token`](https://docs.rs/krikos-relay/latest/krikos_relay/struct.RelayConfig.html#method.with_auth_token)
 or
-[`RelayMap::with_auth_token`](https://docs.rs/iroh-relay/latest/krikos_relay/struct.RelayMap.html#method.with_auth_token).
+[`RelayMap::with_auth_token`](https://docs.rs/krikos-relay/latest/krikos_relay/struct.RelayMap.html#method.with_auth_token).
 
 > **Note:** this shared token does not support revocation other than updating the config and restarting the service.
 
@@ -147,9 +147,9 @@ When using krikos as a transport library in an application or other library, the
 ```toml
 krikos = { version = "0.95", features = ["test-utils"] }
 ```
-- Spawn a relay server by calling [`krikos::test_utils::run_relay_server().await`](https://docs.rs/iroh/latest/krikos/test_utils/fn.run_relay_server.html)
+- Spawn a relay server by calling [`krikos::test_utils::run_relay_server().await`](https://docs.rs/krikos/latest/krikos/test_utils/fn.run_relay_server.html)
 This will start a relay server with a self-signed TLS certificate, listening on a localhost port, and return the server's URL.
-- For the krikos endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Builder.html#method.ca_tls_config) with  `CaRootConfig::insecure_skip_verify()`.
+- For the krikos endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](https://docs.rs/krikos/latest/krikos/endpoint/struct.Builder.html#method.ca_tls_config) with  `CaRootConfig::insecure_skip_verify()`.
 
 # License
 

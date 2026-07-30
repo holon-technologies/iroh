@@ -1,6 +1,6 @@
 # krikos-blobs
 
-**NOTE: this version of krikos-blobs is not yet considered production quality. For now, if you need production quality, use krikos-blobs 0.35**
+**NOTE: this version of krikos-blobs is not yet considered production quality. For now, if you need production quality, use upstream iroh-blobs 0.35**
 
 This crate provides blob and blob sequence transfer support for krikos. It implements a simple request-response protocol based on BLAKE3 verified streaming.
 
@@ -8,7 +8,7 @@ A request describes data in terms of BLAKE3 hashes and byte ranges. It is possib
 
 The requester opens a QUIC stream to the provider and sends the request. The provider answers with the requested data, encoded as [BLAKE3](https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf) verified streams, on the same QUIC stream.
 
-This crate is used together with [krikos](https://crates.io/crates/iroh). Connection establishment is left up to the user or higher level APIs.
+This crate is used together with [krikos](https://docs.rs/krikos). Connection establishment is left up to the user or higher level APIs.
 
 ## Concepts
 
@@ -26,9 +26,9 @@ A node can be a provider and a requester at the same time.
 
 ## Getting started
 
-The `krikos-blobs` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are what power the data transfers in `krikos-blobs`.
+The `krikos-blobs` protocol was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/krikos) is a networking library for making direct connections, these connections are what power the data transfers in `krikos-blobs`.
 
-Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/krikos/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/krikos/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
 Here is a basic example of how to set up `krikos-blobs` with `krikos`:
 

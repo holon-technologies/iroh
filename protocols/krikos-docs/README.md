@@ -1,12 +1,8 @@
 # krikos-docs
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh-docs/)
-[![Crates.io](https://img.shields.io/crates/v/iroh-docs.svg?style=flat-square)](https://crates.io/crates/iroh-docs)
-[![downloads](https://img.shields.io/crates/d/iroh-docs.svg?style=flat-square)](https://crates.io/crates/iroh-docs)
-[![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos-docs/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
-[![CI](https://img.shields.io/github/actions/workflow/status/n0-computer/iroh-docs/ci.yaml?branch=main&style=flat-square&label=CI)](https://github.com/n0-computer/iroh-docs/actions/workflows/ci.yaml)
 
 Multi-dimensional key-value documents with an efficient synchronization protocol.
 
@@ -39,13 +35,13 @@ the whole store with all replicas to a single file.
 
 # Getting Started
 
-The entry into the `krikos-docs` protocol is the `Docs` struct, which uses an [`Engine`](https://docs.rs/iroh-docs/latest/krikos_docs/engine/struct.Engine.html) to power the protocol.
+The entry into the `krikos-docs` protocol is the `Docs` struct, which uses an [`Engine`](https://docs.rs/krikos-docs/latest/krikos_docs/engine/struct.Engine.html) to power the protocol.
 
-`Docs` was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/iroh) is a networking library for making direct connections, these connections are peers send sync messages and transfer data.
+`Docs` was designed to be used in conjunction with `krikos`. [Krikos](https://docs.rs/krikos) is a networking library for making direct connections, these connections are peers send sync messages and transfer data.
 
-Krikos provides a [`Router`](https://docs.rs/iroh/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/iroh/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
+Krikos provides a [`Router`](https://docs.rs/krikos/latest/krikos/protocol/struct.Router.html) that takes an [`Endpoint`](https://docs.rs/krikos/latest/krikos/endpoint/struct.Endpoint.html) and any protocols needed for the application. Similar to a router in webserver library, it runs a loop accepting incoming connections and routes them to the specific protocol handler, based on `ALPN`.
 
-`Docs` is a "meta protocol" that relies on the [`krikos-blobs`](https://docs.rs/iroh-blobs) and [`krikos-gossip`](https://docs.rs/iroh-gossip) protocols. Setting up `Docs` will require setting up `Blobs` and `Gossip` as well.
+`Docs` is a "meta protocol" that relies on the [`krikos-blobs`](https://docs.rs/krikos-blobs) and [`krikos-gossip`](https://docs.rs/krikos-gossip) protocols. Setting up `Docs` will require setting up `Blobs` and `Gossip` as well.
 
 Here is a basic example of how to set up `krikos-docs` with `krikos`:
 

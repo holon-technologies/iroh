@@ -35,9 +35,9 @@ use crate::{EndpointId, PublicKey, RelayUrl};
 /// number of other addressing information.  It is a generic addressing type used whenever a connection
 /// to other endpoints needs to be established.
 ///
-/// [Address Lookup]: https://docs.rs/iroh/*/krikos/index.html#address-lookup
-/// [home relay]: https://docs.rs/iroh/*/krikos/relay/index.html
-/// [Relay server]: https://docs.rs/iroh/*/krikos/index.html#relay-servers
+/// [Address Lookup]: https://docs.rs/krikos/*/krikos/index.html#address-lookup
+/// [home relay]: https://docs.rs/krikos/*/krikos/relay/index.html
+/// [Relay server]: https://docs.rs/krikos/*/krikos/index.html#relay-servers
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EndpointAddr {
     /// The endpoint's identifier.

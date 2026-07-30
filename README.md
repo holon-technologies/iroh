@@ -1,25 +1,17 @@
-<h1 align="center"><a href="https://iroh.computer"><img alt="krikos" src="./.img/iroh_wordmark.svg" width="100" /></a></h1>
+<h1 align="center">Krikos</h1>
 
 <h3 align="center">
 less net work for networks
 </h3>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh/)
-[![Crates.io](https://img.shields.io/crates/v/iroh.svg?style=flat-square)](https://crates.io/crates/iroh)
-[![downloads](https://img.shields.io/crates/d/iroh.svg?style=flat-square)](https://crates.io/crates/iroh)
-[![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
-[![Youtube](https://img.shields.io/badge/YouTube-red?logo=youtube&logoColor=white&style=flat-square)](https://www.youtube.com/@n0computer)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
 [![CI](https://img.shields.io/github/actions/workflow/status/holon-technologies/iroh/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/holon-technologies/iroh/actions/workflows/ci.yml)
 
 <div align="center">
   <h3>
-    <a href="https://iroh.computer/docs">
-      Docs Site
-    </a>
-    <span> | </span>
-    <a href="https://docs.rs/iroh">
+    <a href="https://docs.rs/krikos">
       Rust Docs
     </a>
   </h3>
@@ -35,7 +27,6 @@ You say “connect to that phone”, krikos will find & maintain the fastest con
 
 The fastest route is a direct connection, so if necessary, krikos tries to hole-punch.
 Should this fail, it can fall back to an open ecosystem of public relay servers.
-To ensure these connections are as fast as possible, we [continuously measure krikos][krikos-perf].
 
 ### Built on [QUIC]
 
@@ -119,17 +110,6 @@ The full example code with more comments can be found at [`echo.rs`][echo-rs].
 
 Or use one of the pre-existing protocols, e.g. [krikos-blobs] or [krikos-gossip].
 
-### Other Languages
-
-If you want to use krikos from other languages, make sure to check out [krikos-ffi], the repository for FFI bindings.
-
-### Links
-
-- [Introducing Krikos (video)][krikos-yt-video]
-- [Krikos Documentation][docs]
-- [Krikos Examples]
-- [Krikos Experiments]
-
 ## Repository Structure
 
 The production workspace and its isolated test workspaces have explicit ownership boundaries:
@@ -175,16 +155,9 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [QUIC]: https://en.wikipedia.org/wiki/QUIC
 [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3
 [noq]: https://github.com/n0-computer/noq
-[krikos-blobs]: https://github.com/n0-computer/iroh-blobs
-[krikos-gossip]: https://github.com/n0-computer/iroh-gossip
-[krikos-docs]: https://github.com/n0-computer/iroh-docs
-[krikos-doctor]: https://github.com/n0-computer/iroh-doctor
+[krikos-blobs]: protocols/krikos-blobs
+[krikos-gossip]: protocols/krikos-gossip
+[krikos-docs]: protocols/krikos-docs
 [willow protocol]: https://willowprotocol.org
-[krikos-ffi]: https://github.com/n0-computer/iroh-ffi
-[krikos-yt-video]: https://www.youtube.com/watch?v=RwAt36Xe3UI_
-[Krikos Examples]: https://github.com/n0-computer/iroh-examples
-[Krikos Experiments]: https://github.com/n0-computer/iroh-experiments
 [echo-rs]: /krikos/examples/echo.rs
-[krikos-perf]: https://perf.iroh.computer
-[docs]: https://docs.iroh.computer
 [local-first framework guide]: docs/framework/getting-started.md

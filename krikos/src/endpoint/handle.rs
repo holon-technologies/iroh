@@ -41,7 +41,7 @@ use super::*;
 /// [QUIC]: https://quicwg.org
 /// [`DnsResolver`]: crate::dns::DnsResolver
 /// [`ndk_context`]: https://docs.rs/ndk-context
-/// [`krikos_dns::install_android_jni_context`]: https://docs.rs/iroh-dns/latest/krikos_dns/fn.install_android_jni_context.html
+/// [`krikos_dns::install_android_jni_context`]: https://docs.rs/krikos-dns/latest/krikos_dns/fn.install_android_jni_context.html
 // The last link can't be a normal doclink, because #[cfg(doc)] can't cross crate boundaries unfortunately.
 #[derive(Clone, Debug)]
 pub struct Endpoint {

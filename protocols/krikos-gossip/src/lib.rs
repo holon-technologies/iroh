@@ -2,10 +2,10 @@
 //! Broadcast messages to peers subscribed to a topic
 //!
 //! The crate is designed to be used from the [krikos] crate, which provides a
-//! [high level interface](https://docs.rs/iroh/latest/krikos/client/gossip/index.html),
+//! [high level interface](https://docs.rs/krikos/latest/krikos/client/gossip/index.html),
 //! but can also be used standalone.
 //!
-//! [krikos]: https://docs.rs/iroh
+//! [krikos]: https://docs.rs/krikos
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(krikos_docsrs, feature(doc_cfg))]
 

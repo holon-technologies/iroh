@@ -33,10 +33,10 @@ Baseline protocol-source SHA-256 values provide provenance for fixture generatio
 | Probe path | `/ping` |
 | WebSocket upgrade protocol | `websocket` |
 | Supported WebSocket version | `13` |
-| Client authentication header | `x-krikos-relay-client-auth-v1` |
+| Client authentication header | `x-iroh-relay-client-auth-v1` |
 | Browser/query token parameter | `token` |
-| Relay V1 subprotocol | `krikos-relay-v1` |
-| Relay V2 subprotocol | `krikos-relay-v2` |
+| Relay V1 subprotocol | `iroh-relay-v1` |
+| Relay V2 subprotocol | `iroh-relay-v2` |
 | Preference order | V2, then V1 |
 
 The server chooses the highest mutually supported version. A V1-only peer must remain usable.
