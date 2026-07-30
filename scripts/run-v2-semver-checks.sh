@@ -80,15 +80,21 @@ fi
 
 # Every current package name above is looked up against
 # scripts/rename-map.toml to find the name it had BEFORE the Krikos rebrand
-# (Task 5), because both baseline refs here (the pre-rename v2
-# architecture-cut commit, and the upstream v1.0.3 tag) predate the rename
-# entirely and still carry the pre-rebrand package names. Building the
-# baseline rustdoc JSON with the current (krikos-*) package name against
-# that old checkout fails outright ("cannot specify features for packages
-# outside of workspace") because no such package exists there -- this is
-# not a cosmetic mismatch, the baseline build cannot start at all without
-# it. A package with no [[packages]] entry in the map (there is none among
-# the packages compared here) falls back to its own name unchanged.
+# (Task 5). This translation is needed only for a baseline ref that PREDATES
+# the rebrand and still carries the pre-rebrand package names (the legacy
+# v1.0.3 tag, or a post-cut baseline set to the pre-rebrand architecture-cut
+# commit) -- building the baseline rustdoc JSON with the current (krikos-*)
+# package name against a checkout with no such package fails outright
+# ("cannot specify features for packages outside of workspace"). A
+# post-cut baseline may equally be set to a commit that ALREADY POSTDATES
+# the rebrand (this repository's own case after 2026-07-30, see
+# docs/adr/0002-krikos-rebrand.md's addendum) -- there the current name is
+# exactly right and translating it would look for a package
+# ("iroh"/"iroh-base"/...) that no longer exists in that checkout either.
+# Which case applies is not knowable from `mode` alone (both a pre- and a
+# post-rebrand commit are valid `post-cut` baselines), so it is resolved
+# per package by asking the baseline checkout itself, after it is archived
+# below, rather than assumed from a hardcoded map.
 readarray -t baseline_package_pairs < <(python3 - "$repo_root/scripts/rename-map.toml" <<'PY'
 import sys
 import tomllib
@@ -128,8 +134,32 @@ actual_inventory="$evidence_root/actual-v1-breaks.txt"
 : >"$actual_inventory"
 git -C "$repo_root" archive "$baseline_ref" | tar -x -C "$baseline_checkout"
 
+# Ask the baseline checkout itself which package names it actually has,
+# rather than assuming from `mode` whether it predates the rebrand (see the
+# comment above baseline_name_for_current). `--no-deps` keeps this to the
+# checkout's own workspace members; a missing/unreadable Cargo.lock at this
+# ref would already have failed the rustdoc build below, so this is not a
+# new failure mode.
+readarray -t baseline_present_packages < <(
+  cargo metadata --no-deps --format-version 1 \
+    --manifest-path "$baseline_checkout/Cargo.toml" 2>/dev/null |
+    python3 -c 'import json, sys; print("\n".join(p["name"] for p in json.load(sys.stdin)["packages"]))'
+)
+declare -A baseline_has_package=()
+for name in "${baseline_present_packages[@]}"; do
+  baseline_has_package[$name]=1
+done
+
 for package in "${packages[@]}"; do
-  baseline_package=${baseline_name_for_current[$package]:-$package}
+  if [[ -n "${baseline_has_package[$package]:-}" ]]; then
+    # The baseline checkout already has this exact package name -- it
+    # postdates the rebrand (or never needed translating), so comparing
+    # like-for-like by the current name is correct and no translation, and
+    # no crate-root path rewrite below, is needed.
+    baseline_package=$package
+  else
+    baseline_package=${baseline_name_for_current[$package]:-$package}
+  fi
   current_rustdoc_name=${package//-/_}
   baseline_rustdoc_name=${baseline_package//-/_}
   current_rustdoc="$evidence_root/current-target/doc/$current_rustdoc_name.json"
