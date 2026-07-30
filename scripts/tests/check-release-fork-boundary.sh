@@ -31,12 +31,12 @@ require_text() {
 
 for path in \
   vendor/noq-1.1.0/CHANGELOG.md \
-  vendor/noq-1.1.0/IROH-VENDOR.md \
+  vendor/noq-1.1.0/KRIKOS-VENDOR.md \
   vendor/noq-1.1.0/LICENSE-APACHE \
   vendor/noq-1.1.0/LICENSE-MIT \
   vendor/noq-1.1.0/README.md \
   vendor/hickory-server-0.26.1/CHANGELOG.md \
-  vendor/hickory-server-0.26.1/IROH-VENDOR.md \
+  vendor/hickory-server-0.26.1/KRIKOS-VENDOR.md \
   vendor/hickory-server-0.26.1/LICENSE-APACHE \
   vendor/hickory-server-0.26.1/LICENSE-MIT \
   vendor/hickory-server-0.26.1/README.md \
@@ -61,36 +61,36 @@ fi
 if ! sed -n '/^exclude = \[/,/^\]/p' "$root_manifest" | grep -Fq '"iroh-sim",'; then
   fail 'iroh-sim must be explicitly excluded from the root workspace'
 fi
-require_text Cargo.toml 'iroh-noq = { path = "vendor/noq-1.1.0" }'
-require_text Cargo.toml 'iroh-hickory-server = { path = "vendor/hickory-server-0.26.1" }'
+require_text Cargo.toml 'krikos-noq = { path = "vendor/noq-1.1.0" }'
+require_text Cargo.toml 'krikos-hickory-server = { path = "vendor/hickory-server-0.26.1" }'
 
-require_text vendor/noq-1.1.0/Cargo.toml 'name = "iroh-noq"'
+require_text vendor/noq-1.1.0/Cargo.toml 'name = "krikos-noq"'
 require_text vendor/noq-1.1.0/Cargo.toml 'version = "1.1.0-holon.1"'
 require_text vendor/noq-1.1.0/Cargo.toml 'publish = true'
 require_text vendor/noq-1.1.0/Cargo.toml 'repository = "https://github.com/holon-technologies/iroh"'
-require_text vendor/noq-1.1.0/Cargo.toml 'documentation = "https://docs.rs/iroh-noq"'
+require_text vendor/noq-1.1.0/Cargo.toml 'documentation = "https://docs.rs/krikos-noq"'
 require_text vendor/noq-1.1.0/Cargo.toml 'include = ['
 require_text vendor/noq-1.1.0/Cargo.toml 'name = "noq"'
 require_text vendor/noq-1.1.0/README.md 'Holon-maintained fork'
-require_text vendor/noq-1.1.0/IROH-VENDOR.md 'Upstream base: `noq` 1.1.0'
+require_text vendor/noq-1.1.0/KRIKOS-VENDOR.md 'Upstream base: `noq` 1.1.0'
 require_text vendor/noq-1.1.0/CHANGELOG.md '## 1.1.0-holon.1'
 
-require_text vendor/hickory-server-0.26.1/Cargo.toml 'name = "iroh-hickory-server"'
+require_text vendor/hickory-server-0.26.1/Cargo.toml 'name = "krikos-hickory-server"'
 require_text vendor/hickory-server-0.26.1/Cargo.toml 'version = "0.26.1-holon.1"'
 require_text vendor/hickory-server-0.26.1/Cargo.toml 'publish = true'
 require_text vendor/hickory-server-0.26.1/Cargo.toml 'repository = "https://github.com/holon-technologies/iroh"'
-require_text vendor/hickory-server-0.26.1/Cargo.toml 'documentation = "https://docs.rs/iroh-hickory-server"'
+require_text vendor/hickory-server-0.26.1/Cargo.toml 'documentation = "https://docs.rs/krikos-hickory-server"'
 require_text vendor/hickory-server-0.26.1/Cargo.toml 'include = ['
 require_text vendor/hickory-server-0.26.1/Cargo.toml 'name = "hickory_server"'
 require_text vendor/hickory-server-0.26.1/README.md 'Holon-maintained fork'
-require_text vendor/hickory-server-0.26.1/IROH-VENDOR.md 'Upstream base: `hickory-server` 0.26.1'
+require_text vendor/hickory-server-0.26.1/KRIKOS-VENDOR.md 'Upstream base: `hickory-server` 0.26.1'
 require_text vendor/hickory-server-0.26.1/CHANGELOG.md '## 0.26.1-holon.1'
 
 for path in iroh/Cargo.toml iroh-relay/Cargo.toml iroh/bench/Cargo.toml; do
-  require_text "$path" 'package = "iroh-noq"'
+  require_text "$path" 'package = "krikos-noq"'
   require_text "$path" 'version = "=1.1.0-holon.1"'
 done
-require_text iroh-dns-server/Cargo.toml 'package = "iroh-hickory-server"'
+require_text iroh-dns-server/Cargo.toml 'package = "krikos-hickory-server"'
 require_text iroh-dns-server/Cargo.toml 'version = "=0.26.1-holon.1"'
 for path in \
   iroh/Cargo.toml \
@@ -109,7 +109,7 @@ require_text "$sim_manifest" 'resolver = "2"'
 require_text "$sim_manifest" '[workspace.lints.rust]'
 require_text "$sim_manifest" '[workspace.lints.clippy]'
 require_text "$sim_manifest" '[patch.crates-io]'
-require_text "$sim_manifest" 'iroh-noq = { path = "../vendor/noq-1.1.0" }'
+require_text "$sim_manifest" 'krikos-noq = { path = "../vendor/noq-1.1.0" }'
 require_text "$sim_manifest" 'rustls = { path = "../vendor/rustls-0.23.41" }'
 require_text "$sim_manifest" 'rustls = { version = "0.23.33", default-features = false }'
 

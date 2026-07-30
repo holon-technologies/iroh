@@ -30,12 +30,12 @@ role, or as a forwarding resolver, stub resolver, or a recursive resolver
 (experimental).
 """
 homepage = "https://hickory-dns.org/"
-documentation = "https://docs.rs/iroh-hickory-server"
+documentation = "https://docs.rs/krikos-hickory-server"
 readme = "README.md"
 include = [
     "src/**",
     "CHANGELOG.md",
-    "IROH-VENDOR.md",
+    "KRIKOS-VENDOR.md",
     "LICENSE-APACHE",
     "LICENSE-MIT",
     "README.md",
