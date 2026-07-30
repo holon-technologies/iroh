@@ -7,8 +7,16 @@ checker="$repo_root/scripts/check-determinism-semantic.sh"
 fixture_root=$(mktemp -d)
 trap 'rm -rf "$fixture_root"' EXIT
 
-mkdir -p "$fixture_root/iroh/src" "$fixture_root/scripts"
-source_file="$fixture_root/iroh/src/lib.rs"
+mkdir -p "$fixture_root/krikos/src" "$fixture_root/scripts"
+# The Rust checker's SOURCE_ROOTS list is fixed; every root must exist below
+# --root or it now errors loudly (a missing root must not silently narrow
+# the scan). Only krikos/ carries fixture content -- the rest are
+# present-but-empty so the fixture satisfies that floor check.
+mkdir -p "$fixture_root/krikos-base" "$fixture_root/krikos-resolver" \
+  "$fixture_root/krikos-dns" "$fixture_root/krikos-dns-server" \
+  "$fixture_root/krikos-relay" "$fixture_root/krikos-runtime" \
+  "$fixture_root/krikos-sim"
+source_file="$fixture_root/krikos/src/lib.rs"
 baseline="$fixture_root/scripts/determinism-boundaries.semantic.txt"
 
 printf '%s\n' \
@@ -20,7 +28,7 @@ printf '%s\n' \
 "$checker" --update --root "$fixture_root" --baseline "$baseline"
 "$checker" --check --root "$fixture_root" --baseline "$baseline"
 
-if ! grep -Fq $'clock-timer\tiroh/src/lib.rs\ttimestamp\tstd::time::SystemTime::now\t1' "$baseline"; then
+if ! grep -Fq $'clock-timer\tkrikos/src/lib.rs\ttimestamp\tstd::time::SystemTime::now\t1' "$baseline"; then
   echo "semantic checker did not resolve an aliased wall clock" >&2
   exit 1
 fi
@@ -42,7 +50,7 @@ if "$checker" --check --root "$fixture_root" --baseline "$baseline" >/dev/null 2
 fi
 
 "$checker" --update --root "$fixture_root" --baseline "$baseline"
-if ! grep -Fq $'spawn-task\tiroh/src/lib.rs\tdetached\ttokio::spawn\t1' "$baseline"; then
+if ! grep -Fq $'spawn-task\tkrikos/src/lib.rs\tdetached\ttokio::spawn\t1' "$baseline"; then
   echo "semantic checker did not retain the aliased spawn identity" >&2
   exit 1
 fi

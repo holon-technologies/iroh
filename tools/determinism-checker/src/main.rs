@@ -18,14 +18,14 @@ use syn::{
 };
 
 const SOURCE_ROOTS: [&str; 8] = [
-    "iroh",
-    "iroh-base",
-    "iroh-resolver",
-    "iroh-dns",
-    "iroh-dns-server",
-    "iroh-relay",
-    "iroh-runtime",
-    "iroh-sim",
+    "krikos",
+    "krikos-base",
+    "krikos-resolver",
+    "krikos-dns",
+    "krikos-dns-server",
+    "krikos-relay",
+    "krikos-runtime",
+    "krikos-sim",
 ];
 const MAX_SOURCE_FILES: usize = 20_000;
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
@@ -186,7 +186,14 @@ fn source_files(root: &Path) -> Result<Vec<PathBuf>, DynError> {
     for source_root in SOURCE_ROOTS {
         let candidate = root.join(source_root);
         if !candidate.is_dir() {
-            continue;
+            return Err(format!(
+                "determinism boundary source root missing: {} (below {}); a missing root would \
+                 silently narrow the scan and could mask a stale/partial rename, so this is an \
+                 error rather than a skip",
+                source_root,
+                root.display()
+            )
+            .into());
         }
         let mut pending = vec![candidate];
         while let Some(directory) = pending.pop() {
@@ -215,7 +222,7 @@ fn source_files(root: &Path) -> Result<Vec<PathBuf>, DynError> {
         }
     }
     if files.is_empty() {
-        return Err(format!("no Iroh Rust source roots found below {}", root.display()).into());
+        return Err(format!("no Krikos Rust source roots found below {}", root.display()).into());
     }
     files.sort();
     Ok(files)

@@ -64,14 +64,23 @@ if [[ -z "$baseline" ]]; then
 fi
 
 source_roots=()
-for candidate in iroh iroh-base iroh-resolver iroh-dns iroh-dns-server iroh-relay iroh-runtime iroh-sim; do
+missing_roots=()
+for candidate in krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim; do
   if [[ -d "$repo_root/$candidate" ]]; then
     source_roots+=("$candidate")
+  else
+    missing_roots+=("$candidate")
   fi
 done
 
+if [[ ${#missing_roots[@]} -gt 0 ]]; then
+  echo "determinism boundary source root(s) missing below $repo_root: ${missing_roots[*]}" >&2
+  echo "a missing root would silently narrow the scan; fix the root list or the checkout" >&2
+  exit 2
+fi
+
 if [[ ${#source_roots[@]} -eq 0 ]]; then
-  echo "no Iroh source roots found below $repo_root" >&2
+  echo "no Krikos source roots found below $repo_root" >&2
   exit 2
 fi
 
