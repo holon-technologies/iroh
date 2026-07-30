@@ -5,13 +5,13 @@ use std::time::Duration;
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
 use futures_util::StreamExt;
-use iroh::{
+use krikos::{
     RelayMap,
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use iroh_app::{Application, StandardBundle, StandardBundleBuilder};
-use iroh_docs::{
+use krikos_app::{Application, StandardBundle, StandardBundleBuilder};
+use krikos_docs::{
     AuthorId,
     api::{
         Doc,
@@ -72,7 +72,7 @@ pub async fn run_two_node_scenario(network: ScenarioNetwork) -> Result<()> {
     let note = Bytes::from_static(NOTE_BYTES);
     let tag = node_a.blobs().blobs().add_bytes(note.clone()).await?;
     ensure!(
-        tag.hash == iroh_blobs::Hash::new(&note),
+        tag.hash == krikos_blobs::Hash::new(&note),
         "blob hash mismatch"
     );
     doc_a
@@ -89,7 +89,7 @@ pub async fn run_two_node_scenario(network: ScenarioNetwork) -> Result<()> {
         .await?;
     if matches!(network, ScenarioNetwork::RelayOnly(_)) {
         for node in &mut ticket.nodes {
-            node.addrs.retain(iroh::TransportAddr::is_relay);
+            node.addrs.retain(krikos::TransportAddr::is_relay);
             ensure!(
                 !node.addrs.is_empty(),
                 "relay-only invitation has no relay address"
@@ -101,7 +101,7 @@ pub async fn run_two_node_scenario(network: ScenarioNetwork) -> Result<()> {
         invitation.len() <= MAX_INVITATION_LENGTH,
         "invitation exceeds bound"
     );
-    let parsed = invitation.parse::<iroh_docs::DocTicket>()?;
+    let parsed = invitation.parse::<krikos_docs::DocTicket>()?;
     let peers = parsed.nodes.clone();
     let (doc_b, mut progress) = node_b.docs().import_and_subscribe(parsed).await?;
     observe_content_ready(&mut progress, tag.hash).await?;
@@ -168,13 +168,13 @@ fn configure(builder: StandardBundleBuilder, network: &ScenarioNetwork) -> Stand
         ScenarioNetwork::Direct => builder.local_only(),
         ScenarioNetwork::RelayOnly(relay_map) => builder
             .relay_map(relay_map.clone())
-            .tls_ca_config(iroh::tls::CaTlsConfig::insecure_skip_verify()),
+            .tls_ca_config(krikos::tls::CaTlsConfig::insecure_skip_verify()),
     }
 }
 
 async fn observe_content_ready(
     progress: &mut (impl futures_util::Stream<Item = anyhow::Result<LiveEvent>> + Unpin),
-    expected_hash: iroh_blobs::Hash,
+    expected_hash: krikos_blobs::Hash,
 ) -> Result<()> {
     tokio::time::timeout(CONVERGENCE_TIMEOUT, async {
         while let Some(event) = progress.next().await {
@@ -182,7 +182,7 @@ async fn observe_content_ready(
                 LiveEvent::ContentReady { hash } if hash == expected_hash => return Ok(()),
                 LiveEvent::InsertRemote {
                     entry,
-                    content_status: iroh_docs::ContentStatus::Complete,
+                    content_status: krikos_docs::ContentStatus::Complete,
                     ..
                 } if entry.content_hash() == expected_hash => return Ok(()),
                 _ => {}
@@ -198,7 +198,7 @@ async fn wait_for_note(
     application: &Application,
     doc: &Doc,
     author: AuthorId,
-    expected_hash: iroh_blobs::Hash,
+    expected_hash: krikos_blobs::Hash,
 ) -> Result<Bytes> {
     tokio::time::timeout(CONVERGENCE_TIMEOUT, async {
         loop {
@@ -209,7 +209,7 @@ async fn wait_for_note(
                 let mut bytes = Vec::new();
                 if reader.read_to_end(&mut bytes).await.is_ok() {
                     ensure!(
-                        iroh_blobs::Hash::new(&bytes) == expected_hash,
+                        krikos_blobs::Hash::new(&bytes) == expected_hash,
                         "downloaded blob failed hash validation"
                     );
                     return Ok(Bytes::from(bytes));
@@ -229,7 +229,7 @@ async fn assert_custom_echo(
 ) -> Result<()> {
     let mut server_addr = server.endpoint().addr();
     if matches!(network, ScenarioNetwork::RelayOnly(_)) {
-        server_addr.addrs.retain(iroh::TransportAddr::is_relay);
+        server_addr.addrs.retain(krikos::TransportAddr::is_relay);
         ensure!(
             !server_addr.addrs.is_empty(),
             "relay-only echo address has no relay"

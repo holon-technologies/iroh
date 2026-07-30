@@ -67,12 +67,12 @@ def architecture_policy() -> dict:
 
 def baseline(**overrides: object) -> dict:
     record: dict[str, object] = {
-        "name": "iroh-blobs",
+        "name": "krikos-blobs",
         "source_url": "https://github.com/n0-computer/iroh-blobs",
         "tag": "v0.103.0",
         "source_commit": SHA_A,
         "resolved_tag_commit": SHA_A,
-        "import_prefix": "protocols/iroh-blobs",
+        "import_prefix": "protocols/krikos-blobs",
         "state": "pending",
         "expected_license": "MIT OR Apache-2.0",
         "license_files": ["LICENSE-MIT", "LICENSE-APACHE"],
@@ -127,13 +127,13 @@ class ProvenancePolicyFixtures(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "Cargo.toml").write_text(
-                '[workspace]\nmembers = ["protocols/iroh-blobs"]\n'
+                '[workspace]\nmembers = ["protocols/krikos-blobs"]\n'
                 '[workspace.package]\nlicense = "MIT OR Apache-2.0"\n'
             )
-            prefix = root / "protocols" / "iroh-blobs"
+            prefix = root / "protocols" / "krikos-blobs"
             prefix.mkdir(parents=True)
             (prefix / "Cargo.toml").write_text(
-                '[package]\nname = "iroh-blobs"\nversion = "2.0.0"\n'
+                '[package]\nname = "krikos-blobs"\nversion = "2.0.0"\n'
                 "license.workspace = true\n"
             )
             (prefix / "UPSTREAM.md").write_text("# Upstream\n")
@@ -156,27 +156,27 @@ class ProvenancePolicyFixtures(unittest.TestCase):
             Path("/nonexistent"),
         )
 
-        self.assertIn("iroh-blobs.tag must be an exact release tag, found 'main'", failures)
+        self.assertIn("krikos-blobs.tag must be an exact release tag, found 'main'", failures)
 
     def test_duplicate_import_prefix_is_rejected(self) -> None:
-        duplicate = baseline(name="iroh-gossip")
+        duplicate = baseline(name="krikos-gossip")
         failures = provenance.validate_baselines(
             {"schema_version": 1, "baselines": [baseline(), duplicate]},
             Path("/nonexistent"),
         )
 
         self.assertIn(
-            "duplicate import_prefix 'protocols/iroh-blobs': iroh-blobs, iroh-gossip",
+            "duplicate import_prefix 'protocols/krikos-blobs': krikos-blobs, krikos-gossip",
             failures,
         )
 
     def test_missing_license_is_rejected_after_import(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            prefix = root / "protocols" / "iroh-blobs"
+            prefix = root / "protocols" / "krikos-blobs"
             prefix.mkdir(parents=True)
             (prefix / "Cargo.toml").write_text(
-                '[package]\nname = "iroh-blobs"\nversion = "0.103.0"\n'
+                '[package]\nname = "krikos-blobs"\nversion = "0.103.0"\n'
                 'license = "MIT OR Apache-2.0"\n'
             )
             (prefix / "UPSTREAM.md").write_text("# Upstream\n")
@@ -190,7 +190,7 @@ class ProvenancePolicyFixtures(unittest.TestCase):
             )
 
         self.assertIn(
-            "iroh-blobs license file missing: protocols/iroh-blobs/LICENSE-MIT",
+            "krikos-blobs license file missing: protocols/krikos-blobs/LICENSE-MIT",
             failures,
         )
 
@@ -204,7 +204,7 @@ class ProvenancePolicyFixtures(unittest.TestCase):
         )
 
         self.assertIn(
-            f"iroh-blobs source_commit {SHA_A} does not resolve from tag v0.103.0 ({SHA_B})",
+            f"krikos-blobs source_commit {SHA_A} does not resolve from tag v0.103.0 ({SHA_B})",
             failures,
         )
 

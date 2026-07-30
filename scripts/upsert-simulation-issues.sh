@@ -97,7 +97,7 @@ for index in "${!record_files[@]}"; do
             | type == "string" and test("^[0-9a-f]{64}$"))
           and (.title | type == "string" and length > 0 and length <= 180)
           and (.body | type == "string" and length > 0 and length <= $maximum_body_bytes)
-          and (.body | contains("<!-- iroh-sim-signature:" + $record.signature_digest + " -->"))
+          and (.body | contains("<!-- krikos-sim-signature:" + $record.signature_digest + " -->"))
           and (.body | contains(
             "- Minimized scenario SHA-256: `" + $record.minimized_scenario_sha256 + "`"
           ))
@@ -120,7 +120,7 @@ for index in "${!record_files[@]}"; do
     exit 2
   fi
   seen_signatures[$signature]=1
-  marker="<!-- iroh-sim-signature:$signature -->"
+  marker="<!-- krikos-sim-signature:$signature -->"
   issue_candidates="$scratch_root/issues-$index.json"
   if ! gh issue list \
     --repo "$repository" \

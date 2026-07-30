@@ -1,10 +1,10 @@
 # Deterministic Simulation
 
-Iroh's simulation platform is built around capability injection: production and simulation run the same endpoint and Noq code while supplying different clocks, executors, behavioral decisions, sockets, and infrastructure. The source audit and approved architecture are in [`determinism-audit.md`](determinism-audit.md) and [`deterministic-simulation-architecture.md`](deterministic-simulation-architecture.md).
+Krikos's simulation platform is built around capability injection: production and simulation run the same endpoint and Noq code while supplying different clocks, executors, behavioral decisions, sockets, and infrastructure. The source audit and approved architecture are in [`determinism-audit.md`](determinism-audit.md) and [`deterministic-simulation-architecture.md`](deterministic-simulation-architecture.md).
 
 ## Current support: deterministic closure
 
-Stage 2 runs production Iroh, Noq, TLS, QUIC stream, and QUIC datagram code over an in-memory IPv4/IPv6 packet network. The simulator owns link latency and bandwidth, MTU and queue bounds, routes, partitions, deterministic packet faults, virtual Iroh clocks, behavioral decisions, and resource accounting.
+Stage 2 runs production Krikos, Noq, TLS, QUIC stream, and QUIC datagram code over an in-memory IPv4/IPv6 packet network. The simulator owns link latency and bandwidth, MTU and queue bounds, routes, partitions, deterministic packet faults, virtual Krikos clocks, behavioral decisions, and resource accounting.
 
 Stage 3 adds one strict declarative schema shared by JSON, Rust builders, deterministic generation, replay, minimization, and the permanent corpus. The runner executes those actions through the same production endpoint/Noq/TLS/QUIC path, continuously feeds typed observations to ordered safety/liveness/cleanup invariants, and checks action outcomes against a pure reference model.
 
@@ -14,7 +14,7 @@ discovery providers, and injected DNS timeout/stagger jitter. Production QUIC, e
 address aggregation, socket rebind, and monitor consumption remain the real implementations.
 Capability requirements still fail closed.
 
-Stage 5 runs the production Iroh relay actor plus production relay client/server WebSocket framing,
+Stage 5 runs the production Krikos relay actor plus production relay client/server WebSocket framing,
 challenge authentication, authorization, client actor, registry, and routing over bounded
 simulator-owned byte pipes. The synthetic boundary replaces only DNS/TCP/TLS/HTTP listener setup.
 Relay-only, restart/outage, initially unavailable home relay, direct upgrade, direct failure and
@@ -46,10 +46,10 @@ Runner-level regressions additionally cap live connections and relays at one, th
 rejected second admission leaves trace, scheduler, task, and runtime state unchanged; partial relay
 reservations roll back, shutdown returns the ledger to zero, and same-seed evidence is identical.
 
-- `iroh-runtime` defines stable IDs, a monotonic `Clock`, `WallClock`, resettable timers, structured task groups, domain-separated decision streams, the global trace schema, and `RuntimeContext`.
+- `krikos-runtime` defines stable IDs, a monotonic `Clock`, `WallClock`, resettable timers, structured task groups, domain-separated decision streams, the global trace schema, and `RuntimeContext`.
 - Normal `Endpoint::builder(...).bind()` installs Tokio, system wall time, an OS-backed behavioral root seed, and a no-op trace sink. Endpoint identities, TLS token keys, and QUIC reset keys still use cryptographic randomness.
 - The explicit, doc-hidden `Builder::runtime_context_for_test` path requires `UnsafeTestOnly::acknowledge()`. It is constructor injection, never an environment-variable or feature selection. The marker means “not a production default”; it does not weaken Rust memory safety.
-- Iroh's Noq adapter delegates `now`, timers, and task spawning to one context. The endpoint supplies Noq with a behavioral RNG seed from `endpoint/<endpoint-id>/noq`. Token validity uses the context wall clock.
+- Krikos's Noq adapter delegates `now`, timers, and task spawning to one context. The endpoint supplies Noq with a behavioral RNG seed from `endpoint/<endpoint-id>/noq`. Token validity uses the context wall clock.
 - Noq, socket, relay, direct-address report, active-relay, and remote-state actors run under the injected runtime and participate in structured cancellation and shutdown snapshots.
 
 The production-endpoint lanes drive harness roots directly around kernel steps; they no longer
@@ -69,7 +69,7 @@ raw trace equality. `production_provider` retains exactly `production_crypto_ent
 
 ## Run identity
 
-`iroh-sim::RunManifest` is strict JSON with unknown-field rejection. It records:
+`krikos-sim::RunManifest` is strict JSON with unknown-field rejection. It records:
 
 - source revision and dirty-tree digest;
 - behavioral root seed;
@@ -95,7 +95,7 @@ Runtime events contain a global sequence, run-relative virtual timestamp, typed 
 Build or inspect the command with:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- --help
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- --help
 ```
 
 The stable command surface is `run`, `campaign`, `soak`, `gate-select`, `replay`, `minimize`,
@@ -106,68 +106,68 @@ ready ordering.
 Run either checked-in Stage 2 scenario with an explicit behavioral seed:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-  iroh-sim/tests/fixtures/ipv4-stream.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+  krikos-sim/tests/fixtures/ipv4-stream.json \
   --seed 1111111111111111111111111111111111111111111111111111111111111111 \
-  --artifacts /tmp/iroh-sim-ipv4
+  --artifacts /tmp/krikos-sim-ipv4
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
-  /tmp/iroh-sim-ipv4/manifest.json
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay \
+  /tmp/krikos-sim-ipv4/manifest.json
 
 # Exercise the production cryptographic provider with semantic replay.
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-  iroh-sim/tests/fixtures/ipv4-stream.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+  krikos-sim/tests/fixtures/ipv4-stream.json \
   --seed 2222222222222222222222222222222222222222222222222222222222222222 \
   --crypto production-provider \
-  --artifacts /tmp/iroh-sim-ipv4-production-crypto
+  --artifacts /tmp/krikos-sim-ipv4-production-crypto
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
-  /tmp/iroh-sim-ipv4-production-crypto/manifest.json
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay \
+  /tmp/krikos-sim-ipv4-production-crypto/manifest.json
 ```
 
 Run a declarative scenario, test the reviewed corpus, and execute a bounded campaign:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-  iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+  krikos-sim/tests/fixtures/v2-ipv4-stream.json \
   --seed 1212121212121212121212121212121212121212121212121212121212121212 \
-  --artifacts /tmp/iroh-sim-v2
+  --artifacts /tmp/krikos-sim-v2
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- corpus test krikos-sim/corpus
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-  iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- campaign \
+  krikos-sim/tests/fixtures/v2-ipv4-stream.json \
   --seeds 0..100 --jobs 4 --generated --continue-on-failure \
-  --artifacts /tmp/iroh-sim-campaign
+  --artifacts /tmp/krikos-sim-campaign
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-  iroh-sim/corpus/stage4-nat-rebind-expiry/scenario.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- campaign \
+  krikos-sim/corpus/stage4-nat-rebind-expiry/scenario.json \
   --seeds 0..100 --jobs 4 --continue-on-failure \
-  --artifacts /tmp/iroh-sim-nat-campaign
+  --artifacts /tmp/krikos-sim-nat-campaign
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-  iroh-sim/corpus/stage5-relay-restart/scenario.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- campaign \
+  krikos-sim/corpus/stage5-relay-restart/scenario.json \
   --seeds 0..100 --jobs 4 --continue-on-failure \
-  --artifacts /tmp/iroh-sim-relay-campaign
+  --artifacts /tmp/krikos-sim-relay-campaign
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- campaign \
-  --swarm iroh-sim/swarms/direct-smoke.json \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- campaign \
+  --swarm krikos-sim/swarms/direct-smoke.json \
   --seeds 0..100 --jobs 4 --continue-on-failure --max-runs 100 \
-  --artifacts /tmp/iroh-sim-swarm-campaign
+  --artifacts /tmp/krikos-sim-swarm-campaign
 ```
 
-The strict daily plan at `iroh-sim/soaks/daily.json` pins fourteen domain/crypto lanes and each swarm
+The strict daily plan at `krikos-sim/soaks/daily.json` pins fourteen domain/crypto lanes and each swarm
 template digest. `cargo sim soak` executes one bounded epoch, checks wall time only between
 fixed-size batches, atomically checkpoints aggregate and per-lane counters, and retains no
 successful trace. The daily shell runner starts eight fresh processes so process-global leakage
 cannot accumulate across the full four-hour service:
 
 ```bash
-cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
 scripts/run-daily-simulation-soak.sh \
   --seed-window 1 \
-  --artifacts /tmp/iroh-daily-soak \
-  --sim-bin iroh-sim/target/release/cargo-sim
+  --artifacts /tmp/krikos-daily-soak \
+  --sim-bin krikos-sim/target/release/cargo-sim
 ```
 
 The production service starts a window every six hours. It builds one source-bound simulator,
@@ -249,11 +249,11 @@ A failing declarative run stores the canonical scenario, terminal report, invari
 Minimize a failure and resume an interrupted reduction with:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
-  --output /tmp/iroh-sim-minimized --max-attempts 10000
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/krikos-sim-failure/manifest.json \
+  --output /tmp/krikos-sim-minimized --max-attempts 10000
 
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/iroh-sim-failure/manifest.json \
-  --output /tmp/iroh-sim-minimized --resume --max-attempts 10000
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- minimize /tmp/krikos-sim-failure/manifest.json \
+  --output /tmp/krikos-sim-minimized --resume --max-attempts 10000
 ```
 
 The reducer deterministically deletes action/fault chunks, NATs, firewall rules, discovery
@@ -265,7 +265,7 @@ retains the best valid candidate.
 
 ### Corpus, campaigns, and triage
 
-Each directory below `iroh-sim/corpus` must contain exactly `metadata.json` and `scenario.json`.
+Each directory below `krikos-sim/corpus` must contain exactly `metadata.json` and `scenario.json`.
 Corpus metadata schema v2 records seed, expected terminal/signature, provenance, issue,
 schema/simulator compatibility, review state, and an exact `ScenarioInventory`. Historical fixtures
 use a bounded symbolic issue reference. A real GitHub issue URL requires typed promotion evidence:
@@ -323,7 +323,7 @@ window completed.
 For a compact terminal, obligation, resource, causal-suffix, and command summary:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- explain /tmp/iroh-sim-failure/manifest.json
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- explain /tmp/krikos-sim-failure/manifest.json
 ```
 
 Cross-backend fixtures use `cargo sim parity export` and `cargo sim parity compare`. The complete
@@ -353,18 +353,18 @@ scripts/tests/check-simulation-failure-triage.sh
 scripts/tests/check-simulation-issue-upsert.sh
 scripts/tests/check-simulation-nightly-workflow.sh
 scripts/tests/check-simulation-weekly-workflow.sh
-cargo test -p iroh-runtime
-cargo test -p iroh-dns --lib
-cargo test -p iroh-relay --all-features
-cargo test --manifest-path iroh-sim/Cargo.toml
-cargo test --manifest-path iroh-sim/Cargo.toml --test swarm
-cargo test -p iroh --lib --all-features
-cargo clippy -p iroh-runtime -p iroh --all-targets --all-features -- -D warnings
-cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings
-cargo check -p iroh --no-default-features
+cargo test -p krikos-runtime
+cargo test -p krikos-dns --lib
+cargo test -p krikos-relay --all-features
+cargo test --manifest-path krikos-sim/Cargo.toml
+cargo test --manifest-path krikos-sim/Cargo.toml --test swarm
+cargo test -p krikos --lib --all-features
+cargo clippy -p krikos-runtime -p krikos --all-targets --all-features -- -D warnings
+cargo clippy --manifest-path krikos-sim/Cargo.toml --all-targets --all-features -- -D warnings
+cargo check -p krikos --no-default-features
 ```
 
-CI also builds the portable `iroh-runtime` contracts and Iroh for `wasm32-unknown-unknown`.
+CI also builds the portable `krikos-runtime` contracts and Krikos for `wasm32-unknown-unknown`.
 Patchbay remains the privileged realistic Linux backend and is intentionally separate from these
 in-process contracts. The versioned semantic importer, canonical case catalog, and outcome matrix
 are documented in [`../simulation/patchbay-parity.md`](../simulation/patchbay-parity.md).
@@ -390,13 +390,13 @@ Real net-report HTTP/STUN probes and platform interfaces remain realistic-backen
 
 Stage 2 adds capability dispatch at IP socket construction and send/receive boundaries only when the transport is constructed; normal builders still install the concrete `netwatch` adapter and secure entropy. The production default uses a no-op trace sink. Existing connection, packet-throughput, and relay benchmark commands remain the authority for performance review; no threshold is changed by Stage 2. Record machine identity, revision, feature set, command line, and raw output before accepting a new baseline.
 
-Stage 3 adds no observer branch to the production Iroh crate: `ScenarioRunner`, reference models, invariants, corpus, and minimization live in the separate non-published `iroh-sim` crate, so an application that does not construct the simulator has no Stage 3 runner/observer path to disable. A non-gating 2026-07-21 container measurement on this worktree ran 32 generated production-QUIC scenarios with four workers in 4.26 seconds wall time (7.51 scenarios/second; 7.11 seconds user, 0.18 seconds system):
+Stage 3 adds no observer branch to the production Krikos crate: `ScenarioRunner`, reference models, invariants, corpus, and minimization live in the separate non-published `krikos-sim` crate, so an application that does not construct the simulator has no Stage 3 runner/observer path to disable. A non-gating 2026-07-21 container measurement on this worktree ran 32 generated production-QUIC scenarios with four workers in 4.26 seconds wall time (7.51 scenarios/second; 7.11 seconds user, 0.18 seconds system):
 
 ```bash
-/usr/bin/time -p iroh-sim/target/debug/cargo-sim campaign \
-  iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+/usr/bin/time -p krikos-sim/target/debug/cargo-sim campaign \
+  krikos-sim/tests/fixtures/v2-ipv4-stream.json \
   --seeds 100..132 --jobs 4 --generated --continue-on-failure \
-  --artifacts /tmp/iroh-sim-throughput
+  --artifacts /tmp/krikos-sim-throughput
 ```
 
 This is evidence, not a CI threshold: production crypto entropy makes host-to-host timing

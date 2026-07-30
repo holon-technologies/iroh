@@ -9,12 +9,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: iroh-patchbay-hosted-public-smoke
+  group: krikos-patchbay-hosted-public-smoke
   cancel-in-progress: false
 
 env:
   RUST_BACKTRACE: "1"
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
   NEXTEST_VERSION: "0.9.80"
   RUSTC_WRAPPER: "sccache"
   SCCACHE_GHA_ENABLED: "on"
@@ -60,31 +60,31 @@ jobs:
 
       - name: Run the public Patchbay case
         env:
-          IROH_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-hosted/public-receipt.json
+          KRIKOS_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-hosted/public-receipt.json
           PATCHBAY_LOG: ${{ runner.debug && 'trace' || 'debug' }}
           RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
         run: |
           set -o pipefail
-          cargo nextest run -p iroh --features qlog --test patchbay \
+          cargo nextest run -p krikos --features qlog --test patchbay \
             --profile patchbay nat::nat_none_x_none --no-capture \
             2>&1 | tee "$RUNNER_TEMP/patchbay-hosted/test.log"
-          test -s "$IROH_PATCHBAY_PARITY_RECEIPT"
+          test -s "$KRIKOS_PATCHBAY_PARITY_RECEIPT"
 
       - name: Import and compare public parity evidence
         run: |
           mkdir -p "$RUNNER_TEMP/patchbay-hosted/parity"
           observed_at="$(date +%s)"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity import-patchbay \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity import-patchbay \
             "$RUNNER_TEMP/patchbay-hosted/public-receipt.json" \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$observed_at" \
             --output "$RUNNER_TEMP/patchbay-hosted/parity/patchbay-public.json"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity export public \
             --seed 7777777777777777777777777777777777777777777777777777777777777777 \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$observed_at" \
             --output "$RUNNER_TEMP/patchbay-hosted/parity/deterministic-public.json"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity compare \
             "$RUNNER_TEMP/patchbay-hosted/parity/deterministic-public.json" \
             "$RUNNER_TEMP/patchbay-hosted/parity/patchbay-public.json" \
             --output "$RUNNER_TEMP/patchbay-hosted/parity/public-comparison.json"

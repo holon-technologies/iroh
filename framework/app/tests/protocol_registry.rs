@@ -1,8 +1,8 @@
-use iroh::{
+use krikos::{
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use iroh_app::{RegistryError, StandardBundle};
+use krikos_app::{RegistryError, StandardBundle};
 
 const CUSTOM_ALPN: &[u8] = b"/holon/test/echo/1";
 
@@ -17,7 +17,7 @@ impl ProtocolHandler for Echo {
 
 #[test]
 fn standard_alpns_cannot_be_replaced() {
-    let result = StandardBundle::ephemeral().protocol(iroh_blobs::ALPN, Echo);
+    let result = StandardBundle::ephemeral().protocol(krikos_blobs::ALPN, Echo);
     assert!(matches!(result, Err(RegistryError::Duplicate { .. })));
 }
 

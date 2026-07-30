@@ -10,10 +10,10 @@ import tomllib
 from pathlib import Path
 
 EXPECTED_PACKAGES = (
-    (1, "iroh-blobs", "protocols/iroh-blobs"),
-    (2, "iroh-gossip", "protocols/iroh-gossip"),
-    (3, "iroh-docs", "protocols/iroh-docs"),
-    (4, "iroh-app", "framework/app"),
+    (1, "krikos-blobs", "protocols/krikos-blobs"),
+    (2, "krikos-gossip", "protocols/krikos-gossip"),
+    (3, "krikos-docs", "protocols/krikos-docs"),
+    (4, "krikos-app", "framework/app"),
 )
 APPROVAL_MESSAGES = {
     "package_naming": "package naming is not approved",

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-manifest="$repo_root/iroh-relay/Cargo.toml"
+manifest="$repo_root/krikos-relay/Cargo.toml"
 
 python3 - "$manifest" <<'PY'
 import sys
@@ -65,22 +65,22 @@ PY
 cd "$repo_root"
 export RUSTFLAGS="${RUSTFLAGS:--D warnings}"
 
-cargo check -p iroh-relay --no-default-features --lib --features server
-cargo check -p iroh-relay --no-default-features --lib --features server,test-utils
-cargo check -p iroh-relay --no-default-features --features server-ring
-cargo check -p iroh-relay --no-default-features --features server-aws-lc-rs
-cargo check -p iroh-relay --no-default-features --lib --features tls-ring
-cargo check -p iroh-relay --no-default-features --lib --features tls-aws-lc-rs
+cargo check -p krikos-relay --no-default-features --lib --features server
+cargo check -p krikos-relay --no-default-features --lib --features server,test-utils
+cargo check -p krikos-relay --no-default-features --features server-ring
+cargo check -p krikos-relay --no-default-features --features server-aws-lc-rs
+cargo check -p krikos-relay --no-default-features --lib --features tls-ring
+cargo check -p krikos-relay --no-default-features --lib --features tls-aws-lc-rs
 # Match the Android relay test lane's exact feature set so test-only modules cannot become
 # orphaned when server-only compatibility tests are excluded.
-cargo check -p iroh-relay --no-default-features --tests --features tls-ring,metrics
-cargo check -p iroh --no-default-features --lib --features test-utils,tls-ring
-cargo check -p iroh --no-default-features --lib --features test-utils,tls-aws-lc-rs
+cargo check -p krikos-relay --no-default-features --tests --features tls-ring,metrics
+cargo check -p krikos --no-default-features --lib --features test-utils,tls-ring
+cargo check -p krikos --no-default-features --lib --features test-utils,tls-aws-lc-rs
 
-ring_tree=$(cargo tree -p iroh-relay --no-default-features --features server-ring --prefix none)
-aws_tree=$(cargo tree -p iroh-relay --no-default-features --features server-aws-lc-rs --prefix none)
-iroh_ring_tree=$(cargo tree -p iroh --no-default-features --features test-utils,tls-ring --prefix none)
-iroh_aws_tree=$(cargo tree -p iroh --no-default-features --features test-utils,tls-aws-lc-rs --prefix none)
+ring_tree=$(cargo tree -p krikos-relay --no-default-features --features server-ring --prefix none)
+aws_tree=$(cargo tree -p krikos-relay --no-default-features --features server-aws-lc-rs --prefix none)
+krikos_ring_tree=$(cargo tree -p krikos --no-default-features --features test-utils,tls-ring --prefix none)
+krikos_aws_tree=$(cargo tree -p krikos --no-default-features --features test-utils,tls-aws-lc-rs --prefix none)
 if grep -Eq '^aws-lc-(rs|sys) v' <<<"$ring_tree"; then
   echo "relay TLS feature contract: Ring-only server graph contains AWS-LC" >&2
   exit 1
@@ -89,18 +89,18 @@ if grep -Eq '^ring v' <<<"$aws_tree"; then
   echo "relay TLS feature contract: AWS-LC-only server graph contains Ring" >&2
   exit 1
 fi
-if grep -Eq '^aws-lc-(rs|sys) v' <<<"$iroh_ring_tree"; then
-  echo "relay TLS feature contract: Ring-only iroh test-utils graph contains AWS-LC" >&2
+if grep -Eq '^aws-lc-(rs|sys) v' <<<"$krikos_ring_tree"; then
+  echo "relay TLS feature contract: Ring-only krikos test-utils graph contains AWS-LC" >&2
   exit 1
 fi
-if grep -Eq '^ring v' <<<"$iroh_aws_tree"; then
-  echo "relay TLS feature contract: AWS-LC-only iroh test-utils graph contains Ring" >&2
+if grep -Eq '^ring v' <<<"$krikos_aws_tree"; then
+  echo "relay TLS feature contract: AWS-LC-only krikos test-utils graph contains Ring" >&2
   exit 1
 fi
 
 failure_log=$(mktemp)
 trap 'rm -f "$failure_log"' EXIT
-if cargo check -p iroh-relay --no-default-features --bin iroh-relay \
+if cargo check -p krikos-relay --no-default-features --bin krikos-relay \
   --features server,relay-bin \
   >"$failure_log" 2>&1; then
   echo "relay TLS feature contract: providerless relay binary unexpectedly compiled" >&2

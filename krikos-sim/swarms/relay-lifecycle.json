@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "relay-lifecycle",
+  "base_path": "krikos-sim/corpus/stage5-relay-restart/scenario.json",
+  "base_blake3": "f85cfe4f9a429144db41e6f68319929c9c1f0d497e8eb54d2a28efb55ff612c1",
+  "safety_liveness": {
+    "safety_action": "05-relay-offline",
+    "recovery_action": "06-relay-online",
+    "liveness_probe_action": "08-connect-recovered"
+  },
+  "choices": [
+    {
+      "id": "relay-impairment",
+      "options": [
+        {
+          "id": "clear",
+          "weight": 3,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 0,
+            "drop_every_nth_packet": null
+          }
+        },
+        {
+          "id": "delayed",
+          "weight": 1,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 5000000,
+            "drop_every_nth_packet": null
+          }
+        },
+        {
+          "id": "drop-seventh",
+          "weight": 1,
+          "mutation": {
+            "kind": "relay_impairment",
+            "relay": "home",
+            "connection_delay_nanos": 0,
+            "drop_every_nth_packet": 7
+          }
+        }
+      ]
+    }
+  ]
+}

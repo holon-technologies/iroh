@@ -25,7 +25,7 @@ write_record() {
     minimized_scenario_sha256: "3333333333333333333333333333333333333333333333333333333333333333",
     title: ("[simulation] invariant_safety (" + ($digest[0:12]) + ")"),
     body: (
-      "<!-- iroh-sim-signature:" + $digest + " -->\n\n" +
+      "<!-- krikos-sim-signature:" + $digest + " -->\n\n" +
       "- Minimized scenario SHA-256: `3333333333333333333333333333333333333333333333333333333333333333`"
     ),
     labels: ["bug", "simulation"],
@@ -63,7 +63,7 @@ FAKE_GH
 chmod +x "$fixture_root/bin/gh"
 export PATH="$fixture_root/bin:$PATH"
 export FAKE_GH_LOG="$fixture_root/gh.log"
-export FAKE_GH_ISSUES="[{\"number\":7,\"state\":\"CLOSED\",\"title\":\"old\",\"body\":\"<!-- iroh-sim-signature:$existing -->\"}]"
+export FAKE_GH_ISSUES="[{\"number\":7,\"state\":\"CLOSED\",\"title\":\"old\",\"body\":\"<!-- krikos-sim-signature:$existing -->\"}]"
 
 summary="$fixture_root/upsert-summary.json"
 "$upsert" \

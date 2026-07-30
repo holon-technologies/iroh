@@ -1,9 +1,9 @@
 # Overview
 
-> **Holon-maintained fork:** the published package is `iroh-hickory-server` version
+> **Holon-maintained fork:** the published package is `krikos-hickory-server` version
 > `0.26.1-holon.1`, based on upstream `hickory-server` 0.26.1. It retains the
 > `hickory_server` Rust library name and adds the pre-spawn admission guarantees documented in
-> [IROH-VENDOR.md](IROH-VENDOR.md). It is maintained in the Iroh repository rather than by the
+> [KRIKOS-VENDOR.md](KRIKOS-VENDOR.md). It is maintained in the Krikos repository rather than by the
 > upstream Hickory DNS project.
 
 `hickory-server` is a library for integrating safe and secure DNS servers into

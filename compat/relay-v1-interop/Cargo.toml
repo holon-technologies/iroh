@@ -11,14 +11,14 @@ rust-version = "1.91"
 anyhow = "1"
 bytes = "1.11"
 futures-util = { version = "0.3", features = ["sink"] }
-iroh-base-current = { package = "iroh-base", path = "../../iroh-base" }
+iroh-base-current = { package = "krikos-base", path = "../../krikos-base" }
 iroh-base-v1 = { package = "iroh-base", git = "https://github.com/n0-computer/iroh.git", rev = "f2eb930dda3779c6d852b72f3712aacd6e573ab1" }
-iroh-resolver-current = { package = "iroh-resolver", path = "../../iroh-resolver", features = ["tls-ring"] }
+iroh-resolver-current = { package = "krikos-resolver", path = "../../krikos-resolver", features = ["tls-ring"] }
 iroh-dns-v1 = { package = "iroh-dns", git = "https://github.com/n0-computer/iroh.git", rev = "f2eb930dda3779c6d852b72f3712aacd6e573ab1", features = ["tls-ring"] }
-iroh-relay-current = { package = "iroh-relay", path = "../../iroh-relay", default-features = false, features = ["server-ring", "test-utils"] }
+iroh-relay-current = { package = "krikos-relay", path = "../../krikos-relay", default-features = false, features = ["server-ring", "test-utils"] }
 iroh-relay-v1 = { package = "iroh-relay", git = "https://github.com/n0-computer/iroh.git", rev = "f2eb930dda3779c6d852b72f3712aacd6e573ab1", features = ["server", "test-utils"] }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "time"] }
 url = "2.5"
 
 [patch.crates-io]
-iroh-noq = { path = "../../vendor/noq-1.1.0" }
+krikos-noq = { path = "../../vendor/noq-1.1.0" }

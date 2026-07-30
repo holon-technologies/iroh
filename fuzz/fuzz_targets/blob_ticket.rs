@@ -1,6 +1,6 @@
 #![no_main]
 
-use iroh_blobs::ticket::BlobTicket;
+use krikos_blobs::ticket::BlobTicket;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|input: &[u8]| {

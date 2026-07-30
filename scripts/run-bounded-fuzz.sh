@@ -6,7 +6,7 @@ seconds=30
 selected_target=""
 artifacts="$repo_root/target/fuzz-artifacts"
 known_crash_seen=0
-readonly fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"
+readonly fuzz_toolchain="${KRIKOS_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"
 readonly artifact_file_limit=64
 readonly artifact_byte_limit=67108864
 readonly -a targets=(
@@ -129,7 +129,7 @@ run_target() {
   local fuzz_status=0
   (
     cd "$repo_root"
-    RUSTFLAGS="${IROH_FUZZ_RUSTFLAGS:--A deprecated}" \
+    RUSTFLAGS="${KRIKOS_FUZZ_RUSTFLAGS:--A deprecated}" \
       cargo "+$fuzz_toolchain" fuzz run --target "$fuzz_target" "$target" "$run_corpus" -- \
       "-max_total_time=$seconds" \
       -timeout=10 \

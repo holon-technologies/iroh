@@ -11,4 +11,4 @@ fi
 
 cd "$repo_root"
 cargo test --workspace --all-features --tests -- --test-threads=1
-cargo test --manifest-path iroh-sim/Cargo.toml --all-features --tests -- --test-threads=1
+cargo test --manifest-path krikos-sim/Cargo.toml --all-features --tests -- --test-threads=1

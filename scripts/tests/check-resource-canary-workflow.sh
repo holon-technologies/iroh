@@ -16,7 +16,7 @@ required=(
   'name: GitHub-hosted 50%-scale resource observation'
   'runs-on: ubuntu-latest'
   'timeout-minutes: 90'
-  'cargo build --profile optimized-release -p iroh-bench'
+  'cargo build --profile optimized-release -p krikos-bench'
   '--features resource-canary --bin resource-canary'
   'target/optimized-release/resource-canary preflight'
   '--host-profile github-hosted-standard'

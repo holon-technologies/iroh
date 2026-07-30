@@ -11,10 +11,10 @@ CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = [
   "examples/local-first-notes",
   "framework/app",
   "integration-tests/local-first-app",
-  "iroh/bench",
-  "protocols/iroh-blobs",
-  "protocols/iroh-docs",
-  "protocols/iroh-gossip",
+  "krikos/bench",
+  "protocols/krikos-blobs",
+  "protocols/krikos-docs",
+  "protocols/krikos-gossip",
   "tools/determinism-checker",
 ]
 
@@ -30,7 +30,7 @@ args = ["--check"]
 [tasks.patchbay]
 workspace = false
 command = "cargo"
-args = ["nextest", "run", "-p", "iroh", "--features", "qlog", "--test", "patchbay", "--profile", "patchbay", "${@}"]
+args = ["nextest", "run", "-p", "krikos", "--features", "qlog", "--test", "patchbay", "--profile", "patchbay", "${@}"]
 
 [tasks.check-external-types]
 description = "Run cargo check-external-types on workspace crates"

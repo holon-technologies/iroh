@@ -1,4 +1,4 @@
-use iroh_app::{DataRoot, DataRootError, StandardBundle};
+use krikos_app::{DataRoot, DataRootError, StandardBundle};
 
 #[tokio::test]
 async fn persisted_identity_and_manifest_survive_clean_restart() {
@@ -30,7 +30,7 @@ fn unsupported_manifest_version_is_typed() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(
         root.path().join("manifest.json"),
-        br#"{"schema_version":999,"framework":"iroh-app"}"#,
+        br#"{"schema_version":999,"framework":"krikos-app"}"#,
     )
     .unwrap();
     assert!(matches!(
@@ -97,5 +97,5 @@ async fn corrupt_docs_store_rolls_back_endpoint_and_data_root_lease() {
             .await
             .is_err()
     );
-    assert!(!root.path().join(".iroh-app.lock").exists());
+    assert!(!root.path().join(".krikos-app.lock").exists());
 }

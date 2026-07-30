@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use iroh_base::EndpointId;
+use krikos_base::EndpointId;
 use tokio::{
     sync::{mpsc, watch},
     task::{JoinHandle, JoinSet},

@@ -8,8 +8,8 @@ use std::{
 };
 
 #[cfg(unix)]
-use iroh_app::FileIdentityStore;
-use iroh_app::{
+use krikos_app::FileIdentityStore;
+use krikos_app::{
     AppBuilder, AppConfig, Component, ComponentContext, ComponentError, ComponentFuture,
     IdentityError, IdentityPolicy, IdentityStore, LifecycleState, MemoryIdentityStore,
     ProtocolRegistry, RegistryError, StartedComponent,
@@ -97,7 +97,7 @@ struct CountingIdentityStore {
 }
 
 impl IdentityStore for CountingIdentityStore {
-    fn load(&self) -> ComponentFuture<Result<Option<iroh_base::SecretKey>, IdentityError>> {
+    fn load(&self) -> ComponentFuture<Result<Option<krikos_base::SecretKey>, IdentityError>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let fail = self.fail;
         Box::pin(async move {
@@ -111,7 +111,7 @@ impl IdentityStore for CountingIdentityStore {
 
     fn create(
         &self,
-        _identity: iroh_base::SecretKey,
+        _identity: krikos_base::SecretKey,
     ) -> ComponentFuture<Result<(), IdentityError>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Ok(()) })
@@ -119,7 +119,7 @@ impl IdentityStore for CountingIdentityStore {
 
     fn replace(
         &self,
-        _identity: iroh_base::SecretKey,
+        _identity: krikos_base::SecretKey,
     ) -> ComponentFuture<Result<(), IdentityError>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Ok(()) })
@@ -325,7 +325,7 @@ async fn file_identity_is_atomic_private_and_errors_redact_paths() {
     let secret_name = "do-not-leak-identity-name";
     let path = root.path().join(secret_name);
     let store = FileIdentityStore::new(&path);
-    let identity = iroh_base::SecretKey::generate();
+    let identity = krikos_base::SecretKey::generate();
     store.create(identity.clone()).await.unwrap();
 
     let mode = std::fs::metadata(&path).unwrap().permissions().mode();

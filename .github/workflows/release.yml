@@ -80,21 +80,21 @@ jobs:
           cargo metadata --format-version 1 --no-deps |
             jq -e --arg expected "$crate_version" '
               [.packages[]
-                | select(.name == "iroh"
-                    or .name == "iroh-base"
-                    or .name == "iroh-resolver"
-                    or .name == "iroh-dns"
-                    or .name == "iroh-dns-server"
-                    or .name == "iroh-relay"
-                    or .name == "iroh-runtime")]
+                | select(.name == "krikos"
+                    or .name == "krikos-base"
+                    or .name == "krikos-resolver"
+                    or .name == "krikos-dns"
+                    or .name == "krikos-dns-server"
+                    or .name == "krikos-relay"
+                    or .name == "krikos-runtime")]
               | length == 7 and all(.version == $expected)
             '
           cargo metadata --format-version 1 --no-deps \
             --manifest-path vendor/noq-1.1.0/Cargo.toml |
-            jq -e '.packages | length == 1 and .[0].name == "iroh-noq" and .[0].version == "1.1.0-holon.1"'
+            jq -e '.packages | length == 1 and .[0].name == "krikos-noq" and .[0].version == "1.1.0-holon.1"'
           cargo metadata --format-version 1 --no-deps \
             --manifest-path vendor/hickory-server-0.26.1/Cargo.toml |
-            jq -e '.packages | length == 1 and .[0].name == "iroh-hickory-server" and .[0].version == "0.26.1-holon.1"'
+            jq -e '.packages | length == 1 and .[0].name == "krikos-hickory-server" and .[0].version == "0.26.1-holon.1"'
 
           if [[ "$CREATE_RELEASE" == "true" ]] &&
              git ls-remote --exit-code origin "refs/tags/$RELEASE_VERSION" >/dev/null 2>&1; then
@@ -136,7 +136,7 @@ jobs:
             --repository "${{ github.repository }}" \
             --revision "${{ needs.preflight.outputs.base_hash }}" \
             --now-unix-secs "$now_unix_secs" \
-            --policy iroh-sim/operations-policy.json \
+            --policy krikos-sim/operations-policy.json \
             --output "$report"
           readiness_status=$?
           set -e
@@ -258,8 +258,8 @@ jobs:
             --profile optimized-release \
             --all-features \
             --target "$BUILD_TARGET" \
-            -p iroh-relay \
-            -p iroh-dns-server
+            -p krikos-relay \
+            -p krikos-dns-server
 
       - name: Smoke-test release binaries
         if: runner.os != 'Windows'
@@ -267,17 +267,17 @@ jobs:
         run: |
           set -euo pipefail
           target_dir="target/${{ matrix.target }}/optimized-release"
-          "$target_dir/iroh-relay" --version
-          "$target_dir/iroh-dns-server" --version
+          "$target_dir/krikos-relay" --version
+          "$target_dir/krikos-dns-server" --version
 
       - name: Smoke-test release binaries
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          & "target/${{ matrix.target }}/optimized-release/iroh-relay.exe" --version
+          & "target/${{ matrix.target }}/optimized-release/krikos-relay.exe" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & "target/${{ matrix.target }}/optimized-release/iroh-dns-server.exe" --version
+          & "target/${{ matrix.target }}/optimized-release/krikos-dns-server.exe" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build archive and checksum
@@ -286,10 +286,10 @@ jobs:
         run: |
           set -euo pipefail
           version=${RELEASE_VERSION#v}
-          bundle="iroh-$version-${{ matrix.target }}"
+          bundle="krikos-$version-${{ matrix.target }}"
           mkdir -p "dist/$bundle"
-          cp "target/${{ matrix.target }}/optimized-release/iroh-relay" "dist/$bundle/"
-          cp "target/${{ matrix.target }}/optimized-release/iroh-dns-server" "dist/$bundle/"
+          cp "target/${{ matrix.target }}/optimized-release/krikos-relay" "dist/$bundle/"
+          cp "target/${{ matrix.target }}/optimized-release/krikos-dns-server" "dist/$bundle/"
           tar -czf "dist/$bundle.tar.gz" -C "dist/$bundle" .
           rm -rf "dist/$bundle"
           if command -v sha256sum >/dev/null 2>&1; then
@@ -304,10 +304,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $version = $env:RELEASE_VERSION.TrimStart("v")
-          $bundle = "iroh-$version-${{ matrix.target }}"
+          $bundle = "krikos-$version-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path "dist/$bundle"
-          Copy-Item "target/${{ matrix.target }}/optimized-release/iroh-relay.exe" "dist/$bundle/"
-          Copy-Item "target/${{ matrix.target }}/optimized-release/iroh-dns-server.exe" "dist/$bundle/"
+          Copy-Item "target/${{ matrix.target }}/optimized-release/krikos-relay.exe" "dist/$bundle/"
+          Copy-Item "target/${{ matrix.target }}/optimized-release/krikos-dns-server.exe" "dist/$bundle/"
           Compress-Archive -Path "dist/$bundle/*" -DestinationPath "dist/$bundle.zip"
           Remove-Item -Recurse -Force "dist/$bundle"
           $hash = (Get-FileHash "dist/$bundle.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -316,7 +316,7 @@ jobs:
       - name: Retain release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-${{ matrix.target }}-bundle
+          name: krikos-${{ matrix.target }}-bundle
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -344,7 +344,7 @@ jobs:
       - name: Retain crate archives
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-crate-packages
+          name: krikos-crate-packages
           path: target/release-packages/package/*.crate
           if-no-files-found: error
           retention-days: 14
@@ -370,7 +370,7 @@ jobs:
       - name: Download candidate artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
-          pattern: iroh-*
+          pattern: krikos-*
           path: subjects
           merge-multiple: true
 
@@ -381,7 +381,7 @@ jobs:
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0
         with:
           file: Cargo.lock
-          output-file: evidence/iroh-${{ inputs.release_version }}.spdx.json
+          output-file: evidence/krikos-${{ inputs.release_version }}.spdx.json
           format: spdx-json
           syft-version: 1.44.0
           upload-artifact: false
@@ -395,7 +395,7 @@ jobs:
             .spdxVersion == "SPDX-2.3" and
             (.packages | type == "array") and (.packages | length > 0) and
             (.relationships | type == "array")
-          ' "evidence/iroh-$RELEASE_VERSION.spdx.json" >/dev/null
+          ' "evidence/krikos-$RELEASE_VERSION.spdx.json" >/dev/null
 
       - name: Attest candidate provenance
         id: provenance
@@ -414,7 +414,7 @@ jobs:
             subjects/**/*.tar.gz
             subjects/**/*.zip
             subjects/**/*.crate
-          sbom-path: evidence/iroh-${{ inputs.release_version }}.spdx.json
+          sbom-path: evidence/krikos-${{ inputs.release_version }}.spdx.json
 
       - name: Retain signed evidence bundles
         env:
@@ -430,7 +430,7 @@ jobs:
       - name: Retain supply-chain evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-v2-supply-chain-evidence
+          name: krikos-v2-supply-chain-evidence
           path: evidence/*
           if-no-files-found: error
           retention-days: 14
@@ -460,13 +460,13 @@ jobs:
       - name: Download verified release bundles
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
-          pattern: iroh-*-bundle
+          pattern: krikos-*-bundle
           path: artifacts
 
       - name: Download supply-chain evidence
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
-          name: iroh-v2-supply-chain-evidence
+          name: krikos-v2-supply-chain-evidence
           path: artifacts/supply-chain
 
       - name: Verify retained checksums

@@ -1,6 +1,6 @@
 #![no_main]
 
-use iroh_docs::DocTicket;
+use krikos_docs::DocTicket;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|input: &[u8]| {

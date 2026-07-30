@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
 
 jobs:
   clean_docs_branch:

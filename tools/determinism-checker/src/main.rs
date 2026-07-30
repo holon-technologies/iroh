@@ -18,18 +18,29 @@ use syn::{
 };
 
 const SOURCE_ROOTS: [&str; 8] = [
-    "iroh",
-    "iroh-base",
-    "iroh-resolver",
-    "iroh-dns",
-    "iroh-dns-server",
-    "iroh-relay",
-    "iroh-runtime",
-    "iroh-sim",
+    "krikos",
+    "krikos-base",
+    "krikos-resolver",
+    "krikos-dns",
+    "krikos-dns-server",
+    "krikos-relay",
+    "krikos-runtime",
+    "krikos-sim",
 ];
 const MAX_SOURCE_FILES: usize = 20_000;
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_OCCURRENCES: usize = 100_000;
+// Every entry in SOURCE_ROOTS is a real Cargo package directory (see
+// scripts/rename-map.toml, dir_renamed = true), and Cargo requires a `[lib]`
+// or `[[bin]]` entry point in at least one `.rs` file for such a package to
+// build at all -- so zero `.rs` files below an *existing* root is never
+// legitimate for this specific list, only a symptom of a botched rename
+// (e.g. a `git mv` that left the destination directory present but empty).
+// A flat minimum of 1 is therefore the true floor for these roots, not an
+// arbitrary guess. If SOURCE_ROOTS ever grows to include a root that can
+// legitimately hold zero Rust files (a docs-only directory, say), that root
+// needs its own explicit exception here rather than raising this constant.
+const MIN_FILES_PER_SOURCE_ROOT: usize = 1;
 
 type DynError = Box<dyn Error + Send + Sync>;
 
@@ -186,8 +197,16 @@ fn source_files(root: &Path) -> Result<Vec<PathBuf>, DynError> {
     for source_root in SOURCE_ROOTS {
         let candidate = root.join(source_root);
         if !candidate.is_dir() {
-            continue;
+            return Err(format!(
+                "determinism boundary source root missing: {} (below {}); a missing root would \
+                 silently narrow the scan and could mask a stale/partial rename, so this is an \
+                 error rather than a skip",
+                source_root,
+                root.display()
+            )
+            .into());
         }
+        let mut found_in_root = 0usize;
         let mut pending = vec![candidate];
         while let Some(directory) = pending.pop() {
             for entry in fs::read_dir(&directory)? {
@@ -210,12 +229,24 @@ fn source_files(root: &Path) -> Result<Vec<PathBuf>, DynError> {
                         );
                     }
                     files.push(entry.path());
+                    found_in_root += 1;
                 }
             }
         }
+        if found_in_root < MIN_FILES_PER_SOURCE_ROOT {
+            return Err(format!(
+                "determinism boundary source root is present but has only {found_in_root} Rust \
+                 file(s) (minimum {MIN_FILES_PER_SOURCE_ROOT}): {} (below {}); an \
+                 existing-but-empty root would silently narrow the scan the same way a missing \
+                 root would, so this is an error rather than a skip",
+                source_root,
+                root.display()
+            )
+            .into());
+        }
     }
     if files.is_empty() {
-        return Err(format!("no Iroh Rust source roots found below {}", root.display()).into());
+        return Err(format!("no Krikos Rust source roots found below {}", root.display()).into());
     }
     files.sort();
     Ok(files)

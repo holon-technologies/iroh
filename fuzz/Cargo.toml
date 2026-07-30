@@ -1,5 +1,5 @@
 [package]
-name = "iroh-fuzz"
+name = "krikos-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -9,13 +9,13 @@ rust-version = "1.91"
 cargo-fuzz = true
 
 [dependencies]
-iroh-dns-server = { path = "../iroh-dns-server", default-features = false, features = ["test-utils"] }
-iroh-relay = { path = "../iroh-relay", default-features = false, features = ["fuzzing"] }
-iroh-base = { path = "../iroh-base", default-features = false, features = ["key"] }
-iroh-gossip = { path = "../protocols/iroh-gossip", default-features = false }
-iroh-app = { path = "../framework/app", features = ["fuzzing"] }
-iroh-blobs = { path = "../protocols/iroh-blobs", default-features = false }
-iroh-docs = { path = "../protocols/iroh-docs", default-features = false }
+krikos-dns-server = { path = "../krikos-dns-server", default-features = false, features = ["test-utils"] }
+krikos-relay = { path = "../krikos-relay", default-features = false, features = ["fuzzing"] }
+krikos-base = { path = "../krikos-base", default-features = false, features = ["key"] }
+krikos-gossip = { path = "../protocols/krikos-gossip", default-features = false }
+krikos-app = { path = "../framework/app", features = ["fuzzing"] }
+krikos-blobs = { path = "../protocols/krikos-blobs", default-features = false }
+krikos-docs = { path = "../protocols/krikos-docs", default-features = false }
 libfuzzer-sys = "0.4"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 
@@ -24,8 +24,8 @@ members = ["."]
 
 [patch.crates-io]
 # Keep fuzzing on the exact ownership/resource forks used by the production workspace.
-iroh-hickory-server = { path = "../vendor/hickory-server-0.26.1" }
-iroh-noq = { path = "../vendor/noq-1.1.0" }
+krikos-hickory-server = { path = "../vendor/hickory-server-0.26.1" }
+krikos-noq = { path = "../vendor/noq-1.1.0" }
 
 [[bin]]
 name = "doh_extract"

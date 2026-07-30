@@ -1,13 +1,13 @@
 # noq
 
-> **Holon-maintained fork:** the published package is `iroh-noq` version
+> **Holon-maintained fork:** the published package is `krikos-noq` version
 > `1.1.0-holon.1`, based on upstream `noq` 1.1.0. It retains the `noq` Rust library name and adds
 > the bounded queue and connection-lifetime ownership guarantees documented in
-> [IROH-VENDOR.md](IROH-VENDOR.md). It is maintained in the Iroh repository rather than by the
+> [KRIKOS-VENDOR.md](KRIKOS-VENDOR.md). It is maintained in the Krikos repository rather than by the
 > upstream Noq project.
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh-noq/)
-[![Crates.io](https://img.shields.io/crates/v/iroh-noq.svg?style=flat-square)](https://crates.io/crates/iroh-noq)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos-noq/)
+[![Crates.io](https://img.shields.io/crates/v/krikos-noq.svg?style=flat-square)](https://crates.io/crates/krikos-noq)
 [![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)

@@ -10,11 +10,32 @@ test-group = 'run-in-isolation'
 threads-required = 32
 
 # Filesystem-heavy property and sync tests can exceed the generic 30-second
-# timeout on hosted Windows runners. Keep the exception narrow while retaining
-# a finite upper bound for genuine hangs.
+# timeout on hosted runners. Keep the exception narrow while retaining a finite
+# upper bound for genuine hangs.
 [[profile.ci.overrides]]
 filter = 'test(test_counters_manager_proptest_fs) | test(test_sync_many_authors_fs)'
 slow-timeout = { period = "30s", terminate-after = 4 }
+
+# krikos-docs' sync and download tests are filesystem- and replica-heavy and
+# repeatedly exceed the generic 30-second bound on hosted runners — observed on
+# ubuntu and macOS, not only Windows. Naming individual tests proved to be
+# whack-a-mole: the list above already covered test_sync_many_authors_fs while
+# test_sync_many_authors_memory and test_download_policies timed out. Scope the
+# exception to the package instead, keeping a finite 120-second ceiling so a
+# genuine hang still fails.
+[[profile.ci.overrides]]
+filter = 'package(krikos-docs)'
+# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
+# exceeding the test's own deadline reports its diagnostic rather than being
+# killed by the harness first.
+slow-timeout = { period = "30s", terminate-after = 6 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-docs)'
+# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
+# exceeding the test's own deadline reports its diagnostic rather than being
+# killed by the harness first.
+slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'

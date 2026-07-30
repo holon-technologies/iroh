@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: iroh-deterministic-simulation-nightly
+  group: krikos-deterministic-simulation-nightly
   cancel-in-progress: false
 
 env:
@@ -26,14 +26,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Build source-bound simulator
-        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+        run: cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
       - name: Collect latest compatible daily gap evidence
         id: gaps
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          policy_blake3=$(jq -er '.coverage_policy_blake3' iroh-sim/soaks/daily.json)
+          policy_blake3=$(jq -er '.coverage_policy_blake3' krikos-sim/soaks/daily.json)
           now_unix_secs=$(date -u '+%s')
           set +e
           scripts/collect-latest-simulation-gap-selection.sh \
@@ -64,9 +64,9 @@ jobs:
         shell: bash
         run: |
           printf '%s\n' '[]' >"$RUNNER_TEMP/no-changes.json"
-          iroh-sim/target/release/cargo-sim gate-select \
-            --impact-policy iroh-sim/change-impact-policy.json \
-            --coverage-policy iroh-sim/coverage-policy.json \
+          krikos-sim/target/release/cargo-sim gate-select \
+            --impact-policy krikos-sim/change-impact-policy.json \
+            --coverage-policy krikos-sim/coverage-policy.json \
             --base-revision 0000000000000000000000000000000000000000 \
             --candidate-revision "${{ github.sha }}" \
             --tier main \
@@ -94,7 +94,7 @@ jobs:
           set +e
           scripts/run-simulation-gate.sh \
             --selection "$RUNNER_TEMP/nightly-selection.json" \
-            --sim-bin iroh-sim/target/release/cargo-sim \
+            --sim-bin krikos-sim/target/release/cargo-sim \
             --artifacts "$RUNNER_TEMP/nightly-campaign" \
             --jobs 4
           campaign_status=$?
@@ -112,13 +112,13 @@ jobs:
             exit 2
           fi
           for manifest in "${manifests[@]}"; do
-            iroh-sim/target/release/cargo-sim replay "$manifest"
+            krikos-sim/target/release/cargo-sim replay "$manifest"
           done
       - name: Upload nightly gap and replay evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-nightly-gaps-${{ github.run_id }}-${{ github.run_attempt }}
+          name: krikos-sim-nightly-gaps-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/simulation-gap-source.json
             ${{ runner.temp }}/nightly-selection.json
@@ -174,19 +174,19 @@ jobs:
           } >"$RUNNER_TEMP/${{ matrix.scenario }}/environment.txt"
       - name: Run named scenario
         run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            "iroh-sim/tests/fixtures/${{ matrix.scenario }}.json" \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+            "krikos-sim/tests/fixtures/${{ matrix.scenario }}.json" \
             --seed "${{ matrix.seed }}" \
             --artifacts "$RUNNER_TEMP/${{ matrix.scenario }}"
       - name: Replay byte-exact trace
         run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/${{ matrix.scenario }}/manifest.json"
       - name: Upload simulation artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-${{ matrix.scenario }}-${{ github.run_id }}
+          name: krikos-sim-${{ matrix.scenario }}-${{ github.run_id }}
           path: ${{ runner.temp }}/${{ matrix.scenario }}
           if-no-files-found: error
           retention-days: 14
@@ -213,19 +213,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Run expected resource-exhaustion failure
         run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            "iroh-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json" \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+            "krikos-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json" \
             --seed "$RESOURCE_SEED" \
             --artifacts "$RUNNER_TEMP/resource-${{ matrix.resource }}"
       - name: Replay exact resource-exhaustion failure
         run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay \
             "$RUNNER_TEMP/resource-${{ matrix.resource }}/manifest.json"
       - name: Upload resource-exhaustion artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-resource-${{ matrix.resource }}-${{ github.run_id }}
+          name: krikos-sim-resource-${{ matrix.resource }}-${{ github.run_id }}
           path: ${{ runner.temp }}/resource-${{ matrix.resource }}
           if-no-files-found: error
           retention-days: 14

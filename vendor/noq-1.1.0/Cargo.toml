@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 rust-version = "1.88"
-name = "iroh-noq"
+name = "krikos-noq"
 version = "1.1.0-holon.1"
 build = "build.rs"
 publish = true
@@ -22,7 +22,7 @@ autoexamples = false
 autotests = false
 autobenches = false
 description = "Holon-maintained Noq fork with bounded queues and connection lifetimes"
-documentation = "https://docs.rs/iroh-noq"
+documentation = "https://docs.rs/krikos-noq"
 readme = "README.md"
 include = [
     "benches/**",
@@ -31,7 +31,7 @@ include = [
     "tests/**",
     "build.rs",
     "CHANGELOG.md",
-    "IROH-VENDOR.md",
+    "KRIKOS-VENDOR.md",
     "LICENSE-APACHE",
     "LICENSE-MIT",
     "README.md",

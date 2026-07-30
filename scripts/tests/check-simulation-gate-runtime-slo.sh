@@ -71,7 +71,7 @@ run_auditor() {
   "$auditor" \
     --repository holon-technologies/iroh \
     --now-unix-secs "$(date -u -d '2026-07-26T12:00:00Z' '+%s')" \
-    --policy "$repo_root/iroh-sim/operations-policy.json" \
+    --policy "$repo_root/krikos-sim/operations-policy.json" \
     --output "$output"
 }
 

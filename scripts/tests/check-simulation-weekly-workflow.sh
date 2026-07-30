@@ -8,7 +8,7 @@ workflow="$repo_root/.github/workflows/simulation-weekly.yml"
 
 required=(
   'name: Deterministic Simulation Weekly Service'
-  'group: iroh-deterministic-simulation-weekly'
+  'group: krikos-deterministic-simulation-weekly'
   'cancel-in-progress: false'
   'service_contract:'
   'performance_correlation:'
@@ -16,14 +16,14 @@ required=(
   'name: Audit PR and main simulation P95 runtime'
   'actions: read'
   'scripts/audit-simulation-gate-runtime-slo.sh'
-  '--policy iroh-sim/operations-policy.json'
-  'iroh-sim-gate-runtime-slo-${{ github.run_id }}'
+  '--policy krikos-sim/operations-policy.json'
+  'krikos-sim-gate-runtime-slo-${{ github.run_id }}'
   'Propagate simulation gate runtime SLO'
-  'cargo-sim -- corpus test iroh-sim/corpus'
+  'cargo-sim -- corpus test krikos-sim/corpus'
   'parity export public'
   'parity compare'
   'timeout-minutes: 60'
-  'path: iroh-sim/target/criterion'
+  'path: krikos-sim/target/criterion'
   'retention-days: 30'
 )
 for text in "${required[@]}"; do

@@ -1,9 +1,9 @@
 use std::{fmt, sync::Arc};
 
-use iroh::{Endpoint, EndpointId};
-use iroh_blobs::api::Store as BlobsStore;
-use iroh_docs::api::DocsApi;
-use iroh_gossip::net::Gossip;
+use krikos::{Endpoint, EndpointId};
+use krikos_blobs::api::Store as BlobsStore;
+use krikos_docs::api::DocsApi;
+use krikos_gossip::net::Gossip;
 
 use crate::{DataRoot, Health, RunningApp, ShutdownError, ShutdownReport};
 

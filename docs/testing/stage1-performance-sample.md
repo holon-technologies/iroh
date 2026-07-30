@@ -8,13 +8,13 @@ This is a non-gating smoke baseline captured on 2026-07-21 while implementing St
 - OS: Ubuntu Linux, kernel `6.8.0-134-generic`, x86-64
 - CPU allocation: 4 cores, AMD Ryzen 7 8845HS
 - Memory: 22 GiB
-- Build: Cargo release profile, default `iroh-bench` features unless noted
+- Build: Cargo release profile, default `krikos-bench` features unless noted
 
 ## Direct IP sample
 
 ```bash
-cargo run --release -p iroh-bench --bin bulk -- \
-  iroh --download-size 16M --streams 4 --max_streams 4
+cargo run --release -p krikos-bench --bin bulk -- \
+  krikos --download-size 16M --streams 4 --max_streams 4
 ```
 
 - Connection: 7.42 ms
@@ -26,8 +26,8 @@ cargo run --release -p iroh-bench --bin bulk -- \
 The first attempt found a pre-existing benchmark-harness assumption: `--only-relay` clears IP transports, but the harness indexed the first bound IP socket. The harness now adds a direct address only when one exists, allowing the documented relay-only mode to run.
 
 ```bash
-cargo run --release -p iroh-bench --bin bulk --features local-relay -- \
-  iroh --download-size 4M --streams 2 --max_streams 2 --only-relay
+cargo run --release -p krikos-bench --bin bulk --features local-relay -- \
+  krikos --download-size 4M --streams 2 --max_streams 2 --only-relay
 ```
 
 - Connection: 252.55 ms

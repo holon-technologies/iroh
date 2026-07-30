@@ -1,13 +1,13 @@
 # Local-first application framework
 
-`iroh-app` is an experimental, unpublished application layer that composes the fork's v2 endpoint,
+`krikos-app` is an experimental, unpublished application layer that composes the fork's v2 endpoint,
 blobs, gossip, and docs crates. Its package name and public API are intentionally not a semver
 commitment yet.
 
 ## Standard bundle
 
 ```rust,no_run
-use iroh_app::StandardBundle;
+use krikos_app::StandardBundle;
 
 # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 let app = StandardBundle::persistent("./my-app-data")
@@ -76,10 +76,10 @@ custom ALPN.
 
 ## Lower-level composition
 
-Applications that need a different lifecycle may use `iroh-blobs`, `iroh-gossip`, or `iroh-docs`
+Applications that need a different lifecycle may use `krikos-blobs`, `krikos-gossip`, or `krikos-docs`
 directly. In that case the application owns endpoint construction, ALPN registration, startup
 rollback, task supervision, health reporting, and bounded shutdown. It must also preserve the same
-storage lease and migration rules described above. The `iroh-app` standard bundle is the supported
+storage lease and migration rules described above. The `krikos-app` standard bundle is the supported
 experimental composition for applications that do not need to own those concerns themselves.
 
 These four packages are intentionally unpublished while their names, registry ownership, public

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "mobility-timing",
+  "base_path": "krikos-sim/tests/fixtures/stage4-mobility.json",
+  "base_blake3": "6ebc80271122d24e4f7828ab697387b99bfb97282ed4aaf65d751b5700deab25",
+  "choices": [
+    {
+      "id": "uplink-failure-time",
+      "options": [
+        {
+          "id": "early",
+          "weight": 1,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "05-old-uplink-down",
+              "06-new-route",
+              "07-stream-after-switch",
+              "08-close",
+              "09-stop-client",
+              "10-stop-server"
+            ],
+            "nanos": 1000000
+          }
+        },
+        {
+          "id": "late",
+          "weight": 1,
+          "mutation": {
+            "kind": "co_schedule",
+            "actions": [
+              "05-old-uplink-down",
+              "06-new-route",
+              "07-stream-after-switch",
+              "08-close",
+              "09-stop-client",
+              "10-stop-server"
+            ],
+            "nanos": 5000000000
+          }
+        }
+      ]
+    }
+  ]
+}

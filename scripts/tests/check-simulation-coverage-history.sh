@@ -45,7 +45,7 @@ write_aggregate() {
       status: "success",
       coverage: {
         schema_version: 2,
-        policy_id: "iroh-network-modes-v1",
+        policy_id: "krikos-network-modes-v1",
         policy_blake3: $policy_digest,
         rolling_window_days: 7,
         completed_runs: 1,
@@ -126,7 +126,7 @@ write_aggregate() {
     }' >"$output"
 }
 
-policy_digest=7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978
+policy_digest=dca497cd7e5c6f73007260eb3d1e9e9afb25812721f7d0cc83a573a05e666366
 write_aggregate "$fixture_root/current.json" 300 200000 "$policy_digest" 300000000 fast slow minimum
 write_aggregate "$history_root/previous.json" 299 150000 "$policy_digest" 299000000 slow fast minimum
 write_aggregate \
@@ -149,7 +149,7 @@ rolling="$fixture_root/rolling.json"
 jq -e '
   .schema_version == 1
   and .status == "coverage_gaps"
-  and .policy_id == "iroh-network-modes-v1"
+  and .policy_id == "krikos-network-modes-v1"
   and .included_runs == [299, 300]
   and (.excluded_reports | any(.reason == "policy_revision_mismatch"))
   and .coverage.completed_runs == 2
@@ -168,13 +168,13 @@ jq -e '
 selection="$fixture_root/gap-selection.json"
 "$selector" \
   --rolling "$rolling" \
-  --plan "$repo_root/iroh-sim/soaks/daily.json" \
+  --plan "$repo_root/krikos-sim/soaks/daily.json" \
   --max-lanes 4 \
   --output "$selection"
 
 jq -e '
   .schema_version == 1
-  and .policy_blake3 == "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978"
+  and .policy_blake3 == "dca497cd7e5c6f73007260eb3d1e9e9afb25812721f7d0cc83a573a05e666366"
   and .maximum_lanes == 4
   and (.lanes | map(.lane)) == [
     "direct/deterministic-test",

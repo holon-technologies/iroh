@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "discovery-timing",
+  "base_path": "krikos-sim/corpus/stage4-discovery-conflict/scenario.json",
+  "base_blake3": "fde53817858cf8c26b392d94d94404fedf831457b3b6d88c11dbcaadb623bc15",
+  "choices": [
+    {
+      "id": "good-record-timing",
+      "options": [
+        {
+          "id": "fast-short",
+          "weight": 3,
+          "mutation": {
+            "kind": "discovery_timing",
+            "action": "04-good-record",
+            "delay_nanos": 100000,
+            "ttl_nanos": 1000000000,
+            "state": "published"
+          }
+        },
+        {
+          "id": "slow-long",
+          "weight": 1,
+          "mutation": {
+            "kind": "discovery_timing",
+            "action": "04-good-record",
+            "delay_nanos": 10000000,
+            "ttl_nanos": 30000000000,
+            "state": "published"
+          }
+        }
+      ]
+    }
+  ]
+}

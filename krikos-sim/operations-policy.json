@@ -1,0 +1,122 @@
+{
+  "schema_version": 7,
+  "owner": "Krikos connectivity and simulation maintainers",
+  "failure_triage_slo_hours": 24,
+  "automation": {
+    "maximum_retry_attempts": 0,
+    "shutdown_on_timeout": true,
+    "publish_evidence_before_status": true
+  },
+  "gate_runtime_slo": {
+    "workflow": "ci.yml",
+    "sample_size": 20,
+    "percentile": 95,
+    "pull_request_maximum_minutes": 15,
+    "main_maximum_minutes": 30,
+    "maximum_candidate_runs_per_tier": 40,
+    "maximum_jobs_per_run": 100
+  },
+  "tiers": [
+    {
+      "tier": "pull_request",
+      "maximum_campaign_runs": 24,
+      "maximum_wall_minutes": 15,
+      "workers": 2,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "main",
+      "maximum_campaign_runs": 64,
+      "maximum_wall_minutes": 30,
+      "workers": 4,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "nightly",
+      "maximum_campaign_runs": 256,
+      "maximum_wall_minutes": 30,
+      "workers": 4,
+      "artifact_retention_days": 14
+    },
+    {
+      "tier": "weekly",
+      "maximum_campaign_runs": 1024,
+      "maximum_wall_minutes": 60,
+      "workers": 4,
+      "artifact_retention_days": 30
+    }
+  ],
+  "daily_soak": {
+    "runner": "ubuntu-latest",
+    "workflow_concurrency": 1,
+    "epochs": 8,
+    "epoch_wall_minutes": 30,
+    "maximum_total_wall_minutes": 240,
+    "fresh_process_per_epoch": true,
+    "lanes": 12,
+    "workers": 4,
+    "batch_runs": 64,
+    "maximum_total_runs": 1000000,
+    "maximum_failure_artifacts": 16,
+    "maximum_artifact_bytes": 268435456,
+    "artifact_retention_days": 14,
+    "retain_success_traces": false
+  },
+  "replay": {
+    "exact_source_required": true,
+    "manifest_schema": 3,
+    "scenario_schema": 3,
+    "trace_schema": 2,
+    "compatibility_window_days": 30,
+    "accepted_new_run_grades": [
+      "fully_deterministic",
+      "semantically_deterministic"
+    ],
+    "crypto_modes": [
+      "deterministic_test",
+      "production_provider"
+    ],
+    "trace_comparison_modes": [
+      "raw",
+      "semantic"
+    ]
+  },
+  "corpus": {
+    "review_required": true,
+    "provenance_required": true,
+    "issue_required_for_failures": true,
+    "metadata_schema": 2,
+    "typed_promotion_evidence_required": true,
+    "reopen_invalid_closure": true,
+    "required_closure_checks": [
+      "Deterministic simulation change gate",
+      "Deterministic simulation contracts and corpus"
+    ],
+    "maximum_pending_days": 14
+  },
+  "release": {
+    "required_same_revision_checks": [
+      "Deterministic simulation change gate",
+      "Deterministic simulation contracts and corpus",
+      "netsim-release / Netsim"
+    ],
+    "maximum_open_product_failures": 0,
+    "parity_workflow": "patchbay-hosted-smoke.yml",
+    "maximum_parity_age_hours": 744,
+    "maximum_check_runs": 100,
+    "maximum_issue_results": 100,
+    "maximum_parity_runs": 8
+  },
+  "swarm": {
+    "schema": 1,
+    "maximum_choices": 128,
+    "maximum_options_per_choice": 128,
+    "pull_request_runs": 4,
+    "nightly_runs": 256
+  },
+  "parity": {
+    "fixture_schema": 2,
+    "maximum_evidence_age_hours": 744,
+    "skips_fail_strict_comparison": true
+  }
+}

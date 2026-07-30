@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 
-use iroh_app::{LifecycleState, StandardBundle, StandardStartStage};
+use krikos_app::{LifecycleState, StandardBundle, StandardStartStage};
 
 #[tokio::test]
 async fn ephemeral_standard_bundle_starts_healthy_and_stops_cleanly() {
@@ -12,9 +12,15 @@ async fn ephemeral_standard_bundle_starts_healthy_and_stops_cleanly() {
 
     assert_eq!(app.health().lifecycle().state(), LifecycleState::Running);
     assert_eq!(app.metrics().protocol_count(), 3);
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_blobs::ALPN));
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_docs::ALPN));
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_gossip::ALPN));
+    assert!(
+        app.registered_alpns()
+            .any(|alpn| alpn == krikos_blobs::ALPN)
+    );
+    assert!(app.registered_alpns().any(|alpn| alpn == krikos_docs::ALPN));
+    assert!(
+        app.registered_alpns()
+            .any(|alpn| alpn == krikos_gossip::ALPN)
+    );
     assert_eq!(app.endpoint().id(), app.endpoint_id());
 
     app.shutdown().await.unwrap();
@@ -34,7 +40,7 @@ async fn bind_failure_releases_data_root_lock() {
         .await
         .unwrap_err();
     assert_eq!(error.stage(), StandardStartStage::Endpoint);
-    assert!(!root.path().join(".iroh-app.lock").exists());
+    assert!(!root.path().join(".krikos-app.lock").exists());
 }
 
 #[tokio::test]
@@ -48,5 +54,5 @@ async fn corrupt_manifest_fails_before_network_exposure() {
         .await
         .unwrap_err();
     assert_eq!(error.stage(), StandardStartStage::DataRoot);
-    assert!(!root.path().join(".iroh-app.lock").exists());
+    assert!(!root.path().join(".krikos-app.lock").exists());
 }

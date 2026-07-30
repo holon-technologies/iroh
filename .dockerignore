@@ -11,13 +11,13 @@
 # before invoking docker/Dockerfile.ci with `context: .`.
 !bins/
 
-!iroh/
-!iroh-base/
-!iroh-dns/
-!iroh-dns-server/
-!iroh-relay/
-!iroh-resolver/
-!iroh-runtime/
+!krikos/
+!krikos-base/
+!krikos-dns/
+!krikos-dns-server/
+!krikos-relay/
+!krikos-resolver/
+!krikos-runtime/
 !tools/
 !framework/
 !examples/
@@ -25,7 +25,7 @@
 !protocols/
 
 # Only the two crates referenced by [patch.crates-io] in the root Cargo.toml.
-# vendor/rustls-0.23.41 is patched in by iroh-sim and fuzz only, neither of
+# vendor/rustls-0.23.41 is patched in by krikos-sim and fuzz only, neither of
 # which this image builds.
 !vendor/hickory-server-0.26.1/
 !vendor/noq-1.1.0/

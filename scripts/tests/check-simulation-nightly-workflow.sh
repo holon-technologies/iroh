@@ -39,7 +39,7 @@ required=(
   'if-no-files-found: error'
   'resource_exhaustion:'
   'RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
-  'iroh-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json'
+  'krikos-sim/corpus/resource-${{ matrix.resource }}-limit/scenario.json'
   '$RUNNER_TEMP/resource-${{ matrix.resource }}/manifest.json'
   'retention-days: 14'
 )

@@ -137,7 +137,7 @@ jq -e \
     and .lane == "direct/deterministic-test"
     and .seed_lease.seed_start == 0
     and .minimized_scenario_sha256 == $minimized_sha256
-    and (.body | contains("<!-- iroh-sim-signature:" + $digest + " -->"))
+    and (.body | contains("<!-- krikos-sim-signature:" + $digest + " -->"))
     and (.body | contains("Exact replay: confirmed"))
     and (.body | contains("Minimization: signature-preserving"))
     and (.body | contains("Minimized scenario SHA-256: `" + $minimized_sha256 + "`"))

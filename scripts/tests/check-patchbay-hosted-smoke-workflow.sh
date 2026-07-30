@@ -30,17 +30,17 @@ required=(
   'workflow_dispatch:'
   'permissions:'
   'contents: read'
-  'group: iroh-patchbay-hosted-public-smoke'
+  'group: krikos-patchbay-hosted-public-smoke'
   'cancel-in-progress: false'
   'runs-on: ubuntu-latest'
   'timeout-minutes: 15'
   'mkdir -p "$RUNNER_TEMP/patchbay-hosted"'
   'kernel.apparmor_restrict_unprivileged_userns=0'
   'unshare --user --map-root-user'
-  'cargo nextest run -p iroh --features qlog --test patchbay'
+  'cargo nextest run -p krikos --features qlog --test patchbay'
   '--profile patchbay nat::nat_none_x_none --no-capture'
-  'IROH_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-hosted/public-receipt.json'
-  'test -s "$IROH_PATCHBAY_PARITY_RECEIPT"'
+  'KRIKOS_PATCHBAY_PARITY_RECEIPT: ${{ runner.temp }}/patchbay-hosted/public-receipt.json'
+  'test -s "$KRIKOS_PATCHBAY_PARITY_RECEIPT"'
   'parity import-patchbay'
   'parity export public'
   'parity compare'
@@ -74,7 +74,7 @@ if grep -Eq '^[[:space:]]+(pull_request|push|merge_group):' "$workflow"; then
 fi
 
 preflight_line=$(grep -n -m1 'unshare --user --map-root-user' "$workflow" | cut -d: -f1)
-test_line=$(grep -n -m1 'cargo nextest run -p iroh' "$workflow" | cut -d: -f1)
+test_line=$(grep -n -m1 'cargo nextest run -p krikos' "$workflow" | cut -d: -f1)
 compare_line=$(grep -n -m1 'parity compare' "$workflow" | cut -d: -f1)
 upload_line=$(grep -n -m1 'actions/upload-artifact@v7' "$workflow" | cut -d: -f1)
 if ((preflight_line >= test_line || compare_line >= upload_line)); then

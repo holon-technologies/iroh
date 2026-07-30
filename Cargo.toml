@@ -1,19 +1,19 @@
 [workspace]
 members = [
-  "iroh-base",
-  "iroh-resolver",
-  "iroh-dns",
-  "iroh-dns-server",
-  "iroh",
-  "iroh/bench",
-  "iroh-relay",
-  "iroh-runtime",
+  "krikos-base",
+  "krikos-resolver",
+  "krikos-dns",
+  "krikos-dns-server",
+  "krikos",
+  "krikos/bench",
+  "krikos-relay",
+  "krikos-runtime",
   "framework/app",
   "examples/local-first-notes",
   "integration-tests/local-first-app",
-  "protocols/iroh-blobs",
-  "protocols/iroh-docs",
-  "protocols/iroh-gossip",
+  "protocols/krikos-blobs",
+  "protocols/krikos-docs",
+  "protocols/krikos-gossip",
   "tools/determinism-checker",
 ]
 exclude = [
@@ -21,7 +21,7 @@ exclude = [
   "compat/iroh-gossip-v0-101-interop",
   "compat/relay-v1-interop",
   "fuzz",
-  "iroh-sim",
+  "krikos-sim",
   "vendor/hickory-server-0.26.1",
   "vendor/noq-1.1.0",
   "vendor/rustls-0.23.41",
@@ -29,24 +29,24 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "2.0.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.91"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/holon-technologies/iroh"
 
 [workspace.dependencies]
-iroh = { version = "2.0.0", path = "iroh", default-features = false }
-iroh-base = { version = "2.0.0", path = "iroh-base", default-features = false }
-iroh-resolver = { version = "2.0.0", path = "iroh-resolver", default-features = false }
-iroh-dns = { version = "2.0.0", path = "iroh-dns" }
-iroh-dns-server = { version = "2.0.0", path = "iroh-dns-server" }
-iroh-relay = { version = "2.0.0", path = "iroh-relay", default-features = false }
-iroh-runtime = { version = "2.0.0", path = "iroh-runtime" }
-iroh-app = { version = "2.0.0", path = "framework/app" }
-iroh-blobs = { version = "2.0.0", path = "protocols/iroh-blobs", default-features = false }
-iroh-docs = { version = "2.0.0", path = "protocols/iroh-docs" }
-iroh-gossip = { version = "2.0.0", path = "protocols/iroh-gossip", default-features = false }
+krikos = { version = "1.0.0", path = "krikos", default-features = false }
+krikos-base = { version = "1.0.0", path = "krikos-base", default-features = false }
+krikos-resolver = { version = "1.0.0", path = "krikos-resolver", default-features = false }
+krikos-dns = { version = "1.0.0", path = "krikos-dns" }
+krikos-dns-server = { version = "1.0.0", path = "krikos-dns-server" }
+krikos-relay = { version = "1.0.0", path = "krikos-relay", default-features = false }
+krikos-runtime = { version = "1.0.0", path = "krikos-runtime" }
+krikos-app = { version = "1.0.0", path = "framework/app" }
+krikos-blobs = { version = "1.0.0", path = "protocols/krikos-blobs", default-features = false }
+krikos-docs = { version = "1.0.0", path = "protocols/krikos-docs" }
+krikos-gossip = { version = "1.0.0", path = "protocols/krikos-gossip", default-features = false }
 
 [profile.release]
 debug = true
@@ -72,14 +72,14 @@ unused_must_use = "deny"
 
 # We use this --cfg for documenting the cargo features on which an API
 # is available.  To preview this locally use: RUSTDOCFLAGS="--cfg
-# iroh_docsrs" cargo +nightly doc --all-features.  We use our own
-# iroh_docsrs instead of the common docsrs to avoid also enabling this
+# krikos_docsrs" cargo +nightly doc --all-features.  We use our own
+# krikos_docsrs instead of the common docsrs to avoid also enabling this
 # feature in any dependencies, because some indirect dependencies
 # require a feature enabled when using `--cfg docsrs` which we can not
-# do.  To enable for a crate set `#![cfg_attr(iroh_docsrs,
+# do.  To enable for a crate set `#![cfg_attr(krikos_docsrs,
 # feature(doc_cfg))]` in the crate.
-# We also have our own `iroh_loom` cfg to enable tokio-rs/loom testing.
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_blobs_docsrs)", "cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
+# We also have our own `krikos_loom` cfg to enable tokio-rs/loom testing.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(krikos_blobs_docsrs)", "cfg(krikos_docsrs)", "cfg(krikos_loom)", "cfg(skip_patchbay)"] }
 
 [workspace.lints.clippy]
 correctness = { level = "deny", priority = -1 }
@@ -107,7 +107,7 @@ type_marked_deprecated = { required-update = "minor" }
 type_method_marked_deprecated = { required-update = "minor" }
 
 [patch.crates-io]
-# Local sources for the explicitly named, exact-version production forks. Published Iroh crates
+# Local sources for the explicitly named, exact-version production forks. Published Krikos crates
 # resolve these package names from crates.io; release verification uses packaged candidate sources.
-iroh-hickory-server = { path = "vendor/hickory-server-0.26.1" }
-iroh-noq = { path = "vendor/noq-1.1.0" }
+krikos-hickory-server = { path = "vendor/hickory-server-0.26.1" }
+krikos-noq = { path = "vendor/noq-1.1.0" }

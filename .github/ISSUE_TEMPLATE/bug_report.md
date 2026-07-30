@@ -17,17 +17,17 @@ type: bug
 **Expected behavior**
 <!-- A clear and concise description of what you expected to happen. -->
 
-**Iroh**
+**Krikos**
 
 Version:
 
 <!-- If possible use cargo tree: -->
 
 ```
-[paste output from `cargo tree -i -e features -p iroh` here]
+[paste output from `cargo tree -i -e features -p krikos` here]
 ```
 
-<!-- Otherwise, please list the iroh version and/or commit hash. -->
+<!-- Otherwise, please list the krikos version and/or commit hash. -->
 
 Endpoint configuration:<!-- (please complete the following information) -->
 

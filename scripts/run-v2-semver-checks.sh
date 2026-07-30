@@ -63,7 +63,7 @@ post_cut_ref=${baseline_values[1]:-}
 if [[ -n "$post_cut_ref" ]]; then
   mode=post-cut
   baseline_ref=$post_cut_ref
-  packages=(iroh iroh-base iroh-runtime iroh-resolver iroh-dns iroh-dns-server iroh-relay)
+  packages=(krikos krikos-base krikos-runtime krikos-resolver krikos-dns krikos-dns-server krikos-relay)
   if [[ ! "$baseline_ref" =~ ^[0-9a-f]{40}$ ]]; then
     printf '%s\n' 'post-cut API baseline must be a full lowercase 40-character commit SHA' >&2
     exit 65
@@ -71,12 +71,46 @@ if [[ -n "$post_cut_ref" ]]; then
 else
   mode=legacy-inventory
   baseline_ref=$legacy_ref
-  packages=(iroh iroh-base iroh-dns iroh-dns-server iroh-relay)
+  packages=(krikos krikos-base krikos-dns krikos-dns-server krikos-relay)
   if [[ "$baseline_ref" != "v1.0.3" ]]; then
     printf 'legacy API inventory baseline must remain v1.0.3, got %s\n' "$baseline_ref" >&2
     exit 65
   fi
 fi
+
+# Every current package name above is looked up against
+# scripts/rename-map.toml to find the name it had BEFORE the Krikos rebrand
+# (Task 5). This translation is needed only for a baseline ref that PREDATES
+# the rebrand and still carries the pre-rebrand package names (the legacy
+# v1.0.3 tag, or a post-cut baseline set to the pre-rebrand architecture-cut
+# commit) -- building the baseline rustdoc JSON with the current (krikos-*)
+# package name against a checkout with no such package fails outright
+# ("cannot specify features for packages outside of workspace"). A
+# post-cut baseline may equally be set to a commit that ALREADY POSTDATES
+# the rebrand (this repository's own case after 2026-07-30, see
+# docs/adr/0002-krikos-rebrand.md's addendum) -- there the current name is
+# exactly right and translating it would look for a package
+# (the pre-rebrand old_package name) that no longer exists in that checkout either.
+# Which case applies is not knowable from `mode` alone (both a pre- and a
+# post-rebrand commit are valid `post-cut` baselines), so it is resolved
+# per package by asking the baseline checkout itself, after it is archived
+# below, rather than assumed from a hardcoded map.
+readarray -t baseline_package_pairs < <(python3 - "$repo_root/scripts/rename-map.toml" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as source:
+    rename_map = tomllib.load(source)
+for entry in rename_map.get("packages", []):
+    print(f"{entry['new_package']}\t{entry['old_package']}")
+PY
+)
+declare -A baseline_name_for_current=()
+for pair in "${baseline_package_pairs[@]}"; do
+  new_name=${pair%%$'\t'*}
+  old_name=${pair#*$'\t'}
+  baseline_name_for_current[$new_name]=$old_name
+done
 
 if ! git -C "$repo_root" rev-parse --verify --quiet "$baseline_ref^{commit}" >/dev/null; then
   printf 'semver baseline ref is missing: %s\n' "$baseline_ref" >&2
@@ -100,10 +134,36 @@ actual_inventory="$evidence_root/actual-v1-breaks.txt"
 : >"$actual_inventory"
 git -C "$repo_root" archive "$baseline_ref" | tar -x -C "$baseline_checkout"
 
+# Ask the baseline checkout itself which package names it actually has,
+# rather than assuming from `mode` whether it predates the rebrand (see the
+# comment above baseline_name_for_current). `--no-deps` keeps this to the
+# checkout's own workspace members; a missing/unreadable Cargo.lock at this
+# ref would already have failed the rustdoc build below, so this is not a
+# new failure mode.
+readarray -t baseline_present_packages < <(
+  cargo metadata --no-deps --format-version 1 \
+    --manifest-path "$baseline_checkout/Cargo.toml" 2>/dev/null |
+    python3 -c 'import json, sys; print("\n".join(p["name"] for p in json.load(sys.stdin)["packages"]))'
+)
+declare -A baseline_has_package=()
+for name in "${baseline_present_packages[@]}"; do
+  baseline_has_package[$name]=1
+done
+
 for package in "${packages[@]}"; do
-  rustdoc_name=${package//-/_}
-  current_rustdoc="$evidence_root/current-target/doc/$rustdoc_name.json"
-  baseline_rustdoc="$evidence_root/baseline-target/doc/$rustdoc_name.json"
+  if [[ -n "${baseline_has_package[$package]:-}" ]]; then
+    # The baseline checkout already has this exact package name -- it
+    # postdates the rebrand (or never needed translating), so comparing
+    # like-for-like by the current name is correct and no translation, and
+    # no crate-root path rewrite below, is needed.
+    baseline_package=$package
+  else
+    baseline_package=${baseline_name_for_current[$package]:-$package}
+  fi
+  current_rustdoc_name=${package//-/_}
+  baseline_rustdoc_name=${baseline_package//-/_}
+  current_rustdoc="$evidence_root/current-target/doc/$current_rustdoc_name.json"
+  baseline_rustdoc="$evidence_root/baseline-target/doc/$baseline_rustdoc_name.json"
   report="$evidence_root/reports/$package.txt"
 
   printf 'Building current public API: %s\n' "$package"
@@ -118,12 +178,12 @@ for package in "${packages[@]}"; do
       -Z unstable-options \
       --output-format json
 
-  printf 'Building baseline public API: %s (%s)\n' "$package" "$baseline_ref"
+  printf 'Building baseline public API: %s as %s (%s)\n' "$package" "$baseline_package" "$baseline_ref"
   RUSTDOCFLAGS='' CARGO_TARGET_DIR="$evidence_root/baseline-target" \
     cargo "+$nightly_toolchain" rustdoc \
       --locked \
       --manifest-path "$baseline_checkout/Cargo.toml" \
-      --package "$package" \
+      --package "$baseline_package" \
       --all-features \
       --lib \
       -- \
@@ -133,6 +193,44 @@ for package in "${packages[@]}"; do
   if [[ ! -s "$current_rustdoc" || ! -s "$baseline_rustdoc" ]]; then
     printf 'missing rustdoc JSON for %s\n' "$package" >&2
     exit 66
+  fi
+
+  if [[ "$baseline_package" != "$package" ]]; then
+    # The baseline crate's own root name (and every path rustdoc recorded
+    # under it) is still the pre-rebrand name -- cargo-semver-checks compares items by
+    # their full path INCLUDING the crate root, so without this it would
+    # report the entire public API as removed-and-re-added under a new
+    # name (every item's path starts with the wrong crate name) instead of
+    # actually comparing the API surface. Only the local crate's own index
+    # root entry and its own paths entries (crate_id 0, i.e. NOT an
+    # external dependency such as iroh-metrics, which must keep its real
+    # name) are touched.
+    python3 - "$baseline_rustdoc" "$baseline_package" "$package" <<'PY'
+import json
+import sys
+
+path, old_name, new_name = sys.argv[1], sys.argv[2].replace("-", "_"), sys.argv[3].replace("-", "_")
+with open(path) as fh:
+    data = json.load(fh)
+
+root_id = str(data["root"])
+root_entry = data["index"][root_id]
+if root_entry.get("name") != old_name:
+    raise SystemExit(
+        f"expected baseline crate root name {old_name!r}, found {root_entry.get('name')!r}"
+    )
+root_entry["name"] = new_name
+
+renamed = 0
+for entry in data["paths"].values():
+    if entry.get("crate_id") == 0 and entry.get("path") and entry["path"][0] == old_name:
+        entry["path"][0] = new_name
+        renamed += 1
+
+with open(path, "w") as fh:
+    json.dump(data, fh)
+print(f"normalized baseline crate root {old_name!r} -> {new_name!r} ({renamed} local path(s))", file=sys.stderr)
+PY
   fi
 
   set +e

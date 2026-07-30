@@ -5,9 +5,9 @@
 
 ## Scope
 
-Establish a unified testing strategy for Iroh as a distributed networking library. The strategy must distinguish tests that deterministically gate changes from campaigns that continuously explore network behavior, while retaining realistic network and platform validation for failures the simulator cannot model faithfully.
+Establish a unified testing strategy for Krikos as a distributed networking library. The strategy must distinguish tests that deterministically gate changes from campaigns that continuously explore network behavior, while retaining realistic network and platform validation for failures the simulator cannot model faithfully.
 
-This goal covers `iroh-sim`, its scenario and swarm definitions, simulation CI workflows, realistic Netsim and Patchbay checks, campaign evidence, failure triage, and regression promotion.
+This goal covers `krikos-sim`, its scenario and swarm definitions, simulation CI workflows, realistic Netsim and Patchbay checks, campaign evidence, failure triage, and regression promotion.
 
 ## Goal
 
@@ -24,7 +24,7 @@ The primary success measure is meaningful network-mode and state-transition cove
 
 ## Non-Goals
 
-- Replacing the custom Iroh simulator with Turmoil or MadSim. The existing simulator owns Iroh-specific NAT, discovery, mobility, relay, scheduling, replay, minimization, and parity semantics.
+- Replacing the custom Krikos simulator with Turmoil or MadSim. The existing simulator owns Krikos-specific NAT, discovery, mobility, relay, scheduling, replay, minimization, and parity semantics.
 - Running the complete network-mode state space on every pull request.
 - Treating performance thresholds or broad realistic-network matrices as deterministic correctness gates.
 - Claiming that deterministic simulation replaces Netsim, Patchbay, cross-platform tests, fuzzing, property tests, benchmarks, or production telemetry.
@@ -146,9 +146,9 @@ This goal is complete when all of the following are true:
 - The target deterministic architecture and its production boundaries are documented in [`docs/testing/deterministic-simulation-architecture.md`](docs/testing/deterministic-simulation-architecture.md).
 - Simulation use, replay, campaigns, and corpus workflows are documented in [`docs/testing/simulation.md`](docs/testing/simulation.md).
 - Determinism requirements and known escape audits are documented in [`docs/testing/determinism-audit.md`](docs/testing/determinism-audit.md).
-- The hosted continuous soak already runs fourteen domain/provider lanes four times per day in [`.github/workflows/simulation-daily-soak.yml`](.github/workflows/simulation-daily-soak.yml) and [`iroh-sim/soaks/daily.json`](iroh-sim/soaks/daily.json), including dedicated link-impairment exploration under both cryptographic providers.
+- The hosted continuous soak already runs fourteen domain/provider lanes four times per day in [`.github/workflows/simulation-daily-soak.yml`](.github/workflows/simulation-daily-soak.yml) and [`krikos-sim/soaks/daily.json`](krikos-sim/soaks/daily.json), including dedicated link-impairment exploration under both cryptographic providers.
 - Nightly and weekly roles are separated from continuous exploration in [`.github/workflows/simulation-nightly.yml`](.github/workflows/simulation-nightly.yml) and [`.github/workflows/simulation-weekly.yml`](.github/workflows/simulation-weekly.yml).
-- Current retention, replay, corpus, and operational bounds are checked through [`iroh-sim/operations-policy.json`](iroh-sim/operations-policy.json) and documented in [`docs/simulation/operations.md`](docs/simulation/operations.md).
+- Current retention, replay, corpus, and operational bounds are checked through [`krikos-sim/operations-policy.json`](krikos-sim/operations-policy.json) and documented in [`docs/simulation/operations.md`](docs/simulation/operations.md).
 - [`.github/workflows/simulation-issue-closure.yml`](.github/workflows/simulation-issue-closure.yml)
   reopens a tracked failure unless typed promotion evidence, the reviewed corpus, and both
   same-revision deterministic checks pass on the default branch.
@@ -173,9 +173,9 @@ This goal is complete when all of the following are true:
 
 ### Verification on 2026-07-26
 
-- `cargo test --manifest-path iroh-sim/Cargo.toml` passed, including schema-v2 coverage, gate,
+- `cargo test --manifest-path krikos-sim/Cargo.toml` passed, including schema-v2 coverage, gate,
   corpus, outcome, replay, minimization, soak, and swarm contracts.
-- Strict Clippy passed for `iroh-sim`, `iroh-runtime`, and `iroh` with all targets/features.
+- Strict Clippy passed for `krikos-sim`, `krikos-runtime`, and `krikos` with all targets/features.
 - Runtime adapter tests, lexical and semantic determinism inventories, workflow YAML parsing, and
   all 22 simulation workflow/collector/triage/issue source contracts passed.
 - A release build executed all 24 fallback-selected pull-request runs (the complete 12-lane
@@ -228,7 +228,7 @@ This goal is complete when all of the following are true:
   gap-directed service passed [nightly run
   30243621177](https://github.com/holon-technologies/iroh/actions/runs/30243621177) on that same
   merged revision.
-- Local verification passed the complete `iroh-sim` test suite, strict all-target/all-feature
+- Local verification passed the complete `krikos-sim` test suite, strict all-target/all-feature
   Clippy, formatting, and all six source contracts changed by the impairment campaign.
 - The runtime-SLO job in [weekly run
   30248158565](https://github.com/holon-technologies/iroh/actions/runs/30248158565) succeeded and
@@ -258,8 +258,8 @@ This goal is complete when all of the following are true:
 
 1. The initial behavioral vocabulary is the typed endpoint, connection, interface, address, host
    power, route, port-mapping, discovery-record, relay, path, and resource transitions in
-   `iroh-sim::BehaviorTransition`. Dynamic identifiers and payloads are deliberately excluded.
-2. `iroh-sim/change-impact-policy.json` is the source-path authority. Unknown, global, and
+   `krikos-sim::BehaviorTransition`. Dynamic identifiers and payloads are deliberately excluded.
+2. `krikos-sim/change-impact-policy.json` is the source-path authority. Unknown, global, and
    unavailable diffs conservatively select all six domains.
 3. Main Netsim supplies the realistic confidence check. The hosted Patchbay `public` case is the
    continuously scheduled shared semantic workload; broader Patchbay matrices remain independent.

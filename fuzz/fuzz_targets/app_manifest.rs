@@ -1,6 +1,6 @@
 #![no_main]
 
-use iroh_app::fuzz::fuzz_manifest;
+use krikos_app::fuzz::fuzz_manifest;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|input: &[u8]| {

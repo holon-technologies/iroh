@@ -1,8 +1,8 @@
 schemaVersion: "1"
 kind: mixin
-name: iroh-dev
-displayName: Iroh development environment
-description: Pinned Rust and native build tooling for the Iroh workspace
+name: krikos-dev
+displayName: Krikos development environment
+description: Pinned Rust and native build tooling for the Krikos workspace
 
 caps:
   network:
@@ -32,7 +32,7 @@ caps:
 
 environment:
   variables:
-    CARGO_TARGET_DIR: /home/agent/.cache/iroh-target
+    CARGO_TARGET_DIR: /home/agent/.cache/krikos-target
     CARGO_TERM_COLOR: always
     RUST_BACKTRACE: "1"
 
@@ -69,9 +69,9 @@ commands:
       description: Expose Rust tools to non-login agent processes
 
 agentContext: |
-  The repository environment is provisioned by the iroh-dev Docker Sandbox kit.
+  The repository environment is provisioned by the krikos-dev Docker Sandbox kit.
   Rust and native build dependencies are pinned by `.docker/sandbox/spec.yaml`.
-  Cargo artifacts live inside the VM at `/home/agent/.cache/iroh-target`, not in
+  Cargo artifacts live inside the VM at `/home/agent/.cache/krikos-target`, not in
   the host workspace. Run the narrowest relevant Cargo test first, then format,
   Clippy, and broader tests. Loopback TCP works inside the sandbox; external raw
   TCP and UDP remain subject to Docker Sandbox network restrictions.

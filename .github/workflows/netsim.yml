@@ -9,8 +9,8 @@ on:
       pr_number:
         required: true
         type: string
-      iroh_ref:
-        description: "Pinned 40-character Iroh commit SHA"
+      krikos_ref:
+        description: "Pinned 40-character Krikos commit SHA"
         required: true
         type: string
       netsim_ref:
@@ -23,13 +23,13 @@ on:
         type: boolean
         default: false
       rust_log:
-        description: "Custom RUST_LOG value (e.g. 'iroh=debug,noq=trace'). If empty, defaults to warn."
+        description: "Custom RUST_LOG value (e.g. 'krikos=debug,noq=trace'). If empty, defaults to warn."
         required: false
         type: string
         default: ""
 
 concurrency:
-  group: iroh-netsim-${{ github.ref || inputs.iroh_ref }}
+  group: krikos-netsim-${{ github.ref || inputs.krikos_ref }}
   cancel-in-progress: false
 
 env:
@@ -37,7 +37,7 @@ env:
   RUSTFLAGS: -Dwarnings
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
 
 jobs:
   netsim-release:
@@ -48,7 +48,7 @@ jobs:
     if: ${{github.ref_name=='main' && github.event_name == 'push'}}
     uses: './.github/workflows/netsim_runner.yaml'
     with:
-      iroh_ref: ${{ github.sha }}
+      krikos_ref: ${{ github.sha }}
       # Match the concurrency proven by the main CI netsim job on the same runner class.
       max_workers: 6
       netsim_ref: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
@@ -57,7 +57,7 @@ jobs:
       build_profile: "optimized-release"
       # Keep aggregate 10 GiB workloads in the manually dispatched performance lane:
       # they cannot complete within Chuck's 300-second per-case deadline on hosted CI.
-      filter: "skip:iroh_cust_10gb,iroh_relay_only__1_to_10"
+      filter: "skip:krikos_cust_10gb,krikos_relay_only__1_to_10"
 
   netsim-perf:
     permissions:
@@ -67,7 +67,7 @@ jobs:
     if: ${{github.event_name != 'push'}}
     uses: './.github/workflows/netsim_runner.yaml'
     with:
-      iroh_ref: ${{inputs.iroh_ref}}
+      krikos_ref: ${{inputs.krikos_ref}}
       max_workers: 1
       netsim_ref: ${{inputs.netsim_ref}}
       sim_paths: "sims/iroh"

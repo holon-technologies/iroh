@@ -5,13 +5,13 @@
 - [Architecture contract](architecture.md) — crate ownership boundaries, the v2 hard cut, and the vendored dependency boundary.
 - [Relay compatibility contract](relay-compatibility.md) — V1/V2 wire protocol guarantees.
 - [Transports](../TRANSPORTS.md) — the transport registry.
-- [Architecture decision records](adr/) — accepted product/architecture decisions, starting with [ADR-0001](adr/0001-local-first-application-framework-monorepo.md), the local-first application framework monorepo.
+- [Architecture decision records](adr/) — accepted product/architecture decisions, starting with [ADR-0001](adr/0001-local-first-application-framework-monorepo.md), the local-first application framework monorepo, and [ADR-0002](adr/0002-krikos-rebrand.md), the Krikos rebrand.
 - [Architecture baselines](architecture-baselines/) — dated, immutable evidence records (commits, CI runs, toolchain) frozen ahead of major architecture cuts.
 
 ## Local-first application framework
 
-- [Getting started](framework/getting-started.md) — using `iroh-app`, the experimental application layer over the v2 endpoint, blobs, gossip, and docs crates.
-- [Upstream protocol sync runbook](framework/upstream-sync.md) — how imported protocol packages (`iroh-blobs`, `iroh-gossip`, `iroh-docs`) are synced from their upstream release tags.
+- [Getting started](framework/getting-started.md) — using `krikos-app`, the experimental application layer over the v2 endpoint, blobs, gossip, and docs crates.
+- [Upstream protocol sync runbook](framework/upstream-sync.md) — how imported protocol packages (`krikos-blobs`, `krikos-gossip`, `krikos-docs`) are synced from their upstream release tags.
 
 ## Upstream protocol provenance
 
@@ -32,7 +32,11 @@
 
 ## Release
 
-- [v2 migration guide](release/v2-migration.md).
+- [Krikos migration guide](release/krikos-migration.md) — migrating from upstream
+  [n0-computer/iroh](https://github.com/n0-computer/iroh): the package mapping, the import-path
+  rewrite, and what the rename deliberately did not change.
+- [v2 migration guide](release/v2-migration.md) — this fork's own independent `1.x` → `2.0`
+  architecture-cut Rust API changes.
 - [v2 release checklist](release/v2-release-checklist.md).
 
 ## History

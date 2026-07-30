@@ -24,23 +24,23 @@ for path in \
 done
 
 require_text .github/workflows/ci.yml 'local_first_framework:'
-require_text .github/workflows/ci.yml 'cargo test -p iroh-local-first-app-tests --test two_node'
+require_text .github/workflows/ci.yml 'cargo test -p krikos-local-first-app-tests --test two_node'
 require_text .github/workflows/ci.yml 'scripts/tests/check-blobs-v0-interop.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-gossip-v0-interop.sh'
-require_text .github/workflows/ci.yml 'cargo test -p iroh-docs migration'
+require_text .github/workflows/ci.yml 'cargo test -p krikos-docs migration'
 require_text .github/workflows/ci.yml 'scripts/check-framework-release-gate.py --expect-closed'
-require_text .github/workflows/tests.yaml 'iroh-app'
-require_text .github/workflows/tests.yaml 'iroh-blobs'
-require_text .github/workflows/tests.yaml 'iroh-docs'
-require_text .github/workflows/tests.yaml 'iroh-gossip'
+require_text .github/workflows/tests.yaml 'krikos-app'
+require_text .github/workflows/tests.yaml 'krikos-blobs'
+require_text .github/workflows/tests.yaml 'krikos-docs'
+require_text .github/workflows/tests.yaml 'krikos-gossip'
 require_text .github/workflows/release.yml 'scripts/check-framework-release-gate.py --expect-closed'
 require_text scripts/run-format.sh 'fuzz/Cargo.toml'
 require_text Makefile.toml '[tasks.local-first-framework]'
 require_text Makefile.toml '[tasks.local-first-release-gate]'
 require_text docs/release/v2-release-checklist.md 'framework/release-gate.toml'
-require_text protocols/iroh-blobs/Cargo.toml 'name = "blobs-transfer"'
-require_text protocols/iroh-gossip/Cargo.toml 'name = "gossip-setup"'
-require_text protocols/iroh-docs/Cargo.toml 'name = "docs-setup"'
+require_text protocols/krikos-blobs/Cargo.toml 'name = "blobs-transfer"'
+require_text protocols/krikos-gossip/Cargo.toml 'name = "gossip-setup"'
+require_text protocols/krikos-docs/Cargo.toml 'name = "docs-setup"'
 
 python3 "$repo_root/scripts/check-framework-release-gate.py" --expect-closed
 gate_output=$(mktemp)

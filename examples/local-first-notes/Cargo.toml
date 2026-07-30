@@ -13,8 +13,8 @@ workspace = true
 [dependencies]
 anyhow = "1"
 bytes = "1"
-iroh = { workspace = true, default-features = false }
-iroh-app.workspace = true
-iroh-blobs = { workspace = true, default-features = false }
-iroh-docs.workspace = true
+krikos = { workspace = true, default-features = false }
+krikos-app.workspace = true
+krikos-blobs = { workspace = true, default-features = false }
+krikos-docs.workspace = true
 tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time"] }

@@ -1,16 +1,16 @@
 # Deterministic simulation operations
 
-This runbook treats `iroh-sim` as an owned engineering service. The machine-readable authorities
+This runbook treats `krikos-sim` as an owned engineering service. The machine-readable authorities
 are:
 
-- `iroh-sim/operations-policy.json` for ownership, execution, retry, shutdown, retention, replay,
+- `krikos-sim/operations-policy.json` for ownership, execution, retry, shutdown, retention, replay,
   and corpus bounds;
-- `iroh-sim/coverage-policy.json` for network-mode coverage obligations and lane ownership;
-- `iroh-sim/change-impact-policy.json` for source-path-to-domain gate selection; and
-- `iroh-sim/soaks/daily.json` for the fourteen source-bound continuous lanes and their seed leases.
+- `krikos-sim/coverage-policy.json` for network-mode coverage obligations and lane ownership;
+- `krikos-sim/change-impact-policy.json` for source-path-to-domain gate selection; and
+- `krikos-sim/soaks/daily.json` for the fourteen source-bound continuous lanes and their seed leases.
 
 Changes to those files must update their validation tests, workflows, and this runbook together.
-The Iroh connectivity and simulation maintainers own campaign health and must initially classify a
+The Krikos connectivity and simulation maintainers own campaign health and must initially classify a
 new signature within 24 hours.
 
 ## Outcome classes
@@ -104,24 +104,24 @@ fault/recovery phase they do not declare.
 Build once and derive exactly the gate selection CI would use:
 
 ```bash
-cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
 base_revision="$(git rev-parse HEAD^)"
 candidate_revision="$(git rev-parse HEAD)"
-gate_root="$(mktemp -d /tmp/iroh-sim-gate.XXXXXX)"
+gate_root="$(mktemp -d /tmp/krikos-sim-gate.XXXXXX)"
 
 scripts/select-simulation-gate.sh \
   --base-revision "$base_revision" \
   --candidate-revision "$candidate_revision" \
   --tier pull-request \
-  --impact-policy iroh-sim/change-impact-policy.json \
-  --coverage-policy iroh-sim/coverage-policy.json \
-  --sim-bin iroh-sim/target/release/cargo-sim \
+  --impact-policy krikos-sim/change-impact-policy.json \
+  --coverage-policy krikos-sim/coverage-policy.json \
+  --sim-bin krikos-sim/target/release/cargo-sim \
   --output "$gate_root/selection.json"
 
-iroh-sim/target/release/cargo-sim corpus test iroh-sim/corpus
+krikos-sim/target/release/cargo-sim corpus test krikos-sim/corpus
 scripts/run-simulation-gate.sh \
   --selection "$gate_root/selection.json" \
-  --sim-bin iroh-sim/target/release/cargo-sim \
+  --sim-bin krikos-sim/target/release/cargo-sim \
   --artifacts "$gate_root/artifacts" \
   --jobs 2
 ```
@@ -134,13 +134,13 @@ domain/provider lane, work kind, and ordinal. Rerunning the same selection is id
 For one immutable artifact:
 
 ```bash
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
-  explain /tmp/iroh-sim-failure/manifest.json
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
-  replay /tmp/iroh-sim-failure/manifest.json
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- \
-  minimize /tmp/iroh-sim-failure/manifest.json \
-  --output /tmp/iroh-sim-minimized --max-attempts 512
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- \
+  explain /tmp/krikos-sim-failure/manifest.json
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- \
+  replay /tmp/krikos-sim-failure/manifest.json
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- \
+  minimize /tmp/krikos-sim-failure/manifest.json \
+  --output /tmp/krikos-sim-minimized --max-attempts 512
 ```
 
 Never edit the original artifact directory. Replay requires its exact source identity, simulator,
@@ -164,11 +164,11 @@ The daily aggregate performs this bounded sequence after all lanes finish:
 5. Emit one bounded issue record per confirmed signature. `upsert-simulation-issues.sh` performs
    one signature-scoped search per record, examines fewer than 100 results, and creates, updates, or
    reopens exactly one issue carrying
-   `<!-- iroh-sim-signature:<digest> -->`. Duplicate markers or GitHub API failures are
+   `<!-- krikos-sim-signature:<digest> -->`. Duplicate markers or GitHub API failures are
    infrastructure failures. A search that reaches its 100-result limit is treated as possibly
    truncated and fails closed. The bot never closes issues.
 6. A maintainer reviews the minimized case, adds it with its issue URL to
-   `iroh-sim/corpus/<stable-id>/`, and opens a fix. Corpus schema v2 distinguishes historical fixture
+   `krikos-sim/corpus/<stable-id>/`, and opens a fix. Corpus schema v2 distinguishes historical fixture
    references from GitHub issue URLs. A GitHub-linked entry additionally requires the normalized
    signature, minimized-scenario SHA-256, discovery revision and workflow run, exact-replay state,
    and signature-preserving minimization state.
@@ -184,11 +184,11 @@ The daily aggregate performs this bounded sequence after all lanes finish:
 Run the two hosted automation stages locally against downloaded evidence with:
 
 ```bash
-triage_root="$(mktemp -d /tmp/iroh-sim-triage.XXXXXX)"
+triage_root="$(mktemp -d /tmp/krikos-sim-triage.XXXXXX)"
 scripts/triage-simulation-failures.sh \
   --artifacts /tmp/downloaded-lanes \
   --aggregate /tmp/downloaded-aggregate/daily-soak-aggregate.json \
-  --sim-bin iroh-sim/target/release/cargo-sim \
+  --sim-bin krikos-sim/target/release/cargo-sim \
   --source-revision "$(git rev-parse HEAD)" \
   --workflow-run-id 123456 \
   --repository OWNER/REPO \
@@ -228,15 +228,15 @@ Patchbay jobs emit strict `ParityFixture` documents and compare only their decla
 intersection with a same-revision deterministic fixture:
 
 ```bash
-parity_root="$(mktemp -d /tmp/iroh-parity.XXXXXX)"
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
+parity_root="$(mktemp -d /tmp/krikos-parity.XXXXXX)"
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity export public \
   --seed 7777777777777777777777777777777777777777777777777777777777777777 \
   --source-revision "$(git rev-parse HEAD)" \
   --observed-at-unix-secs "$(date +%s)" \
   --output "$parity_root/deterministic.json"
-cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
+cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity compare \
   "$parity_root/deterministic.json" \
-  iroh-sim/tests/fixtures/patchbay-public.json \
+  krikos-sim/tests/fixtures/patchbay-public.json \
   --output "$parity_root/comparison.json"
 ```
 

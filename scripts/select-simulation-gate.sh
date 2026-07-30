@@ -155,7 +155,7 @@ if [[ -n "$sim_bin" ]]; then
 else
   repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
   cargo run --quiet \
-    --manifest-path "$repo_root/iroh-sim/Cargo.toml" \
+    --manifest-path "$repo_root/krikos-sim/Cargo.toml" \
     --bin cargo-sim -- \
     "${command_args[@]}"
 fi

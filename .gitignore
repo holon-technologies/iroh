@@ -5,7 +5,7 @@ target/
 
 /fuzz/artifacts
 /logs
-iroh.config.toml
+krikos.config.toml
 
 # Local scratch directory that the docs instruct users to write into.
 /artifacts/

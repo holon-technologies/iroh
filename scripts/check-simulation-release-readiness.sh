@@ -236,13 +236,13 @@ if (( $(stat -c %s "$issues") > maximum_api_bytes )) \
 fi
 open_product_failures=$(jq -c '[
   .items[]
-  | select((.body // "") | test("<!-- iroh-sim-signature:[0-9a-f]{64} -->"))
+  | select((.body // "") | test("<!-- krikos-sim-signature:[0-9a-f]{64} -->"))
   | {
       number,
       url: .html_url,
       signature_digest: (
         .body
-        | capture("<!-- iroh-sim-signature:(?<digest>[0-9a-f]{64}) -->").digest
+        | capture("<!-- krikos-sim-signature:(?<digest>[0-9a-f]{64}) -->").digest
       )
     }
 ] | sort_by(.number)' "$issues")

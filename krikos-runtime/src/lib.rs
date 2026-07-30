@@ -1,0 +1,35 @@
+//! Runtime capabilities shared by Krikos's production and simulation environments.
+#![forbid(unsafe_code)]
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+mod context;
+mod decision;
+mod id;
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+mod task;
+mod time;
+mod trace;
+
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+pub use context::{RuntimeContext, RuntimeContextError, UnsafeTestOnly};
+pub use decision::{
+    DecisionError, DecisionObserver, DecisionPath, DecisionSource, DecisionStream,
+    NoopDecisionObserver, RootSeed, SeededDecisionSource, TraceDecisionObserver,
+};
+pub use id::{DecisionId, IdAllocator, IdExhausted, TaskId, TimerId, TraceSequence};
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+pub use task::{
+    BoxedTask, DEFAULT_MAX_LIVE_TASKS_PER_GROUP, Executor, OwnedTaskHandle, SpawnError,
+    TaskCompletion, TaskControl, TaskGroup, TaskGroupCapacitySnapshot, TaskGroupError,
+    TaskGroupLimits, TaskGroupSnapshot, TaskHandleError, TaskOutcome, TokioExecutor,
+};
+#[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
+pub use time::TokioClock;
+pub use time::{
+    Clock, ClockDomain, ClockError, ClockInterval, ClockResource, ClockSleep, ClockTimeout,
+    Instant, SystemTime, SystemWallClock, TimeoutError, Timer, WallClock,
+};
+pub use trace::{
+    NoopTraceSink, TRACE_SCHEMA_VERSION, TaskKind, TaskMetadata, TraceContext, TraceEvent,
+    TraceEventKind, TraceRecordError, TraceRecorder, TraceSink, TraceSinkError,
+};

@@ -1,53 +1,44 @@
-<h1 align="center"><a href="https://iroh.computer"><img alt="iroh" src="./.img/iroh_wordmark.svg" width="100" /></a></h1>
+<h1 align="center">Krikos</h1>
 
 <h3 align="center">
 less net work for networks
 </h3>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh/)
-[![Crates.io](https://img.shields.io/crates/v/iroh.svg?style=flat-square)](https://crates.io/crates/iroh)
-[![downloads](https://img.shields.io/crates/d/iroh.svg?style=flat-square)](https://crates.io/crates/iroh)
-[![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
-[![Youtube](https://img.shields.io/badge/YouTube-red?logo=youtube&logoColor=white&style=flat-square)](https://www.youtube.com/@n0computer)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
 [![CI](https://img.shields.io/github/actions/workflow/status/holon-technologies/iroh/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/holon-technologies/iroh/actions/workflows/ci.yml)
 
 <div align="center">
   <h3>
-    <a href="https://iroh.computer/docs">
-      Docs Site
-    </a>
-    <span> | </span>
-    <a href="https://docs.rs/iroh">
+    <a href="https://docs.rs/krikos">
       Rust Docs
     </a>
   </h3>
 </div>
 <br/>
 
-## What is iroh?
+## What is krikos?
 
-Iroh gives you an API for dialing by public key.
-You say “connect to that phone”, iroh will find & maintain the fastest connection for you, regardless of where it is.
+Krikos gives you an API for dialing by public key.
+You say “connect to that phone”, krikos will find & maintain the fastest connection for you, regardless of where it is.
 
 ### Hole-punching
 
-The fastest route is a direct connection, so if necessary, iroh tries to hole-punch.
+The fastest route is a direct connection, so if necessary, krikos tries to hole-punch.
 Should this fail, it can fall back to an open ecosystem of public relay servers.
-To ensure these connections are as fast as possible, we [continuously measure iroh][iroh-perf].
 
 ### Built on [QUIC]
 
-Iroh uses [noq] to establish [QUIC] connections between endpoints.
+Krikos uses [noq] to establish [QUIC] connections between endpoints.
 This way you get authenticated encryption, concurrent streams with stream priorities, a datagram transport and avoid head-of-line-blocking out of the box.
 
 ## Compose Protocols
 
-Use pre-existing protocols built on iroh instead of writing your own:
-- [iroh-blobs] for [BLAKE3]-based content-addressed blob transfer scaling from kilobytes to terabytes
-- [iroh-gossip] for establishing publish-subscribe overlay networks that scale, requiring only resources that your average phone can handle
-- [iroh-docs] for an eventually-consistent key-value store of [iroh-blobs] blobs
+Use pre-existing protocols built on krikos instead of writing your own:
+- [krikos-blobs] for [BLAKE3]-based content-addressed blob transfer scaling from kilobytes to terabytes
+- [krikos-gossip] for establishing publish-subscribe overlay networks that scale, requiring only resources that your average phone can handle
+- [krikos-docs] for an eventually-consistent key-value store of [krikos-blobs] blobs
 
 This fork also includes an experimental, unpublished application framework that composes one
 endpoint with blobs, gossip, docs, lifecycle supervision, durable identity, and bounded custom
@@ -58,11 +49,11 @@ protocol extensions. Start with the [local-first framework guide] or run the
 
 ### Rust Library
 
-It's easiest to use iroh from rust.
-Install it using `cargo add iroh`, then on the connecting side:
+It's easiest to use krikos from rust.
+Install it using `cargo add krikos`, then on the connecting side:
 
 ```rs
-const ALPN: &[u8] = b"iroh-example/echo/0";
+const ALPN: &[u8] = b"krikos-example/echo/0";
 
 let endpoint = Endpoint::bind().await?;
 
@@ -117,43 +108,32 @@ impl ProtocolHandler for Echo {
 
 The full example code with more comments can be found at [`echo.rs`][echo-rs].
 
-Or use one of the pre-existing protocols, e.g. [iroh-blobs] or [iroh-gossip].
-
-### Other Languages
-
-If you want to use iroh from other languages, make sure to check out [iroh-ffi], the repository for FFI bindings.
-
-### Links
-
-- [Introducing Iroh (video)][iroh-yt-video]
-- [Iroh Documentation][docs]
-- [Iroh Examples]
-- [Iroh Experiments]
+Or use one of the pre-existing protocols, e.g. [krikos-blobs] or [krikos-gossip].
 
 ## Repository Structure
 
 The production workspace and its isolated test workspaces have explicit ownership boundaries:
 
-- `iroh`: public endpoint, connection, path-selection, and hole-punching orchestration.
-- `iroh-base`: dependency-light identity, address, key, and relay-map value types.
-- `iroh-runtime`: bounded clock, task, decision, and trace capabilities used by production Iroh.
-- `iroh-resolver`: provider-neutral, bounded A/AAAA/TXT/host resolution.
-- `iroh-dns`: endpoint-aware DNS records, endpoint lookup, and pkarr integration.
-- `iroh-relay`: relay client, server, sessions, and the shared V1/V2 wire protocol.
-- `iroh-dns-server`: deployable DNS, DNS-over-HTTPS, and pkarr publication service.
-- `protocols/iroh-blobs`: content-addressed storage and transfer protocol.
-- `protocols/iroh-gossip`: bounded publish-subscribe overlay protocol.
-- `protocols/iroh-docs`: capability-scoped, eventually consistent documents over blobs and gossip.
+- `krikos`: public endpoint, connection, path-selection, and hole-punching orchestration.
+- `krikos-base`: dependency-light identity, address, key, and relay-map value types.
+- `krikos-runtime`: bounded clock, task, decision, and trace capabilities used by production Krikos.
+- `krikos-resolver`: provider-neutral, bounded A/AAAA/TXT/host resolution.
+- `krikos-dns`: endpoint-aware DNS records, endpoint lookup, and pkarr integration.
+- `krikos-relay`: relay client, server, sessions, and the shared V1/V2 wire protocol.
+- `krikos-dns-server`: deployable DNS, DNS-over-HTTPS, and pkarr publication service.
+- `protocols/krikos-blobs`: content-addressed storage and transfer protocol.
+- `protocols/krikos-gossip`: bounded publish-subscribe overlay protocol.
+- `protocols/krikos-docs`: capability-scoped, eventually consistent documents over blobs and gossip.
 - `framework/app`: unpublished local-first application composition and lifecycle layer.
 - `integration-tests/local-first-app`: executable cross-crate acceptance scenarios.
 - `examples/local-first-notes`: minimal persisted two-node framework application.
-- `iroh/bench`: non-published benchmarks and production resource canaries.
+- `krikos/bench`: non-published benchmarks and production resource canaries.
 - `tools/determinism-checker`: non-published source-boundary policy checker.
-- `iroh-sim`: isolated deterministic simulation workspace; production crates never depend on it.
+- `krikos-sim`: isolated deterministic simulation workspace; production crates never depend on it.
 
 See [the architecture contract](docs/architecture.md), the
 [relay compatibility contract](docs/relay-compatibility.md), and the
-[Iroh 2.0 migration guide](docs/release/v2-migration.md) for the fork's hard-cut boundaries.
+[Krikos 2.0 migration guide](docs/release/v2-migration.md) for the fork's hard-cut boundaries.
 
 ## License
 
@@ -175,16 +155,9 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [QUIC]: https://en.wikipedia.org/wiki/QUIC
 [BLAKE3]: https://github.com/BLAKE3-team/BLAKE3
 [noq]: https://github.com/n0-computer/noq
-[iroh-blobs]: https://github.com/n0-computer/iroh-blobs
-[iroh-gossip]: https://github.com/n0-computer/iroh-gossip
-[iroh-docs]: https://github.com/n0-computer/iroh-docs
-[iroh-doctor]: https://github.com/n0-computer/iroh-doctor
+[krikos-blobs]: protocols/krikos-blobs
+[krikos-gossip]: protocols/krikos-gossip
+[krikos-docs]: protocols/krikos-docs
 [willow protocol]: https://willowprotocol.org
-[iroh-ffi]: https://github.com/n0-computer/iroh-ffi
-[iroh-yt-video]: https://www.youtube.com/watch?v=RwAt36Xe3UI_
-[Iroh Examples]: https://github.com/n0-computer/iroh-examples
-[Iroh Experiments]: https://github.com/n0-computer/iroh-experiments
-[echo-rs]: /iroh/examples/echo.rs
-[iroh-perf]: https://perf.iroh.computer
-[docs]: https://docs.iroh.computer
+[echo-rs]: /krikos/examples/echo.rs
 [local-first framework guide]: docs/framework/getting-started.md

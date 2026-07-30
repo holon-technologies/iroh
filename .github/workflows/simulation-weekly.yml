@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: iroh-deterministic-simulation-weekly
+  group: krikos-deterministic-simulation-weekly
   cancel-in-progress: false
 
 env:
@@ -25,38 +25,38 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Validate checked service policy
-        run: cargo test --manifest-path iroh-sim/Cargo.toml --test operations
+        run: cargo test --manifest-path krikos-sim/Cargo.toml --test operations
       - name: Execute permanent corpus
-        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
+        run: cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- corpus test krikos-sim/corpus
       - name: Exercise both replay lanes
         run: |
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+            krikos-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 8888888888888888888888888888888888888888888888888888888888888888 \
             --artifacts "$RUNNER_TEMP/raw-lane"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/raw-lane/manifest.json"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
-            iroh-sim/tests/fixtures/v2-ipv4-stream.json \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/raw-lane/manifest.json"
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- run \
+            krikos-sim/tests/fixtures/v2-ipv4-stream.json \
             --seed 9999999999999999999999999999999999999999999999999999999999999999 \
             --crypto production-provider --artifacts "$RUNNER_TEMP/semantic-lane"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/semantic-lane/manifest.json"
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- replay "$RUNNER_TEMP/semantic-lane/manifest.json"
       - name: Export and compare canonical public parity evidence
         run: |
           mkdir -p "$RUNNER_TEMP/parity"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity export public \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity export public \
             --seed 7777777777777777777777777777777777777777777777777777777777777777 \
             --source-revision "${{ github.sha }}" \
             --observed-at-unix-secs "$(date +%s)" \
             --output "$RUNNER_TEMP/parity/deterministic-public.json"
-          cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- parity compare \
+          cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- parity compare \
             "$RUNNER_TEMP/parity/deterministic-public.json" \
-            iroh-sim/tests/fixtures/patchbay-public.json \
+            krikos-sim/tests/fixtures/patchbay-public.json \
             --output "$RUNNER_TEMP/parity/public-comparison.json"
       - name: Upload service evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-weekly-service-${{ github.run_id }}
+          name: krikos-sim-weekly-service-${{ github.run_id }}
           path: ${{ runner.temp }}/parity
           if-no-files-found: error
           retention-days: 30
@@ -84,7 +84,7 @@ jobs:
           scripts/audit-simulation-gate-runtime-slo.sh \
             --repository "${{ github.repository }}" \
             --now-unix-secs "$now_unix_secs" \
-            --policy iroh-sim/operations-policy.json \
+            --policy krikos-sim/operations-policy.json \
             --output "$report"
           runtime_status=$?
           set -e
@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-gate-runtime-slo-${{ github.run_id }}
+          name: krikos-sim-gate-runtime-slo-${{ github.run_id }}
           path: ${{ runner.temp }}/gate-runtime-slo/report.json
           if-no-files-found: error
           retention-days: 30
@@ -141,15 +141,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Measure environment, relay, and scheduler components
         run: |
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage4_environment
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage5_relay
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench stage6_scheduler
-          cargo bench --manifest-path iroh-sim/Cargo.toml --bench deterministic_closure
+          cargo bench --manifest-path krikos-sim/Cargo.toml --bench stage4_environment
+          cargo bench --manifest-path krikos-sim/Cargo.toml --bench stage5_relay
+          cargo bench --manifest-path krikos-sim/Cargo.toml --bench stage6_scheduler
+          cargo bench --manifest-path krikos-sim/Cargo.toml --bench deterministic_closure
       - name: Upload Criterion evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-weekly-performance-${{ github.run_id }}
-          path: iroh-sim/target/criterion
+          name: krikos-sim-weekly-performance-${{ github.run_id }}
+          path: krikos-sim/target/criterion
           if-no-files-found: error
           retention-days: 30

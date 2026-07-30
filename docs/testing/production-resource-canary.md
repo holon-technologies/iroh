@@ -7,7 +7,7 @@
 
 ## Evidence Qualification
 
-The feature-gated `iroh-bench` canary ran from a clean optimized release build on the documented
+The feature-gated `krikos-bench` canary ran from a clean optimized release build on the documented
 minimum host class. The report identifies itself as production evidence and records:
 
 - `mode: evidence`;

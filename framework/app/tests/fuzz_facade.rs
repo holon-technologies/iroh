@@ -1,14 +1,14 @@
 #![cfg(feature = "fuzzing")]
 
-use iroh_app::fuzz::{fuzz_manifest, fuzz_protocol_registration};
+use krikos_app::fuzz::{fuzz_manifest, fuzz_protocol_registration};
 
 #[test]
 fn manifest_fuzz_facade_uses_production_validation() {
     assert!(fuzz_manifest(
-        br#"{"schema_version":1,"framework":"iroh-app"}"#
+        br#"{"schema_version":1,"framework":"krikos-app"}"#
     ));
     assert!(!fuzz_manifest(
-        br#"{"schema_version":2,"framework":"iroh-app"}"#
+        br#"{"schema_version":2,"framework":"krikos-app"}"#
     ));
     assert!(!fuzz_manifest(&vec![b'x'; 64 * 1024 + 1]));
 }

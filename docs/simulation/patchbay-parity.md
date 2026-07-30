@@ -1,6 +1,6 @@
 # Deterministic simulator and Patchbay parity
 
-This matrix defines semantic parity, not packet-timeline identity. Patchbay runs production Iroh in
+This matrix defines semantic parity, not packet-timeline identity. Patchbay runs production Krikos in
 Linux namespaces with real kernel scheduling and clocks. The deterministic backend runs production
 QUIC over simulator-owned sockets, time, NAT, firewall, interfaces, routes, and discovery. Their
 packet order and timing are therefore expected to differ.
@@ -18,19 +18,19 @@ deterministic stream round trip do not emit the same number of observer events.
 
 | Canonical case | Deterministic outcome | Patchbay outcome | Compared now | Known variance or intentional difference | Owner |
 |---|---|---|---|---|---|
-| `public` | Success; production QUIC authenticates and completes a stream round trip | `nat_none_x_none`: relay first, then direct, ping succeeds | terminal, authentication, delivery | Selected-path events are not yet exported by the deterministic production endpoint | Iroh connectivity |
-| `full_cone` | Success through endpoint-independent mapping/filtering; mapping lifecycle is traced | `nat_easiest_x_none`: relay-to-direct succeeds | terminal, authentication, delivery | Patchbay tests bilateral hole punching; the Stage 4 canonical case isolates outbound NAT behavior | Iroh connectivity |
-| `port_restricted` | Success through endpoint-independent mapping plus address-and-port filtering and ordered firewall rules | `nat_easy_x_none`: relay-to-direct succeeds | terminal, authentication, delivery | Firewall/NAT internals are observable only on the deterministic side | Iroh connectivity |
-| `symmetric` | Success for address-and-port-dependent outbound mapping to a public peer | `nat_hard_x_none` succeeds; `nat_hard_x_hard` is ignored because direct hole punching is not expected without port prediction | terminal, authentication, delivery | Hard-to-hard relay/direct selection is deferred to Stage 5 and is reported as a path-capability skip | Iroh connectivity |
+| `public` | Success; production QUIC authenticates and completes a stream round trip | `nat_none_x_none`: relay first, then direct, ping succeeds | terminal, authentication, delivery | Selected-path events are not yet exported by the deterministic production endpoint | Krikos connectivity |
+| `full_cone` | Success through endpoint-independent mapping/filtering; mapping lifecycle is traced | `nat_easiest_x_none`: relay-to-direct succeeds | terminal, authentication, delivery | Patchbay tests bilateral hole punching; the Stage 4 canonical case isolates outbound NAT behavior | Krikos connectivity |
+| `port_restricted` | Success through endpoint-independent mapping plus address-and-port filtering and ordered firewall rules | `nat_easy_x_none`: relay-to-direct succeeds | terminal, authentication, delivery | Firewall/NAT internals are observable only on the deterministic side | Krikos connectivity |
+| `symmetric` | Success for address-and-port-dependent outbound mapping to a public peer | `nat_hard_x_none` succeeds; `nat_hard_x_hard` is ignored because direct hole punching is not expected without port prediction | terminal, authentication, delivery | Hard-to-hard relay/direct selection is deferred to Stage 5 and is reported as a path-capability skip | Krikos connectivity |
 | `double_nat` | Success through two ordered stateful translations with independent mappings and cleanup | No direct Patchbay double-NAT fixture exists | terminal, authentication, delivery | Patchbay result is an explicit NAT/path capability gap, not a parity pass | Simulation + Patchbay owners |
-| `degradation_mild` | Success with 10 ms modeled latency and 10 Mbit/s bandwidth | client/server level 0: 10 ms latency, 5 ms jitter, 0.5% loss; both pass | terminal, authentication, delivery | Seeded loss/reordering and kernel jitter do not share a packet timeline or distribution with Linux `netem` | Iroh connectivity |
-| `outage_recovery` | Existing connection survives a deterministic partition/heal and delivers afterward | client/server link-down for 5 seconds recover, deliver through fallback, and return direct | terminal, authentication, delivery | Relay fallback and return-to-direct are Stage 5 path dimensions; Stage 4 compares recovered application behavior | Iroh connectivity |
-| `switch_uplink` | IPv4 connection delivers before and after interface-down plus route activation; mobility transitions are typed | 18 client/server IPv4/IPv6/dual-stack switch cases pass | terminal, authentication, delivery, mobility | IPv6 family transitions and selected-path family are retained Patchbay coverage until deterministic path events are available | Iroh connectivity |
+| `degradation_mild` | Success with 10 ms modeled latency and 10 Mbit/s bandwidth | client/server level 0: 10 ms latency, 5 ms jitter, 0.5% loss; both pass | terminal, authentication, delivery | Seeded loss/reordering and kernel jitter do not share a packet timeline or distribution with Linux `netem` | Krikos connectivity |
+| `outage_recovery` | Existing connection survives a deterministic partition/heal and delivers afterward | client/server link-down for 5 seconds recover, deliver through fallback, and return direct | terminal, authentication, delivery | Relay fallback and return-to-direct are Stage 5 path dimensions; Stage 4 compares recovered application behavior | Krikos connectivity |
+| `switch_uplink` | IPv4 connection delivers before and after interface-down plus route activation; mobility transitions are typed | 18 client/server IPv4/IPv6/dual-stack switch cases pass | terminal, authentication, delivery, mobility | IPv6 family transitions and selected-path family are retained Patchbay coverage until deterministic path events are available | Krikos connectivity |
 
 The canonical scenarios are constructed by `canonical_patchbay_scenarios()` in
-`iroh-sim/src/parity_catalog.rs`. Every catalog entry is schema-validated and executed against real
-production QUIC in the `iroh-sim` parity test. The source mapping points back to the corresponding
-tests in `iroh/tests/patchbay/`.
+`krikos-sim/src/parity_catalog.rs`. Every catalog entry is schema-validated and executed against real
+production QUIC in the `krikos-sim` parity test. The source mapping points back to the corresponding
+tests in `krikos/tests/patchbay/`.
 
 ## Result import and comparison
 
@@ -47,7 +47,7 @@ Patchbay adapters write a strict `ParityFixture` JSON document containing:
 claims, noncanonical lists, invalid paths, and contradictory skips. Operational comparison also
 rejects stale or implausibly future-dated evidence and a scenario digest mismatch. `compare_semantic_outcomes` requires a sorted
 explicit dimension list and reports `match`, `difference`, or `skipped`. A checked-in Patchbay fixture and round-trip test live at
-`iroh-sim/tests/fixtures/patchbay-public.json` and `iroh-sim/tests/parity.rs`. Operators export and
+`krikos-sim/tests/fixtures/patchbay-public.json` and `krikos-sim/tests/parity.rs`. Operators export and
 compare immutable evidence with `cargo sim parity export`, `cargo sim parity import-patchbay`, and
 `cargo sim parity compare`; the
 commands intersect declared capabilities and fail on a semantic difference or skip.
@@ -58,7 +58,7 @@ The complete privileged matrix previously ran as a manual `.github/workflows/pat
 on a self-hosted runner. This fork has no self-hosted runner, so those runs only queued for hours
 before an automatic cancellation; the dead workflow has been removed. The canonical definition of
 the full NAT, degradation, outage, and interface-switching suite remains
-`canonical_patchbay_scenarios()` in `iroh-sim/src/parity_catalog.rs` and `iroh/tests/patchbay/`,
+`canonical_patchbay_scenarios()` in `krikos-sim/src/parity_catalog.rs` and `krikos/tests/patchbay/`,
 runnable manually against a compatible host. A separate scheduled/manual probe in
 `.github/workflows/patchbay-hosted-smoke.yml` runs only `nat::nat_none_x_none` on `ubuntu-latest`.
 This bounded probe establishes whether the free hosted runner can support the public Patchbay case
@@ -67,7 +67,7 @@ without weakening or replacing the complete matrix.
 The hosted-smoke workflow does not treat the checked fixture as current execution evidence. After
 `nat::nat_none_x_none` proves an authenticated relay connection, direct-path upgrade, and successful
 ping, it atomically creates a receipt at
-`IROH_PATCHBAY_PARITY_RECEIPT`. Receipt creation is part of the test result: serialization or an
+`KRIKOS_PATCHBAY_PARITY_RECEIPT`. Receipt creation is part of the test result: serialization or an
 existing output file fails the test. The workflow then:
 
 1. imports the receipt with the current source revision and observation epoch;

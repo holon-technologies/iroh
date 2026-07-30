@@ -46,7 +46,7 @@ if [[ "$1 $2" == "run download" ]]; then
     esac
   done
   if [[ "$run_id" == 38 ]]; then
-    if [[ "$artifact_name" == "iroh-sim-daily-soak-38" ]]; then
+    if [[ "$artifact_name" == "krikos-sim-daily-soak-38" ]]; then
       mkdir -p "$destination"
       exit 0
     fi
@@ -161,7 +161,7 @@ jq -e '.workflow_run_id == 41' "$history/41.json" >/dev/null
 grep -Fq -- '--limit 32' "$FAKE_GH_LOG"
 grep -Fq -- '--status completed' "$FAKE_GH_LOG"
 grep -Fq -- '--repo holon-technologies/iroh' "$FAKE_GH_LOG"
-grep -Fq -- 'iroh-sim-daily-soak-38' "$FAKE_GH_LOG"
+grep -Fq -- 'krikos-sim-daily-soak-38' "$FAKE_GH_LOG"
 
 # GitHub metadata and immutable aggregate provenance must agree.
 jq '.source_revision = "dddddddddddddddddddddddddddddddddddddddd"' \

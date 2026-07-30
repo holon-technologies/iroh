@@ -3,8 +3,8 @@ name: netsim-runner
 on:
   workflow_dispatch:
     inputs:
-      iroh_ref:
-        description: "Pinned 40-character Iroh commit SHA"
+      krikos_ref:
+        description: "Pinned 40-character Krikos commit SHA"
         required: true
         type: string
       max_workers:
@@ -17,7 +17,7 @@ on:
         type: string
         default: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       rust_log:
-        description: "Custom RUST_LOG value (e.g. 'iroh=debug,noq=trace'). If empty, defaults to warn."
+        description: "Custom RUST_LOG value (e.g. 'krikos=debug,noq=trace'). If empty, defaults to warn."
         required: false
         type: string
         default: ""
@@ -44,8 +44,8 @@ on:
         default: ""
   workflow_call:
     inputs:
-      iroh_ref:
-        description: "Pinned 40-character Iroh commit SHA"
+      krikos_ref:
+        description: "Pinned 40-character Krikos commit SHA"
         required: true
         type: string
       max_workers:
@@ -58,7 +58,7 @@ on:
         type: string
         default: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       rust_log:
-        description: "Custom RUST_LOG value (e.g. 'iroh=debug,noq=trace'). If empty, defaults to warn."
+        description: "Custom RUST_LOG value (e.g. 'krikos=debug,noq=trace'). If empty, defaults to warn."
         required: false
         type: string
         default: ""
@@ -89,7 +89,7 @@ env:
   RUSTFLAGS: -Dwarnings
   SCCACHE_GHA_ENABLED: "on"
   RUSTC_WRAPPER: "sccache"
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
   NETSIM_TIMEOUT: 10m
 
 jobs:
@@ -102,12 +102,12 @@ jobs:
     timeout-minutes: 45
     runs-on: ubuntu-latest
     steps:
-    - name: Validate immutable Iroh input
+    - name: Validate immutable Krikos input
       env:
-        IROH_REF: ${{ inputs.iroh_ref }}
+        KRIKOS_REF: ${{ inputs.krikos_ref }}
       run: |
-        if [[ ! "$IROH_REF" =~ ^[0-9a-f]{40}$ ]]; then
-          echo "::error::iroh_ref must be a pinned 40-character lowercase commit SHA"
+        if [[ ! "$KRIKOS_REF" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "::error::krikos_ref must be a pinned 40-character lowercase commit SHA"
           exit 2
         fi
 
@@ -115,7 +115,7 @@ jobs:
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       with:
         submodules: recursive
-        ref: ${{ inputs.iroh_ref }}
+        ref: ${{ inputs.krikos_ref }}
 
     - name: Install rust stable
       uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
@@ -125,7 +125,7 @@ jobs:
       continue-on-error: true
     - uses: ./.github/actions/sccache-probe
 
-    - name: Build iroh
+    - name: Build krikos
       run: |
         cargo build --profile ${{ inputs.build_profile }} --workspace --all-features --examples --bins
 
@@ -178,7 +178,7 @@ jobs:
         declare -A seen_configs=()
         config_files=()
         for sim_path in "${sim_paths[@]}"; do
-          if [[ ! "$sim_path" =~ ^sims/(iroh|integration|paused)(/[a-z0-9_]+\.json)?$ ]]; then
+          if [[ ! "$sim_path" =~ ^sims/(krikos|integration|paused)(/[a-z0-9_]+\.json)?$ ]]; then
             echo "::error::unsupported Netsim path set: $sim_path"
             exit 2
           fi
@@ -226,8 +226,8 @@ jobs:
       run: |
         cp target/${{inputs.build_profile}}/examples/* ../chuck/netsim/bins/
         cp target/${{inputs.build_profile}}/examples/transfer ../chuck/netsim/bins/iroh-transfer
-        cp target/${{inputs.build_profile}}/iroh-relay ../chuck/netsim/bins/iroh-relay
-        cp target/${{inputs.build_profile}}/iroh-dns-server ../chuck/netsim/bins/iroh-dns-server
+        cp target/${{inputs.build_profile}}/krikos-relay ../chuck/netsim/bins/iroh-relay
+        cp target/${{inputs.build_profile}}/krikos-dns-server ../chuck/netsim/bins/iroh-dns-server
 
     - name: Get commit sha
       shell: bash
@@ -377,7 +377,7 @@ jobs:
       with:
         issue-number: ${{ inputs.pr_number }}
         body: |
-          `${{ inputs.iroh_ref }}.${{ env.LAST_COMMIT_SHA }}`
+          `${{ inputs.krikos_ref }}.${{ env.LAST_COMMIT_SHA }}`
           Perf report:
           ${{ steps.generate_report_table.outputs.NETSIM_REPORT }}
 

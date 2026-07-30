@@ -11,7 +11,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: iroh-daily-simulation-soak
+  group: krikos-daily-simulation-soak
   cancel-in-progress: false
 
 env:
@@ -27,18 +27,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Build the fresh-process simulator
-        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+        run: cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
       - name: Stage simulator and checksum
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/cargo-sim"
-          cp iroh-sim/target/release/cargo-sim "$RUNNER_TEMP/cargo-sim/cargo-sim"
+          cp krikos-sim/target/release/cargo-sim "$RUNNER_TEMP/cargo-sim/cargo-sim"
           cd "$RUNNER_TEMP/cargo-sim"
           sha256sum cargo-sim > cargo-sim.sha256
       - name: Upload source-bound simulator
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-cargo-sim-${{ github.sha }}
+          name: krikos-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
           if-no-files-found: error
           retention-days: 1
@@ -100,7 +100,7 @@ jobs:
       - name: Download source-bound simulator
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
-          name: iroh-sim-cargo-sim-${{ github.sha }}
+          name: krikos-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
       - name: Verify source-bound simulator
         shell: bash
@@ -135,7 +135,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-soak-${{ matrix.lane_slug }}-${{ github.run_id }}
+          name: krikos-sim-soak-${{ matrix.lane_slug }}-${{ github.run_id }}
           path: ${{ runner.temp }}/daily-soak
           if-no-files-found: error
           retention-days: 14
@@ -166,7 +166,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
-          pattern: iroh-sim-soak-*-${{ github.run_id }}
+          pattern: krikos-sim-soak-*-${{ github.run_id }}
           path: ${{ runner.temp }}/lane-results
       - name: Aggregate lane reports
         id: aggregate
@@ -227,7 +227,7 @@ jobs:
           if [[ "$rolling_status" -eq 0 ]]; then
             scripts/select-simulation-gaps.sh \
               --rolling "$RUNNER_TEMP/aggregate/rolling-coverage.json" \
-              --plan iroh-sim/soaks/daily.json \
+              --plan krikos-sim/soaks/daily.json \
               --max-lanes 12 \
               --output "$RUNNER_TEMP/aggregate/gap-selection.json"
             selection_status=$?
@@ -255,7 +255,7 @@ jobs:
         if: always() && steps.aggregate.outputs.status == '1'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
-          name: iroh-sim-cargo-sim-${{ github.sha }}
+          name: krikos-sim-cargo-sim-${{ github.sha }}
           path: ${{ runner.temp }}/cargo-sim
       - name: Replay and minimize unique product failures
         id: triage
@@ -340,7 +340,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-soak-aggregate-${{ github.run_id }}
+          name: krikos-sim-soak-aggregate-${{ github.run_id }}
           path: ${{ runner.temp }}/aggregate
           if-no-files-found: error
           retention-days: 14
@@ -348,7 +348,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-soak-triage-${{ github.run_id }}
+          name: krikos-sim-soak-triage-${{ github.run_id }}
           path: ${{ runner.temp }}/triage
           if-no-files-found: error
           retention-days: 30

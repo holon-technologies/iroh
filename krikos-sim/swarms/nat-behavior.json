@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "nat-behavior",
+  "base_path": "krikos-sim/corpus/stage4-nat-rebind-expiry/scenario.json",
+  "base_blake3": "e239eb22aabce89e09b178fde31af0a51aa00830f1822d41d02a2de49cf21239",
+  "choices": [
+    {
+      "id": "nat-behavior",
+      "options": [
+        {
+          "id": "address-and-port-dependent",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "address_and_port_dependent",
+            "filtering": "address_and_port_dependent"
+          }
+        },
+        {
+          "id": "endpoint-independent",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "endpoint_independent",
+            "filtering": "endpoint_independent"
+          }
+        },
+        {
+          "id": "mixed-filtering",
+          "weight": 1,
+          "mutation": {
+            "kind": "nat_behavior",
+            "nat": "edge",
+            "mapping": "endpoint_independent",
+            "filtering": "address_and_port_dependent"
+          }
+        }
+      ]
+    }
+  ]
+}

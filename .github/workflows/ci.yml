@@ -21,7 +21,7 @@ env:
   RUSTDOCFLAGS: -Dwarnings
   MSRV: "1.91"
   SCCACHE_CACHE_SIZE: "10G"
-  IROH_FORCE_STAGING_RELAYS: "1"
+  KRIKOS_FORCE_STAGING_RELAYS: "1"
 
 jobs:
   tests:
@@ -45,11 +45,11 @@ jobs:
       - name: Inspect provisional package layouts
         run: scripts/check-framework-package-layout.sh
       - name: Test framework lifecycle, persistence, and fuzz facades
-        run: cargo test -p iroh-app --all-features
+        run: cargo test -p krikos-app --all-features
       - name: Replay imported persistent-store migrations
-        run: cargo test -p iroh-docs migration
+        run: cargo test -p krikos-docs migration
       - name: Test direct and local-relay two-node acceptance
-        run: cargo test -p iroh-local-first-app-tests --test two_node
+        run: cargo test -p krikos-local-first-app-tests --test two_node
       - name: Check blobs v0.103 bidirectional interoperability
         run: scripts/tests/check-blobs-v0-interop.sh
       - name: Check gossip v0.101 bidirectional interoperability
@@ -64,7 +64,7 @@ jobs:
     env:
       # Moving nightly toolchains can deprecate APIs that remain required by the stable MSRV.
       RUSTFLAGS: ""
-      IROH_FUZZ_TOOLCHAIN: "nightly-2026-07-19"
+      KRIKOS_FUZZ_TOOLCHAIN: "nightly-2026-07-19"
     strategy:
       fail-fast: false
       matrix:
@@ -184,23 +184,23 @@ jobs:
       - name: Check relay V1/V2 golden compatibility
         run: scripts/tests/check-relay-compatibility.sh --golden
       - name: Test runtime capability contracts
-        run: cargo test -p iroh-runtime
+        run: cargo test -p krikos-runtime
       - name: Test generic resolver contracts
-        run: cargo test -p iroh-resolver --all-features
+        run: cargo test -p krikos-resolver --all-features
       - name: Test manifest, trace, and replay contracts
-        run: cargo test --manifest-path iroh-sim/Cargo.toml
+        run: cargo test --manifest-path krikos-sim/Cargo.toml
       - name: Validate simulation operations and cross-backend parity policy
-        run: cargo test --manifest-path iroh-sim/Cargo.toml --test operations --test parity
+        run: cargo test --manifest-path krikos-sim/Cargo.toml --test operations --test parity
       - name: Execute the complete reviewed regression corpus
-        run: cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- corpus test iroh-sim/corpus
-      - name: Test Iroh runtime adapter
-        run: cargo test -p iroh --lib runtime --all-features
+        run: cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- corpus test krikos-sim/corpus
+      - name: Test Krikos runtime adapter
+        run: cargo test -p krikos --lib runtime --all-features
       - name: Check native minimal feature graph
-        run: cargo check -p iroh --no-default-features
+        run: cargo check -p krikos --no-default-features
       - name: Check simulation code quality
         run: |
-          cargo clippy -p iroh-runtime -p iroh --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path iroh-sim/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy -p krikos-runtime -p krikos --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path krikos-sim/Cargo.toml --all-targets --all-features -- -D warnings
 
   simulation_gate:
     name: Deterministic simulation change gate
@@ -224,19 +224,19 @@ jobs:
         continue-on-error: true
       - uses: ./.github/actions/sccache-probe
       - name: Build source-bound simulation binary
-        run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
+        run: cargo build --release --manifest-path krikos-sim/Cargo.toml --bin cargo-sim
       - name: Select immutable universal and change-targeted work
         run: |
           scripts/select-simulation-gate.sh \
             --base-revision "$BASE_REVISION" \
             --candidate-revision "$CANDIDATE_REVISION" \
             --tier "$GATE_TIER" \
-            --impact-policy iroh-sim/change-impact-policy.json \
-            --coverage-policy iroh-sim/coverage-policy.json \
-            --sim-bin iroh-sim/target/release/cargo-sim \
+            --impact-policy krikos-sim/change-impact-policy.json \
+            --coverage-policy krikos-sim/coverage-policy.json \
+            --sim-bin krikos-sim/target/release/cargo-sim \
             --output "$RUNNER_TEMP/simulation-gate-selection.json"
       - name: Execute complete reviewed regression corpus
-        run: iroh-sim/target/release/cargo-sim corpus test iroh-sim/corpus
+        run: krikos-sim/target/release/cargo-sim corpus test krikos-sim/corpus
       - name: Execute bounded selected simulation work
         id: gate
         shell: bash
@@ -244,7 +244,7 @@ jobs:
           set +e
           scripts/run-simulation-gate.sh \
             --selection "$RUNNER_TEMP/simulation-gate-selection.json" \
-            --sim-bin iroh-sim/target/release/cargo-sim \
+            --sim-bin krikos-sim/target/release/cargo-sim \
             --artifacts "$RUNNER_TEMP/simulation-gate" \
             --jobs 2
           gate_status=$?
@@ -255,7 +255,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: iroh-sim-change-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          name: krikos-sim-change-gate-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/simulation-gate-selection.json
             ${{ runner.temp }}/simulation-gate
@@ -422,10 +422,10 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           CARGO_NDK_TARGET: ${{ matrix.target }}
         run: |
-          cargo ndk test --no-run -p iroh-base --all-features
-          cargo ndk test --no-run -p iroh-dns --features tls-ring
-          cargo ndk test --no-run -p iroh-relay --features tls-ring,metrics
-          cargo ndk test --no-run -p iroh --features tls-ring,metrics,portmapper,test-utils
+          cargo ndk test --no-run -p krikos-base --all-features
+          cargo ndk test --no-run -p krikos-dns --features tls-ring
+          cargo ndk test --no-run -p krikos-relay --features tls-ring,metrics
+          cargo ndk test --no-run -p krikos --features tls-ring,metrics,portmapper,test-utils
 
       - name: Run workspace tests on Android emulator
         if: matrix.target == 'x86_64-linux-android'
@@ -472,10 +472,10 @@ jobs:
             # removes each binary after it runs.
             adb shell 'rm -rf /data/local/tmp/*' || true
             adb shell df -h /data
-            cargo ndk test -p iroh-base --all-features
-            cargo ndk test -p iroh-dns --features tls-ring
-            cargo ndk test -p iroh-relay --features tls-ring,metrics
-            cargo ndk test -p iroh --features tls-ring,metrics,portmapper,test-utils
+            cargo ndk test -p krikos-base --all-features
+            cargo ndk test -p krikos-dns --features tls-ring
+            cargo ndk test -p krikos-relay --features tls-ring,metrics
+            cargo ndk test -p krikos --features tls-ring,metrics,portmapper,test-utils
 
   cross_test:
     name: Cross Test
@@ -553,30 +553,30 @@ jobs:
       - name: Install wasm-tools
         uses: bytecodealliance/actions/wasm-tools/setup@9152e710e9f7182e4c29ad218e4f335a7b203613  # v1
 
-      - name: wasm32 build (iroh-base)
-        run: cargo build --target wasm32-unknown-unknown -p iroh-base --all-features
+      - name: wasm32 build (krikos-base)
+        run: cargo build --target wasm32-unknown-unknown -p krikos-base --all-features
 
-      - name: wasm32 build (iroh-relay)
-        run: cargo build --target wasm32-unknown-unknown -p iroh-relay
+      - name: wasm32 build (krikos-relay)
+        run: cargo build --target wasm32-unknown-unknown -p krikos-relay
 
-      - name: wasm32 build (iroh)
-        run: cargo build --target wasm32-unknown-unknown -p iroh
+      - name: wasm32 build (krikos)
+        run: cargo build --target wasm32-unknown-unknown -p krikos
 
-      - name: wasm32 build (iroh-runtime portable contracts)
-        run: cargo build --target wasm32-unknown-unknown -p iroh-runtime
+      - name: wasm32 build (krikos-runtime portable contracts)
+        run: cargo build --target wasm32-unknown-unknown -p krikos-runtime
 
       # If the Wasm file contains any 'import "env"' declarations, then
       # some non-Wasm-compatible code made it into the final code.
-      - name: Ensure no 'import "env"' in iroh-relay Wasm
+      - name: Ensure no 'import "env"' in krikos-relay Wasm
         run: |
-          ! wasm-tools print --skeleton target/wasm32-unknown-unknown/debug/iroh_relay.wasm | grep 'import "env"'
+          ! wasm-tools print --skeleton target/wasm32-unknown-unknown/debug/krikos_relay.wasm | grep 'import "env"'
 
-      - name: Ensure no 'import "env"' in iroh Wasm
+      - name: Ensure no 'import "env"' in krikos Wasm
         run: |
-          ! wasm-tools print --skeleton target/wasm32-unknown-unknown/debug/iroh.wasm | grep 'import "env"'
+          ! wasm-tools print --skeleton target/wasm32-unknown-unknown/debug/krikos.wasm | grep 'import "env"'
 
       - name: Run integration test in wasm
-        run: cargo test -p iroh --test integration --target=wasm32-unknown-unknown
+        run: cargo test -p krikos --test integration --target=wasm32-unknown-unknown
 
   check_semver:
     runs-on: ubuntu-latest
@@ -695,7 +695,7 @@ jobs:
       - name: Docs
         run: |
           cargo doc --workspace --all-features --no-deps --document-private-items
-          cargo doc --manifest-path iroh-sim/Cargo.toml --all-features --no-deps --document-private-items
+          cargo doc --manifest-path krikos-sim/Cargo.toml --all-features --no-deps --document-private-items
 
   clippy_check:
     timeout-minutes: 30
@@ -735,8 +735,8 @@ jobs:
         run: |
           fail=0
           for dep in portmapper igd-next swarm-discovery ring aws-lc-rs; do
-            echo    "cargo tree -p iroh --no-default-features --edges normal --target all -i $dep";
-            output=$(cargo tree -p iroh --no-default-features --edges normal --target all -i "$dep" 2>&1) || true
+            echo    "cargo tree -p krikos --no-default-features --edges normal --target all -i $dep";
+            output=$(cargo tree -p krikos --no-default-features --edges normal --target all -i "$dep" 2>&1) || true
             if ! echo "$output" | grep -qE "(nothing to print|did not match any packages)"; then
               echo "ERROR: $dep should not be in the dependency tree without its feature"
               echo "$output"
@@ -769,7 +769,7 @@ jobs:
 
       - name: Check MSRV — simulator
         run: |
-          cargo "+$MSRV" check --manifest-path iroh-sim/Cargo.toml --all-targets --all-features
+          cargo "+$MSRV" check --manifest-path krikos-sim/Cargo.toml --all-targets --all-features
 
       - name: Check MSRV — blobs v0.103 interop
         run: |
@@ -816,12 +816,12 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/netsim_runner.yaml"
     with:
-      iroh_ref: ${{ github.sha }}
+      krikos_ref: ${{ github.sha }}
       max_workers: 6
       netsim_ref: "7321e503c462822ecd6e2e49bbcc8ec77ad695ce"
       sim_paths: ${{ github.event_name == 'pull_request' && 'sims/integration' || 'sims/iroh/iroh.json,sims/integration' }}
       pr_number: ${{ github.event.pull_request.number || '' }}
-      filter: ${{ github.event_name == 'pull_request' && 'skip:intg_iroh_full__1_to_3,intg_iroh_full__1_to_1x3,intg_iroh_relay_only__1_to_3' || '' }}
+      filter: ${{ github.event_name == 'pull_request' && 'skip:intg_krikos_full__1_to_3,intg_krikos_full__1_to_1x3,intg_krikos_relay_only__1_to_3' || '' }}
 
   codespell:
     timeout-minutes: 30
@@ -856,10 +856,14 @@ jobs:
         run: scripts/tests/check-vendor-provenance.sh
       - name: ci-ok covers every job
         run: scripts/tests/check-ci-aggregate.sh
+      - name: Krikos rebrand has no uncovered old-name occurrences
+        run: scripts/tests/check-rebrand-complete.sh
+      - name: No falsified krikos-prefixed crate references
+        run: scripts/tests/check-rebrand-unknown-crates.sh
       - name: Excluded workspaces resolve with their lockfiles
         run: |
           cargo metadata --manifest-path fuzz/Cargo.toml --locked --format-version 1 >/dev/null
-          cargo metadata --manifest-path iroh-sim/Cargo.toml --locked --format-version 1 >/dev/null
+          cargo metadata --manifest-path krikos-sim/Cargo.toml --locked --format-version 1 >/dev/null
           cargo metadata --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml --locked --format-version 1 >/dev/null
           cargo metadata --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml --locked --format-version 1 >/dev/null
           cargo metadata --manifest-path compat/relay-v1-interop/Cargo.toml --locked --format-version 1 >/dev/null

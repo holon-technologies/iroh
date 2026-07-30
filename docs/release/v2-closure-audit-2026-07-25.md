@@ -1,4 +1,4 @@
-# Iroh 2.0 release-closure audit — 2026-07-25
+# Krikos 2.0 release-closure audit — 2026-07-25
 
 > Historical pre-architecture-cut evidence. The later v2 hard cut intentionally moves generic DNS
 > APIs and replaces the zero-break v1 Rust API gate with the reviewed migration inventory plus a
@@ -22,15 +22,15 @@ uncommitted closure changes.
 
 | Area | Result | Evidence |
 | --- | --- | --- |
-| Version and package graph | Pass | Every publishable Iroh crate is `2.0.0`; internal requirements and production/simulator locks are consistent; the two vendored forks use their `-holon.1` identities. |
-| Public API compatibility | Pass | `scripts/run-v2-semver-checks.sh` completed strict minor-level comparison with `v1.0.3` for `iroh`, `iroh-base`, `iroh-dns`, `iroh-dns-server`, and `iroh-relay`; each package passed all 196 applicable checks. |
+| Version and package graph | Pass | Every publishable Krikos crate is `2.0.0`; internal requirements and production/simulator locks are consistent; the two vendored forks use their `-holon.1` identities. |
+| Public API compatibility | Pass | `scripts/run-v2-semver-checks.sh` completed strict minor-level comparison with `v1.0.3` for `krikos`, `krikos-base`, `krikos-dns`, `krikos-dns-server`, and `krikos-relay`; each package passed all 196 applicable checks. |
 | Release packages | Pass | `scripts/verify-release-packages.sh --allow-dirty` created, normalized, unpacked, and built all eight packages in dependency order without a hidden path or patch dependency. |
 | Native binaries | Pass locally | Optimized GNU and static musl `x86_64` relay and DNS server binaries built and reported `2.0.0`. The hosted seven-target matrix remains required. |
 | Containers | Pass locally | Both `linux/amd64` targets built from `docker/Dockerfile.ci` with Buildx and ran their `--version` smoke tests. Hosted `linux/arm64` evidence remains required. |
 | Supply chain | Pass locally | The release workflow creates SHA-256 checksums, an SPDX 2.3 SBOM from the production lockfile, build provenance attestations, and an SBOM attestation. The pinned Syft 1.44.0 output passed the workflow's exact local schema check. |
 | Formatting and workflow syntax | Pass | `scripts/run-format.sh --check`, every `scripts/tests/check-*.sh` contract, Actionlint, and ShellCheck for every changed/new shell script passed. |
 | Strict lint | Pass | Root and simulator workspaces passed all-workspace, all-feature, all-target Clippy with warnings denied. |
-| Test suites | Pass in isolated environment | Root and simulator all-feature/all-target test suites passed through `scripts/iroh-test-env`. Patchbay passed 46 cases with 13 explicitly ignored capability/reliability cases. |
+| Test suites | Pass in isolated environment | Root and simulator all-feature/all-target test suites passed through `scripts/krikos-test-env`. Patchbay passed 46 cases with 13 explicitly ignored capability/reliability cases. |
 | Deterministic testing | Pass | Boundary contracts, semantic contracts, campaigns, corpus/replay paths, fixed-seed nightly scenarios, bounded fuzz tooling, and daily soak/resource workflow contracts passed. |
 | Resource hardening | Pass locally | Finite connection, request, task, session, body, retained-state, and shutdown limits are covered by regression and saturation tests. No unresolved Critical or High TigerStyle finding was found in this closure pass. |
 
@@ -51,8 +51,8 @@ The following read-only observations were made on 2026-07-25:
   repository-enforced.
 - The repository has zero self-hosted runners, Actions secrets, Actions
   variables, and GitHub releases.
-- crates.io returned `404` for both `iroh-noq` and
-  `iroh-hickory-server`. The required fork namespaces are therefore not yet
+- crates.io returned `404` for both `krikos-noq` and
+  `krikos-hickory-server`. The required fork namespaces are therefore not yet
   controlled by an authorized Holon publisher.
 - [CI run 30155190396](https://github.com/holon-technologies/iroh/actions/runs/30155190396),
   [Patchbay run 30155190120](https://github.com/holon-technologies/iroh/actions/runs/30155190120),
@@ -75,7 +75,7 @@ closed from a dirty local tree:
 3. Obtain green hosted evidence on that exact commit for CI, MSRV, platforms,
    dependency policy, fuzz smoke, Patchbay public-parity and full namespace
    coverage, Netsim, Wine, deterministic nightly/soak, and the resource canary.
-4. Claim and publish `iroh-noq` and `iroh-hickory-server` in dependency order
+4. Claim and publish `krikos-noq` and `krikos-hickory-server` in dependency order
    under an authorized Holon crates.io account before publishing dependent
    crates.
 5. Dispatch the release workflow against the exact 40-character commit SHA
