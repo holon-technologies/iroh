@@ -856,6 +856,10 @@ jobs:
         run: scripts/tests/check-vendor-provenance.sh
       - name: ci-ok covers every job
         run: scripts/tests/check-ci-aggregate.sh
+      - name: Krikos rebrand has no uncovered old-name occurrences
+        run: scripts/tests/check-rebrand-complete.sh
+      - name: No falsified krikos-prefixed crate references
+        run: scripts/tests/check-rebrand-unknown-crates.sh
       - name: Excluded workspaces resolve with their lockfiles
         run: |
           cargo metadata --manifest-path fuzz/Cargo.toml --locked --format-version 1 >/dev/null
