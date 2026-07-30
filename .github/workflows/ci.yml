@@ -802,6 +802,7 @@ jobs:
     if: always()
     needs:
       - tests
+      - local_first_framework
       - fuzz_smoke
       - simulation_contracts
       - simulation_gate
