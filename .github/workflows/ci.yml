@@ -110,11 +110,18 @@ jobs:
     name: Deterministic simulation contracts and corpus
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "on"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
+        continue-on-error: true
+      - uses: ./.github/actions/sccache-probe
       - name: Install ripgrep
         run: |
           sudo apt-get update
@@ -203,6 +210,8 @@ jobs:
       BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
       CANDIDATE_REVISION: ${{ github.sha }}
       GATE_TIER: ${{ github.event_name == 'push' && 'main' || 'pull-request' }}
+      RUSTC_WRAPPER: "sccache"
+      SCCACHE_GHA_ENABLED: "on"
     steps:
       - name: Checkout complete change history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -210,6 +219,10 @@ jobs:
           fetch-depth: 0
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
+        continue-on-error: true
+      - uses: ./.github/actions/sccache-probe
       - name: Build source-bound simulation binary
         run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
       - name: Select immutable universal and change-targeted work
