@@ -146,3 +146,50 @@ names, because they exist to test against upstream.
 Downstream migration from upstream iroh is no longer a one-line manifest change. A migration guide
 must state the package mapping and the import-path rewrite, and the existing
 `docs/release/v2-migration.md` needs a companion section.
+
+## Addendum: `post_cut_ref` advanced to the rebrand (2026-07-30)
+
+`scripts/v2-api-baseline.toml`'s `post_cut_ref` freezes the public-API-surface baseline that
+`scripts/run-v2-semver-checks.sh` compares every subsequent change against in `post-cut` mode. It
+held `b433041dce6fcb1f45287e4602e7cab271bf81df` (the pre-rebrand v2 architecture-cut commit), so
+comparing this rebrand's tip against it correctly reported two breaking changes in `krikos-dns`:
+
+- `IROH_TXT_NAME` (a `pub const`) renamed to `KRIKOS_TXT_NAME`.
+- `ParseError::NotAnIrohRecord` (a `pub enum` variant) renamed to `NotAKrikosRecord`.
+
+Both are sanctioned by this ADR's decision that import paths, and therefore every public
+identifier that embeds the old name, change (see "Import paths change" above) — the checker was
+not wrong, it was comparing against a baseline that predates the decision it is now asked to
+verify compliance with. The project owner decided to advance `post_cut_ref` to this rebrand, in
+the same change that makes the rename official, rather than leave the check red indefinitely
+waiting for a separate maintainer action.
+
+**Value chosen and why:** `post_cut_ref` is now `ee634c133d7d46c67822312293021abeaf0a3d73`, the
+last commit of this rebrand branch before the commit that changes this file — i.e. the commit at
+which every rebrand fix (mechanical sweep, guard/policy updates, version bump, migration docs, the
+CI-gap closure, and every review-round fix including this addendum's own predecessors) is already
+landed and the workspace is green apart from this baseline itself. It is not the tip *after* this
+addendum, because a commit cannot embed its own hash.
+
+**Stability after merge — read before merging with anything other than a merge commit.** A commit
+SHA is only guaranteed to keep resolving (`git rev-parse --verify`, which
+`run-v2-semver-checks.sh` depends on) if something keeps it reachable. Right now it is reachable
+because it is an ancestor of this open PR's head. Whether it stays reachable from `main` after
+merge depends entirely on the merge method:
+
+- **Merge commit:** every commit on the branch, including this one, becomes an ancestor of the new
+  commit on `main`. The SHA stays resolvable indefinitely from a plain clone of `main`. Sound.
+- **Squash merge or rebase merge:** GitHub (or `git rebase`) constructs a *new* commit for the same
+  tree content; this branch's original commits, including `ee634c133d...`, are not reachable from
+  `main` at all. They persist only as long as something else keeps them alive (a still-open PR
+  ref, a reflog entry, absence of a `git gc --prune` sweep) — not a property this repository's
+  future CI runs can rely on. A future `main`-only clone/checkout would fail to resolve the ref,
+  and `run-v2-semver-checks.sh` would hard-fail with "semver baseline ref is missing" (exit 66) on
+  every subsequent PR, not just report a false compatibility result.
+
+**This PR must therefore be merged with a merge commit, not squash or rebase, or this value must
+be replaced with the resulting `main` commit immediately after merging by whatever method is
+actually used.** If the merge method is squash or rebase, advancing `post_cut_ref` inside this PR
+was the wrong moment to do it — the sound fix in that case is a small follow-up commit on `main`,
+after the merge, setting `post_cut_ref` to the actual commit that lands on `main`, not to any SHA
+that only ever existed on the source branch.

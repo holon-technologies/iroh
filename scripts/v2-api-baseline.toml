@@ -4,4 +4,17 @@ legacy_inventory_ref = "v1.0.3"
 # Set this to the approved architecture-cut commit's full 40-character SHA after that immutable
 # candidate is reviewed. Leaving it empty runs the audited v1-to-v2 migration inventory; setting it
 # switches the gate to strict post-cut compatibility and permits no semver finding.
-post_cut_ref = "b433041dce6fcb1f45287e4602e7cab271bf81df"
+#
+# Advanced 2026-07-30 (docs/adr/0002-krikos-rebrand.md) from the pre-rebrand v2
+# architecture-cut commit (b433041dce6fcb1f45287e4602e7cab271bf81df) to
+# ee634c133d7d46c67822312293021abeaf0a3d73, the last commit of the Krikos rebrand branch before this
+# advance -- the commit that establishes the post-rebrand API surface as the
+# new frozen baseline. This SHA is stable in `main`'s history ONLY if the
+# rebrand pull request is merged with a merge commit (every commit on the
+# branch, including this one, stays reachable from `main`); a squash or
+# rebase merge gives `main` a *different* commit for the same tree and
+# orphans this SHA from `main`'s ancestry, so `git rev-parse --verify` would
+# stop resolving it for any later clone/checkout that only fetches `main`.
+# See docs/adr/0002-krikos-rebrand.md for the sanctioned renames this
+# baseline exists to permit and the merge-commit requirement.
+post_cut_ref = "ee634c133d7d46c67822312293021abeaf0a3d73"
