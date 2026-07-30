@@ -82,7 +82,7 @@ fi
 # scripts/rename-map.toml to find the name it had BEFORE the Krikos rebrand
 # (Task 5), because both baseline refs here (the pre-rename v2
 # architecture-cut commit, and the upstream v1.0.3 tag) predate the rename
-# entirely and still carry the old iroh-* package names. Building the
+# entirely and still carry the pre-rebrand package names. Building the
 # baseline rustdoc JSON with the current (krikos-*) package name against
 # that old checkout fails outright ("cannot specify features for packages
 # outside of workspace") because no such package exists there -- this is
@@ -167,8 +167,7 @@ for package in "${packages[@]}"; do
 
   if [[ "$baseline_package" != "$package" ]]; then
     # The baseline crate's own root name (and every path rustdoc recorded
-    # under it) is still the pre-rename name, e.g. "iroh", while the
-    # current crate is "krikos" -- cargo-semver-checks compares items by
+    # under it) is still the pre-rebrand name -- cargo-semver-checks compares items by
     # their full path INCLUDING the crate root, so without this it would
     # report the entire public API as removed-and-re-added under a new
     # name (every item's path starts with the wrong crate name) instead of
