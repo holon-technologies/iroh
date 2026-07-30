@@ -1,6 +1,6 @@
 //! A simple krikos connection pool.
 //!
-//! Adapted from `krikos-util` 0.6.0 for the local Krikos v2 API. The original source is licensed
+//! Adapted from `iroh-util` 0.6.0 for the local Krikos v2 API. The original source is licensed
 //! `MIT OR Apache-2.0` by the n0 team.
 //!
 //! Entry point is [`ConnectionPool`]. You create a connection pool for a specific

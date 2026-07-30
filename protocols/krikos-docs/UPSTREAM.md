@@ -24,7 +24,7 @@ This directory preserves the `krikos-docs` source history for the Holon Krikos m
 - Rewritten tree fingerprint (`git ls-tree -r --full-tree` SHA-256):
   `8d688a34ffc915b9dd80da707ae5ae8cfb0a6f8fb1cad286e821e03e37f267dc`
 - Monorepo import merge: `79bb8805bb0d5ff491ccf3e3c43a4c8956acbc09`
-- Commit map: [`docs/upstream/commit-maps/krikos-docs-v0.101.0.tsv`](../../docs/upstream/commit-maps/krikos-docs-v0.101.0.tsv)
+- Commit map: [`docs/upstream/commit-maps/iroh-docs-v0.101.0.tsv`](../../docs/upstream/commit-maps/iroh-docs-v0.101.0.tsv)
 - Commit-map SHA-256:
   `68c41b8682aca29f7a23e06194b9b2472215f5768b92235b63d6fececf0ef13b`
 
@@ -66,10 +66,11 @@ implementation to the local v2 endpoint, blobs, and gossip crates.
 ## v2 workspace port
 
 The subsequent port keeps the crate private, changes its package version and metadata to the v2
-workspace line, replaces crates.io Krikos, blobs, and gossip with the local workspace packages, and
-removes the superseded standalone lockfile. The production dependency graph contains no Krikos 1.x
-package; the former `iroh-tickets` dependency is replaced by a local codec that retains the exact
-`doc` prefix, lowercase unpadded-base32 representation, postcard discriminator, capability bytes,
+workspace line, replaces crates.io iroh, iroh-blobs, and iroh-gossip with the local workspace
+packages, and removes the superseded standalone lockfile. The production dependency graph contains
+no Krikos 1.x package; the former `iroh-tickets` dependency is replaced by a local codec that
+retains the exact `doc` prefix, lowercase unpadded-base32 representation, postcard discriminator,
+capability bytes,
 and endpoint-address encoding.
 
 Compatibility fixtures preserve `/iroh-sync/1`, document tickets, signed entries, author and

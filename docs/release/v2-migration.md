@@ -34,7 +34,7 @@ ALPN, wire requests, range encoding, hash semantics, ticket strings, and filesys
 frozen by compatibility fixtures.
 
 The crate now uses the local `krikos` v2 endpoint facade directly. It no longer depends on
-`krikos-util`, `iroh-tickets`, or the Krikos 1.x core graph. `BlobTicket` keeps the canonical `blob`
+`iroh-util`, `iroh-tickets`, or the Krikos 1.x core graph. `BlobTicket` keeps the canonical `blob`
 prefix and v0.103 lowercase unpadded-base32 bytes; its parse error is now
 `krikos_blobs::ticket::ParseError` rather than `iroh_tickets::ParseError`.
 
@@ -68,8 +68,8 @@ sends, duplicate/payload caches, graft retries, streams, dials, connection handl
 shutdown.
 
 Run `scripts/tests/check-gossip-v0-interop.sh` for a live bidirectional broadcast between crates.io
-`krikos-gossip` v0.101.0 on exact Krikos v1.0.3 and the local v2 port. The compatibility driver is
-excluded from the production workspace so the Krikos 1.x graph cannot enter a release build.
+`iroh-gossip` v0.101.0 on exact upstream iroh v1.0.3 and the local v2 port. The compatibility driver
+is excluded from the production workspace so the Krikos 1.x graph cannot enter a release build.
 
 The endpoint implementation is now split behind a narrow `krikos::endpoint` facade. Public endpoint
 imports (`krikos::Endpoint`, `krikos::endpoint::Builder`, connection types, relay status, and lifecycle

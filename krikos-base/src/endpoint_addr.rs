@@ -369,7 +369,7 @@ impl From<EndpointId> for EndpointAddr {
 /// transports for krikos.
 ///
 /// Transport ids are freely chosen u64 numbers. A registry for well-known transport ids
-/// is maintained at <https://github.com/n0-computer/iroh/blob/main/TRANSPORTS.md>.
+/// is maintained at <https://github.com/holon-technologies/iroh/blob/main/TRANSPORTS.md>.
 /// New addresses created through fallible parsing or [`CustomAddr::try_from_parts`] are limited to
 /// [`MAX_CUSTOM_ADDR_BYTES`]. The legacy infallible constructor remains temporarily available for
 /// source compatibility and is deprecated.
@@ -684,7 +684,7 @@ impl CustomAddr {
     /// Returns the transport id.
     ///
     /// You can freely choose this. There is a table of reserved custom transport ids in
-    /// <https://github.com/n0-computer/iroh/blob/main/TRANSPORTS.md>, where you could
+    /// <https://github.com/holon-technologies/iroh/blob/main/TRANSPORTS.md>, where you could
     /// submit your transport for registration to get a reserved id.
     ///
     /// But this is only relevant if you care for interop.

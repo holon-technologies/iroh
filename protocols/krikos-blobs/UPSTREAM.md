@@ -24,7 +24,7 @@ This directory preserves and adapts the `krikos-blobs` source history for the Ho
 - Rewritten tree fingerprint (`git ls-tree -r --full-tree` SHA-256):
   `ff3c1b643ecb3ba08d80763b53f1b209cbe37fe548857595f6a946284bbc7b7b`
 - Monorepo import merge: `3f46aadd998e04896056adca1e5232f5e1278056`
-- Commit map: [`docs/upstream/commit-maps/krikos-blobs-v0.103.0.tsv`](../../docs/upstream/commit-maps/krikos-blobs-v0.103.0.tsv)
+- Commit map: [`docs/upstream/commit-maps/iroh-blobs-v0.103.0.tsv`](../../docs/upstream/commit-maps/iroh-blobs-v0.103.0.tsv)
 - Commit-map SHA-256:
   `aeda18e708cf606c3c95ac046c4e1a38adbb576d27d4133fc6af404bd69b2380`
 
@@ -77,7 +77,7 @@ preserves:
 - redb entry-state type names, table names, and postcard payloads.
 
 The Rust source hard cut replaces Krikos 1.x endpoint calls with the local v2 endpoint facade,
-localizes the former `krikos-util` connection pool, and removes `iroh-tickets` from the production
+localizes the former `iroh-util` connection pool, and removes `iroh-tickets` from the production
 graph while retaining its exact blob-ticket codec. Imported examples now use bounded v2
 `EndpointAddr` construction; the old mDNS example documents direct-address discovery because the
 external adapter still targets Krikos 1.x. The transfer example's Cargo target is

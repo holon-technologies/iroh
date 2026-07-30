@@ -1,4 +1,4 @@
-//! Krikos's relay is a feature within [krikos](https://github.com/n0-computer/iroh), a peer-to-peer
+//! Krikos's relay is a feature within [krikos](https://docs.rs/krikos), a peer-to-peer
 #![forbid(unsafe_code)]
 //! networking system designed to facilitate direct, encrypted connections between devices. Krikos
 //! aims to simplify decentralized communication by automatically handling connections through

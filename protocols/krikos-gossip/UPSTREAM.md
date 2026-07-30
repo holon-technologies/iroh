@@ -24,7 +24,7 @@ This directory preserves the `krikos-gossip` source history for the Holon Krikos
 - Rewritten tree fingerprint (`git ls-tree -r --full-tree` SHA-256):
   `3462a55691d1e925d262032096db61dd268d69ee984d085fa88eeabec7aa0f75`
 - Monorepo import merge: `7c38757dbe0b2d3ee01e70e6492c6e42d3c4d662`
-- Commit map: [`docs/upstream/commit-maps/krikos-gossip-v0.101.0.tsv`](../../docs/upstream/commit-maps/krikos-gossip-v0.101.0.tsv)
+- Commit map: [`docs/upstream/commit-maps/iroh-gossip-v0.101.0.tsv`](../../docs/upstream/commit-maps/iroh-gossip-v0.101.0.tsv)
 - Commit-map SHA-256:
   `7d2a96e8dd3c5ebc2b69d40859f8fa5e978fca327ab662ce33d4e3cfd494fdf4`
 
@@ -70,5 +70,6 @@ Krikos 1.x dependency.
 
 The port adds named resource limits for protocol and network state and a live excluded interop
 driver under `compat/iroh-gossip-v0-101-interop`. That driver forms a mixed-version mesh and
-broadcasts in both directions between exact Krikos v1.0.3/upstream gossip v0.101.0 and the local v2
-stack. The setup example's Cargo target is `gossip-setup` so it remains unique in the monorepo.
+broadcasts in both directions between exact upstream iroh v1.0.3/upstream gossip v0.101.0 and the
+local v2 stack. The setup example's Cargo target is `gossip-setup` so it remains unique in the
+monorepo.

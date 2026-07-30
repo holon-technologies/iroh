@@ -93,11 +93,11 @@ Code contributions to Krikos are greatly appreciated. Here is the general workfl
 
     Congratulations on becoming an official Krikos contributor!
 
-[coc]: https://github.com/n0-computer/iroh/blob/main/code_of_conduct.md
-[discussions]: https://github.com/n0-computer/iroh/discussions
-[issues]: https://github.com/n0-computer/iroh/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
-[newissue]: https://github.com/n0-computer/iroh/issues/new
-[forkkrikos]: https://github.com/n0-computer/iroh/fork
+[coc]: https://github.com/holon-technologies/iroh/blob/main/code_of_conduct.md
+[discussions]: https://github.com/holon-technologies/iroh/discussions
+[issues]: https://github.com/holon-technologies/iroh/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
+[newissue]: https://github.com/holon-technologies/iroh/issues/new
+[forkkrikos]: https://github.com/holon-technologies/iroh/fork
 [draftprs]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests
 [rustdoc]: https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html
 [docconventions]: https://rust-lang.github.io/rfcs/1574-more-api-documentation-conventions.html#appendix-a-full-conventions-text

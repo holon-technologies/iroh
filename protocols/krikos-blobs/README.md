@@ -69,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
 
 ## Examples
 
-Examples that use `krikos-blobs` can be found in [this repo](https://github.com/n0-computer/iroh-blobs/tree/main/examples).
+Examples that use `krikos-blobs` can be found in [this crate's `examples/` directory](examples).
 
 # License
 

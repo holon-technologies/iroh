@@ -248,6 +248,36 @@ path = "docs/history/**"
 reason = "archived upstream changelogs (CHANGELOG.md, CHANGELOG_old.md) are not rewritten"
 
 [[exemptions]]
+path = "protocols/*/CHANGELOG.md"
+reason = "git-cliff-generated changelogs imported verbatim from upstream n0-computer/iroh-blobs, iroh-gossip, and iroh-docs, covering releases that predate this fork by roughly two years. Every entry quotes a real upstream commit message/PR title and links a real n0-computer/<pkg> commit or issue; those are historical facts about what upstream did, not this fork's own identity, so they read the same way docs/history/** does. Found by code review: an earlier mechanical pass rewrote scopes like `*(iroh-net)*` into `*(krikos-net)*` -- krikos-net has never existed -- because the checker cannot tell 'this crate's own current name' from 'a quoted fact about a different project's PR scope' when both are just the substring iroh. Reverted to the pre-rebrand content verbatim (recovered from commit 40f89f8b33^, the last commit before the corrupting sweep) rather than re-transcribed, and exempted here so it cannot regress the same way twice."
+
+[[exemptions]]
+path = "krikos-relay/CHANGELOG.md"
+reason = "same defect and same fix as the protocols/*/CHANGELOG.md entry above: this file's `## [1.0.2]`/`## [1.0.3]` sections are git-cliff output imported verbatim from upstream n0-computer/iroh (real commit/issue links under n0-computer/iroh, including a `*(iroh-relay)*` PR-scope label describing upstream's own crate, not this one). Only the current `## Unreleased` section is this fork's own new content, and it does not itself contain the string iroh/krikos, so the whole file reverts to its pre-rebrand content and is exempted, matching docs/history/**'s reasoning."
+
+[[exemptions]]
+path = "krikos-dns-server/CHANGELOG.md"
+reason = "same defect, same fix, same reasoning as krikos-relay/CHANGELOG.md above -- its `## [1.0.2]`/`## [1.0.3]` sections are verbatim-imported upstream n0-computer/iroh history (including a `*(iroh-dns-server)*` PR-scope label naming upstream's own crate)."
+
+[[exemptions]]
+path = "krikos-base/CHANGELOG.md"
+reason = "same defect and fix as krikos-relay/CHANGELOG.md above, found during the follow-up hunt for the same corruption class rather than in the original review: its `## [1.0.2]`/`## [1.0.3]` sections are verbatim-imported upstream n0-computer/iroh history for the iroh-base package. The `## Unreleased` section is this fork's own new content and does not itself mention iroh/krikos, so nothing of this fork's own is lost by exempting and reverting the whole file."
+
+[[exemptions]]
+path = "krikos-dns/CHANGELOG.md"
+reason = "same defect, fix, and discovery path as krikos-base/CHANGELOG.md above -- verbatim-imported upstream n0-computer/iroh history for the iroh-dns package under `## [1.0.2]`/`## [1.0.3]`, with an unaffected fork-authored `## Unreleased` section above it."
+
+# krikos-resolver/CHANGELOG.md and krikos-runtime/CHANGELOG.md were considered for the same
+# exemption and deliberately excluded: both crates are new, never existed upstream, and their
+# CHANGELOG.md content is entirely this fork's own `## Unreleased` prose (no imported
+# `## [x.y.z]` section, no n0-computer/iroh commit/issue links). Their `iroh`->`krikos`
+# rewrites (including the self-descriptive "production Iroh"/"production Krikos" sentence in
+# krikos-runtime/CHANGELOG.md) are correct renames of this fork's own text, not a
+# misattribution -- exempting them would hide a real future violation instead of protecting a
+# genuine historical record, the same "too broad" failure mode called out for
+# docs/release/v2-migration.md below.
+
+[[exemptions]]
 path = "LICENSE-*"
 reason = "upstream copyright attribution at the repository root. NOTE: currently matches 2 tracked files (LICENSE-APACHE, LICENSE-MIT) but neither contains the string iroh today -- kept for the same forward-looking reason as the vendor/src exemption."
 
@@ -336,6 +366,18 @@ pattern = "iroh-gossip-v0-101-interop"
 reason = "the compat/** interop crate's actual directory and package name (see rename-map.toml's [[not_renamed]] entry for it); same reasoning as iroh-blobs-v0-103-interop above -- references from outside compat/** must keep pointing at the real, unrenamed path."
 
 [[exemptions]]
+pattern = "iroh-blobs-v0\\.103\\.0\\.tsv"
+reason = "the real, correctly upstream-named filename of the commit-provenance map at docs/upstream/commit-maps/iroh-blobs-v0.103.0.tsv (itself covered by the docs/upstream/** path exemption above, since a provenance record's filename names the upstream release it maps). protocols/krikos-blobs/UPSTREAM.md links to it by relative path from outside docs/upstream/**, so this pattern covers that one reference site. Found by code review: an earlier pass had rewritten the link's text and href to `krikos-blobs-v0.103.0.tsv`, a file that has never existed, breaking the link -- the fix corrects the link, not the (correctly named) target file."
+
+[[exemptions]]
+pattern = "iroh-docs-v0\\.101\\.0\\.tsv"
+reason = "same defect, fix, and reasoning as iroh-blobs-v0.103.0.tsv above, for protocols/krikos-docs/UPSTREAM.md's link to docs/upstream/commit-maps/iroh-docs-v0.101.0.tsv."
+
+[[exemptions]]
+pattern = "iroh-gossip-v0\\.101\\.0\\.tsv"
+reason = "same defect, fix, and reasoning as iroh-blobs-v0.103.0.tsv above, for protocols/krikos-gossip/UPSTREAM.md's link to docs/upstream/commit-maps/iroh-gossip-v0.101.0.tsv."
+
+[[exemptions]]
 pattern = "iroh-relay handshake v1"
 reason = "cryptographic domain-separation labels in krikos-relay/src/protos/handshake.rs (DOMAIN_SEP_TLS_EXPORT_LABEL, fed to TLS export_keying_material, and DOMAIN_SEP_CHALLENGE, which this pattern also covers as a prefix, fed to blake3::derive_key for the challenge signature). These are wire bytes, not names, and are part of the relay wire-compatibility guarantee ADR-0002 says this rebrand must not break. Mutation-tested individually: renaming DOMAIN_SEP_CHALLENGE is caught by `handshake_frames_match_v1_0_3_fixtures` (a real byte comparison against a recorded upstream v1.0.3 fixture) failing. Renaming DOMAIN_SEP_TLS_EXPORT_LABEL alone is NOT caught by that test or by the rest of the local krikos-relay test suite -- the test's `GoldenExporter` stub asserts the exporter was called with the `DOMAIN_SEP_TLS_EXPORT_LABEL` constant itself rather than independently deriving and comparing real exported key material, so it cannot detect the constant and the assertion changing together. The exemption is still correct (this is a real TLS exporter label, and an incorrect one would fail to interoperate with any real upstream-speaking peer at the TLS layer even though nothing local proves it), but no claim is made here that a test currently catches it -- it does not."
 
@@ -380,12 +422,32 @@ pattern = "iroh-mdns-address-lookup"
 reason = "name of a real external crate (not part of this rename's package set), linked from doc comments and an example as a companion adapter"
 
 [[exemptions]]
+pattern = "iroh-tor"
+reason = "name of a real, external, upstream-only experimental transport adapter crate (github.com/n0-computer/iroh-tor), referenced from TRANSPORTS.md's transport registry table; not part of this rename's package set and never renamed. Found by code review: an earlier pass had rewritten the table's link *text* to `krikos-tor` while leaving the href pointed at the real `n0-computer/iroh-tor` -- a crate that has never existed under that name -- so the display text was corrected to match the real target, not the other way around."
+
+[[exemptions]]
+pattern = "upstream iroh v1\\.0\\.3"
+reason = "the real upstream project's name and pinned interop version, in prose describing the compatibility partner for a local interop test (docs/release/v2-migration.md, protocols/krikos-gossip/UPSTREAM.md). Found by code review: an earlier pass had rewritten 'upstream iroh v1.0.3' to 'upstream Krikos v1.0.3' -- Krikos is this fork, not upstream, so that read as claiming this fork tests interop against itself. Corrected to name the actual upstream project being tested against."
+
+[[exemptions]]
+pattern = "`iroh-gossip` v0\\.101\\.0"
+reason = "the real, currently-published crates.io package and version docs/release/v2-migration.md's interop test runs against (see compat/iroh-gossip-v0-101-interop/Cargo.toml's `iroh-gossip = \"=0.101.0\"` dependency, which pins the exact same real package). Found by code review: an earlier pass had rewritten this to the nonexistent `krikos-gossip` v0.101.0 -- no such crates.io release of this fork's krikos-gossip exists (it is unpublished, `publish = false`)."
+
+[[exemptions]]
+pattern = "crates\\.io iroh, iroh-blobs, and iroh-gossip"
+reason = "protocols/krikos-docs/UPSTREAM.md describing which real, upstream crates.io packages the v2 workspace port replaced with this fork's local workspace packages. Found by code review: an earlier pass had rewritten this to 'crates.io Krikos, blobs, and gossip', which is not what any crates.io package is named -- corrected to name the actual upstream packages that were replaced."
+
+[[exemptions]]
 pattern = "upstream iroh-blobs 0\\.35"
 reason = "protocols/krikos-blobs/README.md's production-quality note recommends the real, currently-published upstream crate (iroh-blobs 0.35 on crates.io) as a fallback for users who need a stable release today, since this fork's krikos-blobs is unpublished; a genuine external reference, not this crate's own identity"
 
 [[exemptions]]
 pattern = "iroh-tickets"
 reason = "name of a real, currently-published external crate (not part of this rename's package set), linked from doc comments"
+
+[[exemptions]]
+pattern = "iroh-util"
+reason = "name of a real, external n0-published crate (not part of this rename's package set) that protocols/krikos-blobs's connection-pool code was originally adapted from and no longer depends on; referenced from a source doc comment attributing the adaptation (protocols/krikos-blobs/src/util/connection_pool.rs) and from prose describing the same historical fact (docs/release/v2-migration.md, protocols/krikos-blobs/UPSTREAM.md). Found by code review: an earlier pass had rewritten all three to the nonexistent `krikos-util`, which breaks both the attribution (the original crate really is named iroh-util) and, in the source file, the MIT/Apache-2.0-required credit to its original author."
 
 [[exemptions]]
 pattern = "iroh_tickets"
