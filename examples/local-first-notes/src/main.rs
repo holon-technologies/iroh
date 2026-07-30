@@ -2,12 +2,12 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
-use iroh::{
+use krikos::{
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use iroh_app::{Application, StandardBundle};
-use iroh_docs::{
+use krikos_app::{Application, StandardBundle};
+use krikos_docs::{
     AuthorId,
     api::{
         Doc,
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
     ensure!(invitation.len() <= 64 * 1024, "invitation is too large");
     let doc_b = node_b
         .docs()
-        .import(invitation.parse::<iroh_docs::DocTicket>()?)
+        .import(invitation.parse::<krikos_docs::DocTicket>()?)
         .await?;
     let received = read_when_ready(&node_b, &doc_b, author_a, tag.hash).await?;
     ensure!(received == note, "nodes disagree about note bytes");
@@ -120,7 +120,7 @@ async fn read_when_ready(
     application: &Application,
     doc: &Doc,
     author: AuthorId,
-    hash: iroh_blobs::Hash,
+    hash: krikos_blobs::Hash,
 ) -> Result<Bytes> {
     tokio::time::timeout(SYNC_TIMEOUT, async {
         loop {
@@ -130,7 +130,7 @@ async fn read_when_ready(
                 let mut reader = application.blobs().blobs().reader(hash);
                 let mut bytes = Vec::new();
                 if reader.read_to_end(&mut bytes).await.is_ok() {
-                    ensure!(iroh_blobs::Hash::new(&bytes) == hash, "hash mismatch");
+                    ensure!(krikos_blobs::Hash::new(&bytes) == hash, "hash mismatch");
                     return Ok(Bytes::from(bytes));
                 }
             }

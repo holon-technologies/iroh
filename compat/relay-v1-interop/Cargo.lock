@@ -1576,23 +1576,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-base"
-version = "2.0.0"
-dependencies = [
- "curve25519-dalek",
- "data-encoding",
- "data-encoding-macro",
- "derive_more",
- "ed25519-dalek",
- "getrandom 0.4.3",
- "n0-error",
- "rand",
- "serde",
- "url",
- "zeroize",
-]
-
-[[package]]
 name = "iroh-dns"
 version = "1.0.3"
 source = "git+https://github.com/n0-computer/iroh.git?rev=f2eb930dda3779c6d852b72f3712aacd6e573ab1#f2eb930dda3779c6d852b72f3712aacd6e573ab1"
@@ -1601,7 +1584,7 @@ dependencies = [
  "cfg_aliases",
  "derive_more",
  "hickory-resolver",
- "iroh-base 1.0.3",
+ "iroh-base",
  "n0-error",
  "n0-future",
  "ndk-context",
@@ -1668,7 +1651,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "iroh-base 1.0.3",
+ "iroh-base",
  "iroh-dns",
  "iroh-metrics",
  "lru",
@@ -1708,110 +1691,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-relay"
-version = "2.0.0"
-dependencies = [
- "async-trait",
- "blake3",
- "bytes",
- "cfg_aliases",
- "clap",
- "dashmap",
- "data-encoding",
- "derive_more",
- "getrandom 0.4.3",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "iroh-base 2.0.0",
- "iroh-metrics",
- "iroh-resolver",
- "iroh-runtime",
- "krikos-noq",
- "lru",
- "n0-error",
- "n0-future",
- "noq-proto",
- "num_enum",
- "pin-project",
- "postcard",
- "rand",
- "rcgen 0.14.8",
- "reloadable-state",
- "reqwest",
- "rustls",
- "rustls-acme",
- "rustls-cert-file-reader",
- "rustls-cert-reloadable-resolver",
- "rustls-pki-types",
- "serde",
- "serde_bytes",
- "serde_json",
- "sha1",
- "sha2 0.10.9",
- "simdutf8",
- "strum",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tokio-websockets",
- "toml",
- "tracing",
- "tracing-subscriber",
- "url",
- "webpki-roots 1.0.9",
- "ws_stream_wasm",
-]
-
-[[package]]
 name = "iroh-relay-v1-interop"
 version = "0.0.0"
 dependencies = [
  "anyhow",
  "bytes",
  "futures-util",
- "iroh-base 1.0.3",
- "iroh-base 2.0.0",
+ "iroh-base",
  "iroh-dns",
- "iroh-relay 1.0.3",
- "iroh-relay 2.0.0",
- "iroh-resolver",
+ "iroh-relay",
+ "krikos-base",
+ "krikos-relay",
+ "krikos-resolver",
  "tokio",
  "url",
-]
-
-[[package]]
-name = "iroh-resolver"
-version = "2.0.0"
-dependencies = [
- "arc-swap",
- "cfg_aliases",
- "hickory-resolver",
- "n0-error",
- "n0-future",
- "ndk-context",
- "rand",
- "rustls",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "iroh-runtime"
-version = "2.0.0"
-dependencies = [
- "blake3",
- "futures-util",
- "getrandom 0.4.3",
- "rand",
- "rand_chacha",
- "serde",
- "tokio",
- "tokio-util",
- "web-time",
 ]
 
 [[package]]
@@ -1887,6 +1780,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "krikos-base"
+version = "2.0.0"
+dependencies = [
+ "curve25519-dalek",
+ "data-encoding",
+ "data-encoding-macro",
+ "derive_more",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "n0-error",
+ "rand",
+ "serde",
+ "url",
+ "zeroize",
+]
+
+[[package]]
 name = "krikos-noq"
 version = "1.1.0-holon.1"
 dependencies = [
@@ -1903,6 +1813,96 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "web-time",
+]
+
+[[package]]
+name = "krikos-relay"
+version = "2.0.0"
+dependencies = [
+ "async-trait",
+ "blake3",
+ "bytes",
+ "cfg_aliases",
+ "clap",
+ "dashmap",
+ "data-encoding",
+ "derive_more",
+ "getrandom 0.4.3",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "iroh-metrics",
+ "krikos-base",
+ "krikos-noq",
+ "krikos-resolver",
+ "krikos-runtime",
+ "lru",
+ "n0-error",
+ "n0-future",
+ "noq-proto",
+ "num_enum",
+ "pin-project",
+ "postcard",
+ "rand",
+ "rcgen 0.14.8",
+ "reloadable-state",
+ "reqwest",
+ "rustls",
+ "rustls-acme",
+ "rustls-cert-file-reader",
+ "rustls-cert-reloadable-resolver",
+ "rustls-pki-types",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.9",
+ "simdutf8",
+ "strum",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tokio-websockets",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "webpki-roots 1.0.9",
+ "ws_stream_wasm",
+]
+
+[[package]]
+name = "krikos-resolver"
+version = "2.0.0"
+dependencies = [
+ "arc-swap",
+ "cfg_aliases",
+ "hickory-resolver",
+ "n0-error",
+ "n0-future",
+ "ndk-context",
+ "rand",
+ "rustls",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "krikos-runtime"
+version = "2.0.0"
+dependencies = [
+ "blake3",
+ "futures-util",
+ "getrandom 0.4.3",
+ "rand",
+ "rand_chacha",
+ "serde",
+ "tokio",
+ "tokio-util",
  "web-time",
 ]
 

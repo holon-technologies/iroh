@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use iroh::protocol::{AcceptError, DynProtocolHandler, ProtocolHandler};
+use krikos::protocol::{AcceptError, DynProtocolHandler, ProtocolHandler};
 
 use crate::RegistryError;
 
@@ -133,7 +133,7 @@ impl ProtocolRegistry {
 struct MarkerHandler(&'static str);
 
 impl ProtocolHandler for MarkerHandler {
-    async fn accept(&self, _connection: iroh::endpoint::Connection) -> Result<(), AcceptError> {
+    async fn accept(&self, _connection: krikos::endpoint::Connection) -> Result<(), AcceptError> {
         Err(AcceptError::from_err(std::io::Error::other(format!(
             "protocol marker `{}` cannot accept connections",
             self.0

@@ -1,6 +1,6 @@
 #![cfg(feature = "fuzzing")]
 
-use iroh_app::fuzz::{fuzz_manifest, fuzz_protocol_registration};
+use krikos_app::fuzz::{fuzz_manifest, fuzz_protocol_registration};
 
 #[test]
 fn manifest_fuzz_facade_uses_production_validation() {

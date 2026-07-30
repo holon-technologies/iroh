@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use iroh_base::SecretKey;
+use krikos_base::SecretKey;
 
 use crate::{ComponentFuture, IdentityError};
 

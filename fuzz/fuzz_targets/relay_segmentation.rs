@@ -1,6 +1,6 @@
 #![no_main]
 
-use iroh_relay::fuzz::fuzz_relay_segmentation;
+use krikos_relay::fuzz::fuzz_relay_segmentation;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|input: &[u8]| {

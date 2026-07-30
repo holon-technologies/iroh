@@ -5,15 +5,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use iroh::{
+use krikos::{
     Endpoint, RelayMap, RelayMode,
     endpoint::presets,
     protocol::{ProtocolHandler, Router},
     tls::CaTlsConfig,
 };
-use iroh_blobs::{BlobsProtocol, api::Store as BlobsStore};
-use iroh_docs::protocol::Docs;
-use iroh_gossip::net::Gossip;
+use krikos_blobs::{BlobsProtocol, api::Store as BlobsStore};
+use krikos_docs::protocol::Docs;
+use krikos_gossip::net::Gossip;
 
 use crate::{
     AppBuilder, AppConfig, Application, ApplicationMetrics, Component, ComponentContext,
@@ -186,7 +186,7 @@ impl StandardBundleBuilder {
 
         let blobs = match &data_root {
             Some(data_root) => {
-                let store = iroh_blobs::store::fs::FsStore::load(data_root.blobs_path())
+                let store = krikos_blobs::store::fs::FsStore::load(data_root.blobs_path())
                     .await
                     .map_err(|_| {
                         StandardStartError::new(
@@ -197,7 +197,7 @@ impl StandardBundleBuilder {
                 (*store).clone()
             }
             None => {
-                let store = iroh_blobs::store::mem::MemStore::new();
+                let store = krikos_blobs::store::mem::MemStore::new();
                 (*store).clone()
             }
         };
@@ -332,9 +332,9 @@ fn register_all_protocols(
     docs: &Docs,
     custom: ProtocolRegistry,
 ) -> Result<(), RegistryError> {
-    protocols.register(iroh_blobs::ALPN, BlobsProtocol::new(blobs, None))?;
-    protocols.register(iroh_gossip::ALPN, gossip.clone())?;
-    protocols.register(iroh_docs::ALPN, docs.clone())?;
+    protocols.register(krikos_blobs::ALPN, BlobsProtocol::new(blobs, None))?;
+    protocols.register(krikos_gossip::ALPN, gossip.clone())?;
+    protocols.register(krikos_docs::ALPN, docs.clone())?;
     for (alpn, handler) in custom.into_handlers() {
         protocols.register_dyn(alpn, handler)?;
     }
@@ -345,7 +345,7 @@ async fn bind_endpoint(
     profile: NetworkProfile,
     bind_addr: Option<SocketAddr>,
     ca_tls_config: Option<CaTlsConfig>,
-    identity: iroh_base::SecretKey,
+    identity: krikos_base::SecretKey,
 ) -> Result<Endpoint, StandardStartError> {
     let mut builder = match profile {
         NetworkProfile::SharedInfrastructure => Endpoint::builder(presets::N0),
@@ -387,7 +387,7 @@ async fn cleanup_without_router(
 }
 
 fn is_standard_alpn(alpn: &[u8]) -> bool {
-    alpn == iroh_blobs::ALPN || alpn == iroh_docs::ALPN || alpn == iroh_gossip::ALPN
+    alpn == krikos_blobs::ALPN || alpn == krikos_docs::ALPN || alpn == krikos_gossip::ALPN
 }
 
 #[derive(Debug)]

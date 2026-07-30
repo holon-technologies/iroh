@@ -1,0 +1,110 @@
+[package]
+name = "krikos-dns-server"
+version.workspace = true
+edition.workspace = true
+description = "A pkarr relay and DNS server"
+license.workspace = true
+authors = ["Frando <franz@n0.computer>", "n0 team"]
+repository.workspace = true
+keywords = ["networking", "pkarr", "dns", "dns-server", "iroh"]
+readme = "README.md"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1.77"
+axum = { version = "0.8", features = ["macros"] }
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+base64-url = "3.0"
+bytes = "1.11"
+clap = { version = "4.5.1", features = ["derive"] }
+derive_more = { version = "2.0.1", features = [
+    "debug",
+    "display",
+    "into",
+    "from",
+] }
+dirs-next = "2.0.0"
+hickory-server = { package = "krikos-hickory-server", version = "=0.26.1-holon.1", features = ["https-ring"] }
+http = "1.0.0"
+hyper = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1.1", features = ["server-auto", "service", "tokio"] }
+humantime = "2.2.0"
+humantime-serde = "1.1.1"
+ipnet = { version = "2", features = ["serde"] }
+krikos-base = { workspace = true, features = ["key"] }
+iroh-metrics = { version = "1.0.1", features = ["service"] }
+krikos-dns.workspace = true
+krikos-resolver.workspace = true
+lru = "0.18.0"
+mainline = "7"
+n0-future = "0.3"
+rcgen = "0.14"
+redb = "4.1.0"
+regex = "1.10.3"
+rustls = { version = "0.23.33", default-features = false }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10.8"
+n0-error = "1.0.0"
+strum = { version = "0.28", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging"] }
+tokio-rustls-acme = { version = "0.9", features = ["axum"] }
+tokio-stream = "0.1.14"
+tokio-util = "0.7"
+toml = "1.0.6"
+tower-http = { version = "0.6.1", features = ["cors", "trace"] }
+tower-service = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3.18"
+ttl_cache = "0.5.1"
+url = "2.5.3"
+
+[dev-dependencies]
+criterion = "0.8.0"
+data-encoding = "2.3.3"
+hickory-resolver = { version = "0.26.0", features = ["tls-ring", "https-ring"] }
+krikos = { workspace = true, features = ["tls-ring"] }
+n0-tracing-test = "0.3"
+rand = "0.10"
+simple-dns = "0.11"
+rand_chacha = "0.10"
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider", "http2", "json"
+] }
+serde_json = "1.0.145"
+tempfile = "3.23.0"
+
+[features]
+default = ["ring"]
+ring = ["rustls/ring", "tokio-rustls/ring"]
+test-utils = []
+
+[[bin]]
+name = "krikos-dns-server"
+path = "src/main.rs"
+required-features = ["ring"]
+
+[[bench]]
+name = "write"
+harness = false
+
+[[example]]
+name = "publish"
+required-features = ["ring"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    # Metrics is the concrete observer passed to the vendored DNS server.
+    "hickory_server::*",
+    # LimitsConfig deliberately exposes typed trusted proxy networks.
+    "ipnet::*",
+    "iroh_metrics::*",
+    "n0_error::*",
+    "serde_core::*",
+]

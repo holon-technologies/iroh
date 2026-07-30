@@ -1,0 +1,81 @@
+[workspace]
+resolver = "2"
+
+[package]
+name = "krikos-sim"
+version = "2.0.0"
+edition = "2024"
+description = "Deterministic simulation and replay infrastructure for Iroh"
+license = "MIT OR Apache-2.0"
+authors = ["n0 team"]
+repository = "https://github.com/holon-technologies/iroh"
+publish = false
+rust-version = "1.91"
+
+[lints]
+workspace = true
+
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)", "cfg(iroh_loom)", "cfg(skip_patchbay)"] }
+
+[workspace.lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+unused-async = "warn"
+
+[dependencies]
+blake3 = "1.8.3"
+clap = { version = "4", features = ["derive"] }
+curve25519-dalek = { version = "5", default-features = false, features = ["zeroize"] }
+krikos = { version = "2.0.0", path = "../krikos", default-features = false, features = ["tls-ring"] }
+krikos-relay = { version = "2.0.0", path = "../krikos-relay", default-features = false, features = ["server-ring", "test-utils"] }
+krikos-runtime = { version = "2.0.0", path = "../krikos-runtime" }
+n0-future = "0.3"
+n0-watcher = "1.0.0"
+netwatch = "0.19.1"
+noq-udp = { version = "1.1.0", default-features = false }
+rustls = { version = "0.23.33", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
+zeroize = "1.9"
+
+[dev-dependencies]
+criterion = "0.8.0"
+n0-error = "1.0.0"
+proptest = "1.11.0"
+tempfile = "3.23.0"
+
+[[bench]]
+name = "stage4_environment"
+harness = false
+
+[[bench]]
+name = "stage5_relay"
+harness = false
+
+[[bench]]
+name = "stage6_scheduler"
+harness = false
+
+[[bench]]
+name = "deterministic_closure"
+harness = false
+
+[[bin]]
+name = "cargo-sim"
+path = "src/bin/cargo-sim.rs"
+
+[patch.crates-io]
+# Local sources for the exact-version production forks until their packages are published.
+krikos-noq = { path = "../vendor/noq-1.1.0" }
+# Simulator-only ownership fork: run-scoped entropy and key-exchange components.
+rustls = { path = "../vendor/rustls-0.23.41" }

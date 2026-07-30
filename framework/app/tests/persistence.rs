@@ -1,4 +1,4 @@
-use iroh_app::{DataRoot, DataRootError, StandardBundle};
+use krikos_app::{DataRoot, DataRootError, StandardBundle};
 
 #[tokio::test]
 async fn persisted_identity_and_manifest_survive_clean_restart() {

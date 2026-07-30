@@ -1,0 +1,1864 @@
+//! Single-threaded deterministic event, task, and virtual-time kernel.
+
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt,
+    future::Future,
+    panic::{AssertUnwindSafe, catch_unwind},
+    pin::Pin,
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
+    task::{Context, Poll, Wake, Waker},
+    time::Duration,
+};
+
+use krikos_runtime::{
+    BoxedTask, Clock, ClockDomain, ClockError, ClockResource, DecisionError, DecisionSource,
+    DecisionStream, Executor, IdAllocator, OwnedTaskHandle, RootSeed, RuntimeContext,
+    SeededDecisionSource, SpawnError, TaskCompletion, TaskControl, TaskGroup,
+    TaskGroupCapacitySnapshot, TaskGroupError, TaskGroupLimits, TaskGroupSnapshot, TaskHandleError,
+    TaskId, TaskKind, TaskMetadata, TaskOutcome, Timer, TimerId, TraceContext,
+    TraceDecisionObserver, TraceEventKind, TraceRecordError, TraceRecorder, TraceSink, WallClock,
+};
+
+use crate::{
+    LedgerError, ResourceKind, ResourceLedger, ResourceLedgerSnapshot, ResourceToken,
+    trace::BoundedTraceSink,
+};
+
+/// Stable identity of one scheduled kernel event.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct EventId(u64);
+
+impl EventId {
+    /// Returns the numeric run-local identity.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// Cancellation owner for one replaceable environment event.
+#[derive(Debug)]
+pub struct ScheduledEvent {
+    live: Arc<AtomicBool>,
+}
+
+impl ScheduledEvent {
+    /// Prevents the callback from executing. Cancellation is idempotent.
+    pub fn cancel(&self) {
+        self.live.store(false, Ordering::Release);
+    }
+}
+
+impl Drop for ScheduledEvent {
+    fn drop(&mut self) {
+        self.cancel();
+    }
+}
+
+/// Stable ordering class for simultaneous events.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum EventClass {
+    /// Topology or infrastructure transitions.
+    Infrastructure,
+    /// Packet/link work.
+    Network,
+    /// Runtime timer wakeups.
+    Timer,
+    /// Pure observation work that cannot affect earlier classes.
+    Observation,
+}
+
+/// Hard bounds for one deterministic kernel run.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KernelConfig {
+    /// Maximum task polls plus live scheduled-event executions.
+    pub max_events: u64,
+    /// Maximum events simultaneously retained by the scheduled-event queue.
+    pub max_scheduled_events: u64,
+    /// Maximum run-relative virtual time.
+    pub max_virtual_time: Duration,
+    /// Maximum simultaneously live tasks.
+    pub max_tasks: u64,
+    /// Maximum trace events admitted to the configured sink.
+    pub max_trace_events: u64,
+    /// Maximum simultaneous use for kernel-owned resource families.
+    pub resource_limits: KernelResourceLimits,
+}
+
+/// Per-family simultaneous-use limits enforced by the deterministic kernel.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KernelResourceLimits {
+    /// Maximum live resettable timers.
+    pub max_timers: u64,
+    /// Maximum bound synthetic sockets.
+    pub max_sockets: u64,
+    /// Maximum live modeled or production connections.
+    pub max_connections: u64,
+    /// Maximum live modeled or production streams.
+    pub max_streams: u64,
+    /// Maximum live simulator-owned relay services.
+    pub max_relays: u64,
+}
+
+impl KernelResourceLimits {
+    /// Applies one simultaneous-use limit to every kernel-owned resource family.
+    pub const fn uniform(limit: u64) -> Self {
+        Self {
+            max_timers: limit,
+            max_sockets: limit,
+            max_connections: limit,
+            max_streams: limit,
+            max_relays: limit,
+        }
+    }
+
+    const fn limit(self, kind: ResourceKind) -> Option<u64> {
+        match kind {
+            ResourceKind::Task => None,
+            ResourceKind::Timer => Some(self.max_timers),
+            ResourceKind::Socket => Some(self.max_sockets),
+            ResourceKind::Connection => Some(self.max_connections),
+            ResourceKind::Stream => Some(self.max_streams),
+            ResourceKind::Relay => Some(self.max_relays),
+            ResourceKind::QueuedPacket
+            | ResourceKind::Mapping
+            | ResourceKind::DiscoveryRecord
+            | ResourceKind::TraceBuffer => None,
+        }
+    }
+}
+
+/// Why a kernel stopped after exhausting runnable work.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Quiescence {
+    /// No runtime tasks remain.
+    Complete,
+    /// Tasks remain but no task is ready and no live event can wake one.
+    Stalled {
+        /// Number of retained task futures.
+        live_tasks: u64,
+    },
+}
+
+/// Deterministic terminal state and accounting snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct KernelRun {
+    /// Completion or stalled quiescence.
+    pub quiescence: Quiescence,
+    /// Task polls plus live scheduled events executed over the kernel's lifetime.
+    pub events_executed: u64,
+    /// Final run-relative virtual time.
+    pub virtual_time: Duration,
+    /// Final current/high-water resource counts.
+    pub ledger: ResourceLedgerSnapshot,
+    /// Seeded scheduling and fairness accounting.
+    pub scheduler: KernelSchedulerSnapshot,
+}
+
+/// Stable scheduling-accounting snapshot for diagnostics and artifacts.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct KernelSchedulerSnapshot {
+    /// Whether a seeded ready-task decision stream was installed.
+    pub seeded: bool,
+    /// Number of seeded task-selection draws made.
+    pub decisions: u64,
+    /// Number of selections constrained by the fairness bound.
+    pub fairness_forced: u64,
+    /// Largest number of other selections observed while a ready task waited.
+    pub max_ready_wait: u64,
+}
+
+/// One task ever admitted by the kernel and whether it is still live.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct KernelTaskSnapshot {
+    /// Runtime task identity, parent, kind, ordinal, and semantic name.
+    pub metadata: TaskMetadata,
+    /// Whether the task future remains retained by the kernel.
+    pub live: bool,
+}
+
+/// Result of one deterministic scheduler step.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum KernelStep {
+    /// One task poll or live scheduled event executed.
+    Progress,
+    /// No work remains runnable on the kernel timeline.
+    Idle(KernelRun),
+}
+
+/// Controller for one deterministic simulation timeline.
+#[derive(Clone)]
+pub struct Kernel {
+    inner: Arc<KernelInner>,
+    clock: Arc<VirtualClock>,
+    executor: Arc<KernelExecutor>,
+}
+
+impl fmt::Debug for Kernel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let state = self.inner.state.lock().expect("kernel state lock poisoned");
+        f.debug_struct("Kernel")
+            .field("now_nanos", &state.now_nanos)
+            .field("ready_tasks", &state.ready.len())
+            .field("live_tasks", &state.tasks.len())
+            .field("scheduled_events", &state.events.len())
+            .finish()
+    }
+}
+
+impl Kernel {
+    /// Creates an empty deterministic kernel and shared trace sequence.
+    pub fn new(config: KernelConfig, sink: Arc<dyn TraceSink>) -> Result<Self, KernelError> {
+        if config.max_events == 0
+            || config.max_scheduled_events == 0
+            || config.max_virtual_time.is_zero()
+            || config.max_tasks == 0
+            || config.max_trace_events == 0
+        {
+            return Err(KernelError::InvalidConfig);
+        }
+        let max_virtual_time_nanos = duration_nanos(config.max_virtual_time)?;
+        let sink = Arc::new(BoundedTraceSink::new(sink, config.max_trace_events));
+        let trace = Arc::new(TraceRecorder::new(sink));
+        let ledger = ResourceLedger::default();
+        let inner = Arc::new(KernelInner {
+            config,
+            max_virtual_time_nanos,
+            trace,
+            ledger,
+            deferred_clock_failure: Mutex::new(None),
+            ready_scheduler: Mutex::new(None),
+            state: Mutex::new(KernelState::default()),
+        });
+        let clock = Arc::new(VirtualClock {
+            domain: ClockDomain::fresh(),
+            origin: krikos_runtime::Instant::now(),
+            timer_ids: IdAllocator::default(),
+            inner: Arc::downgrade(&inner),
+        });
+        let executor = Arc::new(KernelExecutor {
+            task_ids: Arc::new(IdAllocator::default()),
+            clock: clock.clone(),
+            inner: Arc::downgrade(&inner),
+        });
+        Ok(Self {
+            inner,
+            clock,
+            executor,
+        })
+    }
+
+    /// Composes this kernel into the shared runtime capability bundle.
+    pub fn runtime_context(
+        &self,
+        root_seed: RootSeed,
+        wall_epoch: krikos_runtime::SystemTime,
+    ) -> RuntimeContext {
+        let clock: Arc<dyn Clock> = self.clock.clone();
+        let wall_clock: Arc<dyn WallClock> = Arc::new(VirtualWallClock {
+            epoch: wall_epoch,
+            inner: Arc::downgrade(&self.inner),
+        });
+        let executor: Arc<dyn Executor> = self.executor.clone();
+        let decisions = Arc::new(SeededDecisionSource::with_observer(
+            root_seed,
+            Arc::new(TraceDecisionObserver::new(
+                clock.clone(),
+                self.inner.trace.clone(),
+            )),
+        ));
+        self.inner.install_ready_scheduler(decisions.as_ref());
+        RuntimeContext::from_parts(
+            root_seed,
+            clock,
+            wall_clock,
+            executor,
+            decisions,
+            self.inner.trace.clone(),
+        )
+        .expect("kernel clock and executor share one domain")
+    }
+
+    /// Schedules deterministic environment work at an absolute run-relative deadline.
+    pub fn schedule_at(
+        &self,
+        deadline: Duration,
+        class: EventClass,
+        action: impl FnOnce() -> Result<(), KernelError> + Send + 'static,
+    ) -> Result<EventId, KernelError> {
+        let deadline_nanos = duration_nanos(deadline)?;
+        self.inner.schedule(
+            deadline_nanos,
+            class,
+            EventAction::Callback(Box::new(action)),
+        )
+    }
+
+    /// Schedules replaceable environment work and returns its cancellation owner.
+    ///
+    /// Dropped or explicitly cancelled events are removed lazily without consuming an event
+    /// budget entry or advancing virtual time.
+    pub fn schedule_cancellable_at(
+        &self,
+        deadline: Duration,
+        class: EventClass,
+        action: impl FnOnce() -> Result<(), KernelError> + Send + 'static,
+    ) -> Result<(EventId, ScheduledEvent), KernelError> {
+        let deadline_nanos = duration_nanos(deadline)?;
+        let live = Arc::new(AtomicBool::new(true));
+        let id = self.inner.schedule(
+            deadline_nanos,
+            class,
+            EventAction::CancellableCallback {
+                live: Arc::downgrade(&live),
+                action: Box::new(action),
+            },
+        )?;
+        Ok((id, ScheduledEvent { live }))
+    }
+
+    /// Drives ready tasks and scheduled events until completion or deterministic stall.
+    pub fn run_until_idle(&self) -> Result<KernelRun, KernelError> {
+        loop {
+            match self.step()? {
+                KernelStep::Progress => {}
+                KernelStep::Idle(run) => return Ok(run),
+            }
+        }
+    }
+
+    /// Executes at most one ready task poll or live scheduled event.
+    ///
+    /// One ready task or environment event is selected per call.
+    pub fn step(&self) -> Result<KernelStep, KernelError> {
+        if self.inner.has_ready() {
+            self.reserve_task_poll()?;
+            if let Some(task) = self.inner.pop_ready()? {
+                self.inner.advance_ready_epoch();
+                self.inner.poll_task(task)?;
+                return Ok(KernelStep::Progress);
+            }
+        }
+
+        let Some((key, action)) = self.inner.pop_next_live_event() else {
+            return self.idle_step();
+        };
+        if key.deadline_nanos > self.inner.max_virtual_time_nanos {
+            self.inner.reinsert_event(key, action);
+            return Err(KernelError::VirtualTimeBudgetExceeded {
+                limit_nanos: self.inner.max_virtual_time_nanos,
+                next_deadline_nanos: key.deadline_nanos,
+            });
+        }
+        if let Err(error) = self.reserve_step() {
+            self.inner.reinsert_event(key, action);
+            return Err(error);
+        }
+        {
+            let mut state = self.inner.state.lock().expect("kernel state lock poisoned");
+            state.now_nanos = state.now_nanos.max(key.deadline_nanos);
+        }
+        self.inner.advance_ready_epoch();
+        self.inner.execute(action)?;
+        Ok(KernelStep::Progress)
+    }
+
+    /// Returns current/high-water resource counts.
+    pub fn ledger(&self) -> ResourceLedgerSnapshot {
+        self.inner.ledger.snapshot()
+    }
+
+    /// Returns the kernel executor for scheduler component tests and measurements.
+    pub fn executor(&self) -> Arc<KernelExecutor> {
+        self.executor.clone()
+    }
+
+    /// Returns seeded scheduler and fairness accounting at this instant.
+    pub fn scheduler_snapshot(&self) -> KernelSchedulerSnapshot {
+        self.inner.scheduler_snapshot()
+    }
+
+    /// Returns every task admitted during this run in stable identity order.
+    pub fn task_ownership_snapshot(&self) -> Vec<KernelTaskSnapshot> {
+        let state = self.inner.state.lock().expect("kernel state lock poisoned");
+        state
+            .task_history
+            .values()
+            .cloned()
+            .map(|metadata| KernelTaskSnapshot {
+                live: state.tasks.contains_key(&metadata.id),
+                metadata,
+            })
+            .collect()
+    }
+
+    /// Returns the metadata of tasks currently queued for another poll.
+    pub fn ready_task_snapshot(&self) -> Vec<TaskMetadata> {
+        let state = self.inner.state.lock().expect("kernel state lock poisoned");
+        state
+            .ready
+            .iter()
+            .filter_map(|id| state.task_history.get(id).cloned())
+            .collect()
+    }
+
+    /// Returns current run-relative virtual time.
+    pub fn now(&self) -> Duration {
+        Duration::from_nanos(self.inner.now_nanos())
+    }
+
+    /// Acquires a simulator-owned resource entry tied to this kernel's ledger.
+    pub fn acquire_resource(
+        &self,
+        kind: ResourceKind,
+        limit: Option<u64>,
+    ) -> Result<ResourceToken, LedgerError> {
+        self.inner.acquire_resource(kind, limit)
+    }
+
+    fn reserve_step(&self) -> Result<(), KernelError> {
+        let mut state = self.inner.state.lock().expect("kernel state lock poisoned");
+        if state.events_executed >= self.inner.config.max_events {
+            return Err(KernelError::EventBudgetExceeded {
+                limit: self.inner.config.max_events,
+            });
+        }
+        state.events_executed += 1;
+        Ok(())
+    }
+
+    fn reserve_task_poll(&self) -> Result<(), KernelError> {
+        let mut state = self.inner.state.lock().expect("kernel state lock poisoned");
+        if state.events_executed >= self.inner.config.max_events {
+            return Err(KernelError::RunnableBudgetExceeded {
+                limit: self.inner.config.max_events,
+                live_tasks: u64::try_from(state.tasks.len())
+                    .map_err(|_| KernelError::ResourceCounterOverflow)?,
+                ready_tasks: u64::try_from(state.ready.len())
+                    .map_err(|_| KernelError::ResourceCounterOverflow)?,
+            });
+        }
+        state.events_executed += 1;
+        Ok(())
+    }
+
+    fn idle_step(&self) -> Result<KernelStep, KernelError> {
+        let (live_tasks, events_executed, virtual_time) = {
+            let state = self.inner.state.lock().expect("kernel state lock poisoned");
+            (
+                u64::try_from(state.tasks.len())
+                    .map_err(|_| KernelError::ResourceCounterOverflow)?,
+                state.events_executed,
+                Duration::from_nanos(state.now_nanos),
+            )
+        };
+        let quiescence = if live_tasks == 0 {
+            Quiescence::Complete
+        } else {
+            Quiescence::Stalled { live_tasks }
+        };
+        Ok(KernelStep::Idle(KernelRun {
+            quiescence,
+            events_executed,
+            virtual_time,
+            ledger: self.inner.ledger.snapshot(),
+            scheduler: self.inner.scheduler_snapshot(),
+        }))
+    }
+}
+
+const MAX_READY_WAIT: u64 = 32;
+
+struct KernelInner {
+    config: KernelConfig,
+    max_virtual_time_nanos: u64,
+    trace: Arc<TraceRecorder>,
+    ledger: ResourceLedger,
+    deferred_clock_failure: Mutex<Option<TraceRecordError>>,
+    ready_scheduler: Mutex<Option<Box<dyn DecisionStream>>>,
+    state: Mutex<KernelState>,
+}
+
+impl fmt::Debug for KernelInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KernelInner")
+            .field("config", &self.config)
+            .field("ledger", &self.ledger)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Default)]
+struct KernelState {
+    now_nanos: u64,
+    events_executed: u64,
+    next_event_id: u64,
+    ready: VecDeque<TaskId>,
+    ready_set: BTreeSet<TaskId>,
+    ready_epochs: BTreeMap<TaskId, u64>,
+    ready_waits: BTreeMap<TaskId, u64>,
+    tasks: BTreeMap<TaskId, Arc<TaskCell>>,
+    task_history: BTreeMap<TaskId, TaskMetadata>,
+    events: BTreeMap<EventKey, EventAction>,
+    reserved_events: u64,
+    scheduler_decisions: u64,
+    fairness_forced: u64,
+    max_ready_wait: u64,
+    ready_epoch: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct EventKey {
+    deadline_nanos: u64,
+    class: EventClass,
+    id: EventId,
+}
+
+enum EventAction {
+    Callback(Box<dyn FnOnce() -> Result<(), KernelError> + Send + 'static>),
+    CancellableCallback {
+        live: Weak<AtomicBool>,
+        action: Box<dyn FnOnce() -> Result<(), KernelError> + Send + 'static>,
+    },
+    Timer {
+        timer: Weak<VirtualTimerState>,
+        generation: u64,
+    },
+}
+
+#[derive(Debug)]
+struct EventReservation {
+    id: EventId,
+    kernel: Weak<KernelInner>,
+    active: bool,
+}
+
+impl Drop for EventReservation {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        let Some(kernel) = self.kernel.upgrade() else {
+            return;
+        };
+        let mut state = kernel.state.lock().expect("kernel state lock poisoned");
+        state.reserved_events = state
+            .reserved_events
+            .checked_sub(1)
+            .expect("live event reservation has matching kernel capacity");
+        self.active = false;
+    }
+}
+
+impl EventAction {
+    fn is_live(&self) -> bool {
+        match self {
+            Self::Callback(_) => true,
+            Self::CancellableCallback { live, .. } => live
+                .upgrade()
+                .is_some_and(|live| live.load(Ordering::Acquire)),
+            Self::Timer { timer, generation } => timer.upgrade().is_some_and(|timer| {
+                let state = timer.state.lock().expect("virtual timer lock poisoned");
+                !state.completed && !state.dropped && state.generation == *generation
+            }),
+        }
+    }
+}
+
+impl KernelInner {
+    fn acquire_resource(
+        &self,
+        kind: ResourceKind,
+        requested_limit: Option<u64>,
+    ) -> Result<ResourceToken, LedgerError> {
+        let configured_limit = match kind {
+            ResourceKind::Task => Some(self.config.max_tasks),
+            ResourceKind::TraceBuffer => Some(self.config.max_trace_events),
+            _ => self.config.resource_limits.limit(kind),
+        };
+        let limit = match (requested_limit, configured_limit) {
+            (Some(requested), Some(configured)) => Some(requested.min(configured)),
+            (Some(requested), None) => Some(requested),
+            (None, configured) => configured,
+        };
+        self.ledger.acquire(kind, limit)
+    }
+
+    fn advance_ready_epoch(&self) {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        state.ready_epoch = state.ready_epoch.saturating_add(1);
+    }
+
+    fn install_ready_scheduler(&self, decisions: &dyn DecisionSource) {
+        let mut scheduler = self
+            .ready_scheduler
+            .lock()
+            .expect("kernel ready scheduler lock poisoned");
+        if scheduler.is_none() {
+            *scheduler = Some(
+                decisions
+                    .stream("kernel/ready-task")
+                    .expect("kernel ready-task decision path is valid"),
+            );
+        }
+    }
+
+    fn scheduler_snapshot(&self) -> KernelSchedulerSnapshot {
+        let seeded = self
+            .ready_scheduler
+            .lock()
+            .expect("kernel ready scheduler lock poisoned")
+            .is_some();
+        let state = self.state.lock().expect("kernel state lock poisoned");
+        KernelSchedulerSnapshot {
+            seeded,
+            decisions: state.scheduler_decisions,
+            fairness_forced: state.fairness_forced,
+            max_ready_wait: state.max_ready_wait,
+        }
+    }
+
+    fn now_nanos(&self) -> u64 {
+        self.state
+            .lock()
+            .expect("kernel state lock poisoned")
+            .now_nanos
+    }
+
+    fn latch_deferred_clock_failure(&self, error: TraceRecordError) {
+        let mut failure = self
+            .deferred_clock_failure
+            .lock()
+            .expect("kernel clock failure lock poisoned");
+        if failure.is_none() {
+            *failure = Some(error);
+        }
+    }
+
+    fn schedule(
+        &self,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> Result<EventId, KernelError> {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        self.schedule_locked(&mut state, deadline_nanos, class, action)
+    }
+
+    fn schedule_locked(
+        &self,
+        state: &mut KernelState,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> Result<EventId, KernelError> {
+        self.ensure_event_capacity(state)?;
+        let id = Self::allocate_event_id(state)?;
+        let key = EventKey {
+            deadline_nanos: deadline_nanos.max(state.now_nanos),
+            class,
+            id,
+        };
+        state.events.insert(key, action);
+        Ok(id)
+    }
+
+    fn reserve_event(self: &Arc<Self>) -> Result<EventReservation, KernelError> {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        self.ensure_event_capacity(&state)?;
+        let id = Self::allocate_event_id(&mut state)?;
+        state.reserved_events = state
+            .reserved_events
+            .checked_add(1)
+            .ok_or(KernelError::ResourceCounterOverflow)?;
+        Ok(EventReservation {
+            id,
+            kernel: Arc::downgrade(self),
+            active: true,
+        })
+    }
+
+    fn ensure_event_capacity(&self, state: &KernelState) -> Result<(), KernelError> {
+        let queued =
+            u64::try_from(state.events.len()).map_err(|_| KernelError::ResourceCounterOverflow)?;
+        let retained = queued
+            .checked_add(state.reserved_events)
+            .ok_or(KernelError::ResourceCounterOverflow)?;
+        if retained >= self.config.max_scheduled_events {
+            return Err(KernelError::ScheduledEventLimitExceeded {
+                limit: self.config.max_scheduled_events,
+            });
+        }
+        Ok(())
+    }
+
+    fn allocate_event_id(state: &mut KernelState) -> Result<EventId, KernelError> {
+        let next = state
+            .next_event_id
+            .checked_add(1)
+            .ok_or(KernelError::EventIdExhausted)?;
+        state.next_event_id = next;
+        Ok(EventId(next))
+    }
+
+    fn commit_reserved_event(
+        &self,
+        state: &mut KernelState,
+        reservation: &mut EventReservation,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> EventId {
+        assert!(
+            reservation.active,
+            "scheduled event reservation must be committed exactly once"
+        );
+        assert_eq!(
+            reservation.kernel.as_ptr(),
+            self as *const Self,
+            "scheduled event reservation belongs to this kernel"
+        );
+        state.reserved_events = state
+            .reserved_events
+            .checked_sub(1)
+            .expect("committed event reservation has matching kernel capacity");
+        let id = reservation.id;
+        let key = EventKey {
+            deadline_nanos: deadline_nanos.max(state.now_nanos),
+            class,
+            id,
+        };
+        let previous = state.events.insert(key, action);
+        assert!(
+            previous.is_none(),
+            "reserved event identity must be unique at commit"
+        );
+        reservation.active = false;
+        id
+    }
+
+    fn schedule_reserved(
+        &self,
+        mut reservation: EventReservation,
+        deadline_nanos: u64,
+        class: EventClass,
+        action: EventAction,
+    ) -> EventId {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        self.commit_reserved_event(&mut state, &mut reservation, deadline_nanos, class, action)
+    }
+
+    fn reset_timer(
+        &self,
+        mut reservation: EventReservation,
+        timer: &Arc<VirtualTimerState>,
+        deadline_nanos: u64,
+        generation: u64,
+        was_completed: bool,
+        resource: Option<ResourceToken>,
+    ) {
+        let mut kernel_state = self.state.lock().expect("kernel state lock poisoned");
+        let mut timer_state = timer.state.lock().expect("virtual timer lock poisoned");
+        assert_eq!(
+            timer_state.completed, was_completed,
+            "timer completion must not race an exclusive reset"
+        );
+        assert_eq!(
+            timer_state.generation.checked_add(1),
+            Some(generation),
+            "timer generation must not change during an exclusive reset"
+        );
+        if was_completed {
+            assert!(
+                timer_state.resource.is_none(),
+                "completed timer must release its resource before reset"
+            );
+        }
+        self.commit_reserved_event(
+            &mut kernel_state,
+            &mut reservation,
+            deadline_nanos,
+            EventClass::Timer,
+            EventAction::Timer {
+                timer: Arc::downgrade(timer),
+                generation,
+            },
+        );
+        if was_completed {
+            timer_state.resource = resource;
+        }
+        timer_state.completed = false;
+        timer_state.deadline_nanos = deadline_nanos;
+        timer_state.generation = generation;
+    }
+
+    fn pop_next_live_event(&self) -> Option<(EventKey, EventAction)> {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        while let Some((key, action)) = state.events.pop_first() {
+            if action.is_live() {
+                return Some((key, action));
+            }
+        }
+        None
+    }
+
+    fn reinsert_event(&self, key: EventKey, action: EventAction) {
+        self.state
+            .lock()
+            .expect("kernel state lock poisoned")
+            .events
+            .insert(key, action);
+    }
+
+    fn has_ready(&self) -> bool {
+        !self
+            .state
+            .lock()
+            .expect("kernel state lock poisoned")
+            .ready
+            .is_empty()
+    }
+
+    fn execute(self: &Arc<Self>, action: EventAction) -> Result<(), KernelError> {
+        match action {
+            EventAction::Callback(action) => {
+                catch_unwind(AssertUnwindSafe(action)).map_err(|_| KernelError::EventPanicked)??
+            }
+            EventAction::CancellableCallback { live, action } => {
+                if let Some(live) = live.upgrade()
+                    && live.swap(false, Ordering::AcqRel)
+                {
+                    catch_unwind(AssertUnwindSafe(action))
+                        .map_err(|_| KernelError::EventPanicked)??;
+                }
+            }
+            EventAction::Timer { timer, generation } => {
+                if let Some(timer) = timer.upgrade() {
+                    let waker = {
+                        let mut state = timer.state.lock().expect("virtual timer lock poisoned");
+                        if state.completed || state.dropped || state.generation != generation {
+                            None
+                        } else {
+                            state.waker.take()
+                        }
+                    };
+                    if let Some(waker) = waker {
+                        waker.wake();
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn enqueue(&self, task: TaskId) {
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        if state.tasks.contains_key(&task) && state.ready_set.insert(task) {
+            state.ready.push_back(task);
+            let epoch = state.ready_epoch;
+            state.ready_epochs.insert(task, epoch);
+        }
+    }
+
+    fn pop_ready(&self) -> Result<Option<Arc<TaskCell>>, KernelError> {
+        let (ready, forced) = {
+            let mut state = self.state.lock().expect("kernel state lock poisoned");
+            let live = state.tasks.keys().copied().collect::<BTreeSet<_>>();
+            state.ready.retain(|id| live.contains(id));
+            state.ready_set.retain(|id| live.contains(id));
+            state.ready_epochs.retain(|id, _| live.contains(id));
+            state.ready_waits.retain(|id, _| live.contains(id));
+            let oldest_epoch = state
+                .ready
+                .iter()
+                .filter_map(|id| state.ready_epochs.get(id))
+                .copied()
+                .min();
+            let ready = state
+                .ready
+                .iter()
+                .copied()
+                .filter(|id| state.ready_epochs.get(id).copied() == oldest_epoch)
+                .collect::<Vec<_>>();
+            let forced = ready
+                .iter()
+                .copied()
+                .filter(|id| {
+                    state.ready_waits.get(id).copied().unwrap_or_default() >= MAX_READY_WAIT
+                })
+                .collect::<Vec<_>>();
+            (ready, forced)
+        };
+        if ready.is_empty() {
+            return Ok(None);
+        }
+
+        let legal = if forced.is_empty() { &ready } else { &forced };
+        let legal_ids = legal.to_vec();
+        // Draw once per task poll, including singleton ready sets. A fixed draw cadence keeps
+        // replay aligned when a compatibility task wakes just before versus just after a kernel
+        // turn but does not change the only legal selection.
+        let (index, used_decision) = {
+            let mut scheduler = self
+                .ready_scheduler
+                .lock()
+                .expect("kernel ready scheduler lock poisoned");
+            match scheduler.as_mut() {
+                Some(stream) => {
+                    let raw = stream.next_u64()?;
+                    let len = u64::try_from(legal.len())
+                        .map_err(|_| KernelError::ResourceCounterOverflow)?;
+                    (
+                        usize::try_from(raw % len)
+                            .map_err(|_| KernelError::ResourceCounterOverflow)?,
+                        true,
+                    )
+                }
+                None => (0, false),
+            }
+        };
+        let selected = legal[index];
+
+        let mut state = self.state.lock().expect("kernel state lock poisoned");
+        let Some(index) = state.ready.iter().position(|id| *id == selected) else {
+            return Ok(None);
+        };
+        let id = state
+            .ready
+            .remove(index)
+            .expect("selected ready-task index exists");
+        state.ready_set.remove(&id);
+        state.ready_epochs.remove(&id);
+        state.ready_waits.remove(&id);
+        if used_decision {
+            state.scheduler_decisions = state.scheduler_decisions.saturating_add(1);
+        }
+        if !forced.is_empty() {
+            state.fairness_forced = state.fairness_forced.saturating_add(1);
+        }
+        let waiting = ready
+            .iter()
+            .copied()
+            .filter(|waiting_id| *waiting_id != id)
+            .collect::<Vec<_>>();
+        for waiting_id in waiting {
+            let wait = {
+                let wait = state.ready_waits.entry(waiting_id).or_default();
+                *wait = wait.saturating_add(1);
+                *wait
+            };
+            state.max_ready_wait = state.max_ready_wait.max(wait);
+        }
+        let task = state.tasks.get(&id).cloned();
+        let ready_metadata = legal_ids
+            .iter()
+            .filter_map(|id| state.task_history.get(id).cloned())
+            .collect();
+        drop(state);
+        if let Some(task) = task.as_ref() {
+            self.trace
+                .record(
+                    self.now_nanos(),
+                    TraceContext {
+                        task: Some(id),
+                        ..TraceContext::default()
+                    },
+                    TraceEventKind::TaskScheduled {
+                        selected: task.metadata.clone(),
+                        ready: ready_metadata,
+                        fairness_forced: !forced.is_empty(),
+                    },
+                )
+                .map_err(KernelError::Trace)?;
+        }
+        Ok(task)
+    }
+
+    fn poll_task(self: &Arc<Self>, task: Arc<TaskCell>) -> Result<(), KernelError> {
+        if task.cancelled.load(Ordering::Acquire) {
+            task.future
+                .lock()
+                .expect("kernel task future lock poisoned")
+                .take();
+            return self.complete_task(&task, TaskOutcome::Cancelled);
+        }
+
+        let mut future = task
+            .future
+            .lock()
+            .expect("kernel task future lock poisoned")
+            .take()
+            .ok_or(KernelError::TaskFutureUnavailable(task.metadata.id))?;
+        let waker = Waker::from(Arc::new(TaskWake {
+            task: task.metadata.id,
+            kernel: Arc::downgrade(self),
+        }));
+        let mut cx = Context::from_waker(&waker);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let mut task_poll = tokio::task::unconstrained(future.as_mut());
+            Pin::new(&mut task_poll).poll(&mut cx)
+        }));
+        match result {
+            Err(_) => self.complete_task(&task, TaskOutcome::Panicked),
+            Ok(Poll::Ready(())) => self.complete_task(&task, TaskOutcome::Completed),
+            Ok(Poll::Pending) if task.cancelled.load(Ordering::Acquire) => {
+                drop(future);
+                self.complete_task(&task, TaskOutcome::Cancelled)
+            }
+            Ok(Poll::Pending) => {
+                *task
+                    .future
+                    .lock()
+                    .expect("kernel task future lock poisoned") = Some(future);
+                Ok(())
+            }
+        }
+    }
+
+    fn cancel_task(&self, id: TaskId) {
+        let task = self
+            .state
+            .lock()
+            .expect("kernel state lock poisoned")
+            .tasks
+            .get(&id)
+            .cloned();
+        if let Some(task) = task {
+            task.cancelled.store(true, Ordering::Release);
+            self.enqueue(id);
+        }
+    }
+
+    fn complete_task(&self, task: &Arc<TaskCell>, outcome: TaskOutcome) -> Result<(), KernelError> {
+        let id = task.metadata.id;
+        {
+            let mut state = self.state.lock().expect("kernel state lock poisoned");
+            state.tasks.remove(&id);
+            state.ready_set.remove(&id);
+            state.ready_epochs.remove(&id);
+            state.ready_waits.remove(&id);
+        }
+        task.group.task_completed(id);
+        task.completion.finish(outcome);
+        let event = match outcome {
+            TaskOutcome::Completed => TraceEventKind::TaskCompleted { task: id },
+            TaskOutcome::Cancelled => TraceEventKind::TaskCancelled { task: id },
+            TaskOutcome::Panicked => TraceEventKind::TaskPanicked { task: id },
+        };
+        self.trace
+            .record(
+                self.now_nanos(),
+                TraceContext {
+                    task: Some(id),
+                    ..TraceContext::default()
+                },
+                event,
+            )
+            .map_err(KernelError::Trace)?;
+        Ok(())
+    }
+}
+
+struct TaskWake {
+    task: TaskId,
+    kernel: Weak<KernelInner>,
+}
+
+impl Wake for TaskWake {
+    fn wake(self: Arc<Self>) {
+        if let Some(kernel) = self.kernel.upgrade() {
+            kernel.enqueue(self.task);
+        }
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        if let Some(kernel) = self.kernel.upgrade() {
+            kernel.enqueue(self.task);
+        }
+    }
+}
+
+struct TaskCell {
+    metadata: TaskMetadata,
+    future: Mutex<Option<BoxedTask>>,
+    cancelled: AtomicBool,
+    group: Arc<KernelTaskGroup>,
+    completion: Arc<CompletionState>,
+    _resource: ResourceToken,
+}
+
+impl fmt::Debug for TaskCell {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TaskCell")
+            .field("metadata", &self.metadata)
+            .field("cancelled", &self.cancelled)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+struct CompletionState {
+    state: Mutex<CompletionInner>,
+}
+
+#[derive(Debug, Default)]
+struct CompletionInner {
+    outcome: Option<TaskOutcome>,
+    wakers: Vec<Waker>,
+}
+
+impl CompletionState {
+    fn finish(&self, outcome: TaskOutcome) {
+        let wakers = {
+            let mut state = self.state.lock().expect("task completion lock poisoned");
+            state.outcome = Some(outcome);
+            std::mem::take(&mut state.wakers)
+        };
+        for waker in wakers {
+            waker.wake();
+        }
+    }
+}
+
+struct CompletionFuture(Arc<CompletionState>);
+
+impl Future for CompletionFuture {
+    type Output = Result<TaskOutcome, TaskHandleError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut state = self.0.state.lock().expect("task completion lock poisoned");
+        if let Some(outcome) = state.outcome {
+            Poll::Ready(Ok(outcome))
+        } else {
+            if !state.wakers.iter().any(|waker| waker.will_wake(cx.waker())) {
+                state.wakers.push(cx.waker().clone());
+            }
+            Poll::Pending
+        }
+    }
+}
+
+/// Shared executor adapter backed by the deterministic kernel.
+#[derive(Clone)]
+pub struct KernelExecutor {
+    task_ids: Arc<IdAllocator<TaskId>>,
+    clock: Arc<VirtualClock>,
+    inner: Weak<KernelInner>,
+}
+
+impl fmt::Debug for KernelExecutor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KernelExecutor")
+            .field("clock_domain", &self.clock.domain)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Executor for KernelExecutor {
+    fn clock_domain(&self) -> ClockDomain {
+        self.clock.domain
+    }
+
+    fn new_group(&self, parent: Option<TaskId>) -> Arc<dyn TaskGroup> {
+        self.new_group_with_limits(parent, TaskGroupLimits::default())
+    }
+
+    fn new_group_with_limits(
+        &self,
+        parent: Option<TaskId>,
+        limits: TaskGroupLimits,
+    ) -> Arc<dyn TaskGroup> {
+        let group: Arc<KernelTaskGroup> = Arc::new_cyclic(|self_ref| KernelTaskGroup {
+            parent,
+            task_ids: self.task_ids.clone(),
+            kernel: self.inner.clone(),
+            self_ref: self_ref.clone(),
+            state: Mutex::new(GroupState::default()),
+            limits,
+        });
+        group
+    }
+}
+
+#[derive(Debug, Default)]
+struct GroupState {
+    closed: bool,
+    cancelled: bool,
+    next_ordinal: u64,
+    tasks: BTreeMap<TaskId, TaskMetadata>,
+    join_wakers: Vec<Waker>,
+    failure: Option<TaskGroupError>,
+    high_water_live_tasks: usize,
+    rejected_spawns: u64,
+    capacity_counter_exhausted: bool,
+}
+
+#[derive(Debug)]
+struct KernelTaskGroup {
+    parent: Option<TaskId>,
+    task_ids: Arc<IdAllocator<TaskId>>,
+    kernel: Weak<KernelInner>,
+    self_ref: Weak<KernelTaskGroup>,
+    state: Mutex<GroupState>,
+    limits: TaskGroupLimits,
+}
+
+impl KernelTaskGroup {
+    fn task_completed(&self, id: TaskId) {
+        let wakers = {
+            let mut state = self.state.lock().expect("task group state lock poisoned");
+            state.tasks.remove(&id);
+            if state.tasks.is_empty() {
+                std::mem::take(&mut state.join_wakers)
+            } else {
+                Vec::new()
+            }
+        };
+        for waker in wakers {
+            waker.wake();
+        }
+    }
+}
+
+impl TaskGroup for KernelTaskGroup {
+    fn spawn_owned(
+        &self,
+        kind: TaskKind,
+        name: &str,
+        future: BoxedTask,
+    ) -> Result<OwnedTaskHandle, SpawnError> {
+        let kernel = self
+            .inner_kernel()
+            .map_err(|_| SpawnError::BackendUnavailable)?;
+        let mut state = self.state.lock().expect("task group state lock poisoned");
+        let max_live_tasks = self.limits.max_live_tasks().get();
+        if !state.closed && state.tasks.len() >= max_live_tasks {
+            let Some(rejected_spawns) = state.rejected_spawns.checked_add(1) else {
+                state.closed = true;
+                state.capacity_counter_exhausted = true;
+                state.failure = Some(TaskGroupError::CapacityCounterExhausted {
+                    resource: "live_tasks",
+                });
+                return Err(SpawnError::CapacityCounterExhausted {
+                    resource: "live_tasks",
+                });
+            };
+            state.rejected_spawns = rejected_spawns;
+            return Err(SpawnError::ResourceLimit {
+                resource: "live_tasks",
+                limit: u64::try_from(max_live_tasks).unwrap_or(u64::MAX),
+            });
+        }
+        let id = self
+            .task_ids
+            .allocate()
+            .map_err(|_| SpawnError::IdExhausted)?;
+        let child_ordinal = state.next_ordinal;
+        state.next_ordinal = state
+            .next_ordinal
+            .checked_add(1)
+            .ok_or(SpawnError::OrdinalExhausted)?;
+        let metadata = TaskMetadata {
+            id,
+            parent: self.parent,
+            child_ordinal,
+            kind,
+            name: name.to_owned(),
+        };
+        if state.closed {
+            drop(state);
+            kernel
+                .trace
+                .record(
+                    kernel.now_nanos(),
+                    TraceContext {
+                        task: Some(id),
+                        ..TraceContext::default()
+                    },
+                    TraceEventKind::TaskRejected {
+                        metadata: metadata.clone(),
+                    },
+                )
+                .map_err(SpawnError::Trace)?;
+            return Err(SpawnError::Closed { metadata });
+        }
+        let resource = kernel
+            .acquire_resource(ResourceKind::Task, None)
+            .map_err(|error| match error {
+                LedgerError::LimitExceeded { limit, .. } => SpawnError::ResourceLimit {
+                    resource: "tasks",
+                    limit,
+                },
+                LedgerError::Overflow => SpawnError::ResourceLimit {
+                    resource: "tasks",
+                    limit: u64::MAX,
+                },
+            })?;
+        kernel
+            .trace
+            .record(
+                kernel.now_nanos(),
+                TraceContext {
+                    task: Some(id),
+                    ..TraceContext::default()
+                },
+                TraceEventKind::TaskSpawned {
+                    metadata: metadata.clone(),
+                },
+            )
+            .map_err(SpawnError::Trace)?;
+        state.tasks.insert(id, metadata.clone());
+        state.high_water_live_tasks = state.high_water_live_tasks.max(state.tasks.len());
+        let completion = Arc::new(CompletionState {
+            state: Mutex::new(CompletionInner::default()),
+        });
+        let group = self.arc_self();
+        let task = Arc::new(TaskCell {
+            metadata: metadata.clone(),
+            future: Mutex::new(Some(future)),
+            cancelled: AtomicBool::new(state.cancelled),
+            group,
+            completion: completion.clone(),
+            _resource: resource,
+        });
+        drop(state);
+        {
+            let mut kernel_state = kernel.state.lock().expect("kernel state lock poisoned");
+            kernel_state.task_history.insert(id, metadata.clone());
+            kernel_state.tasks.insert(id, task);
+            kernel_state.ready_set.insert(id);
+            kernel_state.ready.push_back(id);
+            let epoch = kernel_state.ready_epoch;
+            kernel_state.ready_epochs.insert(id, epoch);
+        }
+        let control: Arc<dyn TaskControl> = Arc::new(KernelTaskControl {
+            task: id,
+            kernel: Arc::downgrade(&kernel),
+        });
+        let completion: TaskCompletion = Box::pin(CompletionFuture(completion));
+        Ok(OwnedTaskHandle::from_backend(id, control, completion))
+    }
+
+    fn close(&self) {
+        self.state
+            .lock()
+            .expect("task group state lock poisoned")
+            .closed = true;
+    }
+
+    fn cancel(&self) {
+        let tasks = {
+            let mut state = self.state.lock().expect("task group state lock poisoned");
+            state.cancelled = true;
+            state.tasks.keys().copied().collect::<Vec<_>>()
+        };
+        if let Some(kernel) = self.kernel.upgrade() {
+            for task in tasks {
+                kernel.cancel_task(task);
+            }
+        }
+    }
+
+    fn is_closed(&self) -> bool {
+        self.state
+            .lock()
+            .expect("task group state lock poisoned")
+            .closed
+    }
+
+    fn snapshot(&self) -> TaskGroupSnapshot {
+        let state = self.state.lock().expect("task group state lock poisoned");
+        TaskGroupSnapshot {
+            closed: state.closed,
+            cancelled: state.cancelled,
+            tasks: state.tasks.values().cloned().collect(),
+        }
+    }
+
+    fn capacity_snapshot(&self) -> TaskGroupCapacitySnapshot {
+        let state = self.state.lock().expect("task group state lock poisoned");
+        TaskGroupCapacitySnapshot::Reported {
+            max_live_tasks: self.limits.max_live_tasks().get(),
+            live_tasks: state.tasks.len(),
+            high_water_live_tasks: state.high_water_live_tasks,
+            rejected_spawns: state.rejected_spawns,
+            counter_exhausted: state.capacity_counter_exhausted,
+        }
+    }
+
+    fn join(&self) -> Pin<Box<dyn Future<Output = Result<(), TaskGroupError>> + Send + '_>> {
+        Box::pin(GroupJoinFuture { group: self })
+    }
+}
+
+impl KernelTaskGroup {
+    fn inner_kernel(&self) -> Result<Arc<KernelInner>, KernelError> {
+        self.kernel.upgrade().ok_or(KernelError::KernelDropped)
+    }
+
+    fn arc_self(&self) -> Arc<Self> {
+        self.self_ref
+            .upgrade()
+            .expect("kernel task group is alive while spawning")
+    }
+}
+
+struct GroupJoinFuture<'a> {
+    group: &'a KernelTaskGroup,
+}
+
+impl Future for GroupJoinFuture<'_> {
+    type Output = Result<(), TaskGroupError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut state = self
+            .group
+            .state
+            .lock()
+            .expect("task group state lock poisoned");
+        if state.closed && state.tasks.is_empty() {
+            Poll::Ready(match state.failure.take() {
+                Some(error) => Err(error),
+                None => Ok(()),
+            })
+        } else {
+            if !state
+                .join_wakers
+                .iter()
+                .any(|waker| waker.will_wake(cx.waker()))
+            {
+                state.join_wakers.push(cx.waker().clone());
+            }
+            Poll::Pending
+        }
+    }
+}
+
+#[derive(Debug)]
+struct KernelTaskControl {
+    task: TaskId,
+    kernel: Weak<KernelInner>,
+}
+
+impl TaskControl for KernelTaskControl {
+    fn abort(&self) {
+        if let Some(kernel) = self.kernel.upgrade() {
+            kernel.cancel_task(self.task);
+        }
+    }
+}
+
+/// Virtual monotonic clock driven only by the kernel event loop.
+#[derive(Debug)]
+pub struct VirtualClock {
+    domain: ClockDomain,
+    origin: krikos_runtime::Instant,
+    timer_ids: IdAllocator<TimerId>,
+    inner: Weak<KernelInner>,
+}
+
+impl Clock for VirtualClock {
+    fn domain(&self) -> ClockDomain {
+        self.domain
+    }
+
+    fn now(&self) -> krikos_runtime::Instant {
+        self.origin + Duration::from_nanos(self.elapsed_nanos().unwrap_or_default())
+    }
+
+    fn new_timer(
+        &self,
+        deadline: krikos_runtime::Instant,
+    ) -> Result<Pin<Box<dyn Timer>>, ClockError> {
+        let kernel = self.inner.upgrade().ok_or(ClockError::BackendUnavailable)?;
+        let id = self.timer_ids.allocate()?;
+        let deadline_nanos = deadline
+            .checked_duration_since(self.origin)
+            .map(duration_nanos)
+            .transpose()
+            .map_err(|_| ClockError::TimelineOverflow)?
+            .unwrap_or_default()
+            .max(kernel.now_nanos());
+        let resource = kernel
+            .acquire_resource(ResourceKind::Timer, None)
+            .map_err(timer_resource_error)?;
+        let reservation = kernel.reserve_event().map_err(timer_schedule_error)?;
+        let state = Arc::new(VirtualTimerState {
+            id,
+            kernel: Arc::downgrade(&kernel),
+            state: Mutex::new(VirtualTimerInner {
+                deadline_nanos,
+                generation: 0,
+                completed: false,
+                dropped: false,
+                waker: None,
+                resource: Some(resource),
+            }),
+        });
+        kernel
+            .trace
+            .record(
+                kernel.now_nanos(),
+                TraceContext::default(),
+                TraceEventKind::TimerCreated {
+                    timer: id,
+                    deadline_nanos,
+                },
+            )
+            .map_err(ClockError::Recorder)?;
+        kernel.schedule_reserved(
+            reservation,
+            deadline_nanos,
+            EventClass::Timer,
+            EventAction::Timer {
+                timer: Arc::downgrade(&state),
+                generation: 0,
+            },
+        );
+        Ok(Box::pin(VirtualTimer {
+            state,
+            origin: self.origin,
+        }))
+    }
+
+    fn elapsed_nanos(&self) -> Result<u64, ClockError> {
+        self.inner
+            .upgrade()
+            .map(|kernel| kernel.now_nanos())
+            .ok_or(ClockError::BackendUnavailable)
+    }
+
+    fn take_failure(&self) -> Option<ClockError> {
+        self.inner.upgrade().and_then(|kernel| {
+            kernel
+                .deferred_clock_failure
+                .lock()
+                .expect("kernel clock failure lock poisoned")
+                .take()
+                .map(ClockError::Recorder)
+        })
+    }
+}
+
+#[derive(Debug)]
+struct VirtualTimerState {
+    id: TimerId,
+    kernel: Weak<KernelInner>,
+    state: Mutex<VirtualTimerInner>,
+}
+
+#[derive(Debug)]
+struct VirtualTimerInner {
+    deadline_nanos: u64,
+    generation: u64,
+    completed: bool,
+    dropped: bool,
+    waker: Option<Waker>,
+    resource: Option<ResourceToken>,
+}
+
+#[derive(Debug)]
+struct VirtualTimer {
+    state: Arc<VirtualTimerState>,
+    origin: krikos_runtime::Instant,
+}
+
+impl Timer for VirtualTimer {
+    fn id(&self) -> TimerId {
+        self.state.id
+    }
+
+    fn deadline(&self) -> krikos_runtime::Instant {
+        self.origin
+            + Duration::from_nanos(
+                self.state
+                    .state
+                    .lock()
+                    .expect("virtual timer lock poisoned")
+                    .deadline_nanos,
+            )
+    }
+
+    fn reset(self: Pin<&mut Self>, deadline: krikos_runtime::Instant) -> Result<(), ClockError> {
+        let kernel = self
+            .state
+            .kernel
+            .upgrade()
+            .ok_or(ClockError::BackendUnavailable)?;
+        let deadline_nanos = deadline
+            .checked_duration_since(self.origin)
+            .map(duration_nanos)
+            .transpose()
+            .map_err(|_| ClockError::TimelineOverflow)?
+            .unwrap_or_default()
+            .max(kernel.now_nanos());
+        let (generation, was_completed) = {
+            let state = self
+                .state
+                .state
+                .lock()
+                .expect("virtual timer lock poisoned");
+            let generation = state
+                .generation
+                .checked_add(1)
+                .ok_or(ClockError::TimelineOverflow)?;
+            (generation, state.completed)
+        };
+        let resource = was_completed
+            .then(|| kernel.acquire_resource(ResourceKind::Timer, None))
+            .transpose()
+            .map_err(timer_resource_error)?;
+        let reservation = kernel.reserve_event().map_err(timer_schedule_error)?;
+        kernel
+            .trace
+            .record(
+                kernel.now_nanos(),
+                TraceContext::default(),
+                TraceEventKind::TimerReset {
+                    timer: self.state.id,
+                    deadline_nanos,
+                },
+            )
+            .map_err(ClockError::Recorder)?;
+        kernel.reset_timer(
+            reservation,
+            &self.state,
+            deadline_nanos,
+            generation,
+            was_completed,
+            resource,
+        );
+        Ok(())
+    }
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), ClockError>> {
+        let kernel = self
+            .state
+            .kernel
+            .upgrade()
+            .ok_or(ClockError::BackendUnavailable)?;
+        let now_nanos = kernel.now_nanos();
+        let should_fire = {
+            let mut state = self
+                .state
+                .state
+                .lock()
+                .expect("virtual timer lock poisoned");
+            if state.completed {
+                return Poll::Ready(Ok(()));
+            }
+            if now_nanos >= state.deadline_nanos {
+                state.completed = true;
+                state.waker = None;
+                state.resource.take();
+                true
+            } else {
+                if state
+                    .waker
+                    .as_ref()
+                    .is_none_or(|waker| !waker.will_wake(cx.waker()))
+                {
+                    state.waker = Some(cx.waker().clone());
+                }
+                false
+            }
+        };
+        if should_fire {
+            Poll::Ready(
+                kernel
+                    .trace
+                    .record(
+                        kernel.now_nanos(),
+                        TraceContext::default(),
+                        TraceEventKind::TimerFired {
+                            timer: self.state.id,
+                        },
+                    )
+                    .map(|_| ())
+                    .map_err(ClockError::Recorder),
+            )
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl Drop for VirtualTimer {
+    fn drop(&mut self) {
+        let should_record = {
+            let mut state = self
+                .state
+                .state
+                .lock()
+                .expect("virtual timer lock poisoned");
+            if state.completed || state.dropped {
+                false
+            } else {
+                state.dropped = true;
+                state.resource.take();
+                true
+            }
+        };
+        if should_record
+            && let Some(kernel) = self.state.kernel.upgrade()
+            && let Err(error) = kernel.trace.record(
+                kernel.now_nanos(),
+                TraceContext::default(),
+                TraceEventKind::TimerDropped {
+                    timer: self.state.id,
+                },
+            )
+        {
+            kernel.latch_deferred_clock_failure(error);
+        }
+    }
+}
+
+/// Wall time derived from an explicit epoch and the kernel monotonic timeline.
+#[derive(Clone, Debug)]
+pub struct VirtualWallClock {
+    epoch: krikos_runtime::SystemTime,
+    inner: Weak<KernelInner>,
+}
+
+impl WallClock for VirtualWallClock {
+    fn now_system(&self) -> krikos_runtime::SystemTime {
+        let elapsed = self
+            .inner
+            .upgrade()
+            .map(|kernel| kernel.now_nanos())
+            .unwrap_or_default();
+        self.epoch
+            .checked_add(Duration::from_nanos(elapsed))
+            .expect("validated virtual time fits SystemTime")
+    }
+}
+
+fn duration_nanos(duration: Duration) -> Result<u64, KernelError> {
+    u64::try_from(duration.as_nanos()).map_err(|_| KernelError::TimelineOverflow)
+}
+
+fn timer_resource_error(error: LedgerError) -> ClockError {
+    match error {
+        LedgerError::LimitExceeded { limit, .. } => ClockError::ResourceLimit {
+            resource: ClockResource::Timer,
+            limit,
+        },
+        LedgerError::Overflow => ClockError::ResourceCounterOverflow,
+    }
+}
+
+fn timer_schedule_error(error: KernelError) -> ClockError {
+    match error {
+        KernelError::EventIdExhausted => ClockError::IdExhausted,
+        KernelError::ScheduledEventLimitExceeded { limit } => ClockError::ResourceLimit {
+            resource: ClockResource::ScheduledEvent,
+            limit,
+        },
+        KernelError::TimelineOverflow => ClockError::TimelineOverflow,
+        KernelError::ResourceCounterOverflow => ClockError::ResourceCounterOverflow,
+        _ => ClockError::BackendUnavailable,
+    }
+}
+
+/// Deterministic kernel construction or execution failure.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum KernelError {
+    /// One or more configured limits are zero.
+    InvalidConfig,
+    /// A duration cannot be represented on the run timeline.
+    TimelineOverflow,
+    /// Stable event identities are exhausted.
+    EventIdExhausted,
+    /// The scheduled-event queue reached its configured admission limit.
+    ScheduledEventLimitExceeded {
+        /// Configured maximum queued events.
+        limit: u64,
+    },
+    /// The owner was dropped while a runtime capability remained.
+    KernelDropped,
+    /// A task had no future despite still being scheduled.
+    TaskFutureUnavailable(TaskId),
+    /// A trace event could not be retained.
+    Trace(TraceRecordError),
+    /// Seeded ready-task selection failed.
+    Decision(DecisionError),
+    /// A scheduled environment callback panicked.
+    EventPanicked,
+    /// The maximum number of task polls and event executions was reached.
+    EventBudgetExceeded {
+        /// Configured maximum.
+        limit: u64,
+    },
+    /// Runnable tasks exhausted the poll budget without reaching quiescence.
+    RunnableBudgetExceeded {
+        /// Configured maximum.
+        limit: u64,
+        /// Number of retained task futures.
+        live_tasks: u64,
+        /// Number of tasks queued for another poll.
+        ready_tasks: u64,
+    },
+    /// The next live event is beyond the configured timeline.
+    VirtualTimeBudgetExceeded {
+        /// Configured maximum in nanoseconds.
+        limit_nanos: u64,
+        /// Rejected event deadline in nanoseconds.
+        next_deadline_nanos: u64,
+    },
+    /// A resource count cannot fit the public result schema.
+    ResourceCounterOverflow,
+    /// A scheduled callback returned a classified failure.
+    EventAction(Box<KernelError>),
+}
+
+impl fmt::Display for KernelError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidConfig => f.write_str("kernel budgets must be nonzero"),
+            Self::TimelineOverflow => f.write_str("kernel timeline cannot represent duration"),
+            Self::EventIdExhausted => f.write_str("kernel event identity space exhausted"),
+            Self::ScheduledEventLimitExceeded { limit } => {
+                write!(f, "kernel scheduled-event limit {limit} exceeded")
+            }
+            Self::KernelDropped => f.write_str("deterministic kernel was dropped"),
+            Self::TaskFutureUnavailable(task) => {
+                write!(f, "kernel task {task} has no pollable future")
+            }
+            Self::Trace(error) => write!(f, "kernel trace failed: {error}"),
+            Self::Decision(error) => write!(f, "kernel scheduling decision failed: {error}"),
+            Self::EventPanicked => f.write_str("scheduled kernel event panicked"),
+            Self::EventBudgetExceeded { limit } => {
+                write!(f, "kernel event budget {limit} exceeded")
+            }
+            Self::RunnableBudgetExceeded {
+                limit,
+                live_tasks,
+                ready_tasks,
+            } => write!(
+                f,
+                "kernel task-poll budget {limit} exceeded with {live_tasks} live and {ready_tasks} ready tasks (possible livelock)"
+            ),
+            Self::VirtualTimeBudgetExceeded {
+                limit_nanos,
+                next_deadline_nanos,
+            } => write!(
+                f,
+                "kernel virtual-time budget {limit_nanos}ns exceeded by event at {next_deadline_nanos}ns"
+            ),
+            Self::ResourceCounterOverflow => f.write_str("kernel resource count overflow"),
+            Self::EventAction(error) => write!(f, "scheduled kernel event failed: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for KernelError {}
+
+impl From<DecisionError> for KernelError {
+    fn from(value: DecisionError) -> Self {
+        Self::Decision(value)
+    }
+}

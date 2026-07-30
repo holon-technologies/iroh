@@ -1514,10 +1514,10 @@ dependencies = [
  "hickory-resolver",
  "http",
  "ipnet",
- "iroh-base 1.0.3",
- "iroh-dns 1.0.3",
+ "iroh-base",
+ "iroh-dns",
  "iroh-metrics",
- "iroh-relay 1.0.3",
+ "iroh-relay",
  "n0-error",
  "n0-future",
  "n0-watcher",
@@ -1547,79 +1547,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh"
-version = "2.0.0"
-dependencies = [
- "backon",
- "blake3",
- "bytes",
- "cfg_aliases",
- "ctutils",
- "data-encoding",
- "derive_more",
- "ed25519-dalek",
- "futures-util",
- "getrandom 0.4.3",
- "hickory-resolver",
- "http",
- "ipnet",
- "iroh-base 2.0.0",
- "iroh-dns 2.0.0",
- "iroh-metrics",
- "iroh-relay 2.0.0",
- "iroh-resolver",
- "iroh-runtime",
- "krikos-noq",
- "n0-error",
- "n0-future",
- "n0-watcher",
- "netwatch",
- "noq-proto",
- "noq-udp",
- "papaya",
- "pin-project",
- "portable-atomic",
- "portmapper",
- "rand",
- "reqwest",
- "rustc-hash",
- "rustls",
- "rustls-pki-types",
- "serde",
- "smallvec",
- "strum",
- "time",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tracing",
- "url",
- "wasm-bindgen-futures",
- "zeroize",
-]
-
-[[package]]
 name = "iroh-base"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6be73e16ee21c923aca9b3121aaa0db936f7c7ecc156ff47b8dac944c68d59a8"
-dependencies = [
- "curve25519-dalek",
- "data-encoding",
- "data-encoding-macro",
- "derive_more",
- "ed25519-dalek",
- "getrandom 0.4.3",
- "n0-error",
- "rand",
- "serde",
- "url",
- "zeroize",
-]
-
-[[package]]
-name = "iroh-base"
-version = "2.0.0"
 dependencies = [
  "curve25519-dalek",
  "data-encoding",
@@ -1651,8 +1582,8 @@ dependencies = [
  "genawaiter",
  "getrandom 0.4.3",
  "hex",
- "iroh 1.0.3",
- "iroh-base 1.0.3",
+ "iroh",
+ "iroh-base",
  "iroh-io",
  "iroh-metrics",
  "iroh-tickets",
@@ -1676,50 +1607,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-blobs"
-version = "2.0.0"
-dependencies = [
- "arrayvec",
- "bao-tree",
- "bytes",
- "cfg_aliases",
- "chrono",
- "constant_time_eq",
- "data-encoding",
- "derive_more",
- "genawaiter",
- "getrandom 0.4.3",
- "hex",
- "iroh 2.0.0",
- "iroh-io",
- "iroh-metrics",
- "irpc",
- "n0-error",
- "n0-future",
- "nested_enum_utils",
- "noq",
- "postcard",
- "rand",
- "range-collections",
- "redb",
- "ref-cast",
- "reflink-copy",
- "self_cell",
- "serde",
- "smallvec",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iroh-blobs-v0-103-interop"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "iroh 1.0.3",
- "iroh 2.0.0",
- "iroh-blobs 0.103.0",
- "iroh-blobs 2.0.0",
+ "iroh",
+ "iroh-blobs",
+ "krikos",
+ "krikos-blobs",
  "tokio",
 ]
 
@@ -1733,7 +1628,7 @@ dependencies = [
  "cfg_aliases",
  "derive_more",
  "hickory-resolver",
- "iroh-base 1.0.3",
+ "iroh-base",
  "n0-error",
  "n0-future",
  "ndk-context",
@@ -1744,22 +1639,6 @@ dependencies = [
  "strum",
  "tokio",
  "tracing",
- "url",
-]
-
-[[package]]
-name = "iroh-dns"
-version = "2.0.0"
-dependencies = [
- "cfg_aliases",
- "derive_more",
- "iroh-base 2.0.0",
- "iroh-resolver",
- "n0-error",
- "n0-future",
- "portable-atomic",
- "simple-dns",
- "strum",
  "url",
 ]
 
@@ -1820,8 +1699,8 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "iroh-base 1.0.3",
- "iroh-dns 1.0.3",
+ "iroh-base",
+ "iroh-dns",
  "iroh-metrics",
  "lru",
  "n0-error",
@@ -1849,82 +1728,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-relay"
-version = "2.0.0"
-dependencies = [
- "blake3",
- "bytes",
- "cfg_aliases",
- "data-encoding",
- "derive_more",
- "getrandom 0.4.3",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "iroh-base 2.0.0",
- "iroh-metrics",
- "iroh-resolver",
- "iroh-runtime",
- "krikos-noq",
- "lru",
- "n0-error",
- "n0-future",
- "noq-proto",
- "num_enum",
- "pin-project",
- "postcard",
- "rand",
- "rcgen",
- "reqwest",
- "rustls",
- "rustls-pki-types",
- "serde",
- "serde_bytes",
- "strum",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tokio-websockets",
- "tracing",
- "url",
- "webpki-roots",
- "ws_stream_wasm",
-]
-
-[[package]]
-name = "iroh-resolver"
-version = "2.0.0"
-dependencies = [
- "arc-swap",
- "cfg_aliases",
- "hickory-resolver",
- "n0-error",
- "n0-future",
- "ndk-context",
- "rand",
- "rustls",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "iroh-runtime"
-version = "2.0.0"
-dependencies = [
- "blake3",
- "futures-util",
- "getrandom 0.4.3",
- "rand",
- "rand_chacha",
- "serde",
- "tokio",
- "tokio-util",
- "web-time",
-]
-
-[[package]]
 name = "iroh-tickets"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1932,7 +1735,7 @@ checksum = "da53233419ca36bf521ed45683b7748366f9b233032891eefc2d70567a84ac54"
 dependencies = [
  "data-encoding",
  "derive_more",
- "iroh-base 1.0.3",
+ "iroh-base",
  "n0-error",
  "postcard",
  "serde",
@@ -1945,7 +1748,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20e41eb982f15230c55f0a70a74a514360e1f565b07861924fd0e8db172b3d00"
 dependencies = [
  "derive_more",
- "iroh 1.0.3",
+ "iroh",
  "n0-error",
  "n0-future",
  "tokio",
@@ -2077,6 +1880,127 @@ dependencies = [
 ]
 
 [[package]]
+name = "krikos"
+version = "2.0.0"
+dependencies = [
+ "backon",
+ "blake3",
+ "bytes",
+ "cfg_aliases",
+ "ctutils",
+ "data-encoding",
+ "derive_more",
+ "ed25519-dalek",
+ "futures-util",
+ "getrandom 0.4.3",
+ "hickory-resolver",
+ "http",
+ "ipnet",
+ "iroh-metrics",
+ "krikos-base",
+ "krikos-dns",
+ "krikos-noq",
+ "krikos-relay",
+ "krikos-resolver",
+ "krikos-runtime",
+ "n0-error",
+ "n0-future",
+ "n0-watcher",
+ "netwatch",
+ "noq-proto",
+ "noq-udp",
+ "papaya",
+ "pin-project",
+ "portable-atomic",
+ "portmapper",
+ "rand",
+ "reqwest",
+ "rustc-hash",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "smallvec",
+ "strum",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
+ "zeroize",
+]
+
+[[package]]
+name = "krikos-base"
+version = "2.0.0"
+dependencies = [
+ "curve25519-dalek",
+ "data-encoding",
+ "data-encoding-macro",
+ "derive_more",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "n0-error",
+ "rand",
+ "serde",
+ "url",
+ "zeroize",
+]
+
+[[package]]
+name = "krikos-blobs"
+version = "2.0.0"
+dependencies = [
+ "arrayvec",
+ "bao-tree",
+ "bytes",
+ "cfg_aliases",
+ "chrono",
+ "constant_time_eq",
+ "data-encoding",
+ "derive_more",
+ "genawaiter",
+ "getrandom 0.4.3",
+ "hex",
+ "iroh-io",
+ "iroh-metrics",
+ "irpc",
+ "krikos",
+ "n0-error",
+ "n0-future",
+ "nested_enum_utils",
+ "noq",
+ "postcard",
+ "rand",
+ "range-collections",
+ "redb",
+ "ref-cast",
+ "reflink-copy",
+ "self_cell",
+ "serde",
+ "smallvec",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "krikos-dns"
+version = "2.0.0"
+dependencies = [
+ "cfg_aliases",
+ "derive_more",
+ "krikos-base",
+ "krikos-resolver",
+ "n0-error",
+ "n0-future",
+ "portable-atomic",
+ "simple-dns",
+ "strum",
+ "url",
+]
+
+[[package]]
 name = "krikos-noq"
 version = "1.1.0-holon.1"
 dependencies = [
@@ -2093,6 +2017,82 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "web-time",
+]
+
+[[package]]
+name = "krikos-relay"
+version = "2.0.0"
+dependencies = [
+ "blake3",
+ "bytes",
+ "cfg_aliases",
+ "data-encoding",
+ "derive_more",
+ "getrandom 0.4.3",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "iroh-metrics",
+ "krikos-base",
+ "krikos-noq",
+ "krikos-resolver",
+ "krikos-runtime",
+ "lru",
+ "n0-error",
+ "n0-future",
+ "noq-proto",
+ "num_enum",
+ "pin-project",
+ "postcard",
+ "rand",
+ "rcgen",
+ "reqwest",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_bytes",
+ "strum",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "url",
+ "webpki-roots",
+ "ws_stream_wasm",
+]
+
+[[package]]
+name = "krikos-resolver"
+version = "2.0.0"
+dependencies = [
+ "arc-swap",
+ "cfg_aliases",
+ "hickory-resolver",
+ "n0-error",
+ "n0-future",
+ "ndk-context",
+ "rand",
+ "rustls",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "krikos-runtime"
+version = "2.0.0"
+dependencies = [
+ "blake3",
+ "futures-util",
+ "getrandom 0.4.3",
+ "rand",
+ "rand_chacha",
+ "serde",
+ "tokio",
+ "tokio-util",
  "web-time",
 ]
 

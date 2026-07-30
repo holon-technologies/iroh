@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 
-use iroh_app::{LifecycleState, StandardBundle, StandardStartStage};
+use krikos_app::{LifecycleState, StandardBundle, StandardStartStage};
 
 #[tokio::test]
 async fn ephemeral_standard_bundle_starts_healthy_and_stops_cleanly() {
@@ -12,9 +12,9 @@ async fn ephemeral_standard_bundle_starts_healthy_and_stops_cleanly() {
 
     assert_eq!(app.health().lifecycle().state(), LifecycleState::Running);
     assert_eq!(app.metrics().protocol_count(), 3);
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_blobs::ALPN));
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_docs::ALPN));
-    assert!(app.registered_alpns().any(|alpn| alpn == iroh_gossip::ALPN));
+    assert!(app.registered_alpns().any(|alpn| alpn == krikos_blobs::ALPN));
+    assert!(app.registered_alpns().any(|alpn| alpn == krikos_docs::ALPN));
+    assert!(app.registered_alpns().any(|alpn| alpn == krikos_gossip::ALPN));
     assert_eq!(app.endpoint().id(), app.endpoint_id());
 
     app.shutdown().await.unwrap();
