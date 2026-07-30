@@ -1,13 +1,19 @@
-# Krikos 2.0 release checklist
+# Krikos v2 architecture release checklist
 
-This is the blocking release contract for `2.0.0`. An unchecked item means the
-release is not ready. Preparing a candidate does not authorize publishing a
-crate, tag, GitHub release, or container.
+This is the blocking release contract for the v2 architecture cut's `1.0.0`
+launch release ([ADR-0002](../adr/0002-krikos-rebrand.md) sets the launch
+version at `1.0.0`, superseding the `2.0.0` this checklist originally
+targeted before the rebrand; "v2" below still names the architecture
+generation, not the crate SemVer). An unchecked item means the release is
+not ready. Preparing a candidate does not authorize publishing a crate, tag,
+GitHub release, or container.
 
 ## Source and compatibility
 
 - [ ] Every publishable crate manifest and internal dependency requirement uses
-  `2.0.0`; `Cargo.lock` contains no stale Krikos `1.x` package.
+  `1.0.0`; `Cargo.lock` contains no stale dependency requirement on a
+  pre-rebrand package name (see the mapping in
+  [`krikos-migration.md`](krikos-migration.md)).
 - [ ] `CHANGELOG.md` and every publishable crate changelog have complete
   `Unreleased` entries, including the fallible constructors and
   `Clients::register`.
@@ -95,7 +101,7 @@ crate, tag, GitHub release, or container.
   commitments and opens the machine-readable framework gate.
 - [ ] The `krikos-noq` and `krikos-hickory-server` crates.io names are claimed by
   an authorized Holon publisher before dependent Krikos crates are published.
-- [ ] A repository owner explicitly authorizes the immutable `v2.0.0` tag,
+- [ ] A repository owner explicitly authorizes the immutable `v1.0.0` tag,
   draft GitHub release, and any GHCR publication.
 - [ ] After publication, install and smoke tests pass from crates.io, release
   archives, and both container architectures before the draft is published.

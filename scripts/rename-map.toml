@@ -260,6 +260,10 @@ path = "docs/adr/0002-krikos-rebrand.md"
 reason = "the decision record for this very rebrand: it names iroh/iroh-* packages, the upstream n0-computer/iroh repository, and crates.io ownership as part of the historical record explaining why the rename happened; rewriting it would erase the decision it documents. Pinned to this exact filename for the same reason as 0001, above."
 
 [[exemptions]]
+path = "docs/release/krikos-migration.md"
+reason = "the migration guide for downstream consumers moving from upstream iroh to Krikos (.superpowers plan Task 7 / ADR-0002's 'Migration' consequence section). Its entire content is the old->new package/import/env-var mapping and a worked before/after code example that shows both sides -- rewriting the 'before' (upstream) side to say krikos would make the guide describe migrating from krikos to krikos, i.e. nothing. Same reasoning as the docs/adr/0001 and 0002 exemptions below: a document whose value is naming the old identifiers accurately is not a rename target. Pinned to this exact filename, not a docs/release/*.md blanket, so a future release doc cannot inherit the exemption invisibly."
+
+[[exemptions]]
 path = "scripts/rename-map.toml"
 reason = "this file. It records old_package/old_lib/old_dir/exemption-path values verbatim as data for check-rebrand-complete.sh and apply-rebrand.sh to read; rewriting them in place would delete the mapping the rest of the plan depends on."
 

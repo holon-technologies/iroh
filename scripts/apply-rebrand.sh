@@ -2,12 +2,46 @@
 # Applies the Krikos rebrand mechanical sweep (ADR-0002 / .superpowers plan
 # Task 3), driven entirely by scripts/rename-map.toml.
 #
+# STATUS: historical, one-shot tool. It performed the Task 3 sweep once
+# (commit ba8314b819), already applied and committed to this repository --
+# `--dry-run` against the current tree reports zero remaining changes, and
+# it is expected to keep reporting zero indefinitely. It is kept rather than
+# deleted (Task 7 decision) for two reasons: it is a reviewable, executable
+# record of exactly how the sweep was performed, rather than a paragraph
+# describing it after the fact; and its `--dry-run` mode remains a genuinely
+# useful audit tool for the standing cost ADR-0002 accepted -- every future
+# upstream protocol sync (docs/framework/upstream-sync.md) reimports files
+# that can reintroduce old, pre-rebrand-named Rust identifiers into an
+# already-renamed directory, and re-running `--dry-run` after an import
+# lists exactly which files need the rename reapplied by hand.
+#
+# Do NOT run `--apply` again as a whole-repo operation: every directory in
+# its move plan already has its new name, so `--apply` hits its own
+# `FATAL: expected source directory '...' does not exist` guard on the
+# first pair and exits before touching anything -- a safe, loud failure,
+# not a silent no-op or a corruption, but not a usable "reapply the sweep"
+# path either. Fix any straggler `--dry-run` flags by hand, using the exact
+# old->new pairs in scripts/rename-map.toml, then confirm with
+# scripts/tests/check-rebrand-complete.sh.
+#
+# Kept working, not just kept: two bugs that would have made `--dry-run`
+# lie were found and fixed on 2026-07-30, after Task 5 (a later commit)
+# added `pattern`-keyed exemptions to rename-map.toml that this script
+# predates -- `is_exempt` raised `KeyError: 'path'` on any `pattern`-only
+# exemption instead of skipping it, and the inline-array branch
+# (`members = [...]` / `exclude = [...]`) counted a "change" whenever it
+# matched a quoted string at all, not when the substitution actually
+# changed anything, so any inline array with a quoted entry (e.g.
+# `members = ["."]` in fuzz/Cargo.toml) was misreported as needing a
+# rewrite it didn't need. Both are fixed in place below; neither changes
+# what counts as a real rename.
+#
 # Usage:
 #   scripts/apply-rebrand.sh --dry-run   # report what would change, write nothing
 #   scripts/apply-rebrand.sh --apply     # git mv directories + rewrite content
 #
 # What this touches (and ONLY this -- see rationale in the plan/report):
-#   1. The 10 directories in rename-map.toml with dir_renamed = true, via
+#   1. The 12 directories in rename-map.toml with dir_renamed = true, via
 #      `git mv` (so history follows).
 #   2. Every `Cargo.toml`: `name =`, `[lib] name =`, `path =` dependency
 #      values, bare dependency-table keys, workspace `members`/`exclude`
@@ -210,7 +244,15 @@ def glob_match(path, pattern):
 
 
 def is_exempt(path):
-    return any(glob_match(path, e["path"]) for e in exemptions)
+    # NOTE: `exemptions` can also contain `pattern`-keyed entries (added by
+    # Task 5 to scripts/rename-map.toml, after this script was written) that
+    # exempt one literal substring wherever it occurs rather than a whole
+    # path. This script only ever needs whole-file exemption for its
+    # directory/manifest/`.rs`-content sweep, so `pattern`-only entries are
+    # simply skipped here rather than applied -- but they MUST be skipped
+    # explicitly (`"path" in e`), not assumed absent, or an `e["path"]`
+    # lookup on a `pattern`-only entry raises `KeyError`.
+    return any(glob_match(path, e["path"]) for e in exemptions if "path" in e)
 
 
 # ---------------------------------------------------------------------------
@@ -342,9 +384,17 @@ def transform_cargo_toml(text, compat_mode):
                     v, ch = sub_fn(m.group(1))
                     return f'"{v}"'
                 body, n = QUOTED_RE.subn(repl, inline_m.group(2))
-                if n:
-                    line = inline_m.group(1) + body + inline_m.group(3)
+                # `n` only counts how many quoted strings QUOTED_RE matched,
+                # not whether any of them actually changed -- an inline
+                # array with any quoted entry (e.g. `members = ["."]`)
+                # always has n >= 1, so `if n:` alone reported a false
+                # "change" on every such line regardless of content. Compare
+                # the assembled replacement line, matching the multi-line
+                # array branch above, which already gets this right.
+                new_line = inline_m.group(1) + body + inline_m.group(3)
+                if n and new_line != line:
                     changes += 1
+                line = new_line
                 out.append(line)
                 continue
             open_m = ARRAY_OPEN_RE.match(line)
@@ -696,7 +746,7 @@ print(f"files skipped (vendor/, Task 2's domain):      {summary['skipped_vendor'
 print(f"files skipped (out of Task 3 scope: not Cargo.toml/.rs): {summary['skipped_other']}")
 
 exempt_touched = [l for l in diff_lines if any(
-    glob_match(l.split(": ", 1)[1].split(" (")[0], e["path"]) for e in exemptions
+    glob_match(l.split(": ", 1)[1].split(" (")[0], e["path"]) for e in exemptions if "path" in e
 ) and not l.startswith("COMPAT-FIX")]
 if exempt_touched:
     print("\nFATAL: the following exempted paths were about to be rewritten:")
