@@ -84,6 +84,29 @@ if [[ ${#source_roots[@]} -eq 0 ]]; then
   exit 2
 fi
 
+# Every root above is a real Cargo package directory (see
+# scripts/rename-map.toml, dir_renamed = true); Cargo requires a `[lib]` or
+# `[[bin]]` entry point in at least one `.rs` file for such a package to
+# build, so a root that exists but contains zero `.rs` files is never
+# legitimate here -- only a symptom of a botched rename (e.g. a `git mv`
+# that left the destination directory present but empty). A missing root
+# and a present-but-empty root are the same failure in different clothing,
+# so both are hard errors, not a skip.
+min_files_per_root=1
+empty_roots=()
+for candidate in "${source_roots[@]}"; do
+  found=$(find "$repo_root/$candidate" -type f -name '*.rs' | wc -l)
+  if [[ "$found" -lt "$min_files_per_root" ]]; then
+    empty_roots+=("$candidate ($found)")
+  fi
+done
+
+if [[ ${#empty_roots[@]} -gt 0 ]]; then
+  echo "determinism boundary source root(s) present but below the ${min_files_per_root}-file minimum below $repo_root: ${empty_roots[*]}" >&2
+  echo "an existing-but-empty root would silently narrow the scan the same way a missing root would" >&2
+  exit 2
+fi
+
 collected=$(mktemp)
 sorted=$(mktemp)
 added=$(mktemp)

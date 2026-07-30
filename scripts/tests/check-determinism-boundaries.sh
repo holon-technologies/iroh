@@ -9,12 +9,17 @@ trap 'rm -rf "$fixture_root"' EXIT
 
 mkdir -p "$fixture_root/krikos/src" "$fixture_root/krikos-runtime/src" "$fixture_root/scripts"
 # The checker's SOURCE_ROOTS list is fixed; every root must exist below
-# --root or the checker now errors loudly (a missing root must not silently
-# narrow the scan). Only krikos/ and krikos-runtime/ carry fixture content --
-# the rest are present-but-empty so the fixture satisfies that floor check.
-mkdir -p "$fixture_root/krikos-base" "$fixture_root/krikos-resolver" \
-  "$fixture_root/krikos-dns" "$fixture_root/krikos-dns-server" \
-  "$fixture_root/krikos-relay" "$fixture_root/krikos-sim"
+# --root and contain at least one .rs file, or the checker now errors
+# loudly (neither a missing root nor a present-but-empty root may silently
+# narrow the scan). Only krikos/ and krikos-runtime/ carry the fixture
+# content the assertions below exercise -- the rest each get one trivial
+# placeholder .rs file so they satisfy the per-root minimum without
+# contributing any boundary occurrences.
+placeholder_roots=(krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-sim)
+for placeholder in "${placeholder_roots[@]}"; do
+  mkdir -p "$fixture_root/$placeholder/src"
+  printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/$placeholder/src/lib.rs"
+done
 baseline="$fixture_root/scripts/determinism-boundaries.txt"
 source_file="$fixture_root/krikos/src/lib.rs"
 runtime_source="$fixture_root/krikos-runtime/src/lib.rs"
@@ -57,5 +62,40 @@ if ! grep -Fq $'clock-timer\tkrikos-runtime/src/lib.rs:2\tpub fn wall_time() { l
   echo "updated baseline does not include krikos-runtime" >&2
   exit 1
 fi
+
+
+# A missing source root must be a hard error, not a silent narrowing of the
+# scan (this is the Step Zero fix: SOURCE_ROOTS used to be pre-rename names
+# and every candidate was silently absent).
+rm -rf "$fixture_root/krikos-base"
+if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&1); then
+  echo "expected boundary check to reject a missing source root" >&2
+  exit 1
+fi
+if [[ "$output" != *"source root(s) missing"* ]]; then
+  echo "boundary check did not name the missing source root" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+mkdir -p "$fixture_root/krikos-base/src"
+printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/krikos-base/src/lib.rs"
+"$checker" --check --root "$fixture_root" --baseline "$baseline"
+
+# A root that exists but holds zero .rs files is the same failure in
+# different clothing (e.g. a botched `git mv` that left the destination
+# directory behind but empty) and must also be a hard error, not silently
+# treated as "nothing to scan here".
+rm -f "$fixture_root/krikos-base/src/lib.rs"
+if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&1); then
+  echo "expected boundary check to reject a present-but-empty source root" >&2
+  exit 1
+fi
+if [[ "$output" != *"below the 1-file minimum"* ]]; then
+  echo "boundary check did not name the empty source root" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/krikos-base/src/lib.rs"
+"$checker" --check --root "$fixture_root" --baseline "$baseline"
 
 echo "determinism boundary checker contract passed"

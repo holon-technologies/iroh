@@ -9,13 +9,17 @@ trap 'rm -rf "$fixture_root"' EXIT
 
 mkdir -p "$fixture_root/krikos/src" "$fixture_root/scripts"
 # The Rust checker's SOURCE_ROOTS list is fixed; every root must exist below
-# --root or it now errors loudly (a missing root must not silently narrow
-# the scan). Only krikos/ carries fixture content -- the rest are
-# present-but-empty so the fixture satisfies that floor check.
-mkdir -p "$fixture_root/krikos-base" "$fixture_root/krikos-resolver" \
-  "$fixture_root/krikos-dns" "$fixture_root/krikos-dns-server" \
-  "$fixture_root/krikos-relay" "$fixture_root/krikos-runtime" \
-  "$fixture_root/krikos-sim"
+# --root and contain at least one .rs file, or it now errors loudly
+# (neither a missing root nor a present-but-empty root may silently narrow
+# the scan). Only krikos/ carries the fixture content the assertions below
+# exercise -- the rest each get one trivial placeholder .rs file so they
+# satisfy the per-root minimum without contributing any boundary
+# occurrences.
+placeholder_roots=(krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim)
+for placeholder in "${placeholder_roots[@]}"; do
+  mkdir -p "$fixture_root/$placeholder/src"
+  printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/$placeholder/src/lib.rs"
+done
 source_file="$fixture_root/krikos/src/lib.rs"
 baseline="$fixture_root/scripts/determinism-boundaries.semantic.txt"
 
@@ -54,6 +58,40 @@ if ! grep -Fq $'spawn-task\tkrikos/src/lib.rs\tdetached\ttokio::spawn\t1' "$base
   echo "semantic checker did not retain the aliased spawn identity" >&2
   exit 1
 fi
+
+# A missing source root must be a hard error, not a silent narrowing of the
+# scan (this is the Step Zero fix: SOURCE_ROOTS used to be pre-rename names
+# and every candidate was silently absent).
+rm -rf "$fixture_root/krikos-base"
+if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&1); then
+  echo "expected semantic checker to reject a missing source root" >&2
+  exit 1
+fi
+if [[ "$output" != *"source root missing"* ]]; then
+  echo "semantic checker did not name the missing source root" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+mkdir -p "$fixture_root/krikos-base/src"
+printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/krikos-base/src/lib.rs"
+"$checker" --check --root "$fixture_root" --baseline "$baseline"
+
+# A root that exists but holds zero .rs files is the same failure in
+# different clothing (e.g. a botched `git mv` that left the destination
+# directory behind but empty) and must also be a hard error, not silently
+# treated as "nothing to scan here".
+rm -f "$fixture_root/krikos-base/src/lib.rs"
+if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&1); then
+  echo "expected semantic checker to reject a present-but-empty source root" >&2
+  exit 1
+fi
+if [[ "$output" != *"Rust file(s) (minimum"* ]]; then
+  echo "semantic checker did not name the empty source root" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/krikos-base/src/lib.rs"
+"$checker" --check --root "$fixture_root" --baseline "$baseline"
 
 printf '%s\n' 'pub fn malformed( {' >> "$source_file"
 if "$checker" --check --root "$fixture_root" --baseline "$baseline" >/dev/null 2>&1; then
