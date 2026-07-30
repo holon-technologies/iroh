@@ -94,7 +94,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     assert_eq!(summary["seed_leases"][0]["consumed_runs"], 1);
     assert_eq!(
         summary["seed_leases"][0]["policy_blake3"],
-        "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978"
+        "dca497cd7e5c6f73007260eb3d1e9e9afb25812721f7d0cc83a573a05e666366"
     );
     assert_eq!(
         fs::read_dir(&artifact_root)
@@ -220,7 +220,7 @@ fn soak_executes_a_strict_plan_and_checkpoints_without_success_artifacts() {
     domain_drifted_plan["lanes"][0]["swarm"] =
         serde_json::Value::String("krikos-sim/swarms/relay-lifecycle.json".to_owned());
     domain_drifted_plan["lanes"][0]["swarm_blake3"] = serde_json::Value::String(
-        "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4".to_owned(),
+        "fa0e8f6c57cb6e0dbf42d2189e695282908837d27bbd6d7d3615f5e1be0b2e0c".to_owned(),
     );
     domain_drifted_plan["lanes"][12]["swarm"] =
         serde_json::Value::String("krikos-sim/swarms/direct-smoke.json".to_owned());
@@ -295,7 +295,7 @@ fn soak_retains_a_bounded_replayable_failure_bundle() {
             "krikos-sim/tests/fixtures/soak-failure-swarm.json".to_owned(),
         );
         plan["lanes"][lane_index]["swarm_blake3"] = serde_json::Value::String(
-            "b52aed003f2de3c2126ea11db29bd939915d2c4338336302f77fb77e71cb0673".to_owned(),
+            "babd5497633bd639a970e53abf5a1cb23289b6198f600b696b8ebc057c6f2805".to_owned(),
         );
     }
     let plan_path = root.join("failure-plan.json");

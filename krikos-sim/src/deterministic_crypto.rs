@@ -18,7 +18,7 @@ use rustls::{
 };
 use zeroize::Zeroize;
 
-const ENTROPY_CONTEXT: &str = "krikos deterministic simulation TLS entropy v1";
+const ENTROPY_CONTEXT: &str = "iroh deterministic simulation TLS entropy v1";
 
 pub(crate) fn deterministic_test_crypto_provider(
     provider: Arc<CryptoProvider>,

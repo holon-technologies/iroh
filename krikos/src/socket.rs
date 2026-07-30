@@ -194,7 +194,7 @@ pub(crate) fn deterministic_simulation_initial_dst_cid_provider(
 ) -> Arc<dyn Fn() -> noq::ConnectionId + Send + Sync> {
     const INITIAL_DST_CID_LEN: usize = 20;
     let key = blake3::derive_key(
-        "krikos simulation QUIC initial destination connection IDs v1",
+        "iroh simulation QUIC initial destination connection IDs v1",
         &reset_key,
     );
     let counter = AtomicU64::new(0);
@@ -214,7 +214,7 @@ impl DeterministicSimulationConnectionIdGenerator {
     const CID_LEN: usize = 16;
 
     fn new(reset_key: [u8; 32]) -> Self {
-        let key = blake3::derive_key("krikos simulation QUIC connection IDs v1", &reset_key);
+        let key = blake3::derive_key("iroh simulation QUIC connection IDs v1", &reset_key);
         Self { key, counter: 0 }
     }
 }

@@ -149,7 +149,7 @@ impl Clients {
         decision_path: &str,
     ) -> Result<Self, DecisionError> {
         let mut hasher = blake3::Hasher::new_derive_key(
-            "krikos relay deterministic simulation authentication challenges v1",
+            "iroh relay deterministic simulation authentication challenges v1",
         );
         hasher.update(runtime.root_seed().as_bytes());
         let decision_path_len = u32::try_from(decision_path.len())

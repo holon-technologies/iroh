@@ -546,3 +546,76 @@ reason = "destination filename netsim_runner.yaml copies the krikos-dns-server b
 # updated -- a blanket exemption here would hide the internal identifiers
 # that do need to change, which is the "too broad" failure mode called out
 # for this task.
+
+# Determinism domain-separation / key-derivation context strings. Task 8
+# review found these renamed by the original mechanical sweep and reverted
+# them: each string below is fed directly to blake3::derive_key /
+# Hasher::new_derive_key as a domain-separation label, so its VALUE (not its
+# name) seeds every downstream RNG draw, derived key, or seed in the path
+# that uses it. Changing the value changes every deterministic replay,
+# recorded seed, and krikos-sim/corpus/*/metadata.json causal_suffix_digest
+# that depends on it -- confirmed the hard way: reverting
+# krikos-runtime/src/decision.rs's DERIVATION_CONTEXT fixed
+# `identical_root_and_path_replay_the_same_values` (which hardcodes expected
+# RNG output and says "update only for an intentional RNG schema change"),
+# and reverting the krikos-sim ones fixed real ExpectationMismatch failures
+# against six of the twelve reviewed corpus entries. A deliberate rename of
+# any of these is a v1 -> v2 domain-separation schema bump that requires
+# regenerating every piece of recorded evidence derived from it -- a
+# separate decision from a rebrand, not a side effect of one.
+
+[[exemptions]]
+pattern = "iroh-runtime behavioral decision stream v1"
+reason = "krikos-runtime/src/decision.rs's DERIVATION_CONTEXT, fed to blake3::Hasher::new_derive_key for every behavioral-decision RNG stream. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh deterministic simulation TLS entropy v1"
+reason = "krikos-sim/src/deterministic_crypto.rs's ENTROPY_CONTEXT, fed to blake3::Hasher::new_derive_key for the deterministic TLS crypto provider's entropy stream. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim deterministic change gate seed v1"
+reason = "krikos-sim/src/gate.rs's per-lane deterministic change-gate seed derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim deterministic TLS endpoint seed v1"
+reason = "krikos-sim/src/backend.rs's deterministic TLS endpoint seed derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh relay deterministic simulation authentication challenges v1"
+reason = "krikos-relay/src/server/clients.rs's Clients::with_runtime (test/test-utils only) deterministic authentication-challenge seed derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim campaign root seed v1"
+reason = "krikos-sim/src/cli/campaign.rs's campaign root seed derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim swarm materialization seed v1"
+reason = "krikos-sim/src/cli/campaign.rs's swarm materialization seed derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim parity evidence run id v1"
+reason = "krikos-sim/src/cli/parity.rs's parity evidence run-id derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim patchbay evidence run id v1"
+reason = "krikos-sim/src/parity.rs's patchbay evidence run-id derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim endpoint identity v1"
+reason = "krikos-sim/src/runner/backend.rs's per-endpoint identity material derivation (two call sites, bind_endpoint and the endpoint-id fallback lookup, both must derive the same key). See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim token material v1"
+reason = "krikos-sim/src/runner/backend.rs's per-endpoint token material derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh-sim reset material v1"
+reason = "krikos-sim/src/runner/backend.rs's per-endpoint QUIC stateless-reset material derivation. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh simulation QUIC initial destination connection IDs v1"
+reason = "krikos/src/socket.rs's deterministic-simulation initial destination connection ID provider. See the determinism domain-separation note above."
+
+[[exemptions]]
+pattern = "iroh simulation QUIC connection IDs v1"
+reason = "krikos/src/socket.rs's DeterministicSimulationConnectionIdGenerator. See the determinism domain-separation note above."

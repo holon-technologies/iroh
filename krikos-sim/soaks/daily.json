@@ -2,7 +2,7 @@
   "schema_version": 2,
   "id": "daily",
   "coverage_policy": "krikos-sim/coverage-policy.json",
-  "coverage_policy_blake3": "7da093d092c6eed3e324fe934ca96605c97c7b0ae18e9da510e64ce84c405978",
+  "coverage_policy_blake3": "dca497cd7e5c6f73007260eb3d1e9e9afb25812721f7d0cc83a573a05e666366",
   "lanes": [
     {
       "id": "direct/deterministic-test",
@@ -19,13 +19,13 @@
     {
       "id": "discovery/deterministic-test",
       "swarm": "krikos-sim/swarms/discovery-timing.json",
-      "swarm_blake3": "6044fbc162f60fc1f22dba781a3bcab91f8e2e5ba34c5b83e0274535c7c73493",
+      "swarm_blake3": "49e97f232e4726251f4a26175e65b48aebae9fced05bcab9e5d7adee320e92f7",
       "crypto": "deterministic_test"
     },
     {
       "id": "discovery/production-provider",
       "swarm": "krikos-sim/swarms/discovery-timing.json",
-      "swarm_blake3": "6044fbc162f60fc1f22dba781a3bcab91f8e2e5ba34c5b83e0274535c7c73493",
+      "swarm_blake3": "49e97f232e4726251f4a26175e65b48aebae9fced05bcab9e5d7adee320e92f7",
       "crypto": "production_provider"
     },
     {
@@ -43,49 +43,49 @@
     {
       "id": "mobility/deterministic-test",
       "swarm": "krikos-sim/swarms/mobility-timing.json",
-      "swarm_blake3": "80fac5cdfb75f638d8ba8312454bb8b41e7a4c76430c0c74968d3d3d5aa4c83a",
+      "swarm_blake3": "cb46b3eef7ede0f5e4ef2e55bb78a9e59862c40b2e76204a731cd60f974f854a",
       "crypto": "deterministic_test"
     },
     {
       "id": "mobility/production-provider",
       "swarm": "krikos-sim/swarms/mobility-timing.json",
-      "swarm_blake3": "80fac5cdfb75f638d8ba8312454bb8b41e7a4c76430c0c74968d3d3d5aa4c83a",
+      "swarm_blake3": "cb46b3eef7ede0f5e4ef2e55bb78a9e59862c40b2e76204a731cd60f974f854a",
       "crypto": "production_provider"
     },
     {
       "id": "nat/deterministic-test",
       "swarm": "krikos-sim/swarms/nat-behavior.json",
-      "swarm_blake3": "ba26789f7a8d2f3e82515a4ed83decabe0813fea9f5c6816f65d284a3c389886",
+      "swarm_blake3": "8a6eece76cf1ebbe913f919140cff904592b21e04d1e06bf392cdf2ad326cd6e",
       "crypto": "deterministic_test"
     },
     {
       "id": "nat/production-provider",
       "swarm": "krikos-sim/swarms/nat-behavior.json",
-      "swarm_blake3": "ba26789f7a8d2f3e82515a4ed83decabe0813fea9f5c6816f65d284a3c389886",
+      "swarm_blake3": "8a6eece76cf1ebbe913f919140cff904592b21e04d1e06bf392cdf2ad326cd6e",
       "crypto": "production_provider"
     },
     {
       "id": "ready-order/deterministic-test",
       "swarm": "krikos-sim/swarms/ready-order-pressure.json",
-      "swarm_blake3": "340dba955a96892d3a3684bf5992e7bae4a5e77ad7a31b7eed59a1b6282c9034",
+      "swarm_blake3": "a92523de0578fac96189a4305422b8d376e2f3240af55f27fef640111db720c5",
       "crypto": "deterministic_test"
     },
     {
       "id": "ready-order/production-provider",
       "swarm": "krikos-sim/swarms/ready-order-pressure.json",
-      "swarm_blake3": "340dba955a96892d3a3684bf5992e7bae4a5e77ad7a31b7eed59a1b6282c9034",
+      "swarm_blake3": "a92523de0578fac96189a4305422b8d376e2f3240af55f27fef640111db720c5",
       "crypto": "production_provider"
     },
     {
       "id": "relay/deterministic-test",
       "swarm": "krikos-sim/swarms/relay-lifecycle.json",
-      "swarm_blake3": "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4",
+      "swarm_blake3": "fa0e8f6c57cb6e0dbf42d2189e695282908837d27bbd6d7d3615f5e1be0b2e0c",
       "crypto": "deterministic_test"
     },
     {
       "id": "relay/production-provider",
       "swarm": "krikos-sim/swarms/relay-lifecycle.json",
-      "swarm_blake3": "d7f222260057ec416da4e0061a03557a8d5486efb22d238a37c81e8774c7f5f4",
+      "swarm_blake3": "fa0e8f6c57cb6e0dbf42d2189e695282908837d27bbd6d7d3615f5e1be0b2e0c",
       "crypto": "production_provider"
     }
   ]
