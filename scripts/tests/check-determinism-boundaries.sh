@@ -37,13 +37,21 @@ if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&
   exit 1
 fi
 
-if [[ "$output" != *"new or changed occurrences"* ]]; then
+if [[ "$output" != *"CONTENT drift detected"* ]]; then
   echo "boundary check did not explain the drift" >&2
   printf '%s\n' "$output" >&2
   exit 1
 fi
 
-"$checker" --update --root "$fixture_root" --baseline "$baseline"
+# A genuinely new occurrence is content drift, not a line-number shift, so
+# --update must refuse without the explicit override -- see the
+# --allow-content-drift assertions below for that refusal itself.
+if "$checker" --update --root "$fixture_root" --baseline "$baseline" >/dev/null 2>&1; then
+  echo "expected --update to refuse an unreviewed content change without --allow-content-drift" >&2
+  exit 1
+fi
+
+"$checker" --update --allow-content-drift --root "$fixture_root" --baseline "$baseline"
 "$checker" --check --root "$fixture_root" --baseline "$baseline"
 
 if ! grep -Fq $'spawn-task\tkrikos/src/lib.rs:2\tpub fn detached() { tokio::spawn(async {}); }' "$baseline"; then
@@ -57,11 +65,29 @@ if "$checker" --check --root "$fixture_root" --baseline "$baseline" >/dev/null 2
   exit 1
 fi
 
-"$checker" --update --root "$fixture_root" --baseline "$baseline"
+"$checker" --update --allow-content-drift --root "$fixture_root" --baseline "$baseline"
 if ! grep -Fq $'clock-timer\tkrikos-runtime/src/lib.rs:2\tpub fn wall_time() { let _ = SystemTime::now(); }' "$baseline"; then
   echo "updated baseline does not include krikos-runtime" >&2
   exit 1
 fi
+
+# Pure line drift -- content identical, only the line number moved -- must
+# be reported distinctly from content drift, and --update must accept it
+# WITHOUT --allow-content-drift (nothing here needs review; it's the exact
+# case a rustfmt reflow produces).
+printf '%s\n' '' "$(cat "$runtime_source")" > "$runtime_source.tmp"
+mv "$runtime_source.tmp" "$runtime_source"
+if output=$("$checker" --check --root "$fixture_root" --baseline "$baseline" 2>&1); then
+  echo "expected boundary check to reject a pure line shift against the baseline" >&2
+  exit 1
+fi
+if [[ "$output" != *"LINE drift detected"* ]]; then
+  echo "boundary check did not classify a pure line shift as line drift" >&2
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
+"$checker" --update --root "$fixture_root" --baseline "$baseline"
+"$checker" --check --root "$fixture_root" --baseline "$baseline"
 
 
 # A missing source root must be a hard error, not a silent narrowing of the
