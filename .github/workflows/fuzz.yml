@@ -47,10 +47,20 @@ jobs:
         run: scripts/tests/check-fuzz-tooling.sh
       - name: Run bounded campaign
         run: |
+          set +e
           scripts/run-bounded-fuzz.sh \
             --seconds 300 \
             --target "${{ matrix.target }}" \
             --artifacts "$RUNNER_TEMP/fuzz-artifacts"
+          rc=$?
+          set -e
+          # 0 = clean, 2 = only known crashes (see fuzz/known-crashes.md),
+          # anything else = a new, unrecognised crash.
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Known crash reproduced; see fuzz/known-crashes.md"
+            exit 0
+          fi
+          exit "$rc"
       - name: Retain crash artifacts and summaries
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
@@ -59,3 +69,39 @@ jobs:
           path: ${{ runner.temp }}/fuzz-artifacts
           if-no-files-found: ignore
           retention-days: 30
+
+  report:
+    name: Report fuzz outcome
+    needs: fuzz
+    if: always() && needs.fuzz.result == 'failure'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: Preflight — Issues must be enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/tests/check-issues-enabled.sh
+      - name: Open or update the fuzz failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Bounded fuzz campaign failing"
+          body="The nightly bounded fuzz campaign failed.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          If this is a crash already listed in fuzz/known-crashes.md, the
+          campaign script should have exited 2 rather than failing. A failure
+          here means a NEW crash, or that the exclusion mechanism is broken."
+
+          existing=$(gh issue list --search "$title in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label fuzz
+          fi
