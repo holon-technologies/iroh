@@ -1,5 +1,5 @@
 [bans]
-multiple-versions = "allow"
+multiple-versions = "warn"
 deny = ["native-tls", "openssl"]
 
 [licenses]

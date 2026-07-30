@@ -1,12 +1,19 @@
-/target
+# Build output at any depth. Do not anchor or version-pin these: vendored
+# crates are bumped by directory rename, and an anchored rule silently
+# stops matching when that happens.
+target/
+
 /fuzz/artifacts
-/fuzz/target
-/iroh-sim/target
-/compat/*/target
-/protocols/*/target
-/vendor/hickory-server-0.26.1/target
-/vendor/noq-1.1.0/target
-/vendor/rustls-0.23.41/target
 /logs
 iroh.config.toml
-/.patchbay
+
+# Local scratch directory that the docs instruct users to write into.
+/artifacts/
+
+# Per-developer Claude Code settings. Repository cleanliness must not depend
+# on an individual's ~/.config/git/ignore.
+.claude/settings.local.json
+.claude/*.local.json
+
+# Agent scratch workspace (ledgers, briefs, review packages).
+.superpowers/

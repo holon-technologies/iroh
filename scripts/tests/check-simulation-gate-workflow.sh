@@ -36,8 +36,26 @@ if grep -Eq -- '--seeds ["'\'']?[0-9]+\.\.[0-9]+' <<<"$gate_job"; then
   echo "change gate must not contain fixed exploratory seed ranges" >&2
   exit 1
 fi
-if grep -Fq -- 'continue-on-error: true' <<<"$gate_job"; then
-  echo "change gate must not mask failures with continue-on-error" >&2
+# continue-on-error is forbidden everywhere in the change gate except on the
+# sccache install step: a cache-service outage must not fail a required gate,
+# but that step never runs gate assertions, so allowing it there cannot mask
+# a real failure. The exemption is keyed to the sccache action reference
+# (stable across Dependabot SHA bumps) rather than a step name, which could
+# be renamed without anyone noticing the contract had gone stale.
+if awk '
+  BEGIN { in_step = 0; is_sccache = 0; has_coe = 0; bad = 0 }
+  /^      - / {
+    if (in_step && has_coe && !is_sccache) { bad = 1 }
+    in_step = 1; is_sccache = 0; has_coe = 0
+  }
+  /uses: mozilla-actions\/sccache-action@/ { is_sccache = 1 }
+  /continue-on-error: true/ { has_coe = 1 }
+  END {
+    if (in_step && has_coe && !is_sccache) { bad = 1 }
+    exit (bad ? 0 : 1)
+  }
+' <<<"$gate_job"; then
+  echo "change gate must not mask failures with continue-on-error outside the sccache install step" >&2
   exit 1
 fi
 

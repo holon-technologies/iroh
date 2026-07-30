@@ -3,6 +3,7 @@ name = "iroh-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
+rust-version = "1.91"
 
 [package.metadata]
 cargo-fuzz = true

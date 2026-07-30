@@ -1,0 +1,4623 @@
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/Cargo.lock vendor/noq-1.1.0/Cargo.lock
+--- a/Cargo.lock	2006-07-24 01:21:28.000000000 +0000
++++ b/Cargo.lock	2026-07-25 18:39:19.418922104 +0000
+@@ -3,21 +3,6 @@
+ version = 4
+ 
+ [[package]]
+-name = "addr2line"
+-version = "0.25.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1b5d307320b3181d6d7954e663bd7c774a838b8220fe0593c86d9fb09f498b4b"
+-dependencies = [
+- "gimli",
+-]
+-
+-[[package]]
+-name = "adler2"
+-version = "2.0.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
+-
+-[[package]]
+ name = "aead"
+ version = "0.5.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -54,9 +39,9 @@
+ 
+ [[package]]
+ name = "aho-corasick"
+-version = "1.1.3"
++version = "1.1.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
++checksum = "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
+ dependencies = [
+  "memchr",
+ ]
+@@ -69,9 +54,9 @@
+ 
+ [[package]]
+ name = "anstream"
+-version = "0.6.20"
++version = "1.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3ae563653d1938f79b1ab1b5e668c87c76a9930414574a6583a7b7e11a8e6192"
++checksum = "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
+ dependencies = [
+  "anstyle",
+  "anstyle-parse",
+@@ -84,44 +69,44 @@
+ 
+ [[package]]
+ name = "anstyle"
+-version = "1.0.13"
++version = "1.0.14"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5192cca8006f1fd4f7237516f40fa183bb07f8fbdfedaa0036de5ea9b0b45e78"
++checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
+ 
+ [[package]]
+ name = "anstyle-parse"
+-version = "0.2.7"
++version = "1.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4e7644824f0aa2c7b9384579234ef10eb7efb6a0deb83f9630a49594dd9c15c2"
++checksum = "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e"
+ dependencies = [
+  "utf8parse",
+ ]
+ 
+ [[package]]
+ name = "anstyle-query"
+-version = "1.1.4"
++version = "1.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9e231f6134f61b71076a3eab506c379d4f36122f2af15a9ff04415ea4c3339e2"
++checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
+ dependencies = [
+- "windows-sys 0.60.2",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "anstyle-wincon"
+-version = "3.0.10"
++version = "3.0.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3e0633414522a32ffaac8ac6cc8f748e090c5717661fddeea04219e2344f5f2a"
++checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
+ dependencies = [
+  "anstyle",
+  "once_cell_polyfill",
+- "windows-sys 0.60.2",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "anyhow"
+-version = "1.0.103"
++version = "1.0.104"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
++checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+ 
+ [[package]]
+ name = "asn1-rs"
+@@ -135,7 +120,7 @@
+  "nom",
+  "num-traits",
+  "rusticata-macros",
+- "thiserror 2.0.17",
++ "thiserror 2.0.19",
+  "time",
+ ]
+ 
+@@ -147,7 +132,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+  "synstructure",
+ ]
+ 
+@@ -159,7 +144,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -176,9 +161,9 @@
+ 
+ [[package]]
+ name = "async-executor"
+-version = "1.13.3"
++version = "1.14.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "497c00e0fd83a72a79a39fcbd8e3e2f055d6f6c7e025f3b3d91f4f8e76527fb8"
++checksum = "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+ dependencies = [
+  "async-task",
+  "concurrent-queue",
+@@ -229,14 +214,14 @@
+  "polling",
+  "rustix",
+  "slab",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "async-lock"
+-version = "3.4.1"
++version = "3.4.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5fd03604047cee9b6ce9de9f70c6cd540a0520c813cbd49bae61f33ab80ed1dc"
++checksum = "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311"
+ dependencies = [
+  "event-listener",
+  "event-listener-strategy",
+@@ -274,9 +259,9 @@
+ 
+ [[package]]
+ name = "async-signal"
+-version = "0.2.13"
++version = "0.2.14"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "43c070bbf59cd3570b6b2dd54cd772527c7c3620fce8be898406dd3ed6adc64c"
++checksum = "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485"
+ dependencies = [
+  "async-io",
+  "async-lock",
+@@ -287,7 +272,7 @@
+  "rustix",
+  "signal-hook-registry",
+  "slab",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -304,40 +289,41 @@
+ 
+ [[package]]
+ name = "autocfg"
+-version = "1.5.0"
++version = "1.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
++checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
+ 
+ [[package]]
+ name = "aws-lc-fips-sys"
+-version = "0.13.13"
++version = "0.13.16"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f8bce4948d2520386c6d92a6ea2d472300257702242e5a1d01d6add52bd2e7c1"
++checksum = "37b00953a69b2cfb471d13d72538d2e66930832340b0f31deadd404b48c573c5"
+ dependencies = [
+  "bindgen",
+  "cc",
+  "cmake",
+  "dunce",
+  "fs_extra",
++ "pkg-config",
+  "regex",
+ ]
+ 
+ [[package]]
+ name = "aws-lc-rs"
+-version = "1.16.2"
++version = "1.17.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a054912289d18629dc78375ba2c3726a3afe3ff71b4edba9dedfca0e3446d1fc"
++checksum = "00bdb5da18dac48ca2cc7cd4a98e533e8635a58e2361d13a1a4ee3888e0d72f1"
+ dependencies = [
+  "aws-lc-fips-sys",
+- "aws-lc-sys",
++ "aws-lc-sys 0.43.0",
+  "zeroize",
+ ]
+ 
+ [[package]]
+ name = "aws-lc-sys"
+-version = "0.39.0"
++version = "0.39.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1fa7e52a4c5c547c741610a2c6f123f3881e409b714cd27e6798ef020c514f0a"
++checksum = "83a25cf98105baa966497416dbd42565ce3a8cf8dbfd59803ec9ad46f3126399"
+ dependencies = [
+  "cc",
+  "cmake",
+@@ -346,18 +332,16 @@
+ ]
+ 
+ [[package]]
+-name = "backtrace"
+-version = "0.3.76"
++name = "aws-lc-sys"
++version = "0.43.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bb531853791a215d7c62a30daf0dde835f381ab5de4589cfe7c649d2cbe92bd6"
++checksum = "43103168cc76fe62678a375e722fc9cb3a0146159ac5828bc4f0dfd755c2224c"
+ dependencies = [
+- "addr2line",
+- "cfg-if",
+- "libc",
+- "miniz_oxide",
+- "object",
+- "rustc-demangle",
+- "windows-link",
++ "cc",
++ "cmake",
++ "dunce",
++ "fs_extra",
++ "pkg-config",
+ ]
+ 
+ [[package]]
+@@ -382,8 +366,8 @@
+  "quote",
+  "regex",
+  "rustc-hash",
+- "shlex",
+- "syn",
++ "shlex 1.3.0",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -397,9 +381,9 @@
+ 
+ [[package]]
+ name = "bitflags"
+-version = "2.9.4"
++version = "2.13.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2261d10cca569e4643e526d8dc2e62e433cc8aba21ab764233731f8d369bf394"
++checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+ 
+ [[package]]
+ name = "blocking"
+@@ -416,15 +400,15 @@
+ 
+ [[package]]
+ name = "bumpalo"
+-version = "3.20.2"
++version = "3.20.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
++checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+ 
+ [[package]]
+ name = "bytes"
+-version = "1.11.1"
++version = "1.12.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
++checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+ 
+ [[package]]
+ name = "cast"
+@@ -434,14 +418,14 @@
+ 
+ [[package]]
+ name = "cc"
+-version = "1.2.62"
++version = "1.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a1dce859f0832a7d088c4f1119888ab94ef4b5d6795d1ce05afb7fe159d79f98"
++checksum = "5add81bb678e6cb321aff7fa0dc7689ad82b112dbc032cea19f91d6b8e3582b9"
+ dependencies = [
+  "find-msvc-tools",
+  "jobserver",
+  "libc",
+- "shlex",
++ "shlex 2.0.1",
+ ]
+ 
+ [[package]]
+@@ -467,9 +451,9 @@
+ 
+ [[package]]
+ name = "chacha20"
+-version = "0.10.0"
++version = "0.10.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
++checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
+ dependencies = [
+  "cfg-if",
+  "cpufeatures 0.3.0",
+@@ -526,9 +510,9 @@
+ 
+ [[package]]
+ name = "clap"
+-version = "4.5.48"
++version = "4.6.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e2134bb3ea021b78629caa971416385309e0131b351b25e01dc16fb54e1b5fae"
++checksum = "d91e0c145792ef73a6ad36d27c75ac09f1832222a3c209689d90f534685ee5b7"
+ dependencies = [
+  "clap_builder",
+  "clap_derive",
+@@ -536,9 +520,9 @@
+ 
+ [[package]]
+ name = "clap_builder"
+-version = "4.5.48"
++version = "4.6.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c2ba64afa3c0a6df7fa517765e31314e983f51dda798ffba27b988194fb65dc9"
++checksum = "f09628afdcc538b57f3c6341e9c8e9970f18e4a481690a64974d7023bd33548b"
+ dependencies = [
+  "anstream",
+  "anstyle",
+@@ -548,36 +532,36 @@
+ 
+ [[package]]
+ name = "clap_derive"
+-version = "4.5.47"
++version = "4.6.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bbfd7eae0b0f1a6e63d4b13c9c478de77c2eb546fba158ad50b4203dc24b9f9c"
++checksum = "d012d2b9d65aca7f18f4d9878a045bc17899bba951561ba5ec3c2ba1eed9a061"
+ dependencies = [
+  "heck",
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "clap_lex"
+-version = "0.7.5"
++version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
++checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+ 
+ [[package]]
+ name = "cmake"
+-version = "0.1.54"
++version = "0.1.58"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
++checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+ dependencies = [
+  "cc",
+ ]
+ 
+ [[package]]
+ name = "colorchoice"
+-version = "1.0.4"
++version = "1.0.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
++checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
+ 
+ [[package]]
+ name = "combine"
+@@ -643,18 +627,18 @@
+ 
+ [[package]]
+ name = "crc"
+-version = "3.3.0"
++version = "3.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9710d3b3739c2e349eb44fe848ad0b7c8cb1e42bd87ee49371df2f7acaf3e675"
++checksum = "5eb8a2a1cd12ab0d987a5d5e825195d372001a4094a0376319d5a0ad71c1ba0d"
+ dependencies = [
+  "crc-catalog",
+ ]
+ 
+ [[package]]
+ name = "crc-catalog"
+-version = "2.4.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
++checksum = "217698eaf96b4a3f0bc4f3662aaa55bdf913cd54d7204591faa790070c6d0853"
+ 
+ [[package]]
+ name = "criterion"
+@@ -690,9 +674,9 @@
+ 
+ [[package]]
+ name = "crossbeam-utils"
+-version = "0.8.21"
++version = "0.8.22"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
++checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
+ 
+ [[package]]
+ name = "crunchy"
+@@ -721,9 +705,9 @@
+ 
+ [[package]]
+ name = "darling"
+-version = "0.21.3"
++version = "0.23.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
++checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
+ dependencies = [
+  "darling_core",
+  "darling_macro",
+@@ -731,27 +715,26 @@
+ 
+ [[package]]
+ name = "darling_core"
+-version = "0.21.3"
++version = "0.23.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4"
++checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
+ dependencies = [
+- "fnv",
+  "ident_case",
+  "proc-macro2",
+  "quote",
+  "strsim",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "darling_macro"
+-version = "0.21.3"
++version = "0.23.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
++checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
+ dependencies = [
+  "darling_core",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -776,33 +759,30 @@
+ 
+ [[package]]
+ name = "deranged"
+-version = "0.5.4"
++version = "0.5.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a41953f86f8a05768a6cda24def994fd2f424b04ec5c719cf89989779f199071"
+-dependencies = [
+- "powerfmt",
+-]
++checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
+ 
+ [[package]]
+ name = "derive_more"
+-version = "2.1.0"
++version = "2.1.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "10b768e943bed7bf2cab53df09f4bc34bfd217cdb57d971e769874c9a6710618"
++checksum = "d751e9e49156b02b44f9c1815bcb94b984cdcc4396ecc32521c739452808b134"
+ dependencies = [
+  "derive_more-impl",
+ ]
+ 
+ [[package]]
+ name = "derive_more-impl"
+-version = "2.1.0"
++version = "2.1.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6d286bfdaf75e988b4a78e013ecd79c581e06399ab53fbacd2d916c2f904f30b"
++checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
+ dependencies = [
+  "convert_case",
+  "proc-macro2",
+  "quote",
+  "rustc_version",
+- "syn",
++ "syn 2.0.119",
+  "unicode-xid",
+ ]
+ 
+@@ -829,13 +809,13 @@
+ 
+ [[package]]
+ name = "displaydoc"
+-version = "0.2.5"
++version = "0.2.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
++checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -846,9 +826,9 @@
+ 
+ [[package]]
+ name = "either"
+-version = "1.15.0"
++version = "1.17.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
++checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
+ 
+ [[package]]
+ name = "enum-assoc"
+@@ -858,7 +838,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -874,7 +854,7 @@
+ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+ dependencies = [
+  "libc",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -904,7 +884,7 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ef975e30683b2d965054bb0a836f8973857c4ebf6acf274fe46617cd285060d8"
+ dependencies = [
+- "foldhash 0.2.0",
++ "foldhash",
+  "libm",
+  "portable-atomic",
+  "siphasher",
+@@ -912,9 +892,9 @@
+ 
+ [[package]]
+ name = "fastrand"
+-version = "2.3.0"
++version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
++checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+ 
+ [[package]]
+ name = "find-msvc-tools"
+@@ -923,18 +903,6 @@
+ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+ 
+ [[package]]
+-name = "fnv"
+-version = "1.0.7"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+-
+-[[package]]
+-name = "foldhash"
+-version = "0.1.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+-
+-[[package]]
+ name = "foldhash"
+ version = "0.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -957,15 +925,15 @@
+ 
+ [[package]]
+ name = "futures-core"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
++checksum = "2cd50c473c80f6d7c3670a752354b8e569b1a7cbfdc0419ec88e5edad85e0dc7"
+ 
+ [[package]]
+ name = "futures-io"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
++checksum = "4577ecaa3c4f96589d473f679a71b596316f6641bc350038b962a5daf0085d7a"
+ 
+ [[package]]
+ name = "futures-lite"
+@@ -982,26 +950,25 @@
+ 
+ [[package]]
+ name = "futures-sink"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e575fab7d1e0dcb8d0c7bcf9a63ee213816ab51902e6d244a95819acacf1d4f7"
++checksum = "e34418ac499d6305c2fb5ad0ed2f6ac998c5f8ca209b4510f7f94242c647e307"
+ 
+ [[package]]
+ name = "futures-task"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f90f7dce0722e95104fcb095585910c0977252f286e354b5e3bd38902cd99988"
++checksum = "b231ed28831efb4a61a08580c4bc233ec56bc009f4cd8f52da2c3cb97df0c109"
+ 
+ [[package]]
+ name = "futures-util"
+-version = "0.3.31"
++version = "0.3.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
++checksum = "a77a90a256fce34da66415271e30f94ee91c57b04b8a2c042d9cf3220179deaa"
+ dependencies = [
+  "futures-core",
+  "futures-task",
+  "pin-project-lite",
+- "pin-utils",
+  "slab",
+ ]
+ 
+@@ -1023,9 +990,9 @@
+ 
+ [[package]]
+ name = "getrandom"
+-version = "0.2.16"
++version = "0.2.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
++checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
+ dependencies = [
+  "cfg-if",
+  "js-sys",
+@@ -1036,29 +1003,15 @@
+ 
+ [[package]]
+ name = "getrandom"
+-version = "0.3.4"
++version = "0.4.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+-dependencies = [
+- "cfg-if",
+- "libc",
+- "r-efi 5.3.0",
+- "wasip2",
+-]
+-
+-[[package]]
+-name = "getrandom"
+-version = "0.4.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
++checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+ dependencies = [
+  "cfg-if",
+  "js-sys",
+  "libc",
+- "r-efi 6.0.0",
++ "r-efi",
+  "rand_core",
+- "wasip2",
+- "wasip3",
+  "wasm-bindgen",
+ ]
+ 
+@@ -1073,34 +1026,20 @@
+ ]
+ 
+ [[package]]
+-name = "gimli"
+-version = "0.32.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
+-
+-[[package]]
+ name = "glob"
+-version = "0.3.3"
++version = "0.3.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
++checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+ 
+ [[package]]
+ name = "half"
+-version = "2.6.0"
++version = "2.7.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "459196ed295495a68f7d7fe1d84f6c4b7ff0e21fe3017b2f283c6fac3ad803c9"
++checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
+ dependencies = [
+  "cfg-if",
+  "crunchy",
+-]
+-
+-[[package]]
+-name = "hashbrown"
+-version = "0.15.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+-dependencies = [
+- "foldhash 0.1.5",
++ "zerocopy",
+ ]
+ 
+ [[package]]
+@@ -1123,9 +1062,9 @@
+ 
+ [[package]]
+ name = "http"
+-version = "1.4.0"
++version = "1.4.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e3ba2a386d7f85a81f119ad7498ebe444d2e22c2af0b86b069416ace48b3311a"
++checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
+ dependencies = [
+  "bytes",
+  "itoa",
+@@ -1133,18 +1072,19 @@
+ 
+ [[package]]
+ name = "humantime"
+-version = "2.3.0"
++version = "2.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
++checksum = "15cdd26707701c53297e2fa6afb323d55fbc1d0810c3aec078ae3ef0424c3c15"
+ 
+ [[package]]
+ name = "icu_collections"
+-version = "2.0.0"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "200072f5d0e3614556f94a9930d5dc3e0662a652823904c3a75dc3b0af7fee47"
++checksum = "2984d1cd16c883d7935b9e07e44071dca8d917fd52ecc02c04d5fa0b5a3f191c"
+ dependencies = [
+  "displaydoc",
+  "potential_utf",
++ "utf8_iter",
+  "yoke",
+  "zerofrom",
+  "zerovec",
+@@ -1152,9 +1092,9 @@
+ 
+ [[package]]
+ name = "icu_locale_core"
+-version = "2.0.0"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0cde2700ccaed3872079a65fb1a78f6c0a36c91570f28755dda67bc8f7d9f00a"
++checksum = "92219b62b3e2b4d88ac5119f8904c10f8f61bf7e95b640d25ba3075e6cac2c29"
+ dependencies = [
+  "displaydoc",
+  "litemap",
+@@ -1165,11 +1105,10 @@
+ 
+ [[package]]
+ name = "icu_normalizer"
+-version = "2.0.0"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "436880e8e18df4d7bbc06d58432329d6458cc84531f7ac5f024e93deadb37979"
++checksum = "c56e5ee99d6e3d33bd91c5d85458b6005a22140021cc324cea84dd0e72cff3b4"
+ dependencies = [
+- "displaydoc",
+  "icu_collections",
+  "icu_normalizer_data",
+  "icu_properties",
+@@ -1180,42 +1119,38 @@
+ 
+ [[package]]
+ name = "icu_normalizer_data"
+-version = "2.0.0"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "00210d6893afc98edb752b664b8890f0ef174c8adbb8d0be9710fa66fbbf72d3"
++checksum = "da3be0ae77ea334f4da67c12f149704f19f81d1adf7c51cf482943e84a2bad38"
+ 
+ [[package]]
+ name = "icu_properties"
+-version = "2.0.1"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "016c619c1eeb94efb86809b015c58f479963de65bdb6253345c1a1276f22e32b"
++checksum = "bee3b67d0ea5c2cca5003417989af8996f8604e34fb9ddf96208a033901e70de"
+ dependencies = [
+- "displaydoc",
+  "icu_collections",
+  "icu_locale_core",
+  "icu_properties_data",
+  "icu_provider",
+- "potential_utf",
+  "zerotrie",
+  "zerovec",
+ ]
+ 
+ [[package]]
+ name = "icu_properties_data"
+-version = "2.0.1"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "298459143998310acd25ffe6810ed544932242d3f07083eee1084d83a71bd632"
++checksum = "8e2bbb201e0c04f7b4b3e14382af113e17ba4f63e2c9d2ee626b720cbce54a14"
+ 
+ [[package]]
+ name = "icu_provider"
+-version = "2.0.0"
++version = "2.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03c80da27b5f4187909049ee2d72f276f0d9f99a42c306bd0131ecfe04d8e5af"
++checksum = "139c4cf31c8b5f33d7e199446eff9c1e02decfc2f0eec2c8d71f65befa45b421"
+ dependencies = [
+  "displaydoc",
+  "icu_locale_core",
+- "stable_deref_trait",
+- "tinystr",
+  "writeable",
+  "yoke",
+  "zerofrom",
+@@ -1224,12 +1159,6 @@
+ ]
+ 
+ [[package]]
+-name = "id-arena"
+-version = "2.3.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3d3067d79b975e8844ca9eb072e16b31c3c1c36928edf9c6789548c524d0d954"
+-
+-[[package]]
+ name = "ident_case"
+ version = "1.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1254,9 +1183,9 @@
+ 
+ [[package]]
+ name = "idna_adapter"
+-version = "1.2.1"
++version = "1.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3acae9609540aa318d1bc588455225fb2085b9ed0c4f6bd0d9d5bcd86f1a0344"
++checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
+ dependencies = [
+  "icu_normalizer",
+  "icu_properties",
+@@ -1269,9 +1198,7 @@
+ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
+ dependencies = [
+  "equivalent",
+- "hashbrown 0.17.1",
+- "serde",
+- "serde_core",
++ "hashbrown",
+ ]
+ 
+ [[package]]
+@@ -1284,21 +1211,53 @@
+ ]
+ 
+ [[package]]
+-name = "io-uring"
+-version = "0.7.10"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "046fa2d4d00aea763528b4950358d0ead425372445dc8ff86312b3c69ff7727b"
++name = "iroh-noq"
++version = "1.1.0-holon.1"
+ dependencies = [
+- "bitflags",
+- "cfg-if",
+- "libc",
++ "anyhow",
++ "async-executor",
++ "async-fs",
++ "async-global-executor",
++ "async-io",
++ "aws-lc-fips-sys",
++ "aws-lc-sys 0.39.1",
++ "bytes",
++ "cfg_aliases",
++ "clap",
++ "crc",
++ "criterion",
++ "derive_more",
++ "directories-next",
++ "futures-io",
++ "gcc",
++ "http",
++ "lazy_static",
++ "noq-proto",
++ "noq-udp",
++ "pin-project-lite",
++ "rand",
++ "rcgen",
++ "rustc-hash",
++ "rustls",
++ "sharded-slab",
++ "smol",
++ "socket2",
++ "testresult",
++ "thiserror 2.0.19",
++ "tokio",
++ "tokio-stream",
++ "tracing",
++ "tracing-futures",
++ "tracing-subscriber",
++ "url",
++ "web-time",
+ ]
+ 
+ [[package]]
+ name = "is_terminal_polyfill"
+-version = "1.70.1"
++version = "1.70.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
++checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+ 
+ [[package]]
+ name = "itertools"
+@@ -1327,7 +1286,7 @@
+  "jni-sys",
+  "log",
+  "simd_cesu8",
+- "thiserror 2.0.17",
++ "thiserror 2.0.19",
+  "walkdir",
+  "windows-link",
+ ]
+@@ -1342,7 +1301,7 @@
+  "quote",
+  "rustc_version",
+  "simd_cesu8",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -1361,28 +1320,27 @@
+ checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
+ dependencies = [
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "jobserver"
+-version = "0.1.34"
++version = "0.1.35"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9afb3de4395d6b3e67a780b6de64b51c978ecf11cb9a462c66be7d4ca9039d33"
++checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
+ dependencies = [
+- "getrandom 0.3.4",
++ "getrandom 0.4.3",
+  "libc",
+ ]
+ 
+ [[package]]
+ name = "js-sys"
+-version = "0.3.98"
++version = "0.3.103"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "67df7112613f8bfd9150013a0314e196f4800d3201ae742489d999db2f979f08"
++checksum = "53b44bfcdb3f8d5837a46dae1ca9660a837176eee74a28b229bc626816589102"
+ dependencies = [
+  "cfg-if",
+  "futures-util",
+- "once_cell",
+  "wasm-bindgen",
+ ]
+ 
+@@ -1393,25 +1351,19 @@
+ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+ 
+ [[package]]
+-name = "leb128fmt"
+-version = "0.1.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
+-
+-[[package]]
+ name = "libc"
+-version = "0.2.186"
++version = "0.2.189"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
++checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+ 
+ [[package]]
+ name = "libloading"
+-version = "0.8.8"
++version = "0.8.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
++checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+ dependencies = [
+  "cfg-if",
+- "windows-targets 0.53.5",
++ "windows-link",
+ ]
+ 
+ [[package]]
+@@ -1422,31 +1374,30 @@
+ 
+ [[package]]
+ name = "libredox"
+-version = "0.1.10"
++version = "0.1.18"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
++checksum = "c943259e342f1e06ff2da7a83eabdfe7f92ce10262688dbf1895ff0b3e6e4652"
+ dependencies = [
+- "bitflags",
+  "libc",
+ ]
+ 
+ [[package]]
+ name = "linux-raw-sys"
+-version = "0.11.0"
++version = "0.12.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
++checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+ 
+ [[package]]
+ name = "litemap"
+-version = "0.8.0"
++version = "0.8.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
++checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
+ 
+ [[package]]
+ name = "log"
+-version = "0.4.31"
++version = "0.4.33"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
++checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+ 
+ [[package]]
+ name = "lru-slab"
+@@ -1465,9 +1416,9 @@
+ 
+ [[package]]
+ name = "memchr"
+-version = "2.8.0"
++version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
++checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ 
+ [[package]]
+ name = "minimal-lexical"
+@@ -1476,23 +1427,14 @@
+ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+ 
+ [[package]]
+-name = "miniz_oxide"
+-version = "0.8.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
+-dependencies = [
+- "adler2",
+-]
+-
+-[[package]]
+ name = "mio"
+-version = "1.0.4"
++version = "1.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "78bed444cc8a2160f01cbcf811ef18cac863ad68ae8ca62092e8db51d51c761c"
++checksum = "30d65c71f1ce40ab09135ce117d742b9f8a19ff91a41a8b57ed50bc2de59c427"
+ dependencies = [
+  "libc",
+  "wasi",
+- "windows-sys 0.59.0",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -1519,49 +1461,6 @@
+ ]
+ 
+ [[package]]
+-name = "noq"
+-version = "1.1.0"
+-dependencies = [
+- "anyhow",
+- "async-executor",
+- "async-fs",
+- "async-global-executor",
+- "async-io",
+- "aws-lc-fips-sys",
+- "aws-lc-sys",
+- "bytes",
+- "cfg_aliases",
+- "clap",
+- "crc",
+- "criterion",
+- "derive_more",
+- "directories-next",
+- "futures-io",
+- "gcc",
+- "http",
+- "lazy_static",
+- "noq-proto",
+- "noq-udp",
+- "pin-project-lite",
+- "rand",
+- "rcgen",
+- "rustc-hash",
+- "rustls",
+- "sharded-slab",
+- "smol",
+- "socket2",
+- "testresult",
+- "thiserror 2.0.17",
+- "tokio",
+- "tokio-stream",
+- "tracing",
+- "tracing-futures",
+- "tracing-subscriber",
+- "url",
+- "web-time",
+-]
+-
+-[[package]]
+ name = "noq-proto"
+ version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1573,7 +1472,7 @@
+  "derive_more",
+  "enum-assoc",
+  "fastbloom",
+- "getrandom 0.4.2",
++ "getrandom 0.4.3",
+  "identity-hash",
+  "lru-slab",
+  "n0-qlog",
+@@ -1586,7 +1485,7 @@
+  "rustls-platform-verifier",
+  "slab",
+  "sorted-index-buffer",
+- "thiserror 2.0.17",
++ "thiserror 2.0.19",
+  "tinyvec",
+  "tracing",
+  "web-time",
+@@ -1602,7 +1501,7 @@
+  "libc",
+  "socket2",
+  "tracing",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -1611,14 +1510,14 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+ dependencies = [
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "num-bigint"
+-version = "0.4.7"
++version = "0.4.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c863e9ab5e7bf9c99ba75e1050f1e4d624ae87ed3532d6238ffbdc7b585dbbe6"
++checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+ dependencies = [
+  "num-integer",
+  "num-traits",
+@@ -1626,9 +1525,9 @@
+ 
+ [[package]]
+ name = "num-conv"
+-version = "0.2.0"
++version = "0.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cf97ec579c3c42f953ef76dbf8d55ac91fb219dde70e49aa4a6b7d74e9919050"
++checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+ 
+ [[package]]
+ name = "num-integer"
+@@ -1658,15 +1557,6 @@
+ ]
+ 
+ [[package]]
+-name = "object"
+-version = "0.37.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
+-dependencies = [
+- "memchr",
+-]
+-
+-[[package]]
+ name = "oid-registry"
+ version = "0.8.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1683,9 +1573,9 @@
+ 
+ [[package]]
+ name = "once_cell_polyfill"
+-version = "1.70.1"
++version = "1.70.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
++checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+ 
+ [[package]]
+ name = "oorandom"
+@@ -1701,9 +1591,9 @@
+ 
+ [[package]]
+ name = "openssl-probe"
+-version = "0.1.6"
++version = "0.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
++checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+ 
+ [[package]]
+ name = "parking"
+@@ -1713,12 +1603,12 @@
+ 
+ [[package]]
+ name = "pem"
+-version = "3.0.5"
++version = "3.0.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "38af38e8470ac9dee3ce1bae1af9c1671fffc44ddfd8bd1d0a3445bf349a8ef3"
++checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
+ dependencies = [
+  "base64",
+- "serde",
++ "serde_core",
+ ]
+ 
+ [[package]]
+@@ -1729,41 +1619,35 @@
+ 
+ [[package]]
+ name = "pin-project"
+-version = "1.1.10"
++version = "1.1.13"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "677f1add503faace112b9f1373e43e9e054bfdd22ff1a63c1bc485eaec6a6a8a"
++checksum = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924"
+ dependencies = [
+  "pin-project-internal",
+ ]
+ 
+ [[package]]
+ name = "pin-project-internal"
+-version = "1.1.10"
++version = "1.1.13"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
++checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "pin-project-lite"
+-version = "0.2.16"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
+-
+-[[package]]
+-name = "pin-utils"
+-version = "0.1.0"
++version = "0.2.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
++checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+ 
+ [[package]]
+ name = "piper"
+-version = "0.2.4"
++version = "0.2.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "96c8c490f422ef9a4efd2cb5b42b76c8613d7e7dfc1caf667b8a3350a5acc066"
++checksum = "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1"
+ dependencies = [
+  "atomic-waker",
+  "fastrand",
+@@ -1771,6 +1655,12 @@
+ ]
+ 
+ [[package]]
++name = "pkg-config"
++version = "0.3.33"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
++
++[[package]]
+ name = "polling"
+ version = "3.11.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1781,7 +1671,7 @@
+  "hermit-abi",
+  "pin-project-lite",
+  "rustix",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -1798,15 +1688,15 @@
+ 
+ [[package]]
+ name = "portable-atomic"
+-version = "1.13.1"
++version = "1.14.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
++checksum = "3d20d5497ef88037a52ff98267d066e7f11fcc5e99bbfbd58a42336193aacec3"
+ 
+ [[package]]
+ name = "potential_utf"
+-version = "0.1.3"
++version = "0.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "84df19adbe5b5a0782edcab45899906947ab039ccf4573713735ee7de1e6b08a"
++checksum = "0103b1cef7ec0cf76490e969665504990193874ea05c85ff9bab8b911d0a0564"
+ dependencies = [
+  "zerovec",
+ ]
+@@ -1824,61 +1714,55 @@
+ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
+ dependencies = [
+  "proc-macro2",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "proc-macro2"
+-version = "1.0.106"
++version = "1.0.107"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
++checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+ dependencies = [
+  "unicode-ident",
+ ]
+ 
+ [[package]]
+ name = "quote"
+-version = "1.0.45"
++version = "1.0.47"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
++checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+ dependencies = [
+  "proc-macro2",
+ ]
+ 
+ [[package]]
+ name = "r-efi"
+-version = "5.3.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+-
+-[[package]]
+-name = "r-efi"
+ version = "6.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+ 
+ [[package]]
+ name = "rand"
+-version = "0.10.1"
++version = "0.10.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
++checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
+ dependencies = [
+  "chacha20",
+- "getrandom 0.4.2",
++ "getrandom 0.4.3",
+  "rand_core",
+ ]
+ 
+ [[package]]
+ name = "rand_core"
+-version = "0.10.0"
++version = "0.10.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0c8d0fd677905edcbeedbf2edb6494d676f0e98d54d5cf9bda0b061cb8fb8aba"
++checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+ 
+ [[package]]
+ name = "rand_pcg"
+-version = "0.10.1"
++version = "0.10.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2a36dd10a879f5c16e363eed24471b321b114ce3112c2d5d8df06545fcf48152"
++checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+ dependencies = [
+  "rand_core",
+ ]
+@@ -1903,16 +1787,16 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
+ dependencies = [
+- "getrandom 0.2.16",
++ "getrandom 0.2.17",
+  "libredox",
+  "thiserror 1.0.69",
+ ]
+ 
+ [[package]]
+ name = "regex"
+-version = "1.11.3"
++version = "1.13.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8b5288124840bee7b386bc413c487869b360b2b4ec421ea56425128692f2a82c"
++checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -1922,9 +1806,9 @@
+ 
+ [[package]]
+ name = "regex-automata"
+-version = "0.4.11"
++version = "0.4.16"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "833eb9ce86d40ef33cb1306d8accf7bc8ec2bfea4355cbdebb3df68b40925cad"
++checksum = "8fcfdb36bda0c880c5931cdc7a2bcdc8ba4556847b9d912bca70bc94708711ad"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -1933,9 +1817,9 @@
+ 
+ [[package]]
+ name = "regex-syntax"
+-version = "0.8.6"
++version = "0.8.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
++checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+ 
+ [[package]]
+ name = "ring"
+@@ -1945,23 +1829,17 @@
+ dependencies = [
+  "cc",
+  "cfg-if",
+- "getrandom 0.2.16",
++ "getrandom 0.2.17",
+  "libc",
+  "untrusted",
+  "windows-sys 0.52.0",
+ ]
+ 
+ [[package]]
+-name = "rustc-demangle"
+-version = "0.1.26"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
+-
+-[[package]]
+ name = "rustc-hash"
+-version = "2.1.1"
++version = "2.1.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
++checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
+ 
+ [[package]]
+ name = "rustc_version"
+@@ -1983,22 +1861,22 @@
+ 
+ [[package]]
+ name = "rustix"
+-version = "1.1.2"
++version = "1.1.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cd15f8a2c5551a84d56efdc1cd049089e409ac19a3072d5037a17fd70719ff3e"
++checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+ dependencies = [
+  "bitflags",
+  "errno",
+  "libc",
+  "linux-raw-sys",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "rustls"
+-version = "0.23.33"
++version = "0.23.42"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "751e04a496ca00bb97a5e043158d23d66b5aabf2e1d5aa2a0aaebb1aafe6f82c"
++checksum = "3c54fcab019b409d04215d3a17cb438fd7fbf192ee61461f20f4fe18704bc138"
+ dependencies = [
+  "aws-lc-rs",
+  "log",
+@@ -2012,9 +1890,9 @@
+ 
+ [[package]]
+ name = "rustls-native-certs"
+-version = "0.8.1"
++version = "0.8.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7fcff2dd52b58a8d98a70243663a0d234c4e2b79235637849d15913394a247d3"
++checksum = "dab5152771c58876a2146916e53e35057e1a4dfa2b9df0f0305b07f611fdea4d"
+ dependencies = [
+  "openssl-probe",
+  "rustls-pki-types",
+@@ -2024,9 +1902,9 @@
+ 
+ [[package]]
+ name = "rustls-pki-types"
+-version = "1.12.0"
++version = "1.15.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "229a4a4c221013e7e1f1a043678c5cc39fe5171437c88fb47151a21e6f5b5c79"
++checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
+ dependencies = [
+  "web-time",
+  "zeroize",
+@@ -2050,7 +1928,7 @@
+  "security-framework",
+  "security-framework-sys",
+  "webpki-root-certs",
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -2073,9 +1951,9 @@
+ 
+ [[package]]
+ name = "rustversion"
+-version = "1.0.22"
++version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
++checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+ 
+ [[package]]
+ name = "same-file"
+@@ -2088,18 +1966,18 @@
+ 
+ [[package]]
+ name = "schannel"
+-version = "0.1.28"
++version = "0.1.29"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "891d81b926048e76efe18581bf793546b4c0eaf8448d72be8de2bbee5fd166e1"
++checksum = "91c1b7e4904c873ef0710c1f407dde2e6287de2bebc1bbbf7d430bb7cbffd939"
+ dependencies = [
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "security-framework"
+-version = "3.5.1"
++version = "3.7.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b3297343eaf830f66ede390ea39da1d462b6b0c1b000f420d0a83f898bbbe6ef"
++checksum = "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d"
+ dependencies = [
+  "bitflags",
+  "core-foundation",
+@@ -2110,9 +1988,9 @@
+ 
+ [[package]]
+ name = "security-framework-sys"
+-version = "2.15.0"
++version = "2.17.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cc1f0cbffaac4852523ce30d8bd3c5cdc873501d96ff467ca09b6767bb8cd5c0"
++checksum = "6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3"
+ dependencies = [
+  "core-foundation-sys",
+  "libc",
+@@ -2120,15 +1998,15 @@
+ 
+ [[package]]
+ name = "semver"
+-version = "1.0.27"
++version = "1.0.28"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
++checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+ 
+ [[package]]
+ name = "serde"
+-version = "1.0.228"
++version = "1.0.229"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
++checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
+ dependencies = [
+  "serde_core",
+  "serde_derive",
+@@ -2136,29 +2014,29 @@
+ 
+ [[package]]
+ name = "serde_core"
+-version = "1.0.228"
++version = "1.0.229"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
++checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
+ dependencies = [
+  "serde_derive",
+ ]
+ 
+ [[package]]
+ name = "serde_derive"
+-version = "1.0.228"
++version = "1.0.229"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
++checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "serde_json"
+-version = "1.0.150"
++version = "1.0.151"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
++checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+ dependencies = [
+  "indexmap",
+  "itoa",
+@@ -2170,25 +2048,24 @@
+ 
+ [[package]]
+ name = "serde_with"
+-version = "3.14.1"
++version = "3.21.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c522100790450cf78eeac1507263d0a350d4d5b30df0c8e1fe051a10c22b376e"
++checksum = "76a5c54c7310e7b8b9577c286d7e399ddd876c3e12b3ed917a8aabc4b96e9e8c"
+ dependencies = [
+- "serde",
+- "serde_derive",
++ "serde_core",
+  "serde_with_macros",
+ ]
+ 
+ [[package]]
+ name = "serde_with_macros"
+-version = "3.14.1"
++version = "3.21.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "327ada00f7d64abaac1e55a6911e90cf665aa051b9a561c7006c157f4633135e"
++checksum = "84d57bc0c8b9a17920c178daa6bb924850d54a9c97ab45194bb8c17ad66bb660"
+ dependencies = [
+  "darling",
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -2207,19 +2084,26 @@
+ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+ 
+ [[package]]
++name = "shlex"
++version = "2.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
++
++[[package]]
+ name = "signal-hook-registry"
+-version = "1.4.6"
++version = "1.4.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b2a4719bff48cee6b39d12c020eeb490953ad2443b7055bd0b21fca26bd8c28b"
++checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+ dependencies = [
++ "errno",
+  "libc",
+ ]
+ 
+ [[package]]
+ name = "simd_cesu8"
+-version = "1.1.1"
++version = "1.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "94f90157bb87cddf702797c5dadfa0be7d266cdf49e22da2fcaa32eff75b2c33"
++checksum = "11031e251abf8611c80f460e19dbdeb54a66db918e49c65a7065b46ac7aec520"
+ dependencies = [
+  "rustc_version",
+  "simdutf8",
+@@ -2233,21 +2117,21 @@
+ 
+ [[package]]
+ name = "siphasher"
+-version = "1.0.1"
++version = "1.0.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
++checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
+ 
+ [[package]]
+ name = "slab"
+-version = "0.4.11"
++version = "0.4.12"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
++checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+ 
+ [[package]]
+ name = "smallvec"
+-version = "1.15.1"
++version = "1.15.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
++checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+ 
+ [[package]]
+ name = "smol"
+@@ -2268,25 +2152,25 @@
+ 
+ [[package]]
+ name = "socket2"
+-version = "0.6.4"
++version = "0.6.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
++checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
+ dependencies = [
+  "libc",
+- "windows-sys 0.60.2",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "sorted-index-buffer"
+-version = "0.2.0"
++version = "0.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2d96a9d278ef78c991bf2faabd578b41199037846ff96fbb093f84bb50adaa00"
++checksum = "ea06cc588e43c632923a55450401b8f25e628131571d4e1baea1bdfdb2b5ed06"
+ 
+ [[package]]
+ name = "stable_deref_trait"
+-version = "1.2.0"
++version = "1.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
++checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+ 
+ [[package]]
+ name = "strsim"
+@@ -2312,7 +2196,7 @@
+  "heck",
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -2323,9 +2207,20 @@
+ 
+ [[package]]
+ name = "syn"
+-version = "2.0.117"
++version = "2.0.119"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
++checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "unicode-ident",
++]
++
++[[package]]
++name = "syn"
++version = "3.0.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -2340,7 +2235,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -2360,11 +2255,11 @@
+ 
+ [[package]]
+ name = "thiserror"
+-version = "2.0.17"
++version = "2.0.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
++checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+ dependencies = [
+- "thiserror-impl 2.0.17",
++ "thiserror-impl 2.0.19",
+ ]
+ 
+ [[package]]
+@@ -2375,37 +2270,36 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "thiserror-impl"
+-version = "2.0.17"
++version = "2.0.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
++checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 3.0.3",
+ ]
+ 
+ [[package]]
+ name = "thread_local"
+-version = "1.1.9"
++version = "1.1.10"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
++checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
+ dependencies = [
+  "cfg-if",
+ ]
+ 
+ [[package]]
+ name = "time"
+-version = "0.3.47"
++version = "0.3.54"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "743bd48c283afc0388f9b8827b976905fb217ad9e647fae3a379a9283c4def2c"
++checksum = "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244"
+ dependencies = [
+  "deranged",
+- "itoa",
+  "libc",
+  "num-conv",
+  "num_threads",
+@@ -2417,15 +2311,15 @@
+ 
+ [[package]]
+ name = "time-core"
+-version = "0.1.8"
++version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7694e1cfe791f8d31026952abf09c69ca6f6fa4e1a1229e18988f06a04a12dca"
++checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+ 
+ [[package]]
+ name = "time-macros"
+-version = "0.2.27"
++version = "0.2.32"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2e70e4c5a0e0a8a4823ad65dfe1a6930e4f4d756dcd9dd7939022b5e8c501215"
++checksum = "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85"
+ dependencies = [
+  "num-conv",
+  "time-core",
+@@ -2433,9 +2327,9 @@
+ 
+ [[package]]
+ name = "tinystr"
+-version = "0.8.1"
++version = "0.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5d4f6d1145dcb577acf783d4e601bc1d76a13337bb54e6233add580b07344c8b"
++checksum = "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d"
+ dependencies = [
+  "displaydoc",
+  "zerovec",
+@@ -2453,9 +2347,9 @@
+ 
+ [[package]]
+ name = "tinyvec"
+-version = "1.10.0"
++version = "1.12.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bfa5fdc3bce6191a1dbc8c02d5c8bffcf557bafa17c124c5264a458f1b0613fa"
++checksum = "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
+ dependencies = [
+  "tinyvec_macros",
+ ]
+@@ -2468,37 +2362,34 @@
+ 
+ [[package]]
+ name = "tokio"
+-version = "1.47.1"
++version = "1.53.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
++checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+ dependencies = [
+- "backtrace",
+- "io-uring",
+  "libc",
+  "mio",
+  "pin-project-lite",
+- "slab",
+  "socket2",
+  "tokio-macros",
+- "windows-sys 0.59.0",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+ name = "tokio-macros"
+-version = "2.5.0"
++version = "2.7.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
++checksum = "6328af13490e73a9b4694030fafd93f8c8c6a9dede33e821c3fc63eddf8042ba"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "tokio-stream"
+-version = "0.1.17"
++version = "0.1.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "eca58d7bba4a75707817a2c44174253f9236b2d5fbd055602e9d5c07c139a047"
++checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
+ dependencies = [
+  "futures-core",
+  "pin-project-lite",
+@@ -2508,9 +2399,9 @@
+ 
+ [[package]]
+ name = "tokio-util"
+-version = "0.7.16"
++version = "0.7.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "14307c986784f72ef81c89db7d9e28d6ac26d16213b109ea501696195e6e3ce5"
++checksum = "494815d09bf52b5548659851081238f0ca39ff638363907596da739561c62c52"
+ dependencies = [
+  "bytes",
+  "futures-core",
+@@ -2521,9 +2412,9 @@
+ 
+ [[package]]
+ name = "tracing"
+-version = "0.1.41"
++version = "0.1.44"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
++checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+ dependencies = [
+  "log",
+  "pin-project-lite",
+@@ -2532,9 +2423,9 @@
+ 
+ [[package]]
+ name = "tracing-core"
+-version = "0.1.34"
++version = "0.1.36"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
++checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+ dependencies = [
+  "once_cell",
+ ]
+@@ -2551,9 +2442,9 @@
+ 
+ [[package]]
+ name = "tracing-subscriber"
+-version = "0.3.20"
++version = "0.3.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2054a14f5307d601f88daf0553e1cbf472acc4f2c51afab632431cdcd72124d5"
++checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+ dependencies = [
+  "matchers",
+  "nu-ansi-term",
+@@ -2568,9 +2459,9 @@
+ 
+ [[package]]
+ name = "typenum"
+-version = "1.19.0"
++version = "1.20.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
++checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+ 
+ [[package]]
+ name = "unicode-ident"
+@@ -2580,9 +2471,9 @@
+ 
+ [[package]]
+ name = "unicode-segmentation"
+-version = "1.12.0"
++version = "1.13.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
++checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
+ 
+ [[package]]
+ name = "unicode-xid"
+@@ -2608,9 +2499,9 @@
+ 
+ [[package]]
+ name = "url"
+-version = "2.5.7"
++version = "2.5.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "08bc136a29a3d1758e07a9cca267be308aeebf5cfd5a10f3f67ab2097683ef5b"
++checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+ dependencies = [
+  "form_urlencoded",
+  "idna",
+@@ -2653,28 +2544,10 @@
+ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+ 
+ [[package]]
+-name = "wasip2"
+-version = "1.0.3+wasi-0.2.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "20064672db26d7cdc89c7798c48a0fdfac8213434a1186e5ef29fd560ae223d6"
+-dependencies = [
+- "wit-bindgen 0.57.1",
+-]
+-
+-[[package]]
+-name = "wasip3"
+-version = "0.4.0+wasi-0.3.0-rc-2026-01-06"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5428f8bf88ea5ddc08faddef2ac4a67e390b88186c703ce6dbd955e1c145aca5"
+-dependencies = [
+- "wit-bindgen 0.51.0",
+-]
+-
+-[[package]]
+ name = "wasm-bindgen"
+-version = "0.2.121"
++version = "0.2.126"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "49ace1d07c165b0864824eee619580c4689389afa9dc9ed3a4c75040d82e6790"
++checksum = "4b067c0c11094aef6b7a801c1e34a26affafdf3d051dba08456b868789aaf9a4"
+ dependencies = [
+  "cfg-if",
+  "once_cell",
+@@ -2685,9 +2558,9 @@
+ 
+ [[package]]
+ name = "wasm-bindgen-macro"
+-version = "0.2.121"
++version = "0.2.126"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8e68e6f4afd367a562002c05637acb8578ff2dea1943df76afb9e83d177c8578"
++checksum = "167ce5e579f6bcf889c4f7175a8a5a585de84e8ff93976ce393efa5f2837aab1"
+ dependencies = [
+  "quote",
+  "wasm-bindgen-macro-support",
+@@ -2695,61 +2568,27 @@
+ 
+ [[package]]
+ name = "wasm-bindgen-macro-support"
+-version = "0.2.121"
++version = "0.2.126"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d95a9ec35c64b2a7cb35d3fead40c4238d0940c86d107136999567a4703259f2"
++checksum = "f3997c7839262f4ef12cf90b818d6340c18e80f263f1a94bf157d0ec4420380e"
+ dependencies = [
+  "bumpalo",
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+  "wasm-bindgen-shared",
+ ]
+ 
+ [[package]]
+ name = "wasm-bindgen-shared"
+-version = "0.2.121"
++version = "0.2.126"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c4e0100b01e9f0d03189a92b96772a1fb998639d981193d7dbab487302513441"
++checksum = "dc1b4cb0cc549fcf58d7dfc081778139b3d283a081644e833e84682ad71cea24"
+ dependencies = [
+  "unicode-ident",
+ ]
+ 
+ [[package]]
+-name = "wasm-encoder"
+-version = "0.244.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "990065f2fe63003fe337b932cfb5e3b80e0b4d0f5ff650e6985b1048f62c8319"
+-dependencies = [
+- "leb128fmt",
+- "wasmparser",
+-]
+-
+-[[package]]
+-name = "wasm-metadata"
+-version = "0.244.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "bb0e353e6a2fbdc176932bbaab493762eb1255a7900fe0fea1a2f96c296cc909"
+-dependencies = [
+- "anyhow",
+- "indexmap",
+- "wasm-encoder",
+- "wasmparser",
+-]
+-
+-[[package]]
+-name = "wasmparser"
+-version = "0.244.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "47b807c72e1bac69382b3a6fb3dbe8ea4c0ed87ff5629b8685ae6b9a611028fe"
+-dependencies = [
+- "bitflags",
+- "hashbrown 0.15.5",
+- "indexmap",
+- "semver",
+-]
+-
+-[[package]]
+ name = "web-time"
+ version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2761,9 +2600,9 @@
+ 
+ [[package]]
+ name = "webpki-root-certs"
+-version = "1.0.2"
++version = "1.0.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4e4ffd8df1c57e87c325000a3d6ef93db75279dc3a231125aac571650f22b12a"
++checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
+ dependencies = [
+  "rustls-pki-types",
+ ]
+@@ -2790,7 +2629,7 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
+ dependencies = [
+- "windows-sys 0.61.1",
++ "windows-sys 0.61.2",
+ ]
+ 
+ [[package]]
+@@ -2811,32 +2650,14 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+ dependencies = [
+- "windows-targets 0.52.6",
+-]
+-
+-[[package]]
+-name = "windows-sys"
+-version = "0.59.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
+-dependencies = [
+- "windows-targets 0.52.6",
++ "windows-targets",
+ ]
+ 
+ [[package]]
+ name = "windows-sys"
+-version = "0.60.2"
++version = "0.61.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
+-dependencies = [
+- "windows-targets 0.53.5",
+-]
+-
+-[[package]]
+-name = "windows-sys"
+-version = "0.61.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6f109e41dd4a3c848907eb83d5a42ea98b3769495597450cf6d153507b166f0f"
++checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
+ dependencies = [
+  "windows-link",
+ ]
+@@ -2847,31 +2668,14 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
+ dependencies = [
+- "windows_aarch64_gnullvm 0.52.6",
+- "windows_aarch64_msvc 0.52.6",
+- "windows_i686_gnu 0.52.6",
+- "windows_i686_gnullvm 0.52.6",
+- "windows_i686_msvc 0.52.6",
+- "windows_x86_64_gnu 0.52.6",
+- "windows_x86_64_gnullvm 0.52.6",
+- "windows_x86_64_msvc 0.52.6",
+-]
+-
+-[[package]]
+-name = "windows-targets"
+-version = "0.53.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
+-dependencies = [
+- "windows-link",
+- "windows_aarch64_gnullvm 0.53.1",
+- "windows_aarch64_msvc 0.53.1",
+- "windows_i686_gnu 0.53.1",
+- "windows_i686_gnullvm 0.53.1",
+- "windows_i686_msvc 0.53.1",
+- "windows_x86_64_gnu 0.53.1",
+- "windows_x86_64_gnullvm 0.53.1",
+- "windows_x86_64_msvc 0.53.1",
++ "windows_aarch64_gnullvm",
++ "windows_aarch64_msvc",
++ "windows_i686_gnu",
++ "windows_i686_gnullvm",
++ "windows_i686_msvc",
++ "windows_x86_64_gnu",
++ "windows_x86_64_gnullvm",
++ "windows_x86_64_msvc",
+ ]
+ 
+ [[package]]
+@@ -2881,194 +2685,52 @@
+ checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
+ 
+ [[package]]
+-name = "windows_aarch64_gnullvm"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
+-
+-[[package]]
+ name = "windows_aarch64_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+ 
+ [[package]]
+-name = "windows_aarch64_msvc"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
+-
+-[[package]]
+ name = "windows_i686_gnu"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
+ 
+ [[package]]
+-name = "windows_i686_gnu"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
+-
+-[[package]]
+ name = "windows_i686_gnullvm"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+ 
+ [[package]]
+-name = "windows_i686_gnullvm"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
+-
+-[[package]]
+ name = "windows_i686_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
+ 
+ [[package]]
+-name = "windows_i686_msvc"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
+-
+-[[package]]
+ name = "windows_x86_64_gnu"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+ 
+ [[package]]
+-name = "windows_x86_64_gnu"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
+-
+-[[package]]
+ name = "windows_x86_64_gnullvm"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
+ 
+ [[package]]
+-name = "windows_x86_64_gnullvm"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
+-
+-[[package]]
+ name = "windows_x86_64_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+ 
+ [[package]]
+-name = "windows_x86_64_msvc"
+-version = "0.53.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
+-
+-[[package]]
+-name = "wit-bindgen"
+-version = "0.51.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5"
+-dependencies = [
+- "wit-bindgen-rust-macro",
+-]
+-
+-[[package]]
+-name = "wit-bindgen"
+-version = "0.57.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+-
+-[[package]]
+-name = "wit-bindgen-core"
+-version = "0.51.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ea61de684c3ea68cb082b7a88508a8b27fcc8b797d738bfc99a82facf1d752dc"
+-dependencies = [
+- "anyhow",
+- "heck",
+- "wit-parser",
+-]
+-
+-[[package]]
+-name = "wit-bindgen-rust"
+-version = "0.51.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b7c566e0f4b284dd6561c786d9cb0142da491f46a9fbed79ea69cdad5db17f21"
+-dependencies = [
+- "anyhow",
+- "heck",
+- "indexmap",
+- "prettyplease",
+- "syn",
+- "wasm-metadata",
+- "wit-bindgen-core",
+- "wit-component",
+-]
+-
+-[[package]]
+-name = "wit-bindgen-rust-macro"
+-version = "0.51.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "0c0f9bfd77e6a48eccf51359e3ae77140a7f50b1e2ebfe62422d8afdaffab17a"
+-dependencies = [
+- "anyhow",
+- "prettyplease",
+- "proc-macro2",
+- "quote",
+- "syn",
+- "wit-bindgen-core",
+- "wit-bindgen-rust",
+-]
+-
+-[[package]]
+-name = "wit-component"
+-version = "0.244.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9d66ea20e9553b30172b5e831994e35fbde2d165325bec84fc43dbf6f4eb9cb2"
+-dependencies = [
+- "anyhow",
+- "bitflags",
+- "indexmap",
+- "log",
+- "serde",
+- "serde_derive",
+- "serde_json",
+- "wasm-encoder",
+- "wasm-metadata",
+- "wasmparser",
+- "wit-parser",
+-]
+-
+-[[package]]
+-name = "wit-parser"
+-version = "0.244.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ecc8ac4bc1dc3381b7f59c34f00b67e18f910c2c0f50015669dde7def656a736"
+-dependencies = [
+- "anyhow",
+- "id-arena",
+- "indexmap",
+- "log",
+- "semver",
+- "serde",
+- "serde_derive",
+- "serde_json",
+- "unicode-xid",
+- "wasmparser",
+-]
+-
+-[[package]]
+ name = "writeable"
+-version = "0.6.1"
++version = "0.6.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
++checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+ 
+ [[package]]
+ name = "x509-parser"
+@@ -3084,7 +2746,7 @@
+  "oid-registry",
+  "ring",
+  "rusticata-macros",
+- "thiserror 2.0.17",
++ "thiserror 2.0.19",
+  "time",
+ ]
+ 
+@@ -3100,11 +2762,10 @@
+ 
+ [[package]]
+ name = "yoke"
+-version = "0.8.0"
++version = "0.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5f41bb01b8226ef4bfd589436a297c53d118f65921786300e427be8d487695cc"
++checksum = "709fe23a0424b6a435d82152b1bd3fdfb0833487d5fa90d05d42762a9891fef5"
+ dependencies = [
+- "serde",
+  "stable_deref_trait",
+  "yoke-derive",
+  "zerofrom",
+@@ -3112,48 +2773,68 @@
+ 
+ [[package]]
+ name = "yoke-derive"
+-version = "0.8.0"
++version = "0.8.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "38da3c9736e16c5d3c8c597a9aaa5d1fa565d0532ae05e27c24aa62fb32c0ab6"
++checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+  "synstructure",
+ ]
+ 
+ [[package]]
++name = "zerocopy"
++version = "0.8.55"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
++dependencies = [
++ "zerocopy-derive",
++]
++
++[[package]]
++name = "zerocopy-derive"
++version = "0.8.55"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
++[[package]]
+ name = "zerofrom"
+-version = "0.1.6"
++version = "0.1.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "50cc42e0333e05660c3587f3bf9d0478688e15d870fab3346451ce7f8c9fbea5"
++checksum = "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
+ dependencies = [
+  "zerofrom-derive",
+ ]
+ 
+ [[package]]
+ name = "zerofrom-derive"
+-version = "0.1.6"
++version = "0.1.7"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d71e5d6e06ab090c67b5e44993ec16b72dcbaabc526db883a360057678b48502"
++checksum = "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+  "synstructure",
+ ]
+ 
+ [[package]]
+ name = "zeroize"
+-version = "1.8.2"
++version = "1.9.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
++checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+ 
+ [[package]]
+ name = "zerotrie"
+-version = "0.2.2"
++version = "0.2.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "36f0bbd478583f79edad978b407914f61b2972f5af6fa089686016be8f9af595"
++checksum = "0f9152d31db0792fa83f70fb2f83148effb5c1f5b8c7686c3459e361d9bc20bf"
+ dependencies = [
+  "displaydoc",
+  "yoke",
+@@ -3162,9 +2843,9 @@
+ 
+ [[package]]
+ name = "zerovec"
+-version = "0.11.4"
++version = "0.11.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e7aa2bd55086f1ab526693ecbe444205da57e25f4489879da80635a46d90e73b"
++checksum = "90f911cbc359ab6af17377d242225f4d75119aec87ea711a880987b18cd7b239"
+ dependencies = [
+  "yoke",
+  "zerofrom",
+@@ -3173,17 +2854,17 @@
+ 
+ [[package]]
+ name = "zerovec-derive"
+-version = "0.11.1"
++version = "0.11.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5b96237efa0c878c64bd89c436f661be4e46b2f3eff1ebb976f7ef2321d2f58f"
++checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+ name = "zmij"
+-version = "1.0.21"
++version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
++checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/Cargo.toml vendor/noq-1.1.0/Cargo.toml
+--- a/Cargo.toml	2006-07-24 01:21:28.000000000 +0000
++++ b/Cargo.toml	2026-07-25 18:52:47.240063510 +0000
+@@ -12,23 +12,37 @@
+ [package]
+ edition = "2024"
+ rust-version = "1.88"
+-name = "noq"
+-version = "1.1.0"
++name = "iroh-noq"
++version = "1.1.0-holon.1"
+ build = "build.rs"
++publish = true
+ autolib = false
+ autobins = false
+ autoexamples = false
+ autotests = false
+ autobenches = false
+-description = "General purpose QUIC transport protocol implementation"
++description = "Holon-maintained Noq fork with bounded queues and connection lifetimes"
++documentation = "https://docs.rs/iroh-noq"
+ readme = "README.md"
++include = [
++    "benches/**",
++    "examples/**",
++    "src/**",
++    "tests/**",
++    "build.rs",
++    "CHANGELOG.md",
++    "IROH-VENDOR.md",
++    "LICENSE-APACHE",
++    "LICENSE-MIT",
++    "README.md",
++]
+ keywords = ["quic"]
+ categories = [
+     "network-programming",
+     "asynchronous",
+ ]
+ license = "MIT OR Apache-2.0"
+-repository = "https://github.com/n0-computer/noq"
++repository = "https://github.com/holon-technologies/iroh"
+ resolver = "2"
+ 
+ [package.metadata.docs.rs]
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/CHANGELOG.md vendor/noq-1.1.0/CHANGELOG.md
+--- a/CHANGELOG.md	1970-01-01 00:00:00.000000000 +0000
++++ b/CHANGELOG.md	2026-07-25 19:34:18.413785692 +0000
+@@ -0,0 +1,11 @@
++# Changelog
++
++## 1.1.0-holon.1
++
++- Fork upstream `noq` 1.1.0 under the explicit `iroh-noq` package name.
++- Bound endpoint and per-connection event queues by items and bytes.
++- Reserve terminal delivery capacity and coalesce replaceable control state.
++- Retain an opaque connection-lifetime token until the final Noq state is dropped.
++- Require erased lifetime guards to preserve upstream `UnwindSafe` and
++  `RefUnwindSafe` behavior for public connection, stream, and path handles.
++- Add fixed-cardinality rejection diagnostics and saturation/conservation regressions.
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/examples/README.md vendor/noq-1.1.0/examples/README.md
+--- a/examples/README.md	2006-07-24 01:21:28.000000000 +0000
++++ b/examples/README.md	2026-07-24 15:50:15.906256494 +0000
+@@ -4,8 +4,8 @@
+ 
+ 1. Server (`server.rs`)
+ 
+-The server listens for any client requesting a file. 
+-If the file path is valid and allowed, it returns the contents. 
++The server listens for any client requesting a file.
++If the file path is valid and allowed, it returns the contents.
+ 
+ Open up a terminal and execute:
+ 
+@@ -15,8 +15,8 @@
+ 
+ 2. Client (`client.rs`)
+ 
+-The client requests a file and prints it to the console. 
+-If the file is on the server, it will receive the response. 
++The client requests a file and prints it to the console.
++If the file is on the server, it will receive the response.
+ 
+ In a new terminal execute:
+ 
+@@ -73,7 +73,7 @@
+ Additionally, QUIC servers and clients can both operate on the same UDP socket.
+ This example demonstrates how to make multiple outgoing connections on a single UDP socket.
+ 
+-```text 
++```text
+ $ cargo run --example single_socket
+ ```
+ 
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/README.md vendor/noq-1.1.0/README.md
+--- a/README.md	2006-07-24 01:21:28.000000000 +0000
++++ b/README.md	2026-07-25 18:52:47.240063510 +0000
+@@ -1,7 +1,13 @@
+ # noq
+ 
+-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/noq/)
+-[![Crates.io](https://img.shields.io/crates/v/noq.svg?style=flat-square)](https://crates.io/crates/noq)
++> **Holon-maintained fork:** the published package is `iroh-noq` version
++> `1.1.0-holon.1`, based on upstream `noq` 1.1.0. It retains the `noq` Rust library name and adds
++> the bounded queue and connection-lifetime ownership guarantees documented in
++> [IROH-VENDOR.md](IROH-VENDOR.md). It is maintained in the Iroh repository rather than by the
++> upstream Noq project.
++
++[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iroh-noq/)
++[![Crates.io](https://img.shields.io/crates/v/iroh-noq.svg?style=flat-square)](https://crates.io/crates/iroh-noq)
+ [![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
+ [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
+ [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/connection.rs vendor/noq-1.1.0/src/connection.rs
+--- a/src/connection.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/connection.rs	2026-07-24 09:32:36.601855774 +0000
+@@ -17,12 +17,16 @@
+ use pin_project_lite::pin_project;
+ use rustc_hash::FxHashMap;
+ use thiserror::Error;
+-use tokio::sync::{Notify, futures::Notified, mpsc, oneshot, watch};
++use tokio::sync::{Notify, futures::Notified, oneshot, watch};
+ use tracing::{Instrument, Span, debug_span};
+ 
+ use crate::{
+-    ConnectionEvent, Duration, Instant, Path, VarInt,
++    ConnectionLifetimeToken, Duration, Instant, Path, VarInt,
+     endpoint::ensure_ipv6,
++    event_queue::{
++        ConnectionEvent, ConnectionEventReceiver, EndpointEventSender, EventSendError,
++        QueueAdmissionError,
++    },
+     mutex::{Mutex, MutexGuard},
+     path::{OpenPath, PathRef, PathRefOwner},
+     recv_stream::RecvStream,
+@@ -48,10 +52,11 @@
+     pub(crate) fn new(
+         handle: ConnectionHandle,
+         conn: proto::Connection,
+-        endpoint_events: mpsc::UnboundedSender<(ConnectionHandle, EndpointEvent)>,
+-        conn_events: mpsc::UnboundedReceiver<ConnectionEvent>,
++        endpoint_events: EndpointEventSender,
++        conn_events: ConnectionEventReceiver,
+         sender: Pin<Box<dyn UdpSender>>,
+         runtime: Arc<dyn Runtime>,
++        lifetime: Option<ConnectionLifetimeToken>,
+     ) -> Self {
+         let (on_handshake_data_send, on_handshake_data_recv) = oneshot::channel();
+         let (on_connected_send, on_connected_recv) = oneshot::channel();
+@@ -68,6 +73,7 @@
+                 runtime.clone(),
+             )),
+             shared: Shared::default(),
++            _lifetime: lifetime,
+         })));
+ 
+         let driver = ConnectionDriver(conn.clone());
+@@ -273,7 +279,10 @@
+         // If a timer expires, there might be more to transmit. When we transmit something, we
+         // might need to reset a timer. Hence, we must loop until neither happens.
+         keep_going |= conn.drive_timer(cx);
+-        conn.forward_endpoint_events();
++        if let Err(error) = conn.forward_endpoint_events() {
++            conn.terminate(error, &self.0.shared);
++            return Poll::Ready(Ok(()));
++        }
+         conn.forward_app_events(&self.0.shared);
+ 
+         if !conn.inner.is_drained() {
+@@ -1335,6 +1344,7 @@
+     /// Kept private intentionally, use [`Self::lock_and_wake`].
+     state: Mutex<State>,
+     pub(crate) shared: Shared,
++    _lifetime: Option<ConnectionLifetimeToken>,
+ }
+ 
+ impl ConnectionInner {
+@@ -1438,8 +1448,8 @@
+     handshake_confirmed: bool,
+     timer: Option<Pin<Box<dyn AsyncTimer>>>,
+     timer_deadline: Option<Instant>,
+-    conn_events: mpsc::UnboundedReceiver<ConnectionEvent>,
+-    endpoint_events: mpsc::UnboundedSender<(ConnectionHandle, EndpointEvent)>,
++    conn_events: ConnectionEventReceiver,
++    endpoint_events: EndpointEventSender,
+     pub(crate) blocked_writers: FxHashMap<StreamId, Waker>,
+     pub(crate) blocked_readers: FxHashMap<StreamId, Waker>,
+     pub(crate) stopped: FxHashMap<StreamId, Arc<Notify>>,
+@@ -1479,8 +1489,8 @@
+     fn new(
+         inner: proto::Connection,
+         handle: ConnectionHandle,
+-        endpoint_events: mpsc::UnboundedSender<(ConnectionHandle, EndpointEvent)>,
+-        conn_events: mpsc::UnboundedReceiver<ConnectionEvent>,
++        endpoint_events: EndpointEventSender,
++        conn_events: ConnectionEventReceiver,
+         on_handshake_data: oneshot::Sender<()>,
+         on_connected: oneshot::Sender<bool>,
+         sender: Pin<Box<dyn UdpSender>>,
+@@ -1573,11 +1583,37 @@
+         Ok(false)
+     }
+ 
+-    fn forward_endpoint_events(&mut self) {
++    fn forward_endpoint_events(&mut self) -> Result<(), ConnectionError> {
+         while let Some(event) = self.inner.poll_endpoint_events() {
+-            // If the endpoint driver is gone, noop.
+-            let _ = self.endpoint_events.send((self.handle, event));
++            match self.endpoint_events.send(event) {
++                Ok(()) => {}
++                Err(EventSendError::Closed) => {
++                    return Err(ConnectionError::TransportError(TransportError::new(
++                        TransportErrorCode::INTERNAL_ERROR,
++                        "endpoint driver future was dropped".to_string(),
++                    )));
++                }
++                Err(EventSendError::Admission(QueueAdmissionError::ControlEventsFull)) => {
++                    return Err(ConnectionError::TransportError(TransportError::new(
++                        TransportErrorCode::INTERNAL_ERROR,
++                        "local endpoint event capacity exhausted".to_string(),
++                    )));
++                }
++                Err(EventSendError::Admission(error)) => {
++                    return Err(ConnectionError::TransportError(TransportError::new(
++                        TransportErrorCode::INTERNAL_ERROR,
++                        format!("local endpoint event accounting failed: {error:?}"),
++                    )));
++                }
++                Err(EventSendError::TerminalCreditExhausted) => {
++                    return Err(ConnectionError::TransportError(TransportError::new(
++                        TransportErrorCode::INTERNAL_ERROR,
++                        "connection emitted a duplicate terminal endpoint event".to_string(),
++                    )));
++                }
++            }
+         }
++        Ok(())
+     }
+ 
+     /// If this returns `Err`, the endpoint is dead, so the driver should exit immediately.
+@@ -1854,9 +1890,11 @@
+     fn drop(&mut self) {
+         if !self.inner.is_drained() {
+             // Ensure the endpoint can tidy up
+-            let _ = self
+-                .endpoint_events
+-                .send((self.handle, EndpointEvent::drained()));
++            let result = self.endpoint_events.send(EndpointEvent::drained());
++            assert!(
++                matches!(result, Ok(()) | Err(EventSendError::Closed)),
++                "connection drop must retain a terminal drained-event credit"
++            );
+         }
+ 
+         if !self.on_closed.is_empty()
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/endpoint.rs vendor/noq-1.1.0/src/endpoint.rs
+--- a/src/endpoint.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/endpoint.rs	2026-07-24 09:37:00.611000679 +0000
+@@ -30,22 +30,29 @@
+ use pin_project_lite::pin_project;
+ use proto::{
+     self as proto, ClientConfig, ConnectError, ConnectionError, ConnectionHandle, DatagramEvent,
+-    EndpointEvent, FourTuple, NetworkChangeHint, ServerConfig,
++    FourTuple, NetworkChangeHint, ServerConfig, TransportError, TransportErrorCode,
+ };
+-use rustc_hash::FxHashMap;
++use rustc_hash::{FxHashMap, FxHashSet};
+ #[cfg(all(
+     not(wasm_browser),
+     any(feature = "runtime-tokio", feature = "runtime-smol"),
+     any(feature = "aws-lc-rs", feature = "ring"),
+ ))]
+ use socket2::{Domain, Protocol, Socket, Type};
+-use tokio::sync::{Notify, futures::Notified, mpsc};
++use tokio::sync::{Notify, futures::Notified};
+ use tracing::{Instrument, Span, trace};
+ use udp::{BATCH_SIZE, RecvMeta};
+ 
+ use crate::{
+-    ConnectionEvent, EndpointConfig, IO_LOOP_BOUND, RECV_TIME_BOUND, VarInt,
+-    connection::Connecting, incoming::Incoming, work_limiter::WorkLimiter,
++    ConnectionLifetimeToken, EndpointConfig, EventQueueLimits, EventQueueStats, IO_LOOP_BOUND,
++    RECV_TIME_BOUND, VarInt,
++    connection::Connecting,
++    event_queue::{
++        ConnectionBudget, ConnectionEventSender, EndpointEventQueueReceiver,
++        EndpointEventQueueSender, EventSendError, QueueAdmissionError, QueueBudgets,
++    },
++    incoming::Incoming,
++    work_limiter::WorkLimiter,
+ };
+ 
+ /// A QUIC endpoint.
+@@ -151,8 +158,26 @@
+         socket: std::net::UdpSocket,
+         runtime: Arc<dyn Runtime>,
+     ) -> io::Result<Self> {
++        Self::new_with_limits(
++            config,
++            server_config,
++            socket,
++            runtime,
++            EventQueueLimits::default(),
++        )
++    }
++
++    /// Construct an endpoint with arbitrary configuration, socket, and finite internal limits.
++    #[cfg(not(wasm_browser))]
++    pub fn new_with_limits(
++        config: EndpointConfig,
++        server_config: Option<ServerConfig>,
++        socket: std::net::UdpSocket,
++        runtime: Arc<dyn Runtime>,
++        limits: EventQueueLimits,
++    ) -> io::Result<Self> {
+         let socket = runtime.wrap_udp_socket(socket)?;
+-        Self::new_with_abstract_socket(config, server_config, socket, runtime)
++        Self::new_with_abstract_socket_and_limits(config, server_config, socket, runtime, limits)
+     }
+ 
+     /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
+@@ -165,6 +190,23 @@
+         socket: Box<dyn AsyncUdpSocket>,
+         runtime: Arc<dyn Runtime>,
+     ) -> io::Result<Self> {
++        Self::new_with_abstract_socket_and_limits(
++            config,
++            server_config,
++            socket,
++            runtime,
++            EventQueueLimits::default(),
++        )
++    }
++
++    /// Construct an endpoint with an abstract socket and explicit finite internal limits.
++    pub fn new_with_abstract_socket_and_limits(
++        config: EndpointConfig,
++        server_config: Option<ServerConfig>,
++        socket: Box<dyn AsyncUdpSocket>,
++        runtime: Arc<dyn Runtime>,
++        limits: EventQueueLimits,
++    ) -> io::Result<Self> {
+         let addr = socket.local_addr()?;
+         let allow_mtud = !socket.may_fragment();
+         let rc = EndpointRef::new(
+@@ -172,6 +214,7 @@
+             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
+             addr.is_ipv6(),
+             runtime.clone(),
++            limits,
+         );
+         let driver = EndpointDriver(rc.clone());
+         runtime.spawn(Box::pin(
+@@ -185,6 +228,11 @@
+         Ok(Self { inner: rc, runtime })
+     }
+ 
++    /// Returns bounded event-queue utilization and rejection counters.
++    pub fn event_queue_stats(&self) -> EventQueueStats {
++        self.inner.state.lock().unwrap().queue_budgets.stats()
++    }
++
+     /// Get the next incoming connection attempt from a client
+     ///
+     /// Yields [`Incoming`]s, or `None` if the endpoint is [`close`](Self::close)d. [`Incoming`]
+@@ -227,6 +275,29 @@
+         self.connect_with(config, addr, server_name)
+     }
+ 
++    /// Connects with the default client configuration and retains `lifetime` until all Noq
++    /// connection state has been dropped.
++    pub fn connect_with_lifetime(
++        &self,
++        addr: SocketAddr,
++        server_name: &str,
++        lifetime: ConnectionLifetimeToken,
++    ) -> Result<Connecting, ConnectError> {
++        let Some(config) = self
++            .inner
++            .0
++            .state
++            .lock()
++            .unwrap()
++            .default_client_config
++            .clone()
++        else {
++            return Err(ConnectError::NoDefaultClientConfig);
++        };
++
++        self.connect_inner(config, addr, server_name, Some(lifetime))
++    }
++
+     /// Connect to a remote endpoint using a custom configuration.
+     ///
+     /// See [`connect()`] for details.
+@@ -238,6 +309,28 @@
+         addr: SocketAddr,
+         server_name: &str,
+     ) -> Result<Connecting, ConnectError> {
++        self.connect_inner(config, addr, server_name, None)
++    }
++
++    /// Connects with a custom client configuration and retains `lifetime` until all Noq
++    /// connection state has been dropped.
++    pub fn connect_with_config_and_lifetime(
++        &self,
++        config: ClientConfig,
++        addr: SocketAddr,
++        server_name: &str,
++        lifetime: ConnectionLifetimeToken,
++    ) -> Result<Connecting, ConnectError> {
++        self.connect_inner(config, addr, server_name, Some(lifetime))
++    }
++
++    fn connect_inner(
++        &self,
++        config: ClientConfig,
++        addr: SocketAddr,
++        server_name: &str,
++        lifetime: Option<ConnectionLifetimeToken>,
++    ) -> Result<Connecting, ConnectError> {
+         let mut endpoint = self.inner.state.lock().unwrap();
+         if endpoint.driver_lost || endpoint.recv_state.connections.close.is_some() {
+             return Err(ConnectError::EndpointStopping);
+@@ -251,16 +344,25 @@
+             addr
+         };
+ 
++        let budget = endpoint
++            .recv_state
++            .connections
++            .try_reserve()
++            .map_err(|_| ConnectError::EndpointStopping)?;
+         let (ch, conn) = endpoint
+             .inner
+             .connect(self.runtime.now(), config, addr, server_name)?;
+ 
+         let sender = endpoint.socket.create_sender();
+         endpoint.stats.outgoing_handshakes += 1;
+-        Ok(endpoint
+-            .recv_state
+-            .connections
+-            .insert(ch, conn, sender, self.runtime.clone()))
++        Ok(endpoint.recv_state.connections.insert(
++            ch,
++            conn,
++            sender,
++            self.runtime.clone(),
++            lifetime,
++            budget,
++        ))
+     }
+ 
+     /// Switch to a new UDP socket
+@@ -286,7 +388,7 @@
+         // Update connection socket references
+         for sender in inner.recv_state.connections.senders.values() {
+             // Ignoring errors from dropped connections
+-            let _ = sender.send(ConnectionEvent::Rebind(inner.socket.create_sender()));
++            let _ = sender.send_rebind(inner.socket.create_sender());
+         }
+         if let Some(driver) = inner.driver.take() {
+             // Ensure the driver can register for wake-ups from the new socket
+@@ -314,7 +416,7 @@
+         let mut inner = self.inner.state.lock().unwrap();
+         for sender in inner.recv_state.connections.senders.values() {
+             // Ignoring errors from dropped connections
+-            let _ = sender.send(ConnectionEvent::LocalAddressChanged(hint.clone()));
++            let _ = sender.send_local_address_changed(hint.clone());
+         }
+         if let Some(driver) = inner.driver.take() {
+             driver.wake();
+@@ -354,10 +456,7 @@
+         endpoint.recv_state.connections.close = Some((error_code, reason.clone()));
+         for sender in endpoint.recv_state.connections.senders.values() {
+             // Ignoring errors from dropped connections
+-            let _ = sender.send(ConnectionEvent::Close {
+-                error_code,
+-                reason: reason.clone(),
+-            });
++            let _ = sender.send_close(error_code, reason.clone());
+         }
+         self.inner.shared.incoming.notify_waiters();
+         // Wake the endpoint driver so that it can shutdown if the endpoint is already drained.
+@@ -411,7 +510,7 @@
+         loop {
+             {
+                 let endpoint = &mut *self.inner.state.lock().unwrap();
+-                if endpoint.recv_state.connections.active_connections == 0 {
++                if endpoint.recv_state.connections.active.is_empty() {
+                     break;
+                 }
+                 // Construct future while lock is held to avoid race
+@@ -498,7 +597,7 @@
+         // Drop all outgoing channels, signaling the termination of the endpoint to the associated
+         // connections.
+         endpoint.recv_state.connections.senders.clear();
+-        endpoint.recv_state.connections.active_connections = 0;
++        endpoint.recv_state.connections.active.clear();
+     }
+ }
+ 
+@@ -513,8 +612,14 @@
+         &self,
+         incoming: proto::Incoming,
+         server_config: Option<Arc<ServerConfig>>,
++        lifetime: Option<ConnectionLifetimeToken>,
+     ) -> Result<Connecting, ConnectionError> {
+         let mut state = self.state.lock().unwrap();
++        let budget = state
++            .recv_state
++            .connections
++            .try_reserve()
++            .map_err(connection_capacity_error)?;
+         let mut response_buffer = Vec::new();
+         let now = state.runtime.now();
+         match state
+@@ -528,7 +633,7 @@
+                 Ok(state
+                     .recv_state
+                     .connections
+-                    .insert(handle, conn, sender, runtime))
++                    .insert(handle, conn, sender, runtime, lifetime, budget))
+             }
+             Err(error) => {
+                 if let Some(transmit) = error.response {
+@@ -573,7 +678,8 @@
+     recv_state: RecvState,
+     driver: Option<Waker>,
+     ipv6: bool,
+-    events: mpsc::UnboundedReceiver<(ConnectionHandle, EndpointEvent)>,
++    events: EndpointEventQueueReceiver,
++    queue_budgets: Arc<QueueBudgets>,
+     driver_lost: bool,
+     runtime: Arc<dyn Runtime>,
+     stats: EndpointStats,
+@@ -636,20 +742,23 @@
+ 
+     fn handle_events(&mut self, cx: &mut Context<'_>, shared: &Shared) -> bool {
+         for _ in 0..IO_LOOP_BOUND {
+-            let (ch, event) = match self.events.poll_recv(cx) {
++            let queued = match self.events.poll_recv(cx) {
+                 Poll::Ready(Some(x)) => x,
+                 Poll::Ready(None) => unreachable!("EndpointInner owns one sender"),
+                 Poll::Pending => {
+                     return false;
+                 }
+             };
++            let (ch, event, control) = queued.into_parts();
+ 
+             if event.is_draining() {
+-                self.recv_state.connections.active_connections -= 1;
+-                if self.recv_state.connections.active_connections == 0 {
++                let was_active = self.recv_state.connections.active.remove(&ch);
++                assert!(was_active, "draining connection must be active");
++                if self.recv_state.connections.active.is_empty() {
+                     shared.all_draining.notify_waiters();
+                 }
+             } else if event.is_drained() {
++                self.recv_state.connections.active.remove(&ch);
+                 self.recv_state.connections.senders.remove(&ch);
+                 if self.recv_state.connections.is_empty() {
+                     shared.idle.notify_waiters();
+@@ -658,14 +767,16 @@
+             let Some(event) = self.inner.handle_event(ch, event) else {
+                 continue;
+             };
++            let permit = control
++                .expect("nonterminal endpoint event response must retain its control permit");
+             // Ignoring errors from dropped connections that haven't yet been cleaned up
+             let _ = self
+                 .recv_state
+                 .connections
+                 .senders
+                 .get_mut(&ch)
+-                .unwrap()
+-                .send(ConnectionEvent::Proto(event));
++                .expect("endpoint response must target a live connection")
++                .send_generated(event, permit);
+         }
+ 
+         true
+@@ -680,6 +791,13 @@
+     }
+ }
+ 
++fn connection_capacity_error(error: QueueAdmissionError) -> ConnectionError {
++    ConnectionError::TransportError(TransportError::new(
++        TransportErrorCode::INTERNAL_ERROR,
++        format!("local connection capacity unavailable: {error:?}"),
++    ))
++}
++
+ fn respond(
+     transmit: proto::Transmit,
+     response_buffer: &[u8],
+@@ -742,9 +860,10 @@
+ #[derive(Debug)]
+ struct ConnectionSet {
+     /// Senders for communicating with the endpoint's connections
+-    senders: FxHashMap<ConnectionHandle, mpsc::UnboundedSender<ConnectionEvent>>,
++    senders: FxHashMap<ConnectionHandle, ConnectionEventSender>,
+     /// Stored to give out clones to new ConnectionInners
+-    sender: mpsc::UnboundedSender<(ConnectionHandle, EndpointEvent)>,
++    endpoint_events: EndpointEventQueueSender,
++    budgets: Arc<QueueBudgets>,
+     /// Set if the endpoint has been manually closed
+     close: Option<(VarInt, Bytes)>,
+     /// Counter for all active (non-draining/drained) connections.
+@@ -756,28 +875,45 @@
+     ///
+     /// This counter is updated when new connections are added ([`ConnectionSet::insert`]) and when
+     /// a connection informs us about entering the draining state ([`State::handle_events`]).
+-    active_connections: u64,
++    active: FxHashSet<ConnectionHandle>,
+ }
+ 
+ impl ConnectionSet {
++    fn try_reserve(&self) -> Result<Arc<ConnectionBudget>, QueueAdmissionError> {
++        self.budgets.try_new_connection()
++    }
++
++    #[allow(clippy::too_many_arguments)]
+     fn insert(
+         &mut self,
+         handle: ConnectionHandle,
+         conn: proto::Connection,
+         sender: Pin<Box<dyn UdpSender>>,
+         runtime: Arc<dyn Runtime>,
++        lifetime: Option<ConnectionLifetimeToken>,
++        budget: Arc<ConnectionBudget>,
+     ) -> Connecting {
+-        let (send, recv) = mpsc::unbounded_channel();
++        let endpoint_events = self.endpoint_events.for_connection(handle, budget.clone());
++        let (send, recv) = ConnectionEventSender::channel(budget);
+         if let Some((error_code, ref reason)) = self.close {
+-            send.send(ConnectionEvent::Close {
+-                error_code,
+-                reason: reason.clone(),
+-            })
+-            .unwrap();
+-        }
+-        self.senders.insert(handle, send);
+-        self.active_connections += 1;
+-        Connecting::new(handle, conn, self.sender.clone(), recv, sender, runtime)
++            send.send_close(error_code, reason.clone())
++                .expect("new connection event receiver is open");
++        }
++        let previous = self.senders.insert(handle, send);
++        assert!(previous.is_none(), "connection handle must be unique");
++        assert!(
++            self.active.insert(handle),
++            "connection handle must not already be active"
++        );
++        Connecting::new(
++            handle,
++            conn,
++            endpoint_events,
++            recv,
++            sender,
++            runtime,
++            lifetime,
++        )
+     }
+ 
+     fn is_empty(&self) -> bool {
+@@ -840,9 +976,17 @@
+         inner: proto::Endpoint,
+         ipv6: bool,
+         runtime: Arc<dyn Runtime>,
++        limits: EventQueueLimits,
+     ) -> Self {
+-        let (sender, events) = mpsc::unbounded_channel();
+-        let recv_state = RecvState::new(sender, socket.max_receive_segments(), &inner);
++        let queue_budgets = Arc::new(QueueBudgets::new(limits));
++        let (sender, events) = EndpointEventQueueSender::channel(queue_budgets.clone());
++        let recv_state = RecvState::new(
++            sender,
++            queue_budgets.clone(),
++            limits,
++            socket.max_receive_segments(),
++            &inner,
++        );
+         let sender = socket.create_sender();
+         Self(Arc::new(EndpointInner {
+             shared: Shared {
+@@ -858,6 +1002,7 @@
+                 inner,
+                 ipv6,
+                 events,
++                queue_budgets,
+                 driver: None,
+                 driver_lost: false,
+                 recv_state,
+@@ -901,6 +1046,7 @@
+ /// State directly involved in handling incoming packets
+ struct RecvState {
+     incoming: VecDeque<proto::Incoming>,
++    pending_incoming_limit: usize,
+     connections: ConnectionSet,
+     recv_buf: Box<[u8]>,
+     recv_limiter: WorkLimiter,
+@@ -908,7 +1054,9 @@
+ 
+ impl RecvState {
+     fn new(
+-        sender: mpsc::UnboundedSender<(ConnectionHandle, EndpointEvent)>,
++        endpoint_events: EndpointEventQueueSender,
++        budgets: Arc<QueueBudgets>,
++        limits: EventQueueLimits,
+         max_receive_segments: NonZeroUsize,
+         endpoint: &proto::Endpoint,
+     ) -> Self {
+@@ -921,11 +1069,13 @@
+         Self {
+             connections: ConnectionSet {
+                 senders: FxHashMap::default(),
+-                sender,
++                endpoint_events,
++                budgets,
+                 close: None,
+-                active_connections: 0,
++                active: FxHashSet::default(),
+             },
+-            incoming: VecDeque::new(),
++            incoming: VecDeque::with_capacity(limits.max_connections().get()),
++            pending_incoming_limit: limits.max_connections().get(),
+             recv_buf: recv_buf.into(),
+             recv_limiter: WorkLimiter::new(RECV_TIME_BOUND),
+         }
+@@ -961,6 +1111,7 @@
+                         let mut data: BytesMut = buf[0..meta.len].into();
+                         while !data.is_empty() {
+                             let buf = data.split_to(meta.stride.min(data.len()));
++                            let packet_bytes = buf.len();
+                             let mut response_buffer = Vec::new();
+                             let addresses = FourTuple::new(meta.addr, meta.dst_ip);
+                             match endpoint.handle(
+@@ -971,7 +1122,9 @@
+                                 &mut response_buffer,
+                             ) {
+                                 Some(DatagramEvent::NewConnection(incoming)) => {
+-                                    if self.connections.close.is_none() {
++                                    if self.connections.close.is_none()
++                                        && self.incoming.len() < self.pending_incoming_limit
++                                    {
+                                         self.incoming.push_back(incoming);
+                                     } else {
+                                         let transmit =
+@@ -982,12 +1135,22 @@
+                                 Some(DatagramEvent::ConnectionEvent(handle, event)) => {
+                                     // Ignoring errors from dropped connections that haven't yet been cleaned up
+                                     received_connection_packet = true;
+-                                    let _ = self
++                                    let result = self
+                                         .connections
+                                         .senders
+                                         .get_mut(&handle)
+-                                        .unwrap()
+-                                        .send(ConnectionEvent::Proto(event));
++                                        .expect("protocol packet must target a live connection")
++                                        .send_packet(event, packet_bytes);
++                                    if matches!(
++                                        result,
++                                        Err(EventSendError::Admission(
++                                            QueueAdmissionError::CounterExhausted
++                                        ))
++                                    ) {
++                                        return Err(io::Error::other(
++                                            "Noq event queue accounting exhausted",
++                                        ));
++                                    }
+                                 }
+                                 Some(DatagramEvent::Response(transmit)) => {
+                                     respond(transmit, &response_buffer, sender);
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/event_queue.rs vendor/noq-1.1.0/src/event_queue.rs
+--- a/src/event_queue.rs	1970-01-01 00:00:00.000000000 +0000
++++ b/src/event_queue.rs	2026-07-24 19:26:51.402574279 +0000
+@@ -0,0 +1,850 @@
++use std::{
++    num::{NonZeroU32, NonZeroUsize},
++    pin::Pin,
++    sync::{
++        Arc, Mutex,
++        atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering},
++    },
++    task::{Context, Poll},
++};
++
++use bytes::Bytes;
++use proto::{ConnectionHandle, EndpointEvent, NetworkChangeHint};
++use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
++
++use crate::{VarInt, runtime::UdpSender};
++
++/// Default maximum number of simultaneously active connections in one endpoint.
++pub const DEFAULT_MAX_CONNECTIONS: usize = 2_048;
++/// Default maximum queued packet events for one connection.
++pub const DEFAULT_MAX_PACKET_EVENTS_PER_CONNECTION: usize = 32;
++/// Default maximum queued packet bytes across one endpoint.
++pub const DEFAULT_MAX_PACKET_BYTES_PER_ENDPOINT: u32 = 64 * 1024 * 1024;
++/// Default maximum queued bidirectional nonterminal control events.
++pub const DEFAULT_MAX_CONTROL_EVENTS_PER_ENDPOINT: usize = 4_096;
++
++/// Finite limits for one endpoint's active connections and internal event queues.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct EventQueueLimits {
++    max_connections: NonZeroUsize,
++    max_packet_events_per_connection: NonZeroUsize,
++    max_packet_bytes_per_endpoint: NonZeroU32,
++    max_control_events_per_endpoint: NonZeroUsize,
++}
++
++impl EventQueueLimits {
++    /// Creates an explicit set of nonzero endpoint event limits.
++    pub const fn new(
++        max_connections: NonZeroUsize,
++        max_packet_events_per_connection: NonZeroUsize,
++        max_packet_bytes_per_endpoint: NonZeroU32,
++        max_control_events_per_endpoint: NonZeroUsize,
++    ) -> Self {
++        Self {
++            max_connections,
++            max_packet_events_per_connection,
++            max_packet_bytes_per_endpoint,
++            max_control_events_per_endpoint,
++        }
++    }
++
++    /// Returns the maximum number of simultaneously active connections.
++    pub const fn max_connections(self) -> NonZeroUsize {
++        self.max_connections
++    }
++
++    /// Returns the per-connection queued packet-event maximum.
++    pub const fn max_packet_events_per_connection(self) -> NonZeroUsize {
++        self.max_packet_events_per_connection
++    }
++
++    /// Returns the endpoint-wide queued packet-byte maximum.
++    pub const fn max_packet_bytes_per_endpoint(self) -> NonZeroU32 {
++        self.max_packet_bytes_per_endpoint
++    }
++
++    /// Returns the endpoint-wide queued nonterminal control-event maximum.
++    pub const fn max_control_events_per_endpoint(self) -> NonZeroUsize {
++        self.max_control_events_per_endpoint
++    }
++}
++
++impl Default for EventQueueLimits {
++    fn default() -> Self {
++        Self::new(
++            NonZeroUsize::new(DEFAULT_MAX_CONNECTIONS)
++                .expect("default connection limit is nonzero"),
++            NonZeroUsize::new(DEFAULT_MAX_PACKET_EVENTS_PER_CONNECTION)
++                .expect("default packet-event limit is nonzero"),
++            NonZeroU32::new(DEFAULT_MAX_PACKET_BYTES_PER_ENDPOINT)
++                .expect("default packet-byte limit is nonzero"),
++            NonZeroUsize::new(DEFAULT_MAX_CONTROL_EVENTS_PER_ENDPOINT)
++                .expect("default control-event limit is nonzero"),
++        )
++    }
++}
++
++/// Current, high-water, and rejection counters for endpoint event admission.
++#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
++pub struct EventQueueStats {
++    /// Current number of active connections holding event capacity.
++    pub active_connections: usize,
++    /// High-water number of active connections.
++    pub active_connections_high_water: usize,
++    /// Current number of queued packet events.
++    pub packet_events_current: usize,
++    /// High-water number of queued packet events.
++    pub packet_events_high_water: usize,
++    /// Largest queued packet-event count observed on any one connection.
++    pub packet_events_per_connection_high_water: usize,
++    /// Current number of queued packet bytes.
++    pub packet_bytes_current: usize,
++    /// High-water number of queued packet bytes.
++    pub packet_bytes_high_water: usize,
++    /// Current number of queued nonterminal control events.
++    pub control_events_current: usize,
++    /// High-water number of queued nonterminal control events.
++    pub control_events_high_water: usize,
++    /// Packet events rejected by the per-connection item limit.
++    pub packet_event_rejections: u64,
++    /// Packet events rejected by the endpoint-wide byte limit.
++    pub packet_byte_rejections: u64,
++    /// Connections rejected by the endpoint connection limit.
++    pub connection_rejections: u64,
++    /// Nonterminal events rejected by the endpoint control-event limit.
++    pub control_event_rejections: u64,
++    /// Whether any accounting counter exhausted and latched the queue closed.
++    pub counter_exhausted: bool,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) enum QueueAdmissionError {
++    ConnectionsFull,
++    PacketItemsFull,
++    PacketBytesFull,
++    ControlEventsFull,
++    CounterExhausted,
++}
++
++#[derive(Debug)]
++pub(crate) enum ConnectionEvent {
++    Close { error_code: VarInt, reason: Bytes },
++    Proto(proto::ConnectionEvent),
++    Rebind(Pin<Box<dyn UdpSender>>),
++    LocalAddressChanged(Option<Arc<dyn NetworkChangeHint + Sync + Send>>),
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) enum EventSendError {
++    Closed,
++    Admission(QueueAdmissionError),
++    TerminalCreditExhausted,
++}
++
++#[derive(Debug)]
++struct Counter {
++    current: AtomicUsize,
++    high_water: AtomicUsize,
++    rejections: AtomicU64,
++}
++
++impl Counter {
++    const fn new() -> Self {
++        Self {
++            current: AtomicUsize::new(0),
++            high_water: AtomicUsize::new(0),
++            rejections: AtomicU64::new(0),
++        }
++    }
++
++    fn increment(&self, amount: usize, failed: &AtomicBool) -> Result<(), QueueAdmissionError> {
++        let previous = self
++            .current
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
++                current.checked_add(amount)
++            })
++            .map_err(|_| {
++                failed.store(true, Ordering::Release);
++                QueueAdmissionError::CounterExhausted
++            })?;
++        let current = previous
++            .checked_add(amount)
++            .expect("successful checked counter update cannot overflow");
++        self.high_water.fetch_max(current, Ordering::AcqRel);
++        Ok(())
++    }
++
++    fn decrement(&self, amount: usize) {
++        let result = self
++            .current
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
++                current.checked_sub(amount)
++            });
++        assert!(
++            result.is_ok(),
++            "event queue current counter must not underflow"
++        );
++    }
++
++    fn reject(&self, failed: &AtomicBool) -> Result<(), QueueAdmissionError> {
++        self.rejections
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
++                current.checked_add(1)
++            })
++            .map(|_| ())
++            .map_err(|_| {
++                failed.store(true, Ordering::Release);
++                QueueAdmissionError::CounterExhausted
++            })
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct QueueBudgets {
++    limits: EventQueueLimits,
++    connections: Arc<Semaphore>,
++    packet_bytes: Arc<Semaphore>,
++    control_events: Arc<Semaphore>,
++    connection_count: Counter,
++    packet_event_count: Counter,
++    packet_events_per_connection_high_water: AtomicUsize,
++    packet_byte_count: Counter,
++    control_event_count: Counter,
++    failed: AtomicBool,
++}
++
++impl QueueBudgets {
++    pub(crate) fn new(limits: EventQueueLimits) -> Self {
++        Self {
++            connections: Arc::new(Semaphore::new(limits.max_connections.get())),
++            packet_bytes: Arc::new(Semaphore::new(
++                usize::try_from(limits.max_packet_bytes_per_endpoint.get())
++                    .expect("u32 packet-byte limit fits usize on supported targets"),
++            )),
++            control_events: Arc::new(Semaphore::new(limits.max_control_events_per_endpoint.get())),
++            limits,
++            connection_count: Counter::new(),
++            packet_event_count: Counter::new(),
++            packet_events_per_connection_high_water: AtomicUsize::new(0),
++            packet_byte_count: Counter::new(),
++            control_event_count: Counter::new(),
++            failed: AtomicBool::new(false),
++        }
++    }
++
++    pub(crate) fn try_new_connection(
++        self: &Arc<Self>,
++    ) -> Result<Arc<ConnectionBudget>, QueueAdmissionError> {
++        self.check_failed()?;
++        let permit = self.connections.clone().try_acquire_owned().map_err(|_| {
++            self.connection_count
++                .reject(&self.failed)
++                .map(|_| QueueAdmissionError::ConnectionsFull)
++                .unwrap_or(QueueAdmissionError::CounterExhausted)
++        })?;
++        if let Err(error) = self.connection_count.increment(1, &self.failed) {
++            drop(permit);
++            return Err(error);
++        }
++        Ok(Arc::new(ConnectionBudget {
++            budgets: self.clone(),
++            packet_events: Arc::new(Semaphore::new(
++                self.limits.max_packet_events_per_connection.get(),
++            )),
++            _connection_permit: permit,
++        }))
++    }
++
++    pub(crate) fn try_acquire_control(
++        self: &Arc<Self>,
++    ) -> Result<ControlPermit, QueueAdmissionError> {
++        self.check_failed()?;
++        let permit = self
++            .control_events
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| {
++                self.control_event_count
++                    .reject(&self.failed)
++                    .map(|_| QueueAdmissionError::ControlEventsFull)
++                    .unwrap_or(QueueAdmissionError::CounterExhausted)
++            })?;
++        if let Err(error) = self.control_event_count.increment(1, &self.failed) {
++            drop(permit);
++            return Err(error);
++        }
++        Ok(ControlPermit {
++            budgets: self.clone(),
++            _permit: permit,
++        })
++    }
++
++    pub(crate) fn stats(&self) -> EventQueueStats {
++        EventQueueStats {
++            active_connections: self.connection_count.current.load(Ordering::Acquire),
++            active_connections_high_water: self.connection_count.high_water.load(Ordering::Acquire),
++            packet_events_current: self.packet_event_count.current.load(Ordering::Acquire),
++            packet_events_high_water: self.packet_event_count.high_water.load(Ordering::Acquire),
++            packet_events_per_connection_high_water: self
++                .packet_events_per_connection_high_water
++                .load(Ordering::Acquire),
++            packet_bytes_current: self.packet_byte_count.current.load(Ordering::Acquire),
++            packet_bytes_high_water: self.packet_byte_count.high_water.load(Ordering::Acquire),
++            control_events_current: self.control_event_count.current.load(Ordering::Acquire),
++            control_events_high_water: self.control_event_count.high_water.load(Ordering::Acquire),
++            packet_event_rejections: self.packet_event_count.rejections.load(Ordering::Acquire),
++            packet_byte_rejections: self.packet_byte_count.rejections.load(Ordering::Acquire),
++            connection_rejections: self.connection_count.rejections.load(Ordering::Acquire),
++            control_event_rejections: self.control_event_count.rejections.load(Ordering::Acquire),
++            counter_exhausted: self.failed.load(Ordering::Acquire),
++        }
++    }
++
++    fn check_failed(&self) -> Result<(), QueueAdmissionError> {
++        if self.failed.load(Ordering::Acquire) {
++            Err(QueueAdmissionError::CounterExhausted)
++        } else {
++            Ok(())
++        }
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct ConnectionBudget {
++    budgets: Arc<QueueBudgets>,
++    packet_events: Arc<Semaphore>,
++    _connection_permit: OwnedSemaphorePermit,
++}
++
++impl ConnectionBudget {
++    pub(crate) fn try_acquire_packet(
++        self: &Arc<Self>,
++        bytes: usize,
++    ) -> Result<PacketPermit, QueueAdmissionError> {
++        self.budgets.check_failed()?;
++        let item_permit = self
++            .packet_events
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| {
++                self.budgets
++                    .packet_event_count
++                    .reject(&self.budgets.failed)
++                    .map(|_| QueueAdmissionError::PacketItemsFull)
++                    .unwrap_or(QueueAdmissionError::CounterExhausted)
++            })?;
++        let Ok(byte_count) = u32::try_from(bytes) else {
++            drop(item_permit);
++            let error = self
++                .budgets
++                .packet_byte_count
++                .reject(&self.budgets.failed)
++                .map(|_| QueueAdmissionError::PacketBytesFull)
++                .unwrap_or(QueueAdmissionError::CounterExhausted);
++            return Err(error);
++        };
++        let Ok(byte_permit) = self
++            .budgets
++            .packet_bytes
++            .clone()
++            .try_acquire_many_owned(byte_count)
++        else {
++            drop(item_permit);
++            let error = self
++                .budgets
++                .packet_byte_count
++                .reject(&self.budgets.failed)
++                .map(|_| QueueAdmissionError::PacketBytesFull)
++                .unwrap_or(QueueAdmissionError::CounterExhausted);
++            return Err(error);
++        };
++
++        if let Err(error) = self
++            .budgets
++            .packet_event_count
++            .increment(1, &self.budgets.failed)
++        {
++            drop(item_permit);
++            drop(byte_permit);
++            return Err(error);
++        }
++        let byte_count = usize::try_from(byte_count)
++            .expect("u32 packet-byte count fits usize on supported targets");
++        if let Err(error) = self
++            .budgets
++            .packet_byte_count
++            .increment(byte_count, &self.budgets.failed)
++        {
++            self.budgets.packet_event_count.decrement(1);
++            drop(item_permit);
++            drop(byte_permit);
++            return Err(error);
++        }
++        let per_connection = self
++            .budgets
++            .limits
++            .max_packet_events_per_connection
++            .get()
++            .checked_sub(self.packet_events.available_permits())
++            .expect("available packet-event permits cannot exceed the configured maximum");
++        self.budgets
++            .packet_events_per_connection_high_water
++            .fetch_max(per_connection, Ordering::AcqRel);
++        Ok(PacketPermit {
++            budgets: self.budgets.clone(),
++            byte_count,
++            _item_permit: item_permit,
++            _byte_permit: byte_permit,
++        })
++    }
++}
++
++impl Drop for ConnectionBudget {
++    fn drop(&mut self) {
++        self.budgets.connection_count.decrement(1);
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct PacketPermit {
++    budgets: Arc<QueueBudgets>,
++    byte_count: usize,
++    _item_permit: OwnedSemaphorePermit,
++    _byte_permit: OwnedSemaphorePermit,
++}
++
++impl Drop for PacketPermit {
++    fn drop(&mut self) {
++        self.budgets.packet_event_count.decrement(1);
++        self.budgets.packet_byte_count.decrement(self.byte_count);
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct ControlPermit {
++    budgets: Arc<QueueBudgets>,
++    _permit: OwnedSemaphorePermit,
++}
++
++impl Drop for ControlPermit {
++    fn drop(&mut self) {
++        self.budgets.control_event_count.decrement(1);
++    }
++}
++
++#[allow(
++    clippy::large_enum_variant,
++    reason = "packet events are already stored in bounded heap-backed channel nodes; boxing adds one allocation per packet without reducing the queue ceiling"
++)]
++#[derive(Debug)]
++enum QueuedConnectionEvent {
++    Packet(proto::ConnectionEvent, PacketPermit),
++    Close,
++    Rebind,
++    LocalAddressChanged,
++}
++
++#[derive(Debug, Default)]
++struct CoalescedConnectionEvents {
++    close: Option<(VarInt, Bytes)>,
++    close_marker_pending: bool,
++    rebind: Option<Pin<Box<dyn UdpSender>>>,
++    rebind_marker_pending: bool,
++    local_address_changed: Option<Option<Arc<dyn NetworkChangeHint + Sync + Send>>>,
++    local_address_changed_marker_pending: bool,
++}
++
++#[derive(Debug)]
++pub(crate) struct ConnectionEventSender {
++    raw: mpsc::UnboundedSender<QueuedConnectionEvent>,
++    generated: mpsc::UnboundedSender<(proto::ConnectionEvent, ControlPermit)>,
++    coalesced: Arc<Mutex<CoalescedConnectionEvents>>,
++    budget: Arc<ConnectionBudget>,
++}
++
++impl ConnectionEventSender {
++    pub(crate) fn channel(budget: Arc<ConnectionBudget>) -> (Self, ConnectionEventReceiver) {
++        let (raw, raw_receiver) = mpsc::unbounded_channel();
++        let (generated, generated_receiver) = mpsc::unbounded_channel();
++        let coalesced = Arc::new(Mutex::new(CoalescedConnectionEvents::default()));
++        (
++            Self {
++                raw,
++                generated,
++                coalesced: coalesced.clone(),
++                budget,
++            },
++            ConnectionEventReceiver {
++                raw: raw_receiver,
++                generated: generated_receiver,
++                coalesced,
++            },
++        )
++    }
++
++    pub(crate) fn send_packet(
++        &self,
++        event: proto::ConnectionEvent,
++        bytes: usize,
++    ) -> Result<(), EventSendError> {
++        let permit = self
++            .budget
++            .try_acquire_packet(bytes)
++            .map_err(EventSendError::Admission)?;
++        self.raw
++            .send(QueuedConnectionEvent::Packet(event, permit))
++            .map_err(|_| EventSendError::Closed)
++    }
++
++    pub(crate) fn send_generated(
++        &self,
++        event: proto::ConnectionEvent,
++        permit: ControlPermit,
++    ) -> Result<(), EventSendError> {
++        self.generated
++            .send((event, permit))
++            .map_err(|_| EventSendError::Closed)
++    }
++
++    pub(crate) fn send_close(
++        &self,
++        error_code: VarInt,
++        reason: Bytes,
++    ) -> Result<(), EventSendError> {
++        let mut coalesced = self
++            .coalesced
++            .lock()
++            .expect("coalesced event mutex poisoned");
++        let enqueue = !coalesced.close_marker_pending;
++        coalesced.close = Some((error_code, reason));
++        if enqueue && self.raw.send(QueuedConnectionEvent::Close).is_err() {
++            coalesced.close = None;
++            return Err(EventSendError::Closed);
++        }
++        coalesced.close_marker_pending = true;
++        Ok(())
++    }
++
++    pub(crate) fn send_rebind(
++        &self,
++        sender: Pin<Box<dyn UdpSender>>,
++    ) -> Result<(), EventSendError> {
++        let mut coalesced = self
++            .coalesced
++            .lock()
++            .expect("coalesced event mutex poisoned");
++        let enqueue = !coalesced.rebind_marker_pending;
++        coalesced.rebind = Some(sender);
++        if enqueue && self.raw.send(QueuedConnectionEvent::Rebind).is_err() {
++            coalesced.rebind = None;
++            return Err(EventSendError::Closed);
++        }
++        coalesced.rebind_marker_pending = true;
++        Ok(())
++    }
++
++    pub(crate) fn send_local_address_changed(
++        &self,
++        hint: Option<Arc<dyn NetworkChangeHint + Sync + Send>>,
++    ) -> Result<(), EventSendError> {
++        let mut coalesced = self
++            .coalesced
++            .lock()
++            .expect("coalesced event mutex poisoned");
++        let enqueue = !coalesced.local_address_changed_marker_pending;
++        coalesced.local_address_changed = Some(hint);
++        if enqueue
++            && self
++                .raw
++                .send(QueuedConnectionEvent::LocalAddressChanged)
++                .is_err()
++        {
++            coalesced.local_address_changed = None;
++            return Err(EventSendError::Closed);
++        }
++        coalesced.local_address_changed_marker_pending = true;
++        Ok(())
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct ConnectionEventReceiver {
++    raw: mpsc::UnboundedReceiver<QueuedConnectionEvent>,
++    generated: mpsc::UnboundedReceiver<(proto::ConnectionEvent, ControlPermit)>,
++    coalesced: Arc<Mutex<CoalescedConnectionEvents>>,
++}
++
++impl ConnectionEventReceiver {
++    pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<ConnectionEvent>> {
++        loop {
++            {
++                let mut coalesced = self
++                    .coalesced
++                    .lock()
++                    .expect("coalesced event mutex poisoned");
++                if let Some((error_code, reason)) = coalesced.close.take() {
++                    return Poll::Ready(Some(ConnectionEvent::Close { error_code, reason }));
++                }
++                if let Some(sender) = coalesced.rebind.take() {
++                    return Poll::Ready(Some(ConnectionEvent::Rebind(sender)));
++                }
++                if let Some(hint) = coalesced.local_address_changed.take() {
++                    return Poll::Ready(Some(ConnectionEvent::LocalAddressChanged(hint)));
++                }
++            }
++
++            let generated_closed = match self.generated.poll_recv(cx) {
++                Poll::Ready(Some((event, permit))) => {
++                    drop(permit);
++                    return Poll::Ready(Some(ConnectionEvent::Proto(event)));
++                }
++                Poll::Ready(None) => true,
++                Poll::Pending => false,
++            };
++
++            let queued = match self.raw.poll_recv(cx) {
++                Poll::Ready(Some(queued)) => queued,
++                Poll::Ready(None) if generated_closed => return Poll::Ready(None),
++                Poll::Ready(None) | Poll::Pending => return Poll::Pending,
++            };
++            match queued {
++                QueuedConnectionEvent::Packet(event, permit) => {
++                    drop(permit);
++                    return Poll::Ready(Some(ConnectionEvent::Proto(event)));
++                }
++                QueuedConnectionEvent::Close => {
++                    self.coalesced
++                        .lock()
++                        .expect("coalesced event mutex poisoned")
++                        .close_marker_pending = false;
++                }
++                QueuedConnectionEvent::Rebind => {
++                    self.coalesced
++                        .lock()
++                        .expect("coalesced event mutex poisoned")
++                        .rebind_marker_pending = false;
++                }
++                QueuedConnectionEvent::LocalAddressChanged => {
++                    self.coalesced
++                        .lock()
++                        .expect("coalesced event mutex poisoned")
++                        .local_address_changed_marker_pending = false;
++                }
++            }
++        }
++    }
++}
++
++#[derive(Debug)]
++struct QueuedEndpointEvent {
++    handle: ConnectionHandle,
++    event: EndpointEvent,
++    control: Option<ControlPermit>,
++}
++
++#[derive(Clone, Debug)]
++pub(crate) struct EndpointEventQueueSender {
++    raw: mpsc::UnboundedSender<QueuedEndpointEvent>,
++    budgets: Arc<QueueBudgets>,
++}
++
++impl EndpointEventQueueSender {
++    pub(crate) fn channel(budgets: Arc<QueueBudgets>) -> (Self, EndpointEventQueueReceiver) {
++        let (raw, receiver) = mpsc::unbounded_channel();
++        (
++            Self { raw, budgets },
++            EndpointEventQueueReceiver { raw: receiver },
++        )
++    }
++
++    pub(crate) fn for_connection(
++        &self,
++        handle: ConnectionHandle,
++        budget: Arc<ConnectionBudget>,
++    ) -> EndpointEventSender {
++        EndpointEventSender {
++            raw: self.raw.clone(),
++            budgets: self.budgets.clone(),
++            handle,
++            terminal_events: Arc::new(AtomicU8::new(0)),
++            _connection_budget: budget,
++        }
++    }
++}
++
++#[derive(Clone, Debug)]
++pub(crate) struct EndpointEventSender {
++    raw: mpsc::UnboundedSender<QueuedEndpointEvent>,
++    budgets: Arc<QueueBudgets>,
++    handle: ConnectionHandle,
++    terminal_events: Arc<AtomicU8>,
++    _connection_budget: Arc<ConnectionBudget>,
++}
++
++impl EndpointEventSender {
++    pub(crate) fn send(&self, event: EndpointEvent) -> Result<(), EventSendError> {
++        const DRAINING_SENT: u8 = 1;
++        const DRAINED_SENT: u8 = 2;
++
++        let terminal_flag = if event.is_draining() {
++            Some(DRAINING_SENT)
++        } else if event.is_drained() {
++            Some(DRAINED_SENT)
++        } else {
++            None
++        };
++        let control = if terminal_flag.is_some() {
++            None
++        } else {
++            Some(
++                self.budgets
++                    .try_acquire_control()
++                    .map_err(EventSendError::Admission)?,
++            )
++        };
++        if let Some(flag) = terminal_flag {
++            self.terminal_events
++                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |sent| {
++                    if sent & flag == 0 {
++                        Some(sent | flag)
++                    } else {
++                        None
++                    }
++                })
++                .map_err(|_| EventSendError::TerminalCreditExhausted)?;
++        }
++        if self
++            .raw
++            .send(QueuedEndpointEvent {
++                handle: self.handle,
++                event,
++                control,
++            })
++            .is_err()
++        {
++            if let Some(flag) = terminal_flag {
++                let previous = self.terminal_events.fetch_and(!flag, Ordering::AcqRel);
++                assert_ne!(
++                    previous & flag,
++                    0,
++                    "failed terminal send must release an acquired terminal credit"
++                );
++            }
++            return Err(EventSendError::Closed);
++        }
++        Ok(())
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct DequeuedEndpointEvent {
++    pub(crate) handle: ConnectionHandle,
++    pub(crate) event: EndpointEvent,
++    control: Option<ControlPermit>,
++}
++
++impl DequeuedEndpointEvent {
++    pub(crate) fn into_parts(self) -> (ConnectionHandle, EndpointEvent, Option<ControlPermit>) {
++        (self.handle, self.event, self.control)
++    }
++}
++
++#[derive(Debug)]
++pub(crate) struct EndpointEventQueueReceiver {
++    raw: mpsc::UnboundedReceiver<QueuedEndpointEvent>,
++}
++
++impl EndpointEventQueueReceiver {
++    pub(crate) fn poll_recv(
++        &mut self,
++        cx: &mut Context<'_>,
++    ) -> Poll<Option<DequeuedEndpointEvent>> {
++        self.raw.poll_recv(cx).map(|event| {
++            event.map(|event| DequeuedEndpointEvent {
++                handle: event.handle,
++                event: event.event,
++                control: event.control,
++            })
++        })
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use std::{
++        num::{NonZeroU32, NonZeroUsize},
++        sync::Arc,
++    };
++
++    use super::{EventQueueLimits, QueueAdmissionError, QueueBudgets};
++
++    fn limits(
++        connections: usize,
++        packet_events: usize,
++        packet_bytes: u32,
++        control_events: usize,
++    ) -> EventQueueLimits {
++        EventQueueLimits::new(
++            NonZeroUsize::new(connections).unwrap(),
++            NonZeroUsize::new(packet_events).unwrap(),
++            NonZeroU32::new(packet_bytes).unwrap(),
++            NonZeroUsize::new(control_events).unwrap(),
++        )
++    }
++
++    #[test]
++    fn packet_item_and_byte_budgets_accept_exact_limits_and_reject_the_first_over() {
++        let budgets = Arc::new(QueueBudgets::new(limits(1, 2, 5, 2)));
++        let connection = budgets.try_new_connection().unwrap();
++        let first = connection.try_acquire_packet(3).unwrap();
++        let second = connection.try_acquire_packet(2).unwrap();
++
++        assert!(matches!(
++            connection.try_acquire_packet(1),
++            Err(QueueAdmissionError::PacketItemsFull)
++        ));
++        assert_eq!(budgets.stats().packet_events_current, 2);
++        assert_eq!(budgets.stats().packet_events_per_connection_high_water, 2);
++        assert_eq!(budgets.stats().packet_bytes_current, 5);
++
++        drop(first);
++        let exact_replacement = connection.try_acquire_packet(3).unwrap();
++        drop(second);
++        drop(exact_replacement);
++
++        let exact_bytes = connection.try_acquire_packet(5).unwrap();
++        assert!(matches!(
++            connection.try_acquire_packet(1),
++            Err(QueueAdmissionError::PacketBytesFull)
++        ));
++        drop(exact_bytes);
++        assert_eq!(budgets.stats().packet_events_current, 0);
++        assert_eq!(budgets.stats().packet_bytes_current, 0);
++    }
++
++    #[test]
++    fn connection_and_control_budgets_are_conserved() {
++        let budgets = Arc::new(QueueBudgets::new(limits(1, 2, 5, 2)));
++        let connection = budgets.try_new_connection().unwrap();
++        assert!(matches!(
++            budgets.try_new_connection(),
++            Err(QueueAdmissionError::ConnectionsFull)
++        ));
++
++        let first = budgets.try_acquire_control().unwrap();
++        let second = budgets.try_acquire_control().unwrap();
++        assert!(matches!(
++            budgets.try_acquire_control(),
++            Err(QueueAdmissionError::ControlEventsFull)
++        ));
++        assert_eq!(budgets.stats().control_events_current, 2);
++
++        drop(first);
++        let replacement = budgets.try_acquire_control().unwrap();
++        drop(second);
++        drop(replacement);
++        drop(connection);
++        assert_eq!(budgets.stats().active_connections, 0);
++        assert_eq!(budgets.stats().control_events_current, 0);
++    }
++}
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/incoming.rs vendor/noq-1.1.0/src/incoming.rs
+--- a/src/incoming.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/incoming.rs	2026-07-24 09:27:37.052881638 +0000
+@@ -10,6 +10,7 @@
+ use thiserror::Error;
+ 
+ use crate::{
++    ConnectionLifetimeToken,
+     connection::{Connecting, Connection},
+     endpoint::EndpointRef,
+ };
+@@ -26,7 +27,16 @@
+     /// Attempt to accept this incoming connection (an error may still occur)
+     pub fn accept(mut self) -> Result<Connecting, ConnectionError> {
+         let state = self.0.take().unwrap();
+-        state.endpoint.accept(state.inner, None)
++        state.endpoint.accept(state.inner, None, None)
++    }
++
++    /// Accepts and retains `lifetime` until all Noq connection state has been dropped.
++    pub fn accept_with_lifetime(
++        mut self,
++        lifetime: ConnectionLifetimeToken,
++    ) -> Result<Connecting, ConnectionError> {
++        let state = self.0.take().unwrap();
++        state.endpoint.accept(state.inner, None, Some(lifetime))
+     }
+ 
+     /// Accept this incoming connection using a custom configuration
+@@ -37,7 +47,22 @@
+         server_config: Arc<ServerConfig>,
+     ) -> Result<Connecting, ConnectionError> {
+         let state = self.0.take().unwrap();
+-        state.endpoint.accept(state.inner, Some(server_config))
++        state
++            .endpoint
++            .accept(state.inner, Some(server_config), None)
++    }
++
++    /// Accepts with a custom configuration and retains `lifetime` until all Noq connection state
++    /// has been dropped.
++    pub fn accept_with_config_and_lifetime(
++        mut self,
++        server_config: Arc<ServerConfig>,
++        lifetime: ConnectionLifetimeToken,
++    ) -> Result<Connecting, ConnectionError> {
++        let state = self.0.take().unwrap();
++        state
++            .endpoint
++            .accept(state.inner, Some(server_config), Some(lifetime))
+     }
+ 
+     /// Reject this incoming connection attempt
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/lib.rs vendor/noq-1.1.0/src/lib.rs
+--- a/src/lib.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/lib.rs	2026-07-24 09:32:17.762986107 +0000
+@@ -39,13 +39,12 @@
+ //! encryption alone.
+ #![warn(missing_docs)]
+ 
+-use std::pin::Pin;
+-use std::sync::Arc;
+-
+ mod connection;
+ mod endpoint;
++mod event_queue;
+ mod event_stream;
+ mod incoming;
++mod lifetime;
+ mod mutex;
+ mod path;
+ mod recv_stream;
+@@ -82,8 +81,14 @@
+     SendDatagram, SendDatagramError, WeakConnectionHandle, ZeroRttAccepted,
+ };
+ pub use crate::endpoint::{Accept, Endpoint, EndpointStats};
++pub use crate::event_queue::{
++    DEFAULT_MAX_CONNECTIONS, DEFAULT_MAX_CONTROL_EVENTS_PER_ENDPOINT,
++    DEFAULT_MAX_PACKET_BYTES_PER_ENDPOINT, DEFAULT_MAX_PACKET_EVENTS_PER_CONNECTION,
++    EventQueueLimits, EventQueueStats,
++};
+ pub use crate::event_stream::{Lagged, NatTraversalUpdates, ObservedExternalAddr, PathEvents};
+ pub use crate::incoming::{Incoming, IncomingFuture, RetryError};
++pub use crate::lifetime::ConnectionLifetimeToken;
+ pub use crate::path::{AddressDiscovery, OpenPath, Path, WeakPathHandle};
+ pub use crate::recv_stream::{
+     ReadError, ReadExactError, ReadToEndError, RecvStream, ResetError, UnorderedRecvStream,
+@@ -100,17 +105,6 @@
+ #[cfg(test)]
+ mod tests;
+ 
+-#[derive(Debug)]
+-enum ConnectionEvent {
+-    Close {
+-        error_code: VarInt,
+-        reason: bytes::Bytes,
+-    },
+-    Proto(proto::ConnectionEvent),
+-    Rebind(Pin<Box<dyn UdpSender>>),
+-    LocalAddressChanged(Option<Arc<dyn NetworkChangeHint + Sync + Send>>),
+-}
+-
+ fn udp_transmit<'a>(t: &Transmit, buffer: &'a [u8]) -> udp::Transmit<'a> {
+     udp::Transmit {
+         destination: t.destination,
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/lifetime.rs vendor/noq-1.1.0/src/lifetime.rs
+--- a/src/lifetime.rs	1970-01-01 00:00:00.000000000 +0000
++++ b/src/lifetime.rs	2026-07-25 19:42:39.198018533 +0000
+@@ -0,0 +1,60 @@
++use std::{fmt, panic::AssertUnwindSafe};
++
++/// Opaque ownership token retained until a Noq connection's shared state is fully dropped.
++///
++/// Embedders use this to attach a non-clonable connection-capacity permit to the complete Noq
++/// connection lifetime, including the driver and all stream/path handles.
++pub struct ConnectionLifetimeToken {
++    // The guard is never exposed or accessed; it is retained solely for its drop behavior. Keep
++    // that implementation detail from removing the historical unwind-safety auto-traits from
++    // every public connection and stream handle that transitively owns this token.
++    _guard: AssertUnwindSafe<Box<dyn Send + Sync + 'static>>,
++}
++
++impl ConnectionLifetimeToken {
++    /// Erases and owns a connection-lifetime guard.
++    pub fn new(guard: impl Send + Sync + 'static) -> Self {
++        Self {
++            _guard: AssertUnwindSafe(Box::new(guard)),
++        }
++    }
++}
++
++impl fmt::Debug for ConnectionLifetimeToken {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("ConnectionLifetimeToken")
++            .finish_non_exhaustive()
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use std::{
++        panic::{RefUnwindSafe, UnwindSafe},
++        sync::Arc,
++    };
++
++    use super::ConnectionLifetimeToken;
++    use crate::{Connection, RecvStream, SendStream, WeakConnectionHandle};
++
++    #[test]
++    fn lifetime_guard_preserves_public_handle_unwind_safety() {
++        fn assert_unwind_safe<T: UnwindSafe + RefUnwindSafe>() {}
++
++        assert_unwind_safe::<ConnectionLifetimeToken>();
++        assert_unwind_safe::<Connection>();
++        assert_unwind_safe::<WeakConnectionHandle>();
++        assert_unwind_safe::<SendStream>();
++        assert_unwind_safe::<RecvStream>();
++    }
++
++    #[test]
++    fn lifetime_token_erases_non_unwind_safe_guard() {
++        let semaphore = Arc::new(tokio::sync::Semaphore::new(1));
++        let permit = semaphore.try_acquire_owned().expect("permit is available");
++        let token = ConnectionLifetimeToken::new(permit);
++
++        fn assert_unwind_safe<T: UnwindSafe + RefUnwindSafe>(_: &T) {}
++        assert_unwind_safe(&token);
++    }
++}
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/send_stream.rs vendor/noq-1.1.0/src/send_stream.rs
+--- a/src/send_stream.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/send_stream.rs	2026-07-24 15:50:15.907256487 +0000
+@@ -79,7 +79,7 @@
+         Ok(())
+     }
+ 
+-    /// Writes [`Bytes`] from a slice of buffers into this stream, returning how many bytes were.
++    /// Writes [`Bytes`] from a slice of buffers into this stream, returning how many bytes were.
+     /// written
+     ///
+     /// Bytes to try to write are provided to this method as an array of cheaply cloneable chunks.
+@@ -103,7 +103,7 @@
+         poll_fn(|cx| self.execute_poll(cx, |s| s.write_chunks(bufs))).await
+     }
+ 
+-    /// Writes a single [`Bytes`] into this stream in its entirety.
++    /// Writes a single [`Bytes`] into this stream in its entirety.
+     ///
+     /// Bytes to write are provided to this method as a single cheaply cloneable chunk. This
+     /// method repeatedly calls [`write_many_chunks`](Self::write_many_chunks) until all bytes
+@@ -117,7 +117,7 @@
+         self.write_all_chunks(&mut [buf]).await
+     }
+ 
+-    /// Writes a slice of [`Bytes`] into this stream in its entirety.
++    /// Writes a slice of [`Bytes`] into this stream in its entirety.
+     ///
+     /// Bytes to write are provided to this method as an array of cheaply cloneable chunks. This
+     /// method repeatedly calls [`write_many_chunks`](Self::write_many_chunks) until all bytes are
+diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/tests.rs vendor/noq-1.1.0/src/tests.rs
+--- a/src/tests.rs	2006-07-24 01:21:28.000000000 +0000
++++ b/src/tests.rs	2026-07-24 09:36:29.410222263 +0000
+@@ -12,6 +12,7 @@
+     future::Future,
+     io,
+     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
++    num::{NonZeroU32, NonZeroUsize},
+     pin::{Pin, pin},
+     str,
+     sync::{
+@@ -38,7 +39,10 @@
+ use tracing_futures::Instrument as _;
+ use tracing_subscriber::EnvFilter;
+ 
+-use super::{ClientConfig, Endpoint, EndpointConfig, RecvStream, SendStream, TransportConfig};
++use super::{
++    ClientConfig, ConnectError, ConnectionLifetimeToken, Endpoint, EndpointConfig,
++    EventQueueLimits, RecvStream, SendStream, TransportConfig,
++};
+ 
+ /// Detect if running under Wine (test helper).
+ ///
+@@ -312,6 +316,21 @@
+         transport_config: TransportConfig,
+         runtime: Arc<dyn crate::runtime::Runtime>,
+     ) -> Endpoint {
++        self.endpoint_with_runtime_and_limits(
++            name,
++            transport_config,
++            runtime,
++            EventQueueLimits::default(),
++        )
++    }
++
++    fn endpoint_with_runtime_and_limits(
++        &self,
++        name: impl Into<String>,
++        transport_config: TransportConfig,
++        runtime: Arc<dyn crate::runtime::Runtime>,
++        limits: EventQueueLimits,
++    ) -> Endpoint {
+         let span = info_span!("dummy");
+         span.record("otel.name", name.into());
+         let _guard = span.entered();
+@@ -323,11 +342,12 @@
+ 
+         let mut roots = RootCertStore::empty();
+         roots.add(self.cert.cert.der().clone()).unwrap();
+-        let endpoint = Endpoint::new(
++        let endpoint = Endpoint::new_with_limits(
+             self.endpoint_config.clone(),
+             Some(server_config),
+             UdpSocket::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0)).unwrap(),
+             runtime,
++            limits,
+         )
+         .unwrap();
+         let mut client_config = ClientConfig::with_root_certificates(Arc::new(roots)).unwrap();
+@@ -339,6 +359,50 @@
+ }
+ 
+ #[tokio::test]
++async fn connection_limit_rejects_first_over_limit_and_recovers_after_drain() {
++    let factory = EndpointFactory::new();
++    let server = factory.endpoint("bounded-server");
++    let limits = EventQueueLimits::new(
++        NonZeroUsize::new(1).unwrap(),
++        NonZeroUsize::new(2).unwrap(),
++        NonZeroU32::new(8_192).unwrap(),
++        NonZeroUsize::new(8).unwrap(),
++    );
++    let client = factory.endpoint_with_runtime_and_limits(
++        "bounded-client",
++        TransportConfig::default(),
++        Arc::new(TokioRuntime),
++        limits,
++    );
++    let server_addr = server.local_addr().unwrap();
++
++    let outgoing = client.connect(server_addr, "localhost").unwrap();
++    let incoming = server.accept().await.unwrap();
++    let (outgoing, incoming) = tokio::join!(outgoing, incoming);
++    let outgoing = outgoing.unwrap();
++    let incoming = incoming.unwrap();
++    assert_eq!(client.event_queue_stats().active_connections, 1);
++    assert!(matches!(
++        client.connect(server_addr, "localhost"),
++        Err(ConnectError::EndpointStopping)
++    ));
++    assert_eq!(client.event_queue_stats().connection_rejections, 1);
++
++    outgoing.close(0u32.into(), b"release capacity");
++    incoming.close(0u32.into(), b"release capacity");
++    drop((outgoing, incoming));
++    client.wait_idle().await;
++    server.wait_idle().await;
++    assert_eq!(client.event_queue_stats().active_connections, 0);
++
++    let outgoing = client.connect(server_addr, "localhost").unwrap();
++    let incoming = server.accept().await.unwrap();
++    let (outgoing, incoming) = tokio::join!(outgoing, incoming);
++    assert!(outgoing.is_ok());
++    assert!(incoming.is_ok());
++}
++
++#[tokio::test]
+ async fn zero_rtt() {
+     let _guard = subscribe();
+     let endpoint = endpoint();
+@@ -1767,6 +1831,47 @@
+     Ok(())
+ }
+ 
++#[tokio::test(start_paused = true)]
++async fn guarded_connection_tokens_live_until_noq_state_is_fully_drained() -> TestResult {
++    let factory = EndpointFactory::new();
++    let endpoint = factory.endpoint("lifetime-token");
++    let address = endpoint.local_addr()?;
++    let outgoing_dropped = Arc::new(AtomicUsize::new(0));
++    let incoming_dropped = Arc::new(AtomicUsize::new(0));
++
++    let outgoing = endpoint.connect_with_lifetime(
++        address,
++        "localhost",
++        ConnectionLifetimeToken::new(TokenDropFlag(outgoing_dropped.clone())),
++    )?;
++    let incoming = endpoint.accept().await.unwrap();
++    let accepting = incoming.accept_with_lifetime(ConnectionLifetimeToken::new(TokenDropFlag(
++        incoming_dropped.clone(),
++    )))?;
++    let (outgoing, incoming) = tokio::try_join!(outgoing, accepting)?;
++
++    drop(outgoing);
++    drop(incoming);
++    assert_eq!(outgoing_dropped.load(Ordering::SeqCst), 0);
++    assert_eq!(incoming_dropped.load(Ordering::SeqCst), 0);
++
++    endpoint.close(0u32.into(), b"test complete");
++    tokio::time::sleep(Duration::from_secs(5)).await;
++    endpoint.wait_idle().await;
++
++    assert_eq!(outgoing_dropped.load(Ordering::SeqCst), 1);
++    assert_eq!(incoming_dropped.load(Ordering::SeqCst), 1);
++    Ok(())
++}
++
++struct TokenDropFlag(Arc<AtomicUsize>);
++
++impl Drop for TokenDropFlag {
++    fn drop(&mut self) {
++        self.0.fetch_add(1, Ordering::SeqCst);
++    }
++}
++
+ #[derive(Default)]
+ struct WakeCounter {
+     wakes: AtomicUsize,

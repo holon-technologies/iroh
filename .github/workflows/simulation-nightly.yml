@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Build source-bound simulator
         run: cargo build --release --manifest-path iroh-sim/Cargo.toml --bin cargo-sim
       - name: Collect latest compatible daily gap evidence
@@ -116,7 +116,7 @@ jobs:
           done
       - name: Upload nightly gap and replay evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-nightly-gaps-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -162,8 +162,8 @@ jobs:
           - scenario: ipv6-datagram
             seed: "3333333333333333333333333333333333333333333333333333333333333333"
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Prepare scenario diagnostics
         run: |
           mkdir -p "$RUNNER_TEMP/${{ matrix.scenario }}"
@@ -184,7 +184,7 @@ jobs:
             "$RUNNER_TEMP/${{ matrix.scenario }}/manifest.json"
       - name: Upload simulation artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-${{ matrix.scenario }}-${{ github.run_id }}
           path: ${{ runner.temp }}/${{ matrix.scenario }}
@@ -209,8 +209,8 @@ jobs:
     env:
       RESOURCE_SEED: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Run expected resource-exhaustion failure
         run: |
           cargo run --manifest-path iroh-sim/Cargo.toml --bin cargo-sim -- run \
@@ -223,7 +223,7 @@ jobs:
             "$RUNNER_TEMP/resource-${{ matrix.resource }}/manifest.json"
       - name: Upload resource-exhaustion artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: iroh-sim-resource-${{ matrix.resource }}-${{ github.run_id }}
           path: ${{ runner.temp }}/resource-${{ matrix.resource }}

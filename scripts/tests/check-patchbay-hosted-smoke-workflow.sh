@@ -11,6 +11,18 @@ if [[ ! -f "$workflow" ]]; then
   exit 1
 fi
 
+# Third-party actions are pinned to a commit SHA with a trailing `# <ref>`
+# comment (e.g. `actions/upload-artifact@<40-hex>  # v7`). Normalize that
+# back to `actions/upload-artifact@v7` before matching contract literals and
+# doing the line-order check below, so this check asserts on the
+# human-readable ref rather than a SHA that Dependabot will rotate on every
+# bump. sed does not add or remove lines, so line numbers used by the
+# order check further down stay accurate.
+normalized_workflow=$(mktemp)
+trap 'rm -f "$normalized_workflow"' EXIT
+sed -E 's/@[0-9a-f]{40}[[:space:]]+#[[:space:]]*([^[:space:]]+)/@\1/' "$workflow" > "$normalized_workflow"
+workflow="$normalized_workflow"
+
 required=(
   'name: GitHub-hosted Patchbay Public Parity Smoke'
   'schedule:'

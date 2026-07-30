@@ -23,7 +23,7 @@ jobs:
       pull-requests: write
     timeout-minutes: 30
     name: Docs preview
-    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) && !github.event.pull_request.head.repo.fork }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: "sccache"
@@ -32,12 +32,12 @@ jobs:
       PREVIEW_PATH: pr/${{ github.event.pull_request.number || inputs.pr_number }}/docs
 
     steps:
-    - uses: actions/checkout@v7
-    - uses: dtolnay/rust-toolchain@master
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+    - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
       with:
-        toolchain: nightly-2025-10-09
+        toolchain: nightly-2026-07-19
     - name: Install sccache
-      uses: mozilla-actions/sccache-action@v0.0.10
+      uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
       continue-on-error: true
     - uses: ./.github/actions/sccache-probe
 
@@ -47,7 +47,7 @@ jobs:
         RUSTDOCFLAGS: --cfg iroh_docsrs
 
     - name: Deploy Docs to Preview Branch
-      uses: peaceiris/actions-gh-pages@v4
+      uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453  # v4
       with:
         github_token: ${{ github.token }}
         publish_dir: ./target/doc/
@@ -55,7 +55,7 @@ jobs:
         publish_branch: generated-docs-preview
 
     - name: Find Docs Comment
-      uses: peter-evans/find-comment@v4
+      uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad  # v4
       id: fc
       with:
         issue-number: ${{ github.event.pull_request.number || inputs.pr_number }}
@@ -67,7 +67,7 @@ jobs:
       run: echo "TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
     - name: Create or Update Docs Comment
-      uses: peter-evans/create-or-update-comment@v5
+      uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5
       with:
         issue-number: ${{ github.event.pull_request.number || inputs.pr_number }}
         comment-id: ${{ steps.fc.outputs.comment-id }}

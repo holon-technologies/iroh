@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 seconds=30
 selected_target=""
 artifacts="$repo_root/target/fuzz-artifacts"
+known_crash_seen=0
 readonly fuzz_toolchain="${IROH_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"
 readonly artifact_file_limit=64
 readonly artifact_byte_limit=67108864
@@ -98,6 +99,7 @@ fi
 
 mkdir -p "$artifacts"
 artifacts="$(cd "$artifacts" && pwd)"
+known_crashes_file="$repo_root/fuzz/known-crashes.md"
 
 run_target() {
   local target="$1"
@@ -123,6 +125,8 @@ run_target() {
   cp -a "$source_corpus/." "$run_corpus/"
   mkdir -p "$target_artifacts"
 
+  local fuzz_log="$target_artifacts/fuzz-output.txt"
+  local fuzz_status=0
   (
     cd "$repo_root"
     RUSTFLAGS="${IROH_FUZZ_RUSTFLAGS:--A deprecated}" \
@@ -134,7 +138,36 @@ run_target() {
       "-artifact_prefix=$target_artifacts/" \
       -verbosity=0 \
       -print_final_stats=1
-  )
+  ) 2>&1 | tee "$fuzz_log" || fuzz_status="${PIPESTATUS[0]}"
+
+  if (( fuzz_status != 0 )); then
+    # A Rust panic prints "panicked at <path>:<line>:<col>:" followed by the
+    # panic message on the next line. Build a signature out of BOTH the
+    # crate-relative location and the message, so a different panic at a
+    # different location (even with the same message, e.g. another
+    # "attempt to subtract with overflow" elsewhere) does not collide with
+    # an unrelated one recorded in known-crashes.md.
+    local location_line message_line crate_location signature
+    location_line="$(grep -m1 'panicked at' "$fuzz_log" || true)"
+    message_line=""
+    if [[ -n "$location_line" ]]; then
+      message_line="$(grep -m1 -A1 'panicked at' "$fuzz_log" | tail -1 | sed 's/^[[:space:]]*//')"
+    fi
+    crate_location="$(printf '%s\n' "$location_line" \
+      | grep -m1 -oE '[A-Za-z0-9_.-]+-[0-9]+\.[0-9]+\.[0-9]+/src/[^[:space:]:]+:[0-9]+:[0-9]+' || true)"
+    signature=""
+    if [[ -n "$crate_location" && -n "$message_line" ]]; then
+      signature="$crate_location: $message_line"
+    fi
+
+    if [[ -n "$signature" ]] && grep -qF -- "$signature" "$known_crashes_file" 2>/dev/null; then
+      printf 'known crash reproduced for %s: %s\n' "$target" "$signature" >&2
+      known_crash_seen=1
+    else
+      printf 'NEW crash for %s: %s\n' "$target" "${signature:-<no panic signature captured; see $fuzz_log>}" >&2
+      exit 1
+    fi
+  fi
 
   file_count="$(find "$target_artifacts" -type f | wc -l)"
   byte_count="$(du -sb "$target_artifacts" | awk '{print $1}')"
@@ -164,3 +197,9 @@ else
     run_target "$target"
   done
 fi
+
+# 0 = clean, 1 = new crash (already exited above), 2 = only known crashes.
+if (( known_crash_seen == 1 )); then
+  exit 2
+fi
+exit 0

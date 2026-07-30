@@ -151,3 +151,62 @@ schema. A platform v2 release cannot open this gate as a side effect.
 `key` also enables `relay` because key-facing endpoint/address types require relay URL support.
 Consumers seeking the smallest value-type build must use `default-features = false` and then select
 only the required features.
+
+## Vendored dependency boundary
+
+Three upstream crates are vendored under [`vendor/`](../vendor/README.md) because each carries a
+patch this project requires and upstream has not accepted. `scripts/tests/check-vendor-provenance.sh`
+asserts in CI that every vendored directory still equals upstream plus its patch.
+
+`noq` and `hickory-server` are published as differently named forks — `iroh-noq` and
+`iroh-hickory-server` — because their patches are resource-hardening deltas that only this
+project's endpoint and DNS-server code needs: bounded event queues, per-poll budgets, and
+connection-lifetime ownership in Noq; pre-spawn UDP-request and TCP-connection admission limits in
+Hickory. Cargo dependency package aliases keep the Rust library names (`noq`, `hickory_server`)
+unchanged at import sites, so the fork is source-compatible and downstream provenance stays
+explicit through the exact `-holon.N` prerelease version.
+
+`rustls` cannot be forked and published under a different name. Noq, Tokio-Rustls, and other
+transitive dependencies resolve the crate literally named `rustls`; a differently named fork would
+coexist as a distinct crate in the dependency graph, making its public Rustls types incompatible
+with the `rustls` types those other dependencies expect at integration boundaries. The patch that
+`iroh-sim` needs — threading `provider.secure_random` through session-ID and `Random` construction,
+and keeping the negotiated `KxState`'s `SupportedKxGroup` alive past the handshake so simulation
+runs can replay deterministically from a seed — therefore cannot ship as a publishable production
+crate. It instead lives only in `iroh-sim`'s nested, non-published workspace via a
+`[patch.crates-io]` entry scoped to that workspace's own lockfile; every publishable production
+crate resolves the public `rustls` crate unmodified. See [`vendor/README.md`](../vendor/README.md)
+and `vendor/rustls-0.23.41/IROH-VENDOR.md` for the exact patch contents and update procedure.
+
+## Production resource admission
+
+Production endpoints and relay servers enforce a finite ceiling on every connection, task, actor,
+and event-queue family that a remote peer or a DNS response can cause to grow, so that a hostile
+stream of connection attempts, distinct endpoint identities, distinct relay URLs, or QUIC datagrams
+cannot exhaust process memory.
+
+Three designs were considered. Adding a single live-task ceiling to the production task executor
+and rejecting the next spawn was rejected: the vendored Noq runtime's spawn hook returns `()`, so a
+rejected spawn cannot be reported back to Noq without stranding connection state Noq had already
+begun to construct, and one catch-all ceiling risks rejecting unrelated critical tasks along with
+the offending one. Bounding only first-party subsystems — endpoint connections, remote-state
+actors, active-relay actors, relay QUIC-address-discovery connections — while leaving Noq's
+internal event channels unbounded was also rejected: it leaves the underlying event-queue memory
+growth path open, and gives no defense-in-depth if a subsystem admission check regresses.
+
+The chosen design layers all three: explicit admission ceilings on connections and actors, acquired
+*before* the corresponding Noq connection driver, actor, or task is created; bounded Noq-internal
+event queues, reached through the same narrow vendored Noq patch described above; and a larger
+task-executor ceiling that acts as a fail-closed backstop for any task family the layered admission
+missed. Subsystem admission handles ordinary overload with domain-specific, recoverable errors; the
+executor ceiling firing at all means an admission invariant has regressed, which is treated as an
+internal capacity violation that closes the endpoint rather than silently reverting to unbounded
+growth.
+
+The two public types that carry this contract are `EndpointLimits` (`iroh/src/endpoint/limits.rs`,
+set through `Builder::limits` in `iroh/src/endpoint/builder.rs`) — the validated, nonzero
+connection/actor/task ceilings for one endpoint — and `TaskGroupLimits`
+(`iroh-runtime/src/task.rs`) — the validated, nonzero live-task ceiling for one production task
+group. The endpoint derives its requested task-group ceiling from its declared subsystem ceilings
+plus a fixed supervisor headroom, so admitted subsystem capacity always fits inside the executor
+backstop it depends on.

@@ -1,4 +1,4 @@
-# Run tests using the beta Rust compiler
+# Weekly cleanup of the generated documentation branch.
 
 name: Cleanup
 
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: beta-${{ github.workflow }}-${{ github.ref }}
+  group: cleanup-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           ref: generated-docs-preview
       - name: Clean docs branch
