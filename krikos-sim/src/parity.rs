@@ -195,8 +195,7 @@ impl PatchbayReceipt {
     ) -> Result<ParityFixture, ParityError> {
         self.validate()?;
         let canonical = self.to_canonical_json()?;
-        let mut run_hasher =
-            blake3::Hasher::new_derive_key("iroh-sim patchbay evidence run id v1");
+        let mut run_hasher = blake3::Hasher::new_derive_key("iroh-sim patchbay evidence run id v1");
         run_hasher.update(source_revision.as_bytes());
         run_hasher.update(scenario_hash.as_bytes());
         run_hasher.update(&canonical);
