@@ -1,0 +1,5 @@
+# Pins the toolchain so local builds reproduce CI. Keep the channel at or above
+# the workspace MSRV declared in Cargo.toml (rust-version = "1.91").
+[toolchain]
+channel = "1.91"
+components = ["rustfmt", "clippy"]

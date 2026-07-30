@@ -752,7 +752,23 @@ jobs:
 
       - name: Check MSRV all features
         run: |
-          cargo "+$MSRV" check --workspace --all-targets
+          cargo "+$MSRV" check --workspace --all-targets --all-features
+
+      - name: Check MSRV — simulator
+        run: |
+          cargo "+$MSRV" check --manifest-path iroh-sim/Cargo.toml --all-targets --all-features
+
+      - name: Check MSRV — blobs v0.103 interop
+        run: |
+          cargo "+$MSRV" check --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml --all-targets --all-features
+
+      - name: Check MSRV — gossip v0.101 interop
+        run: |
+          cargo "+$MSRV" check --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml --all-targets --all-features
+
+      - name: Check MSRV — relay v1 interop
+        run: |
+          cargo "+$MSRV" check --manifest-path compat/relay-v1-interop/Cargo.toml --all-targets --all-features
 
   cargo_deny:
     timeout-minutes: 30
@@ -760,11 +776,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2
+      - name: cargo deny (advisories, licenses, sources)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2
         with:
           arguments: --workspace --all-features
           command: check
-          command-arguments: "-Dwarnings"
+          command-arguments: "advisories licenses sources -Dwarnings"
+      # Run separately from -Dwarnings above: deny.toml sets
+      # bans.multiple-versions = "warn" (not "allow") so ~30 pre-existing
+      # duplicate-version groups are enumerated in this job's log instead of
+      # silently waived, but they do not fail the build. bans.deny (the
+      # native-tls/openssl blocklist) is its own "deny" severity lint and
+      # still fails this step regardless of -Dwarnings.
+      - name: cargo deny (bans)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2
+        with:
+          arguments: --workspace --all-features
+          command: check
+          command-arguments: "bans"
 
   netsim-integration-tests:
     permissions:
@@ -794,6 +823,36 @@ jobs:
       - run: pip install --user codespell[toml]==2.4.1
       - run: codespell --ignore-words-list=ans,atmost,crate,inout,ratatui,ser,stayin,swarmin,worl,keep-alives --skip=CHANGELOG.md,vendor
 
+  hygiene:
+    name: Repo hygiene
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # check-ci-aggregate.sh parses this workflow with python3's PyYAML.
+      # python3 is preinstalled on ubuntu-latest but PyYAML is not.
+      - name: Install PyYAML
+        run: pip install --user pyyaml
+      - name: Docker build context is bounded
+        run: scripts/tests/check-docker-context.sh
+      - name: Vendored trees match upstream plus patch
+        run: scripts/tests/check-vendor-provenance.sh
+      - name: ci-ok covers every job
+        run: scripts/tests/check-ci-aggregate.sh
+      - name: Excluded workspaces resolve with their lockfiles
+        run: |
+          cargo metadata --manifest-path fuzz/Cargo.toml --locked --format-version 1 >/dev/null
+          cargo metadata --manifest-path iroh-sim/Cargo.toml --locked --format-version 1 >/dev/null
+          cargo metadata --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml --locked --format-version 1 >/dev/null
+          cargo metadata --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml --locked --format-version 1 >/dev/null
+          cargo metadata --manifest-path compat/relay-v1-interop/Cargo.toml --locked --format-version 1 >/dev/null
+      - name: Blobs v0.103 interop still compiles
+        run: cargo check --locked --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml
+      - name: Gossip v0.101 interop still compiles
+        run: cargo check --locked --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml
+      - name: Relay v1 interop still compiles
+        run: cargo check --locked --manifest-path compat/relay-v1-interop/Cargo.toml
+
   ci-ok:
     name: CI OK
     # This is the sole required status check for `main`. Every job above must
@@ -820,6 +879,7 @@ jobs:
       - cargo_deny
       - netsim-integration-tests
       - codespell
+      - hygiene
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
