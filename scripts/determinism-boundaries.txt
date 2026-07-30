@@ -633,8 +633,8 @@ network-environment	krikos-resolver/src/hickory.rs:277	fn lookup_ipv6(&self, _ho
 network-environment	krikos-resolver/src/hickory.rs:282	fn lookup_txt(&self, _host: String) -> BoxFuture<Result<BoxIter<TxtRecordData>, DnsError>> {
 network-environment	krikos-sim/benches/stage4_environment.rs:77	group.bench_function("production_builder_portmapper_disabled", |b| {
 network-environment	krikos-sim/benches/stage4_environment.rs:80	krikos::endpoint::Builder::empty().portmapper_config(PortmapperConfig::Disabled),
-network-environment	krikos-sim/src/backend.rs:365	) -> netwatch::netmon::State {
-network-environment	krikos-sim/src/backend.rs:366	let mut state = netwatch::netmon::State::fake();
+network-environment	krikos-sim/src/backend.rs:364	) -> netwatch::netmon::State {
+network-environment	krikos-sim/src/backend.rs:365	let mut state = netwatch::netmon::State::fake();
 network-environment	krikos-sim/src/monitor.rs:7	use netwatch::netmon::State;
 network-environment	krikos-sim/src/network.rs:1783	lookup_socket(&mut state, &destination_host, datagram.destination)
 network-environment	krikos-sim/src/network.rs:2221	fn lookup_socket(
