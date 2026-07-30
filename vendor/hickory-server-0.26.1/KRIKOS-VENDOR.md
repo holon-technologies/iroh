@@ -1,6 +1,6 @@
-# Iroh Hickory Server vendor delta
+# Krikos Hickory Server vendor delta
 
-Upstream base: `hickory-server` 0.26.1. Published fork: `iroh-hickory-server` 0.26.1-holon.1. The
+Upstream base: `hickory-server` 0.26.1. Published fork: `krikos-hickory-server` 0.26.1-holon.1. The
 Rust library name remains `hickory_server` so the fork is source-compatible at import sites. The
 package name and exact prerelease version make downstream dependency provenance explicit.
 
@@ -31,7 +31,7 @@ so the packaged unit tests remain runnable. Production code is unaffected.
 2. Reapply only the admission types, the two pre-spawn checks, observation callbacks, and tests.
 3. Review upstream UDP/TCP loops to determine whether equivalent hard limits now exist.
 4. Run the vendored server tests and `iroh-dns-server` saturation/lifecycle tests.
-5. Increment the Holon prerelease revision, update the exact `iroh-hickory-server` dependency, the
+5. Increment the Holon prerelease revision, update the exact `krikos-hickory-server` dependency, the
    local source patch, package verifier, lockfiles, changelog, and this document together.
 
 Do not remove the patch merely because handler-level or Tower concurrency limits exist: admission

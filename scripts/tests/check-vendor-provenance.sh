@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Asserts each vendored tree equals its crates.io package plus the checked-in
-# patch. This makes the IROH-VENDOR.md provenance claim machine-checked rather
+# patch. This makes the KRIKOS-VENDOR.md provenance claim machine-checked rather
 # than merely asserted.
 set -euo pipefail
 
@@ -36,14 +36,14 @@ check() {
       || { echo "FAIL: $name patch does not apply cleanly" >&2; status=1; return; }
   fi
 
-  if diff -ru "$pristine" "$dir" -x target -x .cargo-ok -x IROH-VENDOR.md >/dev/null; then
+  if diff -ru "$pristine" "$dir" -x target -x .cargo-ok -x KRIKOS-VENDOR.md >/dev/null; then
     echo "ok: $dir matches upstream + patch"
   else
     echo "FAIL: $dir differs from upstream + patch" >&2
     # `|| true` guards against SIGPIPE: under `pipefail`, `head` closing its
     # input early once satisfied would otherwise propagate a 141 exit and
     # abort the whole script via `set -e`, skipping the remaining checks.
-    { diff -ru "$pristine" "$dir" -x target -x .cargo-ok -x IROH-VENDOR.md | head -40 >&2; } || true
+    { diff -ru "$pristine" "$dir" -x target -x .cargo-ok -x KRIKOS-VENDOR.md | head -40 >&2; } || true
     status=1
   fi
 }

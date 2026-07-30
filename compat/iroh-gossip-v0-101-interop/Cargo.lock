@@ -1468,10 +1468,10 @@ dependencies = [
  "iroh-base 2.0.0",
  "iroh-dns 2.0.0",
  "iroh-metrics",
- "iroh-noq",
  "iroh-relay 2.0.0",
  "iroh-resolver",
  "iroh-runtime",
+ "krikos-noq",
  "n0-error",
  "n0-future",
  "n0-watcher",
@@ -1669,26 +1669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-noq"
-version = "1.1.0-holon.1"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "derive_more",
- "noq-proto",
- "noq-udp",
- "pin-project-lite",
- "rustc-hash",
- "rustls",
- "socket2",
- "thiserror 2.0.19",
- "tokio",
- "tokio-stream",
- "tracing",
- "web-time",
-]
-
-[[package]]
 name = "iroh-relay"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1749,9 +1729,9 @@ dependencies = [
  "hyper-util",
  "iroh-base 2.0.0",
  "iroh-metrics",
- "iroh-noq",
  "iroh-resolver",
  "iroh-runtime",
+ "krikos-noq",
  "lru",
  "n0-error",
  "n0-future",
@@ -1925,6 +1905,26 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "krikos-noq"
+version = "1.1.0-holon.1"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "derive_more",
+ "noq-proto",
+ "noq-udp",
+ "pin-project-lite",
+ "rustc-hash",
+ "rustls",
+ "socket2",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "web-time",
 ]
 
 [[package]]

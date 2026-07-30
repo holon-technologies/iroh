@@ -24,8 +24,8 @@ members = ["."]
 
 [patch.crates-io]
 # Keep fuzzing on the exact ownership/resource forks used by the production workspace.
-iroh-hickory-server = { path = "../vendor/hickory-server-0.26.1" }
-iroh-noq = { path = "../vendor/noq-1.1.0" }
+krikos-hickory-server = { path = "../vendor/hickory-server-0.26.1" }
+krikos-noq = { path = "../vendor/noq-1.1.0" }
 
 [[bin]]
 name = "doh_extract"

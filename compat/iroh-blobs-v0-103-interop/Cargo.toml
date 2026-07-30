@@ -7,7 +7,7 @@ publish = false
 [workspace]
 
 [patch.crates-io]
-iroh-noq = { path = "../../vendor/noq-1.1.0" }
+krikos-noq = { path = "../../vendor/noq-1.1.0" }
 
 [dependencies]
 anyhow = "1"

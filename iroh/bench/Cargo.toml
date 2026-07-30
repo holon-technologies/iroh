@@ -28,7 +28,7 @@ iroh-relay = { workspace = true, features = [
 ], optional = true }
 n0-future = "0.3"
 n0-error = "1.0.0"
-noq = { package = "iroh-noq", version = "=1.1.0-holon.1" }
+noq = { package = "krikos-noq", version = "=1.1.0-holon.1" }
 rcgen = "0.14"
 rustls = { version = "0.23.33", default-features = false }
 clap = { version = "4", features = ["derive"] }

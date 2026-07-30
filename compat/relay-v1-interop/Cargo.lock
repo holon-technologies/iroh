@@ -1651,26 +1651,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-noq"
-version = "1.1.0-holon.1"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "derive_more",
- "noq-proto",
- "noq-udp",
- "pin-project-lite",
- "rustc-hash",
- "rustls",
- "socket2",
- "thiserror 2.0.19",
- "tokio",
- "tokio-stream",
- "tracing",
- "web-time",
-]
-
-[[package]]
 name = "iroh-relay"
 version = "1.0.3"
 source = "git+https://github.com/n0-computer/iroh.git?rev=f2eb930dda3779c6d852b72f3712aacd6e573ab1#f2eb930dda3779c6d852b72f3712aacd6e573ab1"
@@ -1746,9 +1726,9 @@ dependencies = [
  "hyper-util",
  "iroh-base 2.0.0",
  "iroh-metrics",
- "iroh-noq",
  "iroh-resolver",
  "iroh-runtime",
+ "krikos-noq",
  "lru",
  "n0-error",
  "n0-future",
@@ -1904,6 +1884,26 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "krikos-noq"
+version = "1.1.0-holon.1"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "derive_more",
+ "noq-proto",
+ "noq-udp",
+ "pin-project-lite",
+ "rustc-hash",
+ "rustls",
+ "socket2",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "web-time",
 ]
 
 [[package]]

@@ -1851,10 +1851,10 @@ dependencies = [
  "iroh-base",
  "iroh-dns",
  "iroh-metrics",
- "iroh-noq",
  "iroh-relay",
  "iroh-resolver",
  "iroh-runtime",
+ "krikos-noq",
  "n0-error",
  "n0-future",
  "n0-watcher",
@@ -1987,9 +1987,9 @@ dependencies = [
  "ipnet",
  "iroh-base",
  "iroh-dns",
- "iroh-hickory-server",
  "iroh-metrics",
  "iroh-resolver",
+ "krikos-hickory-server",
  "lru 0.18.1",
  "mainline",
  "n0-error",
@@ -2095,32 +2095,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-hickory-server"
-version = "0.26.1-holon.1"
-dependencies = [
- "async-trait",
- "bytes",
- "cfg-if",
- "data-encoding",
- "futures-util",
- "h2",
- "hickory-net",
- "hickory-proto",
- "hickory-resolver",
- "http",
- "ipnet",
- "prefix-trie",
- "rustls",
- "serde",
- "thiserror 2.0.19",
- "time",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "iroh-io"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2169,26 +2143,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-noq"
-version = "1.1.0-holon.1"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "derive_more",
- "noq-proto",
- "noq-udp",
- "pin-project-lite",
- "rustc-hash",
- "rustls",
- "socket2",
- "thiserror 2.0.19",
- "tokio",
- "tokio-stream",
- "tracing",
- "web-time",
-]
-
-[[package]]
 name = "iroh-relay"
 version = "2.0.0"
 dependencies = [
@@ -2204,9 +2158,9 @@ dependencies = [
  "hyper-util",
  "iroh-base",
  "iroh-metrics",
- "iroh-noq",
  "iroh-resolver",
  "iroh-runtime",
+ "krikos-noq",
  "lru 0.18.1",
  "n0-error",
  "n0-future",
@@ -2402,6 +2356,52 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "krikos-hickory-server"
+version = "0.26.1-holon.1"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "data-encoding",
+ "futures-util",
+ "h2",
+ "hickory-net",
+ "hickory-proto",
+ "hickory-resolver",
+ "http",
+ "ipnet",
+ "prefix-trie",
+ "rustls",
+ "serde",
+ "thiserror 2.0.19",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "krikos-noq"
+version = "1.1.0-holon.1"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "derive_more",
+ "noq-proto",
+ "noq-udp",
+ "pin-project-lite",
+ "rustc-hash",
+ "rustls",
+ "socket2",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "web-time",
 ]
 
 [[package]]

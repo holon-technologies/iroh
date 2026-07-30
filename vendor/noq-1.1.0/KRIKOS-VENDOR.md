@@ -1,6 +1,6 @@
-# Iroh Noq vendor delta
+# Krikos Noq vendor delta
 
-Upstream base: `noq` 1.1.0. Published fork: `iroh-noq` 1.1.0-holon.1. The Rust library name
+Upstream base: `noq` 1.1.0. Published fork: `krikos-noq` 1.1.0-holon.1. The Rust library name
 remains `noq` so the fork is source-compatible at import sites. The package name and exact
 prerelease version make downstream dependency provenance explicit.
 
@@ -38,7 +38,7 @@ never silently discarded.
 3. Review upstream Noq for equivalent item, byte, control, terminal, and connection-lifetime
    bounds.
 4. Run the vendored Noq tests plus Iroh endpoint, simulation, relay-QAD, and browser checks.
-5. Increment the Holon prerelease revision, update exact `iroh-noq` dependencies, the local source
+5. Increment the Holon prerelease revision, update exact `krikos-noq` dependencies, the local source
    patch, package verifier, lockfiles, changelog, and this document together.
 
 Do not remove this patch merely because outer endpoint or task admission exists. Queue admission

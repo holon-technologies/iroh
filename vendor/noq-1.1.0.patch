@@ -1,4 +1,4 @@
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/Cargo.lock vendor/noq-1.1.0/Cargo.lock
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/Cargo.lock vendor/noq-1.1.0/Cargo.lock
 --- a/Cargo.lock	2006-07-24 01:21:28.000000000 +0000
 +++ b/Cargo.lock	2026-07-25 18:39:19.418922104 +0000
 @@ -3,21 +3,6 @@
@@ -2635,16 +2635,16 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
  source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 +checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/Cargo.toml vendor/noq-1.1.0/Cargo.toml
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/Cargo.toml vendor/noq-1.1.0/Cargo.toml
 --- a/Cargo.toml	2006-07-24 01:21:28.000000000 +0000
-+++ b/Cargo.toml	2026-07-25 18:52:47.240063510 +0000
++++ b/Cargo.toml	2026-07-30 14:15:05.031375593 +0000
 @@ -12,23 +12,37 @@
  [package]
  edition = "2024"
  rust-version = "1.88"
 -name = "noq"
 -version = "1.1.0"
-+name = "iroh-noq"
++name = "krikos-noq"
 +version = "1.1.0-holon.1"
  build = "build.rs"
 +publish = true
@@ -2680,7 +2680,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
  resolver = "2"
  
  [package.metadata.docs.rs]
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/CHANGELOG.md vendor/noq-1.1.0/CHANGELOG.md
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/CHANGELOG.md vendor/noq-1.1.0/CHANGELOG.md
 --- a/CHANGELOG.md	1970-01-01 00:00:00.000000000 +0000
 +++ b/CHANGELOG.md	2026-07-25 19:34:18.413785692 +0000
 @@ -0,0 +1,11 @@
@@ -2695,7 +2695,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
 +- Require erased lifetime guards to preserve upstream `UnwindSafe` and
 +  `RefUnwindSafe` behavior for public connection, stream, and path handles.
 +- Add fixed-cardinality rejection diagnostics and saturation/conservation regressions.
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/examples/README.md vendor/noq-1.1.0/examples/README.md
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/examples/README.md vendor/noq-1.1.0/examples/README.md
 --- a/examples/README.md	2006-07-24 01:21:28.000000000 +0000
 +++ b/examples/README.md	2026-07-24 15:50:15.906256494 +0000
 @@ -4,8 +4,8 @@
@@ -2729,7 +2729,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
  $ cargo run --example single_socket
  ```
  
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/README.md vendor/noq-1.1.0/README.md
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/README.md vendor/noq-1.1.0/README.md
 --- a/README.md	2006-07-24 01:21:28.000000000 +0000
 +++ b/README.md	2026-07-25 18:52:47.240063510 +0000
 @@ -1,7 +1,13 @@
@@ -2748,7 +2748,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
  [![Chat](https://img.shields.io/discord/1161119546170687619?logo=discord&style=flat-square)](https://discord.com/invite/DpmJgtU7cW)
  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
  [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/connection.rs vendor/noq-1.1.0/src/connection.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/connection.rs vendor/noq-1.1.0/src/connection.rs
 --- a/src/connection.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/connection.rs	2026-07-24 09:32:36.601855774 +0000
 @@ -17,12 +17,16 @@
@@ -2890,7 +2890,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
          }
  
          if !self.on_closed.is_empty()
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/endpoint.rs vendor/noq-1.1.0/src/endpoint.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/endpoint.rs vendor/noq-1.1.0/src/endpoint.rs
 --- a/src/endpoint.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/endpoint.rs	2026-07-24 09:37:00.611000679 +0000
 @@ -30,22 +30,29 @@
@@ -3410,7 +3410,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
                                  }
                                  Some(DatagramEvent::Response(transmit)) => {
                                      respond(transmit, &response_buffer, sender);
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/event_queue.rs vendor/noq-1.1.0/src/event_queue.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/event_queue.rs vendor/noq-1.1.0/src/event_queue.rs
 --- a/src/event_queue.rs	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/event_queue.rs	2026-07-24 19:26:51.402574279 +0000
 @@ -0,0 +1,850 @@
@@ -4264,7 +4264,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
 +        assert_eq!(budgets.stats().control_events_current, 0);
 +    }
 +}
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/incoming.rs vendor/noq-1.1.0/src/incoming.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/incoming.rs vendor/noq-1.1.0/src/incoming.rs
 --- a/src/incoming.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/incoming.rs	2026-07-24 09:27:37.052881638 +0000
 @@ -10,6 +10,7 @@
@@ -4317,7 +4317,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
      }
  
      /// Reject this incoming connection attempt
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/lib.rs vendor/noq-1.1.0/src/lib.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/lib.rs vendor/noq-1.1.0/src/lib.rs
 --- a/src/lib.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/lib.rs	2026-07-24 09:32:17.762986107 +0000
 @@ -39,13 +39,12 @@
@@ -4369,7 +4369,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
  fn udp_transmit<'a>(t: &Transmit, buffer: &'a [u8]) -> udp::Transmit<'a> {
      udp::Transmit {
          destination: t.destination,
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/lifetime.rs vendor/noq-1.1.0/src/lifetime.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/lifetime.rs vendor/noq-1.1.0/src/lifetime.rs
 --- a/src/lifetime.rs	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/lifetime.rs	2026-07-25 19:42:39.198018533 +0000
 @@ -0,0 +1,60 @@
@@ -4433,7 +4433,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
 +        assert_unwind_safe(&token);
 +    }
 +}
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/send_stream.rs vendor/noq-1.1.0/src/send_stream.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/send_stream.rs vendor/noq-1.1.0/src/send_stream.rs
 --- a/src/send_stream.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/send_stream.rs	2026-07-24 15:50:15.907256487 +0000
 @@ -79,7 +79,7 @@
@@ -4463,7 +4463,7 @@ diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0
      ///
      /// Bytes to write are provided to this method as an array of cheaply cloneable chunks. This
      /// method repeatedly calls [`write_many_chunks`](Self::write_many_chunks) until all bytes are
-diff -ruN -x target -x .cargo-ok -x IROH-VENDOR.md /tmp/tmp.sZjbUmHrxF/noq-1.1.0/src/tests.rs vendor/noq-1.1.0/src/tests.rs
+diff -ruN -x target -x .cargo-ok -x KRIKOS-VENDOR.md /tmp/tmp.1OGiXhsR9e/noq-1.1.0/src/tests.rs vendor/noq-1.1.0/src/tests.rs
 --- a/src/tests.rs	2006-07-24 01:21:28.000000000 +0000
 +++ b/src/tests.rs	2026-07-24 09:36:29.410222263 +0000
 @@ -12,6 +12,7 @@
