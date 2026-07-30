@@ -46,7 +46,12 @@ for path in \
   scripts/v2-api-breaks.txt \
   scripts/tests/check-v2-semver-policy.sh \
   scripts/tests/check-release-fork-boundary.sh \
+  scripts/tests/check-local-first-framework-ci.sh \
+  scripts/check-framework-release-gate.py \
+  scripts/check-framework-package-layout.sh \
   scripts/verify-release-packages.sh \
+  framework/release-gate.toml \
+  docs/framework/upstream-sync.md \
   docs/release/v2-migration.md \
   docs/release/v2-release-checklist.md \
   iroh-runtime/CHANGELOG.md \
@@ -66,6 +71,10 @@ version_manifests=(
   iroh-relay/Cargo.toml
   iroh/Cargo.toml
   iroh-dns-server/Cargo.toml
+  protocols/iroh-blobs/Cargo.toml
+  protocols/iroh-gossip/Cargo.toml
+  protocols/iroh-docs/Cargo.toml
+  framework/app/Cargo.toml
   iroh/bench/Cargo.toml
   iroh-sim/Cargo.toml
 )
@@ -94,10 +103,14 @@ for lock_path in sys.argv[1:]:
         for package in lock["package"]
         if package["name"] in {
             "iroh",
+            "iroh-app",
             "iroh-base",
             "iroh-bench",
+            "iroh-blobs",
             "iroh-dns",
             "iroh-dns-server",
+            "iroh-docs",
+            "iroh-gossip",
             "iroh-relay",
             "iroh-runtime",
             "iroh-resolver",
@@ -210,7 +223,10 @@ require_text .github/workflows/ci.yml 'scripts/tests/check-v2-release-readiness.
 require_text .github/workflows/ci.yml 'scripts/tests/check-release-fork-boundary.sh'
 require_text .github/workflows/ci.yml 'scripts/run-v2-semver-checks.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-v2-semver-policy.sh'
-require_text Makefile.toml 'CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = ["iroh/bench", "tools/determinism-checker"]'
+require_text .github/workflows/ci.yml 'scripts/tests/check-local-first-framework-ci.sh'
+require_text Makefile.toml '"framework/app"'
+require_text Makefile.toml '"protocols/iroh-blobs"'
+require_text Makefile.toml '[tasks.local-first-framework]'
 require_text .github/workflows/tests.yaml 'runs-on: windows-2022'
 require_text .github/workflows/tests.yaml 'toolchain: nightly-2026-07-19'
 postcard_override_count=$(grep -Fc -- 'update -p postcard-derive --precise 0.2.2' \
@@ -242,6 +258,7 @@ if grep -Fq -- 'cargo-semver-checks-action' "$repo_root/.github/workflows/ci.yml
   fail '.github/workflows/ci.yml still uses registry-only semver setup that cannot resolve unpublished owned forks'
 fi
 require_text .github/workflows/release.yml 'scripts/verify-release-packages.sh'
+require_text .github/workflows/release.yml 'scripts/check-framework-release-gate.py --expect-closed'
 require_text scripts/verify-release-packages.sh 'iroh-noq iroh-hickory-server iroh-base iroh-runtime iroh-resolver iroh-dns iroh-relay iroh iroh-dns-server'
 require_text docs/release/v2-migration.md 'PkarrRelayClient::new'
 require_text docs/release/v2-migration.md 'iroh_resolver::Builder::build'

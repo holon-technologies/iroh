@@ -731,11 +731,12 @@ impl Endpoint {
     /// [`Registry::sub_registry_with_label`] or [`Registry::sub_registry_with_prefix`].
     /// Furthermore, the optional `iroh_metrics::service` module provides functions to start services
     /// to serve the metrics with a HTTP server, dump them to a file, or push them
-    /// to a Prometheus gateway.
+    /// to a Prometheus gateway. Applications using these APIs must enable the `service` feature on
+    /// their direct `iroh-metrics` dependency.
     ///
     /// For example, the following snippet launches an HTTP server that serves the metrics in the
     /// OpenMetrics text format:
-    /// ```no_run
+    /// ```ignore
     /// # use std::sync::{Arc, RwLock};
     /// # use iroh_metrics::{Registry, MetricsSource};
     /// # use iroh::endpoint::{Endpoint, presets};

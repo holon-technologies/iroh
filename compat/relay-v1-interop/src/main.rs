@@ -263,10 +263,20 @@ async fn proxy_connection(
         .await
         .context("forward bytes following compatibility upgrade response")?;
 
-    tokio::io::copy_bidirectional(&mut client, &mut server)
-        .await
-        .context("proxy relay WebSocket stream")?;
-    Ok(())
+    // The proxy is joined only after both payload directions have been verified. Upstream v1 may
+    // reset the TCP stream when its client is dropped instead of completing a graceful close.
+    match tokio::io::copy_bidirectional(&mut client, &mut server).await {
+        Ok(_) => Ok(()),
+        Err(error) if is_expected_proxy_shutdown(&error) => Ok(()),
+        Err(error) => Err(error).context("proxy relay WebSocket stream"),
+    }
+}
+
+fn is_expected_proxy_shutdown(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::BrokenPipe
+    )
 }
 
 async fn read_http_head(stream: &mut (impl AsyncRead + Unpin)) -> Result<(Vec<u8>, Vec<u8>)> {
@@ -327,4 +337,25 @@ fn assert_selected_subprotocol(response: &[u8], version: ForcedVersion) -> Resul
         version.subprotocol()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Error, ErrorKind};
+
+    use super::*;
+
+    #[test]
+    fn reset_and_broken_pipe_are_expected_after_verified_exchange() {
+        for kind in [ErrorKind::ConnectionReset, ErrorKind::BrokenPipe] {
+            assert!(is_expected_proxy_shutdown(&Error::from(kind)));
+        }
+    }
+
+    #[test]
+    fn unrelated_proxy_io_errors_remain_failures() {
+        for kind in [ErrorKind::ConnectionRefused, ErrorKind::TimedOut] {
+            assert!(!is_expected_proxy_shutdown(&Error::from(kind)));
+        }
+    }
 }

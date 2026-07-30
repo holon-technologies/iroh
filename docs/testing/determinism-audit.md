@@ -558,6 +558,20 @@ effects, not new ambient access. The same inventory update includes line movemen
 relay admission tests, explicit production challenge entropy, and endpoint/DNS integration tests;
 each is test-only or an already classified production boundary.
 
+The 2026-07-28 cross-platform feature repair removes a redundant Android JNI re-export from the
+private `iroh-resolver::dns` module; the public re-export remains in `iroh-resolver::lib`. Every
+network-environment row in `iroh-resolver/src/dns.rs` therefore shifts upward by two lines while
+its matched source, owner, execution path, and existing **Injectable dependency** or production
+Hickory boundary classification remains unchanged. No clock, entropy, scheduling, network,
+filesystem, or unordered-iteration effect is added or removed.
+
+The follow-up TLS/doctest repair makes rcgen crypto follow the explicitly selected relay TLS
+provider and documents that the illustrative metrics-service example needs the separately owned
+`iroh-metrics/service` feature. That documentation clarification moves the existing
+`tokio::spawn(endpoint.closed()...)` example in `iroh/src/endpoint/handle.rs` down by one line. Its
+matched source, owner, execution path, and documentation-only classification are unchanged; no
+production spawn or other ambient effect is added or removed.
+
 The 2026-07-27 simulation-environment cut replaces partial endpoint injection with one validated
 **Injectable dependency**. `SimulationEnvironment` now rejects socket factories that do not name
 an owning clock domain or that belong to a different runtime clock domain, before sockets bind or

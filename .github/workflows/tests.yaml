@@ -23,7 +23,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   SCCACHE_CACHE_SIZE: "10G"
-  CRATES_LIST: "iroh,iroh-bench,iroh-dns-server,iroh-relay,iroh-resolver"
+  CRATES_LIST: "iroh,iroh-app,iroh-base,iroh-bench,iroh-blobs,iroh-dns,iroh-dns-server,iroh-docs,iroh-gossip,iroh-relay,iroh-resolver,iroh-runtime"
   IROH_FORCE_STAGING_RELAYS: "1"
   NEXTEST_VERSION: "0.9.80"
 
@@ -296,6 +296,12 @@ jobs:
           cargo +nightly-2026-07-19 generate-lockfile -Z minimal-versions
           # postcard-derive 0.2.0 understates its Syn lower bound.
           cargo +nightly-2026-07-19 update -p postcard-derive --precise 0.2.2
+          # wyz 0.5 requires the Pipe trait exported by tap 1.0.1.
+          cargo +nightly-2026-07-19 update -p tap --precise 1.0.1
+          # proc-macro-hack 0.5.0 does not compile with current Syn.
+          cargo +nightly-2026-07-19 update -p proc-macro-hack --precise 0.5.20+deprecated
+          # proc-macro-error 0.4.3 cannot expand genawaiter's diagnostics.
+          cargo +nightly-2026-07-19 update -p proc-macro-error --precise 0.4.12
           cargo +nightly-2026-07-19 check --locked --workspace --all-features --lib --bins
 
   minimal-crates-windows:
@@ -351,4 +357,10 @@ jobs:
           cargo +nightly-2026-07-19 generate-lockfile -Z minimal-versions
           # postcard-derive 0.2.0 understates its Syn lower bound.
           cargo +nightly-2026-07-19 update -p postcard-derive --precise 0.2.2
+          # wyz 0.5 requires the Pipe trait exported by tap 1.0.1.
+          cargo +nightly-2026-07-19 update -p tap --precise 1.0.1
+          # proc-macro-hack 0.5.0 does not compile with current Syn.
+          cargo +nightly-2026-07-19 update -p proc-macro-hack --precise 0.5.20+deprecated
+          # proc-macro-error 0.4.3 cannot expand genawaiter's diagnostics.
+          cargo +nightly-2026-07-19 update -p proc-macro-error --precise 0.4.12
           cargo +nightly-2026-07-19 check --locked --workspace --all-features --lib --bins

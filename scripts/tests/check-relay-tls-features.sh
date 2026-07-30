@@ -29,6 +29,10 @@ expected = {
         "tokio-rustls-acme/aws-lc-rs",
     },
 }
+expected_provider_features = {
+    "tls-ring": {"rcgen?/crypto", "rcgen?/ring"},
+    "tls-aws-lc-rs": {"rcgen?/crypto", "rcgen?/aws_lc_rs"},
+}
 failures = []
 for provider in ("tls-ring", "tls-aws-lc-rs"):
     if provider in features.get("server", []):
@@ -45,6 +49,12 @@ if acme.get("package") != "rustls-acme" or acme.get("default-features") is not F
 rcgen = dependencies.get("rcgen", {})
 if rcgen.get("default-features") is not False:
     failures.append("rcgen defaults must be disabled so server bundles own provider selection")
+if "crypto" in rcgen.get("features", []):
+    failures.append("rcgen crypto must be selected by the exact TLS provider feature")
+for name, required in expected_provider_features.items():
+    missing = required - set(features.get(name, []))
+    if missing:
+        failures.append(f"{name} missing rcgen provider features {sorted(missing)}")
 
 if failures:
     for failure in failures:
@@ -56,10 +66,14 @@ cd "$repo_root"
 export RUSTFLAGS="${RUSTFLAGS:--D warnings}"
 
 cargo check -p iroh-relay --no-default-features --lib --features server
+cargo check -p iroh-relay --no-default-features --lib --features server,test-utils
 cargo check -p iroh-relay --no-default-features --features server-ring
 cargo check -p iroh-relay --no-default-features --features server-aws-lc-rs
 cargo check -p iroh-relay --no-default-features --lib --features tls-ring
 cargo check -p iroh-relay --no-default-features --lib --features tls-aws-lc-rs
+# Match the Android relay test lane's exact feature set so test-only modules cannot become
+# orphaned when server-only compatibility tests are excluded.
+cargo check -p iroh-relay --no-default-features --tests --features tls-ring,metrics
 cargo check -p iroh --no-default-features --lib --features test-utils,tls-ring
 cargo check -p iroh --no-default-features --lib --features test-utils,tls-aws-lc-rs
 

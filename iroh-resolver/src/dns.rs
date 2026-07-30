@@ -21,8 +21,6 @@ use tokio::sync::Notify;
 use tracing::warn;
 use url::Url;
 
-#[cfg(any(target_os = "android", doc))]
-pub use crate::android::install_android_jni_context;
 #[cfg(test)]
 use crate::runtime::{add_jitter, jittered_delay};
 use crate::{

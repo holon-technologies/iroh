@@ -18,6 +18,9 @@ done
 
 for required in \
   'timeout-minutes: 45' \
+  'NETSIM_TIMEOUT: 10m' \
+  'timeout --kill-after=30s "$NETSIM_TIMEOUT"' \
+  'scripts/validate_netsim_reports.py' \
   'maximum_cases=64' \
   'MAX_WORKERS < 1 || MAX_WORKERS > 6' \
   '${#sim_paths[@]} > 3' \
@@ -47,5 +50,8 @@ for raw_path in sys.argv[1:]:
     if not isinstance(yaml.safe_load(path.read_text()), dict):
         raise SystemExit(f"workflow is not a mapping: {path}")
 PY
+
+PYTHONDONTWRITEBYTECODE=1 \
+  python3 "$repo_root/scripts/tests/test_validate_netsim_reports.py"
 
 echo "Netsim workflow bounds contract passed"

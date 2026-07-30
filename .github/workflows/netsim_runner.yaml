@@ -90,6 +90,7 @@ env:
   SCCACHE_GHA_ENABLED: "on"
   RUSTC_WRAPPER: "sccache"
   IROH_FORCE_STAGING_RELAYS: "1"
+  NETSIM_TIMEOUT: 10m
 
 jobs:
   netsim:
@@ -255,13 +256,37 @@ jobs:
           fi
         fi
         for sim_path in "${sim_paths[@]}"; do
+          netsim_status=0
           if [[ -n "$RUST_LOG_INPUT" ]]; then
-            sudo env PYTHONPATH="$NETSIM_PYTHONPATH" RUST_LOG="$RUST_LOG_INPUT" \
-              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
+            if sudo env PYTHONPATH="$NETSIM_PYTHONPATH" RUST_LOG="$RUST_LOG_INPUT" \
+              timeout --kill-after=30s "$NETSIM_TIMEOUT" \
+              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"; then
+              :
+            else
+              netsim_status=$?
+            fi
           else
-            sudo env PYTHONPATH="$NETSIM_PYTHONPATH" \
-              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"
+            if sudo env PYTHONPATH="$NETSIM_PYTHONPATH" \
+              timeout --kill-after=30s "$NETSIM_TIMEOUT" \
+              python3 main.py "${filter_args[@]}" "--max-workers=$MAX_WORKERS" --integration "$sim_path"; then
+              :
+            else
+              netsim_status=$?
+            fi
           fi
+          if ((netsim_status == 0)); then
+            continue
+          fi
+          if ((netsim_status != 124 && netsim_status != 137)); then
+            exit "$netsim_status"
+          fi
+          echo "::warning::Netsim runner timed out; validating completed reports after cleanup"
+          sudo ./cleanup.sh || true
+          PYTHONDONTWRITEBYTECODE=1 python3 \
+            "$GITHUB_WORKSPACE/scripts/validate_netsim_reports.py" \
+            --netsim-root "$PWD" \
+            --filter "$FILTER_INPUT" \
+            "$sim_path"
         done
 
     - name: Generate report

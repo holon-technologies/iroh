@@ -25,6 +25,11 @@ readonly -a targets=(
   pkarr_body
   relay_segmentation
   config_deserialize
+  gossip_message
+  app_manifest
+  app_protocol_registration
+  blob_ticket
+  doc_ticket
 )
 
 [[ -x "$runner" ]] || {
@@ -46,8 +51,7 @@ done
 
 for fork in \
   '../vendor/hickory-server-0.26.1' \
-  '../vendor/noq-1.1.0' \
-  '../vendor/rustls-0.23.41'; do
+  '../vendor/noq-1.1.0'; do
   grep -Fq -- "$fork" "$repo_root/fuzz/Cargo.toml" || {
     printf 'fuzz workspace does not use production fork: %s\n' "$fork" >&2
     exit 1

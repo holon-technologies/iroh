@@ -5,5 +5,5 @@ pub mod handshake;
 pub mod relay;
 pub mod streams;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "server"))]
 pub(crate) mod compatibility_fixtures;

@@ -1,0 +1,20 @@
+name: Upstream Protocol Provenance Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Resolve pinned upstream tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Validate committed provenance and resolve remote tags
+        run: scripts/tests/check-protocol-provenance.sh --remote

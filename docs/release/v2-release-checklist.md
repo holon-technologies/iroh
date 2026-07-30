@@ -34,9 +34,13 @@ crate, tag, GitHub release, or container.
 - [ ] Formatting, clippy, docs, MSRV, dependency policy, all feature variants,
   minimal versions, Windows, macOS, Android, Wasm, cross, and Wine jobs are
   green on the exact candidate commit.
-- [ ] All four bounded fuzz smoke targets are green on the candidate.
+- [ ] All nine bounded fuzz smoke targets are green on the candidate: the five platform targets,
+  application manifest and protocol registration, blob tickets, and document tickets.
 - [ ] Deterministic simulation contracts, corpus, campaigns, replay, daily soak,
   and the five fixed-seed nightly scenarios are green.
+- [ ] The local-first application model fixture, docs migration tests, direct and forced-relay
+  two-node acceptance flow, blobs and gossip upstream interoperability, and exact-tag provenance
+  checks are green.
 - [ ] The GitHub-hosted Patchbay public-parity smoke is green.
 - [ ] The full namespace Patchbay suite is green, or every unsupported case is
   documented with retained equivalent evidence and an owner-approved waiver.
@@ -65,6 +69,20 @@ crate, tag, GitHub release, or container.
   provenance attestations for every archive and crate package, and an SBOM
   attestation. Every attestation names the exact candidate commit.
 
+## Experimental local-first framework gate
+
+- [ ] `framework/release-gate.toml` remains blocked for the platform v2 release, and
+  `scripts/check-framework-release-gate.py --expect-closed` proves all four packages retain
+  `publish = false`.
+- [ ] `scripts/check-framework-package-layout.sh` validates package contents and dependency order:
+  `iroh-blobs`, `iroh-gossip`, `iroh-docs`, then `iroh-app`.
+- [ ] While the gate is closed, the four packages remain outside the publishable package verifier
+  and the external-type/semver baseline, but retain formatting, clippy, docs, tests, migrations,
+  deterministic modeling, fuzzing, resource, integration, and compatibility coverage.
+- [ ] Every imported upstream update follows `docs/framework/upstream-sync.md`: resolve an exact
+  tag and commit, retain licenses and migrations, document the fork delta, and rerun bidirectional
+  compatibility before integration.
+
 ## Repository and publication authority
 
 - [ ] Required checks and branch protection/rulesets are configured for the
@@ -72,6 +90,9 @@ crate, tag, GitHub release, or container.
 - [ ] The candidate commit is reviewed, signed off, and unchanged after all
   required evidence is collected.
 - [ ] A repository owner explicitly authorizes crates.io publication.
+- [ ] Before any experimental framework publication, a repository owner separately approves all
+  four package names, registry ownership, public API baseline, and persistent-data schema support
+  commitments and opens the machine-readable framework gate.
 - [ ] The `iroh-noq` and `iroh-hickory-server` crates.io names are claimed by
   an authorized Holon publisher before dependent Iroh crates are published.
 - [ ] A repository owner explicitly authorizes the immutable `v2.0.0` tag,

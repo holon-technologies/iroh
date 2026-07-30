@@ -49,6 +49,11 @@ Use pre-existing protocols built on iroh instead of writing your own:
 - [iroh-gossip] for establishing publish-subscribe overlay networks that scale, requiring only resources that your average phone can handle
 - [iroh-docs] for an eventually-consistent key-value store of [iroh-blobs] blobs
 
+This fork also includes an experimental, unpublished application framework that composes one
+endpoint with blobs, gossip, docs, lifecycle supervision, durable identity, and bounded custom
+protocol extensions. Start with the [local-first framework guide] or run the
+[`local-first-notes`](examples/local-first-notes) example.
+
 ## Getting Started
 
 ### Rust Library
@@ -136,6 +141,12 @@ The production workspace and its isolated test workspaces have explicit ownershi
 - `iroh-dns`: endpoint-aware DNS records, endpoint lookup, and pkarr integration.
 - `iroh-relay`: relay client, server, sessions, and the shared V1/V2 wire protocol.
 - `iroh-dns-server`: deployable DNS, DNS-over-HTTPS, and pkarr publication service.
+- `protocols/iroh-blobs`: content-addressed storage and transfer protocol.
+- `protocols/iroh-gossip`: bounded publish-subscribe overlay protocol.
+- `protocols/iroh-docs`: capability-scoped, eventually consistent documents over blobs and gossip.
+- `framework/app`: unpublished local-first application composition and lifecycle layer.
+- `integration-tests/local-first-app`: executable cross-crate acceptance scenarios.
+- `examples/local-first-notes`: minimal persisted two-node framework application.
 - `iroh/bench`: non-published benchmarks and production resource canaries.
 - `tools/determinism-checker`: non-published source-boundary policy checker.
 - `iroh-sim`: isolated deterministic simulation workspace; production crates never depend on it.
@@ -176,3 +187,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [echo-rs]: /iroh/examples/echo.rs
 [iroh-perf]: https://perf.iroh.computer
 [docs]: https://docs.iroh.computer
+[local-first framework guide]: docs/framework/getting-started.md

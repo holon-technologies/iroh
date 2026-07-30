@@ -98,7 +98,7 @@ mod metrics;
 mod metrics_server;
 pub(crate) mod resolver;
 pub mod streams;
-#[cfg(feature = "test-utils")]
+#[cfg(all(feature = "test-utils", with_crypto_provider))]
 pub mod testing;
 
 #[cfg(feature = "server-acme")]

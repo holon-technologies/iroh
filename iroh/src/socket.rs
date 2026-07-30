@@ -101,11 +101,11 @@ pub(crate) use inner::{
     EndpointInner, RemoteStateActorStoppedError, RemoteStateRegistrationError, Socket,
 };
 
+#[cfg(not(wasm_browser))]
+use self::direct_addr::find_flags;
 use self::{
     actor::{Actor, ActorMessage},
-    direct_addr::{
-        DirectAddrUpdateState, DiscoveredDirectAddrs, UpdateReason, find_flags, new_re_stun_timer,
-    },
+    direct_addr::{DirectAddrUpdateState, DiscoveredDirectAddrs, UpdateReason, new_re_stun_timer},
 };
 
 mod metrics;

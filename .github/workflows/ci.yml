@@ -29,6 +29,34 @@ jobs:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
     uses: "./.github/workflows/tests.yaml"
 
+  local_first_framework:
+    name: Local-first framework and protocol compatibility
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Prove experimental publication gate is closed
+        run: python3 scripts/check-framework-release-gate.py --expect-closed
+      - name: Inspect provisional package layouts
+        run: scripts/check-framework-package-layout.sh
+      - name: Test framework lifecycle, persistence, and fuzz facades
+        run: cargo test -p iroh-app --all-features
+      - name: Replay imported persistent-store migrations
+        run: cargo test -p iroh-docs migration
+      - name: Test direct and local-relay two-node acceptance
+        run: cargo test -p iroh-local-first-app-tests --test two_node
+      - name: Check blobs v0.103 bidirectional interoperability
+        run: scripts/tests/check-blobs-v0-interop.sh
+      - name: Check gossip v0.101 bidirectional interoperability
+        run: scripts/tests/check-gossip-v0-interop.sh
+      - name: Check local-first CI contract
+        run: scripts/tests/check-local-first-framework-ci.sh
+
   fuzz_smoke:
     name: Fuzz smoke (${{ matrix.target }})
     timeout-minutes: 15
@@ -45,6 +73,11 @@ jobs:
           - pkarr_body
           - relay_segmentation
           - config_deserialize
+          - gossip_message
+          - app_manifest
+          - app_protocol_registration
+          - blob_ticket
+          - doc_ticket
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -88,6 +121,10 @@ jobs:
           sudo apt-get install --yes ripgrep
       - name: Check workspace architecture contract
         run: scripts/tests/check-workspace-architecture.sh
+      - name: Check architecture policy failure fixtures
+        run: scripts/tests/check-workspace-architecture-fixtures.sh
+      - name: Check protocol upstream provenance
+        run: scripts/tests/check-protocol-provenance.sh
       - name: Check exact relay TLS provider bundles
         run: scripts/tests/check-relay-tls-features.sh
       - name: Check boundary checker contract
@@ -133,6 +170,8 @@ jobs:
           scripts/tests/check-netsim-workflow-bounds.sh
       - name: Check v2 release-readiness source contract
         run: scripts/tests/check-v2-release-readiness.sh
+      - name: Check local-first framework release boundary
+        run: scripts/tests/check-local-first-framework-ci.sh
       - name: Check release dependency-fork boundary
         run: scripts/tests/check-release-fork-boundary.sh
       - name: Check relay V1/V2 golden compatibility
@@ -625,6 +664,8 @@ jobs:
     name: Checking docs
     runs-on: ubuntu-latest
     env:
+      # Moving nightly toolchains can deprecate APIs that remain required by the stable MSRV.
+      RUSTFLAGS: ""
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
       RUSTDOCFLAGS: --cfg docsrs
@@ -632,7 +673,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
         with:
-          toolchain: nightly-2025-10-09
+          toolchain: nightly-2026-07-19
       - name: Install sccache
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
         continue-on-error: true
