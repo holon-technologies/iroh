@@ -43,7 +43,13 @@ readonly -a targets=(
 }
 
 for generated_dir in fuzz/target fuzz/artifacts; do
-  git -C "$repo_root" check-ignore -q "$generated_dir" || {
+  # A trailing slash tells git the path is a directory, which matters for
+  # directory-only gitignore patterns (e.g. `target/`). git can only infer
+  # "this is a directory" from a trailing slash or from the path existing on
+  # disk, and on a clean checkout these generated directories do not exist
+  # yet, so the trailing slash must be explicit here rather than relying on
+  # local build state.
+  git -C "$repo_root" check-ignore -q "$generated_dir/" || {
     printf 'generated fuzz directory is not ignored: %s\n' "$generated_dir" >&2
     exit 1
   }
