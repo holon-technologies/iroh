@@ -1924,7 +1924,7 @@ dependencies = [
 
 [[package]]
 name = "krikos"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "backon",
  "blake3",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-base"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "curve25519-dalek",
  "data-encoding",
@@ -1992,7 +1992,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-dns"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "cfg_aliases",
  "derive_more",
@@ -2028,7 +2028,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-relay"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "blake3",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-resolver"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "arc-swap",
  "cfg_aliases",
@@ -2103,7 +2103,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-runtime"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "blake3",
  "futures-util",
@@ -2118,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "krikos-sim"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "blake3",
  "clap",

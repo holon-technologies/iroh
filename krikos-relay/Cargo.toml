@@ -5,9 +5,11 @@ edition.workspace = true
 readme = "README.md"
 description = "Krikos's relay server and client"
 license.workspace = true
-authors = ["n0 team"]
+authors = ["n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos-relay"
 keywords = ["networking", "holepunching", "p2p"]
+categories = ["network-programming", "asynchronous"]
 rust-version.workspace = true
 
 [lib]

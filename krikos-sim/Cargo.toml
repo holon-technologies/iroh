@@ -3,7 +3,7 @@ resolver = "2"
 
 [package]
 name = "krikos-sim"
-version = "2.0.0"
+version = "1.0.0"
 edition = "2024"
 description = "Deterministic simulation and replay infrastructure for Krikos"
 license = "MIT OR Apache-2.0"
@@ -34,9 +34,9 @@ unused-async = "warn"
 blake3 = "1.8.3"
 clap = { version = "4", features = ["derive"] }
 curve25519-dalek = { version = "5", default-features = false, features = ["zeroize"] }
-krikos = { version = "2.0.0", path = "../krikos", default-features = false, features = ["tls-ring"] }
-krikos-relay = { version = "2.0.0", path = "../krikos-relay", default-features = false, features = ["server-ring", "test-utils"] }
-krikos-runtime = { version = "2.0.0", path = "../krikos-runtime" }
+krikos = { version = "1.0.0", path = "../krikos", default-features = false, features = ["tls-ring"] }
+krikos-relay = { version = "1.0.0", path = "../krikos-relay", default-features = false, features = ["server-ring", "test-utils"] }
+krikos-runtime = { version = "1.0.0", path = "../krikos-runtime" }
 n0-future = "0.3"
 n0-watcher = "1.0.0"
 netwatch = "0.19.1"

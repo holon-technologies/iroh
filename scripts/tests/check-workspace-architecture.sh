@@ -41,7 +41,7 @@ def fail(message: str) -> None:
 root_manifest = load(root / "Cargo.toml")
 workspace = root_manifest.get("workspace", {})
 expected_package = {
-    "version": "2.0.0",
+    "version": "1.0.0",
     "edition": "2024",
     "rust-version": "1.91",
     "license": "MIT OR Apache-2.0",
@@ -97,8 +97,8 @@ for package in publishable:
     if not isinstance(dependency, dict):
         fail(f"[workspace.dependencies] missing {package}")
         continue
-    if dependency.get("version") != "2.0.0" or "path" not in dependency:
-        fail(f"workspace dependency {package} must own its 2.0.0 path/version pair")
+    if dependency.get("version") != "1.0.0" or "path" not in dependency:
+        fail(f"workspace dependency {package} must own its 1.0.0 path/version pair")
 
 sim_manifest = load(root / "krikos-sim" / "Cargo.toml")
 sim_package = sim_manifest.get("package", {})

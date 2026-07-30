@@ -5,9 +5,11 @@ edition.workspace = true
 readme = "README.md"
 description = "p2p quic connections dialed by public key"
 license.workspace = true
-authors = ["dignifiedquire <me@dignifiedquire.com>", "n0 team"]
+authors = ["dignifiedquire <me@dignifiedquire.com>", "n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos"
 keywords = ["quic", "networking", "holepunching", "p2p"]
+categories = ["network-programming", "asynchronous"]
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
 rust-version.workspace = true

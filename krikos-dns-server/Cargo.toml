@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 description = "A pkarr relay and DNS server"
 license.workspace = true
-authors = ["Frando <franz@n0.computer>", "n0 team"]
+authors = ["Frando <franz@n0.computer>", "n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos-dns-server"
 keywords = ["networking", "pkarr", "dns", "dns-server", "krikos"]
+categories = ["network-programming", "web-programming"]
 readme = "README.md"
 rust-version.workspace = true
 

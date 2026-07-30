@@ -6,9 +6,11 @@ rust-version.workspace = true
 description = "Provider-neutral DNS resolution for Krikos"
 readme = "README.md"
 license.workspace = true
-authors = ["n0 team"]
+authors = ["n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos-resolver"
 keywords = ["networking", "dns", "krikos"]
+categories = ["network-programming", "asynchronous"]
 
 [lints]
 workspace = true

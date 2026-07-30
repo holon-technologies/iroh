@@ -5,9 +5,11 @@ edition.workspace = true
 readme = "README.md"
 description = "Internal runtime capabilities for Krikos"
 license.workspace = true
-authors = ["n0 team"]
+authors = ["n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos-runtime"
 keywords = ["networking", "testing", "simulation"]
+categories = ["asynchronous", "simulation"]
 rust-version.workspace = true
 
 [lints]

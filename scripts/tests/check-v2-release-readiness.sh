@@ -80,8 +80,8 @@ version_manifests=(
 )
 
 for path in "${version_manifests[@]}"; do
-  if ! grep -Eq '^(version = "2\.0\.0"|version\.workspace = true)$' "$repo_root/$path"; then
-    fail "$path package version must be exactly 2.0.0"
+  if ! grep -Eq '^(version = "1\.0\.0"|version\.workspace = true)$' "$repo_root/$path"; then
+    fail "$path package version must be exactly 1.0.0"
   fi
   if grep -Fq -- 'version = "1.0.3"' "$repo_root/$path"; then
     fail "$path still contains a stale Krikos 1.0.3 version requirement"
@@ -116,13 +116,13 @@ for lock_path in sys.argv[1:]:
             "krikos-resolver",
             "krikos-sim",
         }
-        and package["version"].startswith("1.")
+        and package["version"] != "1.0.0"
     )
     if stale:
         print(f"{lock_path} contains stale Krikos packages: {', '.join(stale)}", file=sys.stderr)
         raise SystemExit(1)
 PY
-  fail 'Cargo lockfiles contain stale Krikos 1.x package versions'
+  fail 'Cargo lockfiles contain stale Krikos package versions (expected 1.0.0)'
 
 portable_workflows=(
   .github/workflows/ci.yml

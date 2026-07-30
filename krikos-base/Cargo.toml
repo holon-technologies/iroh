@@ -5,8 +5,11 @@ edition.workspace = true
 readme = "README.md"
 description = "base type and utilities for Krikos"
 license.workspace = true
-authors = ["n0 team"]
+authors = ["n0 team", "Holon Technologies"]
 repository.workspace = true
+documentation = "https://docs.rs/krikos-base"
+keywords = ["networking", "cryptography", "krikos"]
+categories = ["network-programming", "cryptography"]
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
 rust-version.workspace = true

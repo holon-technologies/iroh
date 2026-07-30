@@ -29,24 +29,24 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "2.0.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.91"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/holon-technologies/iroh"
 
 [workspace.dependencies]
-krikos = { version = "2.0.0", path = "krikos", default-features = false }
-krikos-base = { version = "2.0.0", path = "krikos-base", default-features = false }
-krikos-resolver = { version = "2.0.0", path = "krikos-resolver", default-features = false }
-krikos-dns = { version = "2.0.0", path = "krikos-dns" }
-krikos-dns-server = { version = "2.0.0", path = "krikos-dns-server" }
-krikos-relay = { version = "2.0.0", path = "krikos-relay", default-features = false }
-krikos-runtime = { version = "2.0.0", path = "krikos-runtime" }
-krikos-app = { version = "2.0.0", path = "framework/app" }
-krikos-blobs = { version = "2.0.0", path = "protocols/krikos-blobs", default-features = false }
-krikos-docs = { version = "2.0.0", path = "protocols/krikos-docs" }
-krikos-gossip = { version = "2.0.0", path = "protocols/krikos-gossip", default-features = false }
+krikos = { version = "1.0.0", path = "krikos", default-features = false }
+krikos-base = { version = "1.0.0", path = "krikos-base", default-features = false }
+krikos-resolver = { version = "1.0.0", path = "krikos-resolver", default-features = false }
+krikos-dns = { version = "1.0.0", path = "krikos-dns" }
+krikos-dns-server = { version = "1.0.0", path = "krikos-dns-server" }
+krikos-relay = { version = "1.0.0", path = "krikos-relay", default-features = false }
+krikos-runtime = { version = "1.0.0", path = "krikos-runtime" }
+krikos-app = { version = "1.0.0", path = "framework/app" }
+krikos-blobs = { version = "1.0.0", path = "protocols/krikos-blobs", default-features = false }
+krikos-docs = { version = "1.0.0", path = "protocols/krikos-docs" }
+krikos-gossip = { version = "1.0.0", path = "protocols/krikos-gossip", default-features = false }
 
 [profile.release]
 debug = true
