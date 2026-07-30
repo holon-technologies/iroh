@@ -401,7 +401,7 @@ and the simulation guide.
 | `iroh/src/runtime.rs`: `noq::TokioRuntime.new_timer`, default `Runtime::now`, `TaskTracker::spawn` | **Architectural problem** | Make the Iroh runtime delegate clock and executor behavior to an explicit environment. Trace task creation/completion/cancellation and timer lifecycle. |
 | `iroh/src/socket.rs:816,1098`; `address_lookup/pkarr.rs:324`; `net_report.rs:862,931`; `net_report/reportgen.rs:141`; `protocol.rs:614`; `socket/transports/relay.rs:63` | **Architectural problem** | Route all core-path root task creation through the environment with stable IDs and ownership metadata. |
 | `RemoteMap`, `RemoteStateActor`, net-report, protocol router, and relay actor `JoinSet::spawn` calls | **Architectural problem** | Replace direct Tokio `JoinSet` ownership in simulator-supported paths with an environment-owned task group abstraction. |
-| `iroh-relay/src/client/tls.rs:200`, `quic.rs:124`, `server.rs:772,810,860`, `server/client.rs:146`, `server/http_server.rs:471,495,631`, `server/resolver.rs:79` | **Architectural problem** | Add relay runtime/task capabilities before claiming deterministic relay coverage. |
+| `iroh-relay/src/client/tls.rs:200`, `quic.rs:124`, `server.rs:772,810,860`, `server/client.rs:146`, `server/http_server/listener.rs:323,350`, `server/http_server/upgrade.rs:113`, `server/resolver.rs:79` | **Architectural problem** | Add relay runtime/task capabilities before claiming deterministic relay coverage. |
 | DNS/HTTP server task sets and `iroh-dns-server/src/http/transport.rs` | **Acceptable nondeterminism** in the real-server backend | Listener and connection work is now owned by supervisors, bounded before spawn, and cancelled/drained on shutdown. Runtime/I/O injection remains required before full DNS-server simulation. |
 | Direct spawns in `#[cfg(test)]` regions, `tests/`, `examples/`, and `iroh/bench` | **Acceptable nondeterminism** | Do not route through production environment unless the scenario runner reuses that code. |
 | `iroh-relay/src/main.rs:627` certificate file `spawn_blocking` | **Acceptable nondeterminism** | Keep in production binary; exclude from in-process simulation. |
@@ -422,7 +422,7 @@ and the simulation guide.
 | `iroh/src/socket.rs`: net-report timeout, 100 ms shutdown grace, re-STUN interval, network-change backoff | **Architectural problem** | Affects liveness, retries, address discovery, and cleanup. |
 | `iroh/src/socket/remote_map/remote_state.rs`: idle timeout, upgrade interval, hole-punch retry scheduling | **Architectural problem** | Core path and connection behavior. All `Instant::now()` calls must use the same clock as timers. |
 | `iroh/src/socket/remote_map/remote_state/path_state.rs`: path source timestamps and inactive pruning | **Architectural problem** | Affects which paths remain eligible. |
-| `iroh/src/socket/transports/relay/actor.rs`: connection timeout, retry sleeps, ping interval/timeouts, inactivity, datagram expiry | **Architectural problem** | Core relay liveness behavior. |
+| `iroh/src/socket/transports/relay/actor/mod.rs`, `session.rs`, `connect.rs`: connection timeout, retry sleeps, ping interval/timeouts, inactivity, datagram expiry | **Architectural problem** | Core relay liveness behavior. |
 | `iroh/src/net_report.rs` and `net_report/reportgen.rs`: probe deadlines, stagger, history age, captive portal delay | **Architectural problem** | Must use virtual time when net-report aggregation is in scope. Real HTTP probes remain a backend boundary. |
 | `iroh-dns/src/dns.rs`: lookup timeout and stagger; `iroh/src/address_lookup/pkarr.rs`: retry and republish | **Architectural problem** | Custom DNS responses alone are insufficient while wrapper time remains Tokio-owned. |
 | `iroh-relay/src/client/tls.rs`, `server/client.rs`, `server/streams.rs`, `ping_tracker.rs`, certificate reload interval | **Architectural problem** | Includes Happy Eyeballs, rate limiting, ping cadence, and timeout behavior. |
@@ -450,7 +450,7 @@ and the simulation guide.
 | Occurrence | Classification | Required action |
 | --- | --- | --- |
 | `iroh/src/socket.rs:2004-2017` re-STUN interval | **Behavioral randomness** | Use a named per-endpoint stream. |
-| `iroh/src/socket/transports/relay/actor.rs:350-356` Backon jitter | **Behavioral randomness** | Backon supports `with_jitter_seed`; seed it from a named relay stream or replace with an environment backoff policy. |
+| `iroh/src/socket/transports/relay/actor/connect.rs:221-229` Backon jitter | **Behavioral randomness** | Backon supports `with_jitter_seed`; seed it from a named relay stream or replace with an environment backoff policy. |
 | `iroh/src/net_report/reportgen.rs:589` captive-portal relay choice | **Behavioral randomness** | Use the net-report stream and record the choice. |
 | `iroh-dns/src/dns.rs:978` DNS retry jitter | **Behavioral randomness** | Use a DNS-domain stream. |
 | `iroh-relay/src/server/client.rs:338` randomized ping cadence | **Behavioral randomness** | Use a per-client relay-server stream. |
@@ -487,7 +487,7 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 | `iroh/src/socket.rs:1035-1088` concrete `netmon::Monitor` construction and watcher ownership | **Architectural problem** | Add a monitor capability with production and simulation implementations. |
 | `iroh/src/socket.rs:1760-1800` interface-change handling | **Injectable dependency** once its input is abstracted | Feed real logic with simulated state changes; do not create a separate simulated state machine. |
 | `iroh/src/socket.rs:1932+` `LocalAddresses` enumeration | **Architectural problem** | Source interface/address state from the environment. |
-| `iroh/src/socket/transports/relay/actor.rs:1302` direct `interfaces::State::new()` | **Architectural problem** | Relay address-family selection must use the same environment view. |
+| `iroh/src/socket/transports/relay/actor/mod.rs:632` direct `interfaces::State::new()` | **Architectural problem** | Relay address-family selection must use the same environment view. |
 | `iroh/src/portmapper.rs` concrete enabled client / disabled stub | **Injectable dependency** with an incomplete simulation seam | Generalize the existing wrapper into a port-mapper capability; simulated mappings and expiry remain in the virtual network model. |
 | Net-report QAD/HTTPS probes | **Injectable dependency** for QAD; **Architectural problem** for HTTPS | QAD over synthetic UDP can run in simulation. HTTPS/captive-portal checks require a synthetic HTTP connector or a controlled result provider until stream networking exists. |
 
@@ -495,7 +495,7 @@ One shared mutable RNG is insufficient: adding a decision in one subsystem would
 
 All retry/backoff that affects connection establishment, discovery, relay reconnection, network-change recovery, probing, address publication, or shutdown is **Behavioral randomness**. Direct ownership by Tokio rather than an injected clock is additionally an **Architectural problem**. The primary production sites are:
 
-- relay reconnect exponential backoff and jitter in `socket/transports/relay/actor.rs`;
+- relay reconnect exponential backoff and jitter in `iroh/src/socket/transports/relay/actor/connect.rs`;
 - socket network-change exponential polling in `socket.rs`;
 - QUIC timers controlled through `noq::Runtime`;
 - DNS staggering and jitter in `iroh-dns/src/dns.rs`;
@@ -533,7 +533,7 @@ Unordered collection use is not automatically a defect. It is **Behavioral rando
 | `iroh-relay/src/server/clients.rs::Clients::unregister` `HashSet` peer-gone notifications | **Deterministic boundary** | `sorted_endpoint_ids` canonicalizes ascending endpoint IDs before capacity-sensitive notification attempts. |
 | `iroh-relay/src/server/client.rs` daily-client `HashSet` | **Acceptable nondeterminism** | Only membership and insertion-result semantics are used. |
 | `iroh-dns/src/endpoint_info.rs` address `HashSet` | **Acceptable nondeterminism** | The set is used only for membership while a separate `Vec` retains public address order. |
-| `iroh-relay/src/server/http_server.rs` handler `HashMap` | **Acceptable nondeterminism** | Runtime dispatch is keyed lookup. Sort only if stable debug/trace output becomes an artifact requirement. |
+| `iroh-relay/src/server/http_server/service.rs` handler `HashMap` | **Acceptable nondeterminism** | Runtime dispatch is keyed lookup. Sort only if stable debug/trace output becomes an artifact requirement. |
 | `iroh/src/socket.rs` local-address `FxHashSet` | **Acceptable nondeterminism** | It represents membership in `NetworkChangeHint`; no choice depends on iteration order. |
 | `iroh/src/socket/mapped_addrs.rs` maps | **Acceptable nondeterminism** | Allocation and resolution are keyed operations; no production behavior iterates the maps. |
 | Hash maps/sets below `#[cfg(test)]`, in `tests/`, examples, or benchmarks | **Acceptable nondeterminism** unless imported by a scenario | Stable-sort output in simulator-facing test helpers. |
@@ -648,7 +648,7 @@ This audit remains current only when:
 
 ## Evidence Map
 
-- Confirmed runtime seam: `iroh/src/runtime.rs`; `noq-1.1.0/src/runtime/mod.rs` in the locked Cargo source.
+- Confirmed runtime seam: `iroh/src/runtime.rs`; `vendor/noq-1.1.0/src/runtime/mod.rs` in the vendored source (see [`vendor/README.md`](../../vendor/README.md)).
 - Confirmed endpoint construction: `iroh/src/endpoint.rs:120-270`; `iroh/src/socket.rs:874-1117`.
 - Confirmed concrete IP socket: `iroh/src/socket/transports/ip.rs:170-184`.
 - Confirmed custom in-memory transport: `iroh/src/test_utils/test_transport.rs:1-320`.
@@ -656,7 +656,7 @@ This audit remains current only when:
   `iroh-resolver/src/hickory.rs`; endpoint composition: `iroh-dns/src/dns.rs`.
 - Confirmed concrete network monitor: `iroh/src/socket.rs:1035-1088,1450-1800`.
 - Confirmed port-mapper wrapper: `iroh/src/portmapper.rs`.
-- Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server.rs:441-640`; `iroh-relay/src/quic.rs:97-200`.
+- Confirmed relay bindings: `iroh-relay/src/client/tls.rs`; `iroh-relay/src/server.rs:691-878`; `iroh-relay/src/server/http_server/listener.rs`, `connection.rs`; `iroh-relay/src/quic.rs:97-200`.
 - Confirmed path-state ordering risks: `iroh/src/socket/biased_rtt_path_selector.rs`; `iroh/src/socket/remote_map/remote_state/path_state.rs`.
 - Confirmed realistic test layers: `iroh/tests/patchbay*`; `.github/workflows/netsim*.y*ml`; `.github/sims/**`.
 - Confirmed recurring hosted Patchbay public-parity definition:

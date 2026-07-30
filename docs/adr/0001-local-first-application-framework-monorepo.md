@@ -396,6 +396,5 @@ two-node vertical slice.
 
 ## Follow-up
 
-Execute the phased plan in
-[`docs/superpowers/plans/2026-07-28-local-first-application-framework.md`](../superpowers/plans/2026-07-28-local-first-application-framework.md)
-after the v2 architecture hard-cut branch is merged and green.
+Execute the phased internal implementation plan for this ADR after the v2 architecture hard-cut
+branch is merged and green.

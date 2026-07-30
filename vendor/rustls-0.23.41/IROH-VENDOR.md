@@ -30,7 +30,7 @@ Files: `src/common_state.rs`, `src/crypto/mod.rs`, `src/crypto/aws_lc_rs/mod.rs`
 
 Simulator only. This crate is patched in by `iroh-sim/Cargo.toml`. No
 production crate resolves it — production uses rustls from crates.io. See
-`docs/superpowers/specs/2026-07-25-iroh-publishable-fork-boundary-design.md`
+[`docs/architecture.md`](../../docs/architecture.md#vendored-dependency-boundary)
 for why a renamed rustls fork is not viable.
 
 ## Update procedure
