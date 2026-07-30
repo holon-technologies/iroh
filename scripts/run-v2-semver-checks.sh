@@ -90,7 +90,7 @@ fi
 # the rebrand (this repository's own case after 2026-07-30, see
 # docs/adr/0002-krikos-rebrand.md's addendum) -- there the current name is
 # exactly right and translating it would look for a package
-# ("iroh"/"iroh-base"/...) that no longer exists in that checkout either.
+# (the pre-rebrand old_package name) that no longer exists in that checkout either.
 # Which case applies is not knowable from `mode` alone (both a pre- and a
 # post-rebrand commit are valid `post-cut` baselines), so it is resolved
 # per package by asking the baseline checkout itself, after it is archived
