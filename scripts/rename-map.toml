@@ -24,130 +24,15 @@ schema_version = 1
 # (or, for the two vendored forks, because the directory is a byte-verified
 # vendored tree that is out of scope for renaming; see check-vendor-provenance.sh).
 #
-# Ordering note for consumers (Task 3): when doing textual substitution,
-# process `old_package`/`old_dir` values longest-first (e.g. `iroh-dns-server`
-# before `iroh-dns` before `iroh`), or a shorter rule fires first and
-# corrupts a longer name into something like `krikos-dnsserver`.
-
-[[packages]]
-old_package = "iroh"
-new_package = "krikos"
-old_lib = "iroh"
-new_lib = "krikos"
-old_dir = "iroh"
-new_dir = "krikos"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-base"
-new_package = "krikos-base"
-old_lib = "iroh_base"
-new_lib = "krikos_base"
-old_dir = "iroh-base"
-new_dir = "krikos-base"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-dns"
-new_package = "krikos-dns"
-old_lib = "iroh_dns"
-new_lib = "krikos_dns"
-old_dir = "iroh-dns"
-new_dir = "krikos-dns"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-dns-server"
-new_package = "krikos-dns-server"
-old_lib = "iroh_dns_server"
-new_lib = "krikos_dns_server"
-old_dir = "iroh-dns-server"
-new_dir = "krikos-dns-server"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-relay"
-new_package = "krikos-relay"
-old_lib = "iroh_relay"
-new_lib = "krikos_relay"
-old_dir = "iroh-relay"
-new_dir = "krikos-relay"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-resolver"
-new_package = "krikos-resolver"
-old_lib = "iroh_resolver"
-new_lib = "krikos_resolver"
-old_dir = "iroh-resolver"
-new_dir = "krikos-resolver"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-runtime"
-new_package = "krikos-runtime"
-old_lib = "iroh_runtime"
-new_lib = "krikos_runtime"
-old_dir = "iroh-runtime"
-new_dir = "krikos-runtime"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-bench"
-new_package = "krikos-bench"
-old_lib = "iroh_bench"
-new_lib = "krikos_bench"
-old_dir = "iroh/bench"
-new_dir = "krikos/bench"
-dir_renamed = true
-note = "directory follows the parent iroh/ -> krikos/ rename"
-
-[[packages]]
-old_package = "iroh-sim"
-new_package = "krikos-sim"
-old_lib = "iroh_sim"
-new_lib = "krikos_sim"
-old_dir = "iroh-sim"
-new_dir = "krikos-sim"
-dir_renamed = true
-note = "excluded from the root workspace but is its own top-level workspace"
-
-[[packages]]
-old_package = "iroh-app"
-new_package = "krikos-app"
-old_lib = "iroh_app"
-new_lib = "krikos_app"
-old_dir = "framework/app"
-new_dir = "framework/app"
-dir_renamed = false
-note = "directory path contains no occurrence of the string iroh"
-
-[[packages]]
-old_package = "iroh-blobs"
-new_package = "krikos-blobs"
-old_lib = "iroh_blobs"
-new_lib = "krikos_blobs"
-old_dir = "protocols/iroh-blobs"
-new_dir = "protocols/krikos-blobs"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-docs"
-new_package = "krikos-docs"
-old_lib = "iroh_docs"
-new_lib = "krikos_docs"
-old_dir = "protocols/iroh-docs"
-new_dir = "protocols/krikos-docs"
-dir_renamed = true
-
-[[packages]]
-old_package = "iroh-gossip"
-new_package = "krikos-gossip"
-old_lib = "iroh_gossip"
-new_lib = "krikos_gossip"
-old_dir = "protocols/iroh-gossip"
-new_dir = "protocols/krikos-gossip"
-dir_renamed = true
+# ORDERING IS LOAD-BEARING, NOT ADVISORY: `[[packages]]` below is sorted by
+# `old_package` length, LONGEST FIRST (e.g. `iroh-dns-server` before
+# `iroh-dns` before `iroh`). Any textual-substitution consumer (Task 3's
+# apply-rebrand.sh) that processes rules in a different order risks a
+# shorter rule firing first and corrupting a longer name into something like
+# `krikos-dnsserver`. This is not just a comment: `check-rebrand-complete.sh`
+# asserts the ordering itself -- it fails if any entry's `old_package` is a
+# strict prefix of a *later* entry's `old_package`, so the list cannot drift
+# back out of order unnoticed.
 
 [[packages]]
 old_package = "iroh-local-first-app-tests"
@@ -170,6 +55,107 @@ dir_renamed = false
 note = "vendored byte-verified tree (check-vendor-provenance.sh); lib name already matches upstream's hickory_server and contains no occurrence of iroh, so it is unchanged. Only the package name field changes, via the checked-in patch (Task 2)."
 
 [[packages]]
+old_package = "iroh-dns-server"
+new_package = "krikos-dns-server"
+old_lib = "iroh_dns_server"
+new_lib = "krikos_dns_server"
+old_dir = "iroh-dns-server"
+new_dir = "krikos-dns-server"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-resolver"
+new_package = "krikos-resolver"
+old_lib = "iroh_resolver"
+new_lib = "krikos_resolver"
+old_dir = "iroh-resolver"
+new_dir = "krikos-resolver"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-runtime"
+new_package = "krikos-runtime"
+old_lib = "iroh_runtime"
+new_lib = "krikos_runtime"
+old_dir = "iroh-runtime"
+new_dir = "krikos-runtime"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-gossip"
+new_package = "krikos-gossip"
+old_lib = "iroh_gossip"
+new_lib = "krikos_gossip"
+old_dir = "protocols/iroh-gossip"
+new_dir = "protocols/krikos-gossip"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-bench"
+new_package = "krikos-bench"
+old_lib = "iroh_bench"
+new_lib = "krikos_bench"
+old_dir = "iroh/bench"
+new_dir = "krikos/bench"
+dir_renamed = true
+note = "directory follows the parent iroh/ -> krikos/ rename"
+
+[[packages]]
+old_package = "iroh-blobs"
+new_package = "krikos-blobs"
+old_lib = "iroh_blobs"
+new_lib = "krikos_blobs"
+old_dir = "protocols/iroh-blobs"
+new_dir = "protocols/krikos-blobs"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-relay"
+new_package = "krikos-relay"
+old_lib = "iroh_relay"
+new_lib = "krikos_relay"
+old_dir = "iroh-relay"
+new_dir = "krikos-relay"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-base"
+new_package = "krikos-base"
+old_lib = "iroh_base"
+new_lib = "krikos_base"
+old_dir = "iroh-base"
+new_dir = "krikos-base"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-docs"
+new_package = "krikos-docs"
+old_lib = "iroh_docs"
+new_lib = "krikos_docs"
+old_dir = "protocols/iroh-docs"
+new_dir = "protocols/krikos-docs"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-app"
+new_package = "krikos-app"
+old_lib = "iroh_app"
+new_lib = "krikos_app"
+old_dir = "framework/app"
+new_dir = "framework/app"
+dir_renamed = false
+note = "directory path contains no occurrence of the string iroh"
+
+[[packages]]
+old_package = "iroh-dns"
+new_package = "krikos-dns"
+old_lib = "iroh_dns"
+new_lib = "krikos_dns"
+old_dir = "iroh-dns"
+new_dir = "krikos-dns"
+dir_renamed = true
+
+[[packages]]
 old_package = "iroh-noq"
 new_package = "krikos-noq"
 old_lib = "noq"
@@ -178,6 +164,25 @@ old_dir = "vendor/noq-1.1.0"
 new_dir = "vendor/noq-1.1.0"
 dir_renamed = false
 note = "vendored byte-verified tree (check-vendor-provenance.sh); lib name already matches upstream's noq and contains no occurrence of iroh, so it is unchanged. Only the package name field changes, via the checked-in patch (Task 2)."
+
+[[packages]]
+old_package = "iroh-sim"
+new_package = "krikos-sim"
+old_lib = "iroh_sim"
+new_lib = "krikos_sim"
+old_dir = "iroh-sim"
+new_dir = "krikos-sim"
+dir_renamed = true
+note = "excluded from the root workspace but is its own top-level workspace"
+
+[[packages]]
+old_package = "iroh"
+new_package = "krikos"
+old_lib = "iroh"
+new_lib = "krikos"
+old_dir = "iroh"
+new_dir = "krikos"
+dir_renamed = true
 
 # Packages that intentionally keep an `iroh`-containing name. Recorded so a
 # future reader can distinguish "deliberately out of scope" from "missed".
@@ -206,9 +211,13 @@ old_package = "rustls"
 reason = "vendored upstream crate patched only for deterministic simulation entropy; not a Holon-published fork name, so it is not in the rename's scope at all (unlike iroh-hickory-server and iroh-noq)"
 
 # Paths where the string `iroh` (in any case) is CORRECT and must not be
-# rewritten. Checked against both the tracked file's path and its content.
-# Every exemption must actually match at least one tracked file -- an
-# exemption matching zero files is either a typo or dead weight, and
+# rewritten. Checked against both the tracked file's path and its content,
+# using path-segment-aware glob matching: `*` matches within one path
+# segment only and does not cross `/`; `**` matches zero or more whole
+# segments. (Plain `fnmatch` would let `*` cross `/`, silently widening
+# `vendor/*/src/**` to match e.g. `vendor/x/extra/src/y.rs` -- not what is
+# written.) Every exemption must actually match at least one tracked file --
+# an exemption matching zero files is either a typo or dead weight, and
 # `check-rebrand-complete.sh` fails the run if one is found (this is the
 # same defect class as the repository's five prior stale-enumeration bugs,
 # just inverted: instead of a check silently no-op'ing on real files, a
@@ -239,8 +248,12 @@ path = "LICENSE-*"
 reason = "upstream copyright attribution at the repository root. NOTE: currently matches 2 tracked files (LICENSE-APACHE, LICENSE-MIT) but neither contains the string iroh today -- kept for the same forward-looking reason as the vendor/src exemption."
 
 [[exemptions]]
-path = "docs/adr/*.md"
-reason = "Architecture Decision Records are historical: they document the reasoning and the state of the world at the time a decision was accepted, and are not rewritten after acceptance. 0001 and 0002 both name iroh/iroh-* packages and the upstream n0-computer/iroh repository as part of that historical record; rewriting them would erase the decision they document (see docs/adr/0002-krikos-rebrand.md itself, which explains why the rename happened)."
+path = "docs/adr/0001-local-first-application-framework-monorepo.md"
+reason = "Architecture Decision Records are historical: they document the reasoning and the state of the world at the time a decision was accepted, and are not rewritten after acceptance. This ADR names iroh/iroh-* packages and the upstream n0-computer/iroh-* repositories as part of that historical record. Pinned to this exact filename (not a docs/adr/*.md blanket) so a future ADR cannot inherit the exemption invisibly -- each ADR that legitimately needs it must be added explicitly."
+
+[[exemptions]]
+path = "docs/adr/0002-krikos-rebrand.md"
+reason = "the decision record for this very rebrand: it names iroh/iroh-* packages, the upstream n0-computer/iroh repository, and crates.io ownership as part of the historical record explaining why the rename happened; rewriting it would erase the decision it documents. Pinned to this exact filename for the same reason as 0001, above."
 
 [[exemptions]]
 path = "scripts/rename-map.toml"
