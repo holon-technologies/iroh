@@ -15,6 +15,10 @@
 !iroh-resolver/
 !iroh-runtime/
 !tools/
+!framework/
+!examples/
+!integration-tests/
+!protocols/
 
 # Only the two crates referenced by [patch.crates-io] in the root Cargo.toml.
 # vendor/rustls-0.23.41 is patched in by iroh-sim and fuzz only, neither of
