@@ -17,6 +17,16 @@ pub const RELAY_PROBE_PATH: &str = "/ping";
 /// The HTTP header name for relay client authentication
 pub const CLIENT_AUTH_HEADER: HeaderName = HeaderName::from_static("x-iroh-relay-client-auth-v1");
 
+/// The HTTP header name used to set the endpoint id when making a request to an
+/// operator-configured external HTTP access-control service.
+///
+/// This is wire protocol, not naming: the service is external and third-party
+/// configured, so it may be built against upstream's header name and its exact
+/// casing. Kept as a plain `&str` (not `HeaderName::from_static`, which would
+/// force lowercase) so it matches upstream's literal byte-for-byte, the same
+/// type upstream itself uses for this constant.
+pub const X_IROH_ENDPOINT_ID: &str = "X-Iroh-NodeId";
+
 /// The URL query parameter name used to pass the authorization token when
 /// HTTP headers are not available (notably, in browsers).
 #[cfg(any(wasm_browser, feature = "server"))]

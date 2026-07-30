@@ -352,6 +352,14 @@ pattern = "iroh-relay-v2"
 reason = "ProtocolVersion::V2's wire subprotocol string; same reasoning and same three-way pinning (contract doc, wire_compat.rs assertion, compat/relay-v1-interop's independent literal) as iroh-relay-v1 above."
 
 [[exemptions]]
+pattern = "X_IROH_ENDPOINT_ID"
+reason = "the Rust constant name (krikos-relay/src/http.rs, exported as pub so krikos-relay/tests/wire_compat.rs can assert its value directly) for the X-Iroh-NodeId wire header below; kept matching upstream's own identifier name for this constant, not just its value, since there is no reason for it to diverge and every reason for it to stay recognizable against upstream's source."
+
+[[exemptions]]
+pattern = "X-Iroh-NodeId"
+reason = "the HTTP header krikos-relay sends to an operator-configured, third-party HTTP access-control service to identify the connecting endpoint (krikos-relay/src/main.rs's http_access_check_inner). This is wire protocol the relay operator's external service was built against upstream's header name, not this fork's; renaming it produces a silent authorization failure for any operator pointing an existing upstream-compatible access service at this relay -- the service simply never sees the header it is looking for. Found in review round 2: the mechanical rename had renamed this value with no local test noticing, exactly as it had for the other relay headers. Now asserted by krikos-relay/tests/wire_compat.rs, docs/relay-compatibility.md, and scripts/tests/check-relay-compatibility.sh, all proven to fail on a deliberate re-break and restored."
+
+[[exemptions]]
 pattern = "X-Iroh-Challenge"
 reason = "NO_CONTENT_CHALLENGE_HEADER, an HTTP header krikos-relay's captive-portal detection route emits and krikos/src/net_report/reportgen.rs independently hardcodes the identical literal to read back while probing relays -- including, by default, n0's real production relays (see the iroh.link exemption). Both sides currently agree with each other regardless of the literal's spelling because krikos-relay/src/server/tests.rs asserts against the same Rust constant rather than an independent copy, so nothing local would catch the two literals drifting from a real external relay's expectation; kept at its upstream v1.0.3 value on that basis, not because a local test proves it."
 

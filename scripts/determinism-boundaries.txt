@@ -409,13 +409,13 @@ external-state	krikos-dns-server/src/http/tls/acme_cache.rs:64	tokio::fs::create
 external-state	krikos-dns-server/src/http/tls/acme_cache.rs:65	tokio::fs::write(path, bytes).await
 external-state	krikos-dns-server/src/store/signed_packets.rs:462	std::fs::create_dir_all(parent).with_std_context(|_| {
 external-state	krikos-dns-server/src/store/signed_packets.rs:955	let release_thread = std::thread::spawn(move || {
-external-state	krikos-relay/src/main.rs:109	let file = std::fs::File::open(filename)
-external-state	krikos-relay/src/main.rs:263	if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
-external-state	krikos-relay/src/main.rs:271	if let Ok(env_token) = std::env::var(ENV_RELAY_ACCESS_TOKEN) {
-external-state	krikos-relay/src/main.rs:634	let file = tokio::fs::File::open(path)
-external-state	krikos-relay/src/main.rs:714	let (private_key, certs) = tokio::task::spawn_blocking(move || {
-external-state	krikos-relay/src/main.rs:736	let acme_config = if let Ok(url) = std::env::var(ENV_ACME_URL) {
-external-state	krikos-relay/src/main.rs:748	if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
+external-state	krikos-relay/src/main.rs:108	let file = std::fs::File::open(filename)
+external-state	krikos-relay/src/main.rs:262	if let Ok(token) = std::env::var(ENV_HTTP_BEARER_TOKEN) {
+external-state	krikos-relay/src/main.rs:270	if let Ok(env_token) = std::env::var(ENV_RELAY_ACCESS_TOKEN) {
+external-state	krikos-relay/src/main.rs:633	let file = tokio::fs::File::open(path)
+external-state	krikos-relay/src/main.rs:713	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+external-state	krikos-relay/src/main.rs:735	let acme_config = if let Ok(url) = std::env::var(ENV_ACME_URL) {
+external-state	krikos-relay/src/main.rs:747	if let Ok(ca_path) = std::env::var(ENV_ACME_CA) {
 external-state	krikos-relay/src/server/acme_cache.rs:203	std::fs::write(&account_path, oversized).expect("oversized cache fixture");
 external-state	krikos-relay/src/server/acme_cache.rs:41	let file = match tokio::fs::File::open(path).await {
 external-state	krikos-relay/src/server/acme_cache.rs:66	tokio::fs::create_dir_all(&self.root).await?;
@@ -834,7 +834,7 @@ spawn-task	krikos-dns-server/src/http/transport.rs:185	let task = tokio::spawn(s
 spawn-task	krikos-dns-server/src/http/transport.rs:45	let mut connections = JoinSet::new();
 spawn-task	krikos-dns-server/src/store/signed_packets.rs:955	let release_thread = std::thread::spawn(move || {
 spawn-task	krikos-relay/src/client/tls.rs:200	task::spawn(async move {
-spawn-task	krikos-relay/src/main.rs:714	let (private_key, certs) = tokio::task::spawn_blocking(move || {
+spawn-task	krikos-relay/src/main.rs:713	let (private_key, certs) = tokio::task::spawn_blocking(move || {
 spawn-task	krikos-relay/src/quic.rs:189	let task = tokio::task::spawn(
 spawn-task	krikos-relay/src/quic.rs:191	let mut set = JoinSet::new();
 spawn-task	krikos-relay/src/quic.rs:30	use tokio::{sync::Semaphore, task::JoinSet};

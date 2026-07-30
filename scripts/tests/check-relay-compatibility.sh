@@ -41,6 +41,9 @@ require_text "$contract" "$baseline_commit"
 require_text "$contract" 'iroh-relay-v1'
 require_text "$contract" 'iroh-relay-v2'
 require_text "$contract" 'x-iroh-relay-client-auth-v1'
+require_text "$contract" 'X-Iroh-NodeId'
+require_text "$contract" 'X-Iroh-Challenge'
+require_text "$contract" 'X-Iroh-Response'
 require_text "$contract" 'iroh-relay handshake v1 challenge signature'
 require_text "$contract" '64 KiB'
 require_text "$contract" '1 MiB'
@@ -59,6 +62,13 @@ fi
 require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PATH: &str = "/relay";'
 require_text "$repo_root/krikos-relay/src/http.rs" 'pub const RELAY_PROBE_PATH: &str = "/ping";'
 require_text "$repo_root/krikos-relay/src/http.rs" '"x-iroh-relay-client-auth-v1"'
+require_text "$repo_root/krikos-relay/src/http.rs" 'pub const X_IROH_ENDPOINT_ID: &str = "X-Iroh-NodeId";'
+require_text "$repo_root/krikos-relay/src/server/routes.rs" \
+  'pub(super) const NO_CONTENT_CHALLENGE_HEADER: &str = "X-Iroh-Challenge";'
+require_text "$repo_root/krikos-relay/src/server/routes.rs" \
+  'pub(super) const NO_CONTENT_RESPONSE_HEADER: &str = "X-Iroh-Response";'
+require_text "$repo_root/krikos/src/net_report/reportgen.rs" '"X-Iroh-Challenge"'
+require_text "$repo_root/krikos/src/net_report/reportgen.rs" '"X-Iroh-Response"'
 require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \
   '"iroh-relay handshake v1 challenge signature"'
 require_text "$repo_root/krikos-relay/src/protos/handshake.rs" \

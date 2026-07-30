@@ -27,6 +27,7 @@ use krikos_relay::{
     defaults::{
         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_METRICS_PORT, DEFAULT_RELAY_QUIC_PORT,
     },
+    http::X_IROH_ENDPOINT_ID,
     server::{
         self as relay, Access, AccessControl, ClientRateLimit, ClientRequest,
         DEFAULT_CERT_RELOAD_INTERVAL, QuicConfig, reloading_resolver,
@@ -44,8 +45,6 @@ use webpki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 
 /// The default `http_bind_port` when using `--dev`.
 const DEV_MODE_HTTP_PORT: u16 = 3340;
-/// The header name for setting the endpoint id in HTTP auth requests.
-const X_KRIKOS_ENDPOINT_ID: &str = "X-Krikos-NodeId";
 /// Maximum response body accepted from the HTTP access service.
 const MAX_HTTP_ACCESS_RESPONSE_BYTES: usize = 4;
 /// Environment variable to read a bearer token for HTTP auth requests from.
@@ -353,7 +352,7 @@ async fn http_access_check_inner(
 ) -> Result<()> {
     let mut request = client
         .post(config.url.clone())
-        .header(X_KRIKOS_ENDPOINT_ID, endpoint_id.to_string());
+        .header(X_IROH_ENDPOINT_ID, endpoint_id.to_string());
     if let Some(token) = config.bearer_token.as_ref() {
         request = request.header(http::header::AUTHORIZATION, format!("Bearer {token}"));
     }

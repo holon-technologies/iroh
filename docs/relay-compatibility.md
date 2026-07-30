@@ -38,6 +38,9 @@ Baseline protocol-source SHA-256 values provide provenance for fixture generatio
 | Relay V1 subprotocol | `iroh-relay-v1` |
 | Relay V2 subprotocol | `iroh-relay-v2` |
 | Preference order | V2, then V1 |
+| HTTP access-control request header (endpoint id) | `X-Iroh-NodeId` |
+| Captive-portal check header (challenge) | `X-Iroh-Challenge` |
+| Captive-portal check header (response) | `X-Iroh-Response` |
 
 The server chooses the highest mutually supported version. A V1-only peer must remain usable.
 Unknown subprotocol values are not aliases for a known version.

@@ -2,7 +2,7 @@
 
 use krikos_relay::{
     MAX_PACKET_SIZE,
-    http::{CLIENT_AUTH_HEADER, ProtocolVersion, RELAY_PATH, RELAY_PROBE_PATH},
+    http::{CLIENT_AUTH_HEADER, ProtocolVersion, RELAY_PATH, RELAY_PROBE_PATH, X_IROH_ENDPOINT_ID},
     protos::{common::FrameType, relay::MAX_RESTART_DURATION_MILLIS},
 };
 
@@ -11,6 +11,7 @@ fn v1_v2_public_wire_registry_is_frozen() {
     assert_eq!(RELAY_PATH, "/relay");
     assert_eq!(RELAY_PROBE_PATH, "/ping");
     assert_eq!(CLIENT_AUTH_HEADER.as_str(), "x-iroh-relay-client-auth-v1");
+    assert_eq!(X_IROH_ENDPOINT_ID, "X-Iroh-NodeId");
     assert_eq!(
         ProtocolVersion::ALL,
         &[ProtocolVersion::V2, ProtocolVersion::V1]
