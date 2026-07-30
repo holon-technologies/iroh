@@ -1,0 +1,264 @@
+schema_version = 1
+
+# Krikos rebrand rename map (ADR-0002).
+#
+# Single source of truth for every old->new package/library/directory pair,
+# and for every path where the string `iroh` is CORRECT and must survive the
+# rebrand. `scripts/tests/check-rebrand-complete.sh` reads this file and
+# drives the completeness gate; `scripts/apply-rebrand.sh` (Task 3) reads it
+# to perform the mechanical sweep.
+#
+# `lib` is the Rust crate identifier used in `use` statements (`[lib] name`
+# in the manifest, or Cargo's default of the package name with `-` -> `_`
+# when no `[lib]` section overrides it). Verified against every manifest in
+# the repository on 2026-07-30 -- see task-1-report.md for the full audit.
+# Two crates set an explicit `[lib] name` that already differs from the
+# package-name default: `iroh-hickory-server` -> lib `hickory_server` and
+# `iroh-noq` -> lib `noq`, both matching their *upstream* crate's lib name so
+# downstream `use hickory_server::...` / `use noq::...` code is unaffected by
+# which package supplies it. Neither contains the string `iroh`, so neither
+# lib identifier changes -- only the package name does.
+#
+# `dir_renamed = false` means the package is renamed but its directory is
+# not, because the directory path does not itself contain the string `iroh`
+# (or, for the two vendored forks, because the directory is a byte-verified
+# vendored tree that is out of scope for renaming; see check-vendor-provenance.sh).
+#
+# Ordering note for consumers (Task 3): when doing textual substitution,
+# process `old_package`/`old_dir` values longest-first (e.g. `iroh-dns-server`
+# before `iroh-dns` before `iroh`), or a shorter rule fires first and
+# corrupts a longer name into something like `krikos-dnsserver`.
+
+[[packages]]
+old_package = "iroh"
+new_package = "krikos"
+old_lib = "iroh"
+new_lib = "krikos"
+old_dir = "iroh"
+new_dir = "krikos"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-base"
+new_package = "krikos-base"
+old_lib = "iroh_base"
+new_lib = "krikos_base"
+old_dir = "iroh-base"
+new_dir = "krikos-base"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-dns"
+new_package = "krikos-dns"
+old_lib = "iroh_dns"
+new_lib = "krikos_dns"
+old_dir = "iroh-dns"
+new_dir = "krikos-dns"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-dns-server"
+new_package = "krikos-dns-server"
+old_lib = "iroh_dns_server"
+new_lib = "krikos_dns_server"
+old_dir = "iroh-dns-server"
+new_dir = "krikos-dns-server"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-relay"
+new_package = "krikos-relay"
+old_lib = "iroh_relay"
+new_lib = "krikos_relay"
+old_dir = "iroh-relay"
+new_dir = "krikos-relay"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-resolver"
+new_package = "krikos-resolver"
+old_lib = "iroh_resolver"
+new_lib = "krikos_resolver"
+old_dir = "iroh-resolver"
+new_dir = "krikos-resolver"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-runtime"
+new_package = "krikos-runtime"
+old_lib = "iroh_runtime"
+new_lib = "krikos_runtime"
+old_dir = "iroh-runtime"
+new_dir = "krikos-runtime"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-bench"
+new_package = "krikos-bench"
+old_lib = "iroh_bench"
+new_lib = "krikos_bench"
+old_dir = "iroh/bench"
+new_dir = "krikos/bench"
+dir_renamed = true
+note = "directory follows the parent iroh/ -> krikos/ rename"
+
+[[packages]]
+old_package = "iroh-sim"
+new_package = "krikos-sim"
+old_lib = "iroh_sim"
+new_lib = "krikos_sim"
+old_dir = "iroh-sim"
+new_dir = "krikos-sim"
+dir_renamed = true
+note = "excluded from the root workspace but is its own top-level workspace"
+
+[[packages]]
+old_package = "iroh-app"
+new_package = "krikos-app"
+old_lib = "iroh_app"
+new_lib = "krikos_app"
+old_dir = "framework/app"
+new_dir = "framework/app"
+dir_renamed = false
+note = "directory path contains no occurrence of the string iroh"
+
+[[packages]]
+old_package = "iroh-blobs"
+new_package = "krikos-blobs"
+old_lib = "iroh_blobs"
+new_lib = "krikos_blobs"
+old_dir = "protocols/iroh-blobs"
+new_dir = "protocols/krikos-blobs"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-docs"
+new_package = "krikos-docs"
+old_lib = "iroh_docs"
+new_lib = "krikos_docs"
+old_dir = "protocols/iroh-docs"
+new_dir = "protocols/krikos-docs"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-gossip"
+new_package = "krikos-gossip"
+old_lib = "iroh_gossip"
+new_lib = "krikos_gossip"
+old_dir = "protocols/iroh-gossip"
+new_dir = "protocols/krikos-gossip"
+dir_renamed = true
+
+[[packages]]
+old_package = "iroh-local-first-app-tests"
+new_package = "krikos-local-first-app-tests"
+old_lib = "iroh_local_first_app_tests"
+new_lib = "krikos_local_first_app_tests"
+old_dir = "integration-tests/local-first-app"
+new_dir = "integration-tests/local-first-app"
+dir_renamed = false
+note = "directory path contains no occurrence of the string iroh"
+
+[[packages]]
+old_package = "iroh-hickory-server"
+new_package = "krikos-hickory-server"
+old_lib = "hickory_server"
+new_lib = "hickory_server"
+old_dir = "vendor/hickory-server-0.26.1"
+new_dir = "vendor/hickory-server-0.26.1"
+dir_renamed = false
+note = "vendored byte-verified tree (check-vendor-provenance.sh); lib name already matches upstream's hickory_server and contains no occurrence of iroh, so it is unchanged. Only the package name field changes, via the checked-in patch (Task 2)."
+
+[[packages]]
+old_package = "iroh-noq"
+new_package = "krikos-noq"
+old_lib = "noq"
+new_lib = "noq"
+old_dir = "vendor/noq-1.1.0"
+new_dir = "vendor/noq-1.1.0"
+dir_renamed = false
+note = "vendored byte-verified tree (check-vendor-provenance.sh); lib name already matches upstream's noq and contains no occurrence of iroh, so it is unchanged. Only the package name field changes, via the checked-in patch (Task 2)."
+
+# Packages that intentionally keep an `iroh`-containing name. Recorded so a
+# future reader can distinguish "deliberately out of scope" from "missed".
+[[not_renamed]]
+old_package = "local-first-notes"
+reason = "package name contains no occurrence of the string iroh; out of the rename's scope by construction"
+
+[[not_renamed]]
+old_package = "determinism-checker"
+reason = "package name contains no occurrence of the string iroh; out of the rename's scope by construction. Also keeps its independent 0.1.0 version regardless of the 1.0.0 launch version (Task 6)."
+
+[[not_renamed]]
+old_package = "iroh-blobs-v0-103-interop"
+reason = "compat/** interop crate; tests against the upstream package by its upstream name (ADR-0002)"
+
+[[not_renamed]]
+old_package = "iroh-gossip-v0-101-interop"
+reason = "compat/** interop crate; tests against the upstream package by its upstream name (ADR-0002)"
+
+[[not_renamed]]
+old_package = "iroh-relay-v1-interop"
+reason = "compat/** interop crate; tests against the upstream package by its upstream name (ADR-0002)"
+
+[[not_renamed]]
+old_package = "rustls"
+reason = "vendored upstream crate patched only for deterministic simulation entropy; not a Holon-published fork name, so it is not in the rename's scope at all (unlike iroh-hickory-server and iroh-noq)"
+
+# Paths where the string `iroh` (in any case) is CORRECT and must not be
+# rewritten. Checked against both the tracked file's path and its content.
+# Every exemption must actually match at least one tracked file -- an
+# exemption matching zero files is either a typo or dead weight, and
+# `check-rebrand-complete.sh` fails the run if one is found (this is the
+# same defect class as the repository's five prior stale-enumeration bugs,
+# just inverted: instead of a check silently no-op'ing on real files, a
+# stale exemption would silently no-op on real *violations*).
+
+[[exemptions]]
+path = "vendor/*/src/**"
+reason = "byte-verified against the upstream crates.io package by check-vendor-provenance.sh; nothing here is ever rewritten. NOTE: currently matches 147 tracked files but zero occurrences of `iroh`, because hickory-server, noq and rustls are foreign upstream crates with no inherent reason to mention this project's name -- see task-1-report.md. Kept because it encodes the correct, forward-looking policy boundary, not because it currently suppresses anything."
+
+[[exemptions]]
+path = "compat/**"
+reason = "interop crates reference upstream package names, versions and import paths on purpose -- they exist to test against upstream (ADR-0002)"
+
+[[exemptions]]
+path = "docs/upstream/**"
+reason = "provenance filenames and records name the upstream packages they were imported from (e.g. commit-maps/iroh-blobs-v0.103.0.tsv)"
+
+[[exemptions]]
+path = "protocols/upstream-baselines.toml"
+reason = "records the upstream package names, source URLs and import prefixes each protocol crate was imported from"
+
+[[exemptions]]
+path = "docs/history/**"
+reason = "archived upstream changelogs (CHANGELOG.md, CHANGELOG_old.md) are not rewritten"
+
+[[exemptions]]
+path = "LICENSE-*"
+reason = "upstream copyright attribution at the repository root. NOTE: currently matches 2 tracked files (LICENSE-APACHE, LICENSE-MIT) but neither contains the string iroh today -- kept for the same forward-looking reason as the vendor/src exemption."
+
+[[exemptions]]
+path = "docs/adr/*.md"
+reason = "Architecture Decision Records are historical: they document the reasoning and the state of the world at the time a decision was accepted, and are not rewritten after acceptance. 0001 and 0002 both name iroh/iroh-* packages and the upstream n0-computer/iroh repository as part of that historical record; rewriting them would erase the decision they document (see docs/adr/0002-krikos-rebrand.md itself, which explains why the rename happened)."
+
+[[exemptions]]
+path = "scripts/rename-map.toml"
+reason = "this file. It records old_package/old_lib/old_dir/exemption-path values verbatim as data for check-rebrand-complete.sh and apply-rebrand.sh to read; rewriting them in place would delete the mapping the rest of the plan depends on."
+
+[[exemptions]]
+path = "scripts/tests/check-rebrand-complete.sh"
+reason = "the completeness checker's own source necessarily contains the literal search term it looks for, the same way a profanity filter's source contains the words it filters"
+
+# docs/release/v2-migration.md was considered and deliberately NOT exempted.
+# It documents this fork's own v1 -> v2 architecture cut (module paths like
+# `iroh_dns::dns`, `iroh_resolver`, `iroh-sim`, `iroh::endpoint`) rather than
+# migration from the upstream n0-computer/iroh crate, so most of its `iroh`
+# occurrences are internal identifiers that the rebrand is supposed to catch
+# and rename (Task 3/7), not upstream references that must survive. A small
+# number of genuinely-upstream mentions in that file (the external
+# `iroh-mdns-address-lookup` adapter, "Iroh 1.x"/"Iroh v1.0.3" as a compat
+# wire-version label) will need individual handling when that file is
+# updated -- a blanket exemption here would hide the internal identifiers
+# that do need to change, which is the "too broad" failure mode called out
+# for this task.
