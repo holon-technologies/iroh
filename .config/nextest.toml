@@ -25,11 +25,17 @@ slow-timeout = { period = "30s", terminate-after = 4 }
 # genuine hang still fails.
 [[profile.ci.overrides]]
 filter = 'package(krikos-docs)'
-slow-timeout = { period = "30s", terminate-after = 4 }
+# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
+# exceeding the test's own deadline reports its diagnostic rather than being
+# killed by the harness first.
+slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.default.overrides]]
 filter = 'package(krikos-docs)'
-slow-timeout = { period = "30s", terminate-after = 4 }
+# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
+# exceeding the test's own deadline reports its diagnostic rather than being
+# killed by the harness first.
+slow-timeout = { period = "30s", terminate-after = 6 }
 
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'

@@ -27,7 +27,16 @@ use util::{Builder, Node};
 
 use crate::util::empty_endpoint;
 
-const TIMEOUT: Duration = Duration::from_secs(60);
+/// Upper bound on how long a test waits for replicas to converge before
+/// declaring failure.
+///
+/// Raised from 60s: `test_download_policies` converged in 62.1s on a hosted
+/// Windows runner, 3% over the old bound, while passing comfortably elsewhere.
+/// The bound exists to stop a genuine hang from running forever, not to assert
+/// a performance target — the harness ceiling in `.config/nextest.toml` is the
+/// real backstop and sits above this value, so exceeding this deadline still
+/// surfaces as the test's own diagnostic rather than a harness kill.
+const TIMEOUT: Duration = Duration::from_secs(120);
 
 async fn test_node(secret_key: SecretKey) -> Result<Builder> {
     let ep = Endpoint::builder(presets::Minimal)
