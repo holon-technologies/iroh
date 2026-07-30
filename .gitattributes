@@ -13,7 +13,9 @@ vendor/** linguist-vendored
 vendor/** -text
 
 # Machine-generated. Excluded from language statistics and collapsed in diffs.
-docs/history/CHANGELOG.md linguist-generated
+# `**/CHANGELOG.md` covers the root changelog and every per-crate one (new
+# workspace members get this for free instead of needing their own line).
+**/CHANGELOG.md linguist-generated
 docs/history/CHANGELOG_old.md linguist-generated
 **/Cargo.lock linguist-generated
 docs/testing/resource-canary/** linguist-generated

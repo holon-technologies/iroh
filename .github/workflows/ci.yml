@@ -35,11 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           fetch-depth: 0
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
       - name: Prove experimental publication gate is closed
         run: python3 scripts/check-framework-release-gate.py --expect-closed
       - name: Inspect provisional package layouts
@@ -843,9 +843,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       # check-ci-aggregate.sh parses this workflow with python3's PyYAML.
-      # python3 is preinstalled on ubuntu-latest but PyYAML is not.
+      # python3 is preinstalled on ubuntu-latest but PyYAML is not. `pip
+      # install --user` is rejected on Ubuntu 24.04 by PEP 668's externally
+      # managed environment guard; install the distro package instead.
       - name: Install PyYAML
-        run: pip install --user pyyaml
+        run: sudo apt-get update && sudo apt-get install -y python3-yaml
+      - name: Every action reference is pinned to a commit SHA
+        run: scripts/tests/check-action-pinning.sh
       - name: Docker build context is bounded
         run: scripts/tests/check-docker-context.sh
       - name: Vendored trees match upstream plus patch

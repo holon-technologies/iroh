@@ -7,6 +7,10 @@
 !Cargo.lock
 !.cargo/
 
+# Prebuilt release binaries staged at the repo root by .github/workflows/docker.yaml
+# before invoking docker/Dockerfile.ci with `context: .`.
+!bins/
+
 !iroh/
 !iroh-base/
 !iroh-dns/

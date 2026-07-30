@@ -75,6 +75,16 @@ needy=$(printf '%s\n' "$output" | awk '/^NEEDY$/{f=1;next} f')
 
 status=0
 
+# An empty job list (e.g. `jobs:` missing or empty in ci.yml) makes `jobs`
+# and `needs` both empty strings, which the diff check below would treat as
+# trivially matching -- a silent vacuous pass, not a real invariant check.
+# `echo "$jobs" | wc -l` reports 1 for an empty string (one empty line), not
+# 0, so that miscount would also print a misleading "ok: ... 1 jobs".
+if [ -z "$jobs" ]; then
+  echo "FAIL: ci.yml has no jobs (or 'jobs:' is missing/empty) -- nothing to aggregate" >&2
+  exit 1
+fi
+
 if ! diff <(echo "$jobs") <(echo "$needs") >/dev/null; then
   echo "FAIL: ci-ok needs does not match the job list" >&2
   echo "  '<' = job defined but not required; '>' = listed in needs but not defined" >&2
