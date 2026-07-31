@@ -5,7 +5,7 @@
 - [Architecture contract](architecture.md) — crate ownership boundaries, the v2 hard cut, and the vendored dependency boundary.
 - [Relay compatibility contract](relay-compatibility.md) — V1/V2 wire protocol guarantees.
 - [Transports](../TRANSPORTS.md) — the transport registry.
-- [Architecture decision records](adr/) — accepted product/architecture decisions, starting with [ADR-0001](adr/0001-local-first-application-framework-monorepo.md), the local-first application framework monorepo, and [ADR-0002](adr/0002-krikos-rebrand.md), the Krikos rebrand.
+- [Architecture decision records](adr/) — accepted product/architecture decisions: [ADR-0001](adr/0001-local-first-application-framework-monorepo.md), the local-first application framework monorepo; [ADR-0002](adr/0002-krikos-rebrand.md), the Krikos rebrand; and [ADR-0003](adr/0003-n0-operated-default-endpoints.md), keeping n0-operated relay and discovery endpoints as the shipped defaults.
 - [Architecture baselines](architecture-baselines/) — dated, immutable evidence records (commits, CI runs, toolchain) frozen ahead of major architecture cuts.
 
 ## Local-first application framework
