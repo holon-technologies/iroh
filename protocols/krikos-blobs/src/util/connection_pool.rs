@@ -561,10 +561,11 @@ mod tests {
     };
 
     use krikos::{
-        EndpointAddr, EndpointId, RelayMode, SecretKey, TransportAddr,
+        EndpointAddr, EndpointId, RelayMap, RelayMode, SecretKey, TransportAddr,
         address_lookup::MemoryLookup,
         endpoint::{Connection, presets},
         protocol::{AcceptError, ProtocolHandler, Router},
+        tls::CaTlsConfig,
     };
     use n0_error::{AnyError, Result, StdResultExt};
     use n0_future::{BufferedStreamExt, StreamExt, io, stream};
@@ -624,8 +625,20 @@ mod tests {
         Ok((echo_connection_id, response.to_vec()))
     }
 
-    async fn echo_server() -> TestResult<(EndpointAddr, Router)> {
-        let endpoint = krikos::Endpoint::builder(presets::N0)
+    /// Builds an echo server endpoint bound to a locally-spawned relay.
+    ///
+    /// The upstream version of this helper used `presets::N0`, which points at n0's
+    /// real (production, or staging under `KRIKOS_FORCE_STAGING_RELAYS`) relay
+    /// deployment. `endpoint.online()` then blocked on a real TLS connection to that
+    /// relay over the public internet. With up to 32 endpoints per test (see
+    /// `echo_servers`), that made these tests latency-bound on WAN conditions rather
+    /// than on the pool logic under test. Using a relay spawned in-process (same
+    /// pattern as `krikos_docs::tests::sync::test_sync_via_relay`) keeps `online()`
+    /// fast and removes the external dependency entirely.
+    async fn echo_server(relay_map: RelayMap) -> TestResult<(EndpointAddr, Router)> {
+        let endpoint = krikos::Endpoint::builder(presets::Minimal)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .alpns(vec![ECHO_ALPN.to_vec()])
             .bind()
             .await?;
@@ -638,9 +651,12 @@ mod tests {
         Ok((addr, router))
     }
 
-    async fn echo_servers(n: usize) -> TestResult<(Vec<EndpointId>, Vec<Router>, MemoryLookup)> {
+    async fn echo_servers(
+        n: usize,
+        relay_map: RelayMap,
+    ) -> TestResult<(Vec<EndpointId>, Vec<Router>, MemoryLookup)> {
         let res = stream::iter(0..n)
-            .map(|_| echo_server())
+            .map(|_| echo_server(relay_map.clone()))
             .buffered_unordered(16)
             .collect::<Vec<_>>()
             .await;
@@ -727,10 +743,12 @@ mod tests {
     // #[traced_test]
     async fn connection_pool_smoke() -> TestResult<()> {
         let n = 32;
-        let (ids, routers, address_lookup) = echo_servers(n).await?;
+        let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+        let (ids, routers, address_lookup) = echo_servers(n, relay_map.clone()).await?;
         // build a client endpoint that can resolve all the endpoint ids
         let endpoint = krikos::Endpoint::builder(presets::Minimal)
-            .relay_mode(RelayMode::Default)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .address_lookup(address_lookup.clone())
             .bind()
             .await?;
@@ -764,10 +782,12 @@ mod tests {
     // #[traced_test]
     async fn connection_pool_idle() -> TestResult<()> {
         let n = 32;
-        let (ids, routers, address_lookup) = echo_servers(n).await?;
+        let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+        let (ids, routers, address_lookup) = echo_servers(n, relay_map.clone()).await?;
         // build a client endpoint that can resolve all the endpoint ids
         let endpoint = krikos::Endpoint::builder(presets::Minimal)
-            .relay_mode(RelayMode::Default)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .address_lookup(address_lookup.clone())
             .bind()
             .await?;
@@ -798,9 +818,11 @@ mod tests {
     // #[traced_test]
     async fn on_connected_error() -> TestResult<()> {
         let n = 1;
-        let (ids, routers, address_lookup) = echo_servers(n).await?;
+        let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+        let (ids, routers, address_lookup) = echo_servers(n, relay_map.clone()).await?;
         let endpoint = krikos::Endpoint::builder(presets::Minimal)
-            .relay_mode(RelayMode::Default)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .address_lookup(address_lookup)
             .bind()
             .await?;
@@ -830,9 +852,11 @@ mod tests {
     // #[traced_test]
     async fn on_connected_direct() -> TestResult<()> {
         let n = 1;
-        let (ids, routers, address_lookup) = echo_servers(n).await?;
+        let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+        let (ids, routers, address_lookup) = echo_servers(n, relay_map.clone()).await?;
         let endpoint = krikos::Endpoint::builder(presets::Minimal)
-            .relay_mode(RelayMode::Default)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .address_lookup(address_lookup)
             .bind()
             .await?;
@@ -869,9 +893,11 @@ mod tests {
     // #[traced_test]
     async fn watch_close() -> TestResult<()> {
         let n = 1;
-        let (ids, routers, address_lookup) = echo_servers(n).await?;
+        let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+        let (ids, routers, address_lookup) = echo_servers(n, relay_map.clone()).await?;
         let endpoint = krikos::Endpoint::builder(presets::Minimal)
-            .relay_mode(RelayMode::Default)
+            .relay_mode(RelayMode::Custom(relay_map))
+            .ca_tls_config(CaTlsConfig::insecure_skip_verify())
             .address_lookup(address_lookup)
             .bind()
             .await?;
