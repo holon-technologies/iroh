@@ -200,6 +200,37 @@ let endpoint = Endpoint::builder(presets::N0)
 See [`krikos-relay/README.md`](krikos-relay/README.md) for how to run your
 own relay server.
 
+The DNS/pkarr discovery service can be replaced the same way, by clearing
+the preset's address lookup services and installing your own — for example,
+pointed at a self-hosted [`krikos-dns-server`](krikos-dns-server):
+
+```rust
+use krikos::{
+    Endpoint,
+    address_lookup::{DnsAddressLookup, PkarrPublisher, PkarrResolver},
+    endpoint::presets,
+};
+use n0_error::StdResultExt;
+
+let pkarr_relay = "https://your-dns-server.example.com/pkarr"
+    .parse()
+    .anyerr()?;
+let endpoint = Endpoint::builder(presets::N0)
+    .clear_address_lookup()
+    .address_lookup(PkarrPublisher::builder(pkarr_relay))
+    .address_lookup(PkarrResolver::builder(
+        "https://your-dns-server.example.com/pkarr".parse().anyerr()?,
+    ))
+    .address_lookup(DnsAddressLookup::builder(
+        "your-dns-server.example.com".to_string(),
+    ))
+    .bind()
+    .await?;
+```
+
+See [`krikos-dns-server/README.md`](krikos-dns-server/README.md) for how to
+run that server yourself.
+
 For the full package mapping and what did and did not change, see the
 [Krikos migration guide](docs/release/krikos-migration.md) and
 [ADR-0002: the Krikos rebrand](docs/adr/0002-krikos-rebrand.md).
