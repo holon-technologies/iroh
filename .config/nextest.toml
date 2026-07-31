@@ -9,20 +9,32 @@ filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'
 threads-required = 32
 
-# Filesystem-heavy property tests can exceed the generic 30-second timeout on
-# hosted runners. This exception now only needs to cover
-# test_counters_manager_proptest_fs (krikos-blobs) — test_sync_many_authors_fs
-# lives in krikos-docs and is covered by that package's override below.
-# test_sync_many_authors_fs was intentionally dropped from this filter: nextest
-# resolves each setting from the first override (top to bottom) whose filter
-# matches, so keeping it here would have silently shadowed the wider
-# package-wide window below with this override's narrower 120s ceiling,
-# undermining the fix that override exists for. Verified empirically: with two
-# overrides matching the same test, the earlier-listed one wins for
-# `slow-timeout` even though the later one also matches.
+# The imported protocol packages (krikos-blobs, krikos-docs) are
+# filesystem-, replica- and endpoint-heavy and repeatedly exceed the generic
+# 30-second bound on hosted runners. Observed across ubuntu, macOS and Windows,
+# so this is not one platform's quirk.
+#
+# Naming individual tests proved to be whack-a-mole: an earlier filter listed
+# test_counters_manager_proptest_fs and test_sync_many_authors_fs, and then
+# test_sync_many_authors_memory, test_download_policies, connection_pool_idle
+# and connection_pool_smoke each timed out in turn. Scope by package instead.
+#
+# Ordering matters and is load-bearing: nextest resolves each setting from the
+# FIRST override (top to bottom) whose filter matches. A narrower test-name
+# override placed above one of these would silently shadow it — that bug
+# already shipped once, giving one krikos-docs test a 120s ceiling instead of
+# 180s on CI only. Do not add a test-name override above these blocks.
+#
+# Both ceilings stay finite at 180s so a genuine hang still fails, and stay
+# above the 120s internal deadline in krikos-docs' tests/sync.rs so exceeding
+# that deadline surfaces the test's own diagnostic rather than a harness kill.
 [[profile.ci.overrides]]
-filter = 'test(test_counters_manager_proptest_fs)'
-slow-timeout = { period = "30s", terminate-after = 4 }
+filter = 'package(krikos-blobs)'
+slow-timeout = { period = "30s", terminate-after = 6 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-blobs)'
+slow-timeout = { period = "30s", terminate-after = 6 }
 
 # krikos-docs' sync and download tests are filesystem- and replica-heavy and
 # repeatedly exceed the generic 30-second bound on hosted runners — observed on

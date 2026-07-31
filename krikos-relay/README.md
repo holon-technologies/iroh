@@ -1,17 +1,22 @@
-# Krikos Relay
+# krikos-relay
 
-Krikos's relay is a feature within [krikos], a peer-to-peer networking system
-designed to facilitate direct, encrypted connections between devices. Krikos aims
-to simplify decentralized communication by automatically handling connections
-through "relays" when direct connections aren't immediately possible. The relay
-server helps establish connections by temporarily routing encrypted traffic
-until a direct, P2P connection is feasible. Once this direct path is set up,
-the relay server steps back, and the data flows directly between devices. This
-approach allows Krikos to maintain a secure, low-latency connection, even in
-challenging network situations.
+Peer-to-peer QUIC, dialed by public key.
 
-This crate provides a complete setup for creating and interacting with krikos
-relays, including:
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](../LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](../LICENSE-APACHE)
+
+`krikos-relay` is [`krikos`](../krikos)'s relay server and client. When two
+endpoints cannot establish a direct, hole-punched connection, a relay server
+temporarily routes their encrypted traffic; once a direct path becomes
+feasible, the relay steps back and data flows directly between endpoints.
+`krikos-relay` is part of the [`holon-technologies/iroh`](https://github.com/holon-technologies/iroh)
+repository, a hard fork of upstream [`n0-computer/iroh`](https://github.com/n0-computer/iroh) —
+see the root README's [Relationship to upstream](../README.md#relationship-to-upstream).
+Relay wire compatibility with upstream is deliberately preserved and
+machine-guarded by [`tests/wire_compat.rs`](tests/wire_compat.rs).
+
+This crate provides a complete setup for creating and interacting with
+krikos relays, including:
 - Relay Protocol: The protocol used to communicate between relay servers and
   clients
 - Relay Server: A fully-fledged krikos-relay server over HTTP or HTTPS.
@@ -19,9 +24,6 @@ relays, including:
 - Relay Client: A client for establishing connections to the relay.
 - Server Binary: A CLI for running your own relay server. It can be configured
   to also expose metrics.
-
-
-Used in [krikos], created with love by the [n0 team](https://n0.computer/).
 
 ## Build the server
 
@@ -77,9 +79,7 @@ The token list must not be empty, and no token may be an empty string; the serve
 fail to start if either condition is violated.
 
 On the client side, set the token using
-[`RelayConfig::with_auth_token`](https://docs.rs/krikos-relay/latest/krikos_relay/struct.RelayConfig.html#method.with_auth_token)
-or
-[`RelayMap::with_auth_token`](https://docs.rs/krikos-relay/latest/krikos_relay/struct.RelayMap.html#method.with_auth_token).
+[`RelayConfig::with_auth_token` or `RelayMap::with_auth_token`](src/relay_map.rs).
 
 > **Note:** this shared token does not support revocation other than updating the config and restarting the service.
 
@@ -143,29 +143,35 @@ The relay will use the configured TLS certificates for the QUIC connection, but 
 
 When using krikos as a transport library in an application or other library, there is a simple way of running an in-process relay server:
 
-- Enable `test-utils` feature of the `krikos` crate
+- Enable the `test-utils` feature of the `krikos` crate. Krikos is not yet
+  published to crates.io (see the root README's
+  [Quickstart](../README.md#quickstart)), so depend on it from this
+  repository:
 ```toml
-krikos = { version = "0.95", features = ["test-utils"] }
+krikos = { git = "https://github.com/holon-technologies/iroh", branch = "main", features = ["test-utils"] }
 ```
-- Spawn a relay server by calling [`krikos::test_utils::run_relay_server().await`](https://docs.rs/krikos/latest/krikos/test_utils/fn.run_relay_server.html)
+- Spawn a relay server by calling [`krikos::test_utils::run_relay_server().await`](../krikos/src/test_utils.rs).
 This will start a relay server with a self-signed TLS certificate, listening on a localhost port, and return the server's URL.
-- For the krikos endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](https://docs.rs/krikos/latest/krikos/endpoint/struct.Builder.html#method.ca_tls_config) with  `CaRootConfig::insecure_skip_verify()`.
+- For the krikos endpoints to successfully connect to the relay, disable TLS certificate verification by calling [`Endpoint::ca_tls_config`](../krikos/src/endpoint/builder.rs) with  `CaRootConfig::insecure_skip_verify()`.
 
-# License
+## Documentation
+
+See the [root README](../README.md) for what Krikos is, and
+[`docs/`](../docs/README.md) for architecture and testing documentation.
+
+## License
+
+Copyright 2025 N0, INC.
 
 This project is licensed under either of
 
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+ * Apache License, Version 2.0, ([LICENSE-APACHE](../LICENSE-APACHE) or
    https://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+ * MIT license ([LICENSE-MIT](../LICENSE-MIT) or
    https://opensource.org/licenses/MIT)
 
 at your option.
 
-### Contribution
+## Contribution
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this project by you, as defined in the Apache-2.0 license,
-shall be dual licensed as above, without any additional terms or conditions.
-
-[krikos]: https://docs.rs/krikos
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

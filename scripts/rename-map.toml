@@ -485,6 +485,10 @@ reason = "GitHub path prefix for n0's real upstream repositories (n0-computer/ir
 pattern = "holon-technologies/iroh(?![A-Za-z0-9_-])"
 reason = "this repository's actual current GitHub path. ADR-0002 explicitly does not decide whether the GitHub organisation or repository itself is renamed, so badge and CI links using the real, current URL are correct as written"
 
+[[exemptions]]
+pattern = "iroh::Endpoint"
+reason = "root README.md's upstream-relationship section quotes the pre-rebrand Rust import path (`use iroh::Endpoint`) as the concrete before/after example of the package rename ADR-0002 and docs/release/krikos-migration.md both describe (`use iroh::Endpoint` became `use krikos::Endpoint`, across roughly 430 use statements). The quoted text is a historical fact about what upstream's code looked like before this fork renamed it, not a reference to any current package -- the same reasoning as the docs/release/krikos-migration.md file exemption above, applied to a single quoted phrase rather than a whole file."
+
 
 [[exemptions]]
 pattern = "crates\\.io/crates/iroh"
