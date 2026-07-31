@@ -1,104 +1,133 @@
 <h1 align="center">Krikos</h1>
 
 <h3 align="center">
-less net work for networks
+Peer-to-peer QUIC, dialed by public key.
 </h3>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/krikos/)
+[![CI](https://img.shields.io/github/actions/workflow/status/holon-technologies/iroh/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/holon-technologies/iroh/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE-APACHE)
-[![CI](https://img.shields.io/github/actions/workflow/status/holon-technologies/iroh/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/holon-technologies/iroh/actions/workflows/ci.yml)
 
-<div align="center">
-  <h3>
-    <a href="https://docs.rs/krikos">
-      Rust Docs
-    </a>
-  </h3>
-</div>
-<br/>
+Krikos gives you an API for dialing by public key. You say "connect to that
+endpoint" and Krikos finds and maintains the fastest route for you — direct
+where hole-punching succeeds, relayed through an open ecosystem of public
+relay servers where it does not.
 
-## What is krikos?
+## Quickstart
 
-Krikos gives you an API for dialing by public key.
-You say “connect to that phone”, krikos will find & maintain the fastest connection for you, regardless of where it is.
+Krikos is not yet published to crates.io — a release is pending crate-name
+reservation (see [ADR-0002](docs/adr/0002-krikos-rebrand.md)). Until then,
+depend on it directly from this repository:
 
-### Hole-punching
-
-The fastest route is a direct connection, so if necessary, krikos tries to hole-punch.
-Should this fail, it can fall back to an open ecosystem of public relay servers.
-
-### Built on [QUIC]
-
-Krikos uses [noq] to establish [QUIC] connections between endpoints.
-This way you get authenticated encryption, concurrent streams with stream priorities, a datagram transport and avoid head-of-line-blocking out of the box.
-
-## Compose Protocols
-
-Use pre-existing protocols built on krikos instead of writing your own:
-- [krikos-blobs] for [BLAKE3]-based content-addressed blob transfer scaling from kilobytes to terabytes
-- [krikos-gossip] for establishing publish-subscribe overlay networks that scale, requiring only resources that your average phone can handle
-- [krikos-docs] for an eventually-consistent key-value store of [krikos-blobs] blobs
-
-This fork also includes an experimental, unpublished application framework that composes one
-endpoint with blobs, gossip, docs, lifecycle supervision, durable identity, and bounded custom
-protocol extensions. Start with the [local-first framework guide] or run the
-[`local-first-notes`](examples/local-first-notes) example.
-
-## Getting Started
-
-### Rust Library
-
-It's easiest to use krikos from rust.
-Install it using `cargo add krikos`, then on the connecting side:
-
-```rs
-const ALPN: &[u8] = b"krikos-example/echo/0";
-
-let endpoint = Endpoint::bind().await?;
-
-// Open a connection to the accepting endpoint
-let conn = endpoint.connect(addr, ALPN).await?;
-
-// Open a bidirectional QUIC stream
-let (mut send, mut recv) = conn.open_bi().await?;
-
-// Send some data to be echoed
-send.write_all(b"Hello, world!").await?;
-send.finish()?;
-
-// Receive the echo
-let response = recv.read_to_end(1000).await?;
-assert_eq!(&response, b"Hello, world!");
-
-// As the side receiving the last application data - say goodbye
-conn.close(0u32.into(), b"bye!");
-
-// Close the endpoint and all its connections
-endpoint.close().await;
+```toml
+[dependencies]
+krikos = { git = "https://github.com/holon-technologies/iroh", branch = "main" }
 ```
 
-And on the accepting side:
-```rs
-let endpoint = Endpoint::bind().await?;
+The full working example below is
+[`krikos/examples/echo.rs`](krikos/examples/echo.rs); run it with
+`cargo run -p krikos --example echo`:
 
-let router = Router::builder(endpoint)
-    .accept(ALPN.to_vec(), Arc::new(Echo))
-    .spawn()
-    .await?;
+```rust
+use krikos::{
+    Endpoint, EndpointAddr,
+    endpoint::{Connection, presets},
+    protocol::{AcceptError, ProtocolHandler, Router},
+};
+use n0_error::{Result, StdResultExt};
 
-// The protocol definition:
+/// Each protocol is identified by its ALPN string.
+///
+/// The ALPN, or application-layer protocol negotiation, is exchanged in the connection handshake,
+/// and the connection is aborted unless both endpoints pass the same bytestring.
+const ALPN: &[u8] = b"krikos-example/echo/0";
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+    let router = start_accept_side().await?;
+
+    // wait for the endpoint to be online
+    router.endpoint().online().await;
+
+    connect_side(router.endpoint().addr()).await?;
+
+    // This makes sure the endpoint in the router is closed properly and connections close gracefully
+    router.shutdown().await.anyerr()?;
+
+    Ok(())
+}
+
+async fn connect_side(addr: EndpointAddr) -> Result<()> {
+    let endpoint = Endpoint::bind(presets::N0).await?;
+
+    // Open a connection to the accepting endpoint
+    let conn = endpoint.connect(addr, ALPN).await?;
+
+    // Open a bidirectional QUIC stream
+    let (mut send, mut recv) = conn.open_bi().await.anyerr()?;
+
+    // Send some data to be echoed
+    send.write_all(b"Hello, world!").await.anyerr()?;
+
+    // Signal the end of data for this particular stream
+    send.finish().anyerr()?;
+
+    // Receive the echo, but limit reading up to maximum 1000 bytes
+    let response = recv.read_to_end(1000).await.anyerr()?;
+    assert_eq!(&response, b"Hello, world!");
+
+    // Explicitly close the whole connection.
+    conn.close(0u32.into(), b"bye!");
+
+    // The above call only queues a close message to be sent (see how it's not async!).
+    // We need to actually call this to make sure this message is sent out.
+    endpoint.close().await;
+    // If we don't call this, but continue using the endpoint, we then the queued
+    // close call will eventually be picked up and sent.
+    // But always try to wait for endpoint.close().await to go through before dropping
+    // the endpoint to ensure any queued messages are sent through and connections are
+    // closed gracefully.
+    Ok(())
+}
+
+async fn start_accept_side() -> Result<Router> {
+    let endpoint = Endpoint::bind(presets::N0).await?;
+
+    // Build our protocol handler and add our protocol, identified by its ALPN, and spawn the endpoint.
+    let router = Router::builder(endpoint).accept(ALPN, Echo).spawn();
+
+    Ok(router)
+}
+
 #[derive(Debug, Clone)]
 struct Echo;
 
 impl ProtocolHandler for Echo {
-    async fn accept(&self, connection: Connection) -> Result<()> {
+    /// The `accept` method is called for each incoming connection for our ALPN.
+    ///
+    /// The returned future runs on a newly spawned tokio task, so it can run as long as
+    /// the connection lasts.
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        // We can get the remote's endpoint id from the connection.
+        let endpoint_id = connection.remote_id();
+        println!("accepted connection from {endpoint_id}");
+
+        // Our protocol is a simple request-response protocol, so we expect the
+        // connecting peer to open a single bi-directional stream.
         let (mut send, mut recv) = connection.accept_bi().await?;
 
         // Echo any bytes received back directly.
+        // This will keep copying until the sender signals the end of data on the stream.
         let bytes_sent = tokio::io::copy(&mut recv, &mut send).await?;
+        println!("Copied over {bytes_sent} byte(s)");
 
+        // By calling `finish` on the send stream we signal that we will not send anything
+        // further, which makes the receive stream on the other end terminate.
         send.finish()?;
+
+        // Wait until the remote closes the connection, which it does once it
+        // received the response.
         connection.closed().await;
 
         Ok(())
@@ -106,34 +135,65 @@ impl ProtocolHandler for Echo {
 }
 ```
 
-The full example code with more comments can be found at [`echo.rs`][echo-rs].
+## What you get
 
-Or use one of the pre-existing protocols, e.g. [krikos-blobs] or [krikos-gossip].
+- **Dial by public key.** Each endpoint has a [`SecretKey`](krikos/src/lib.rs)
+  used to authenticate and encrypt the connection; you connect to an
+  [`EndpointId`](krikos/src/lib.rs), not an IP address and port.
+- **Hole-punching with relay fallback.** Krikos tries to establish a direct
+  connection by hole-punching first, and falls back to a relay server when
+  that fails.
+- **QUIC streams, datagrams, and stream priorities.** Bidirectional and
+  unidirectional streams, an unreliable datagram transport, and per-stream
+  send priorities are all exposed directly.
+- **No head-of-line blocking.** Streams are multiplexed over one encrypted
+  QUIC connection, so a lost packet on one stream does not stall the others.
 
-## Repository Structure
+## How it is verified
 
-The production workspace and its isolated test workspaces have explicit ownership boundaries:
+Krikos is verified by deterministic simulation: production endpoint, QUIC,
+and relay code runs against a synthetic network with controlled latency,
+loss, NAT and relay behaviour, driven by seed-reproducible scenarios that can
+be replayed and minimised on failure. See
+[`docs/testing/simulation.md`](docs/testing/simulation.md) for the testing
+strategy and [`docs/testing/deterministic-simulation-architecture.md`](docs/testing/deterministic-simulation-architecture.md)
+for how the simulator achieves seed-reproducible runs.
 
-- `krikos`: public endpoint, connection, path-selection, and hole-punching orchestration.
-- `krikos-base`: dependency-light identity, address, key, and relay-map value types.
-- `krikos-runtime`: bounded clock, task, decision, and trace capabilities used by production Krikos.
-- `krikos-resolver`: provider-neutral, bounded A/AAAA/TXT/host resolution.
-- `krikos-dns`: endpoint-aware DNS records, endpoint lookup, and pkarr integration.
-- `krikos-relay`: relay client, server, sessions, and the shared V1/V2 wire protocol.
-- `krikos-dns-server`: deployable DNS, DNS-over-HTTPS, and pkarr publication service.
-- `protocols/krikos-blobs`: content-addressed storage and transfer protocol.
-- `protocols/krikos-gossip`: bounded publish-subscribe overlay protocol.
-- `protocols/krikos-docs`: capability-scoped, eventually consistent documents over blobs and gossip.
-- `framework/app`: unpublished local-first application composition and lifecycle layer.
-- `integration-tests/local-first-app`: executable cross-crate acceptance scenarios.
-- `examples/local-first-notes`: minimal persisted two-node framework application.
-- `krikos/bench`: non-published benchmarks and production resource canaries.
-- `tools/determinism-checker`: non-published source-boundary policy checker.
-- `krikos-sim`: isolated deterministic simulation workspace; production crates never depend on it.
+## Relationship to upstream
 
-See [the architecture contract](docs/architecture.md), the
-[relay compatibility contract](docs/relay-compatibility.md), and the
-[Krikos 2.0 migration guide](docs/release/v2-migration.md) for the fork's hard-cut boundaries.
+Krikos is a hard fork of [`n0-computer/iroh`](https://github.com/n0-computer/iroh).
+Every package, library name, and Rust import path was renamed
+(`use iroh::Endpoint` became `use krikos::Endpoint`), but relay wire
+compatibility with upstream `v1.0.3` was deliberately preserved and is
+machine-guarded by [`krikos-relay/tests/wire_compat.rs`](krikos-relay/tests/wire_compat.rs)
+and [`scripts/tests/check-relay-compatibility.sh`](scripts/tests/check-relay-compatibility.sh).
+Upstream's copyright stands — see [License](#license) below.
+
+For the full package mapping and what did and did not change, see the
+[Krikos migration guide](docs/release/krikos-migration.md) and
+[ADR-0002: the Krikos rebrand](docs/adr/0002-krikos-rebrand.md).
+
+## Repository structure
+
+The published crates and their `cargo metadata` descriptions:
+
+- [`krikos`](krikos) — p2p QUIC connections dialed by public key.
+- [`krikos-base`](krikos-base) — base type and utilities for Krikos.
+- [`krikos-runtime`](krikos-runtime) — internal runtime capabilities for Krikos.
+- [`krikos-resolver`](krikos-resolver) — provider-neutral DNS resolution for Krikos.
+- [`krikos-dns`](krikos-dns) — DNS-based endpoint discovery for Krikos.
+- [`krikos-relay`](krikos-relay) — Krikos's relay server and client.
+- [`krikos-dns-server`](krikos-dns-server) — a pkarr relay and DNS server.
+
+Plus the isolated deterministic simulation workspace, which production crates
+never depend on:
+
+- [`krikos-sim`](krikos-sim) — deterministic simulation and replay infrastructure for Krikos.
+
+## Documentation
+
+Start at [`docs/README.md`](docs/README.md) for architecture, testing, and
+release documentation.
 
 ## License
 
@@ -151,13 +211,3 @@ at your option.
 ## Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
-[QUIC]: https://en.wikipedia.org/wiki/QUIC
-[BLAKE3]: https://github.com/BLAKE3-team/BLAKE3
-[noq]: https://github.com/n0-computer/noq
-[krikos-blobs]: protocols/krikos-blobs
-[krikos-gossip]: protocols/krikos-gossip
-[krikos-docs]: protocols/krikos-docs
-[willow protocol]: https://willowprotocol.org
-[echo-rs]: /krikos/examples/echo.rs
-[local-first framework guide]: docs/framework/getting-started.md
