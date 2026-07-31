@@ -280,17 +280,12 @@ impl CorpusMetadata {
     /// `SIMULATOR_VERSION` directly) so tests can exercise the double-digit
     /// comparison case end to end without depending on this crate's own
     /// `Cargo.toml` version.
-    fn validate_simulator_version_range(
-        &self,
-        simulator_version: &str,
-    ) -> Result<(), CorpusError> {
-        let minimum_satisfied = match compare_simulator_versions(
-            &self.minimum_simulator_version,
-            simulator_version,
-        ) {
-            Some(order) => order != std::cmp::Ordering::Greater,
-            None => false, // unparseable minimum: never treat as satisfied
-        };
+    fn validate_simulator_version_range(&self, simulator_version: &str) -> Result<(), CorpusError> {
+        let minimum_satisfied =
+            match compare_simulator_versions(&self.minimum_simulator_version, simulator_version) {
+                Some(order) => order != std::cmp::Ordering::Greater,
+                None => false, // unparseable minimum: never treat as satisfied
+            };
         let maximum_satisfied = match &self.maximum_simulator_version {
             None => true,
             Some(maximum) => {
