@@ -25,36 +25,59 @@ threads-required = 32
 # already shipped once, giving one krikos-docs test a 120s ceiling instead of
 # 180s on CI only. Do not add a test-name override above these blocks.
 #
-# Both ceilings stay finite at 180s so a genuine hang still fails, and stay
-# above the 120s internal deadline in krikos-docs' tests/sync.rs so exceeding
-# that deadline surfaces the test's own diagnostic rather than a harness kill.
+# connection_pool_idle/connection_pool_smoke (krikos-blobs) and
+# test_download_policies (krikos-docs) were the endpoint-heavy tests actually
+# driving these ceilings up to 180s: they built endpoints against real n0
+# relay infrastructure (presets::N0 / the default RelayMode, which resolves to
+# n0's production or staging deployment) instead of a relay spawned in-process,
+# making them latency-bound on WAN conditions. They're now converted to use
+# krikos::test_utils::run_relay_server() and complete in low single-digit
+# seconds locally (see git history for before/after numbers), so the 180s
+# ceiling they used to need is gone.
+#
+# What's left in each package is genuinely filesystem/CPU heavy, not
+# network-bound, and keeps its slack:
+# - krikos-blobs: test_counters_manager_proptest_fs (proptest over a real fs
+#   store; ~3.7s locally, uncontended).
+# - krikos-docs: test_sync_many_authors_memory/_fs (nested author/message
+#   fanout over many sync rounds, no network at all — pure in-memory
+#   tokio::io::duplex; ~15-16s locally, uncontended) plus whatever headroom
+#   the 120s internal TIMEOUT in tests/sync.rs needs (see below).
+#
+# Ceilings below are lowered but kept well above local worst-case times to
+# leave room for slower/contended CI hardware; they were not tuned against
+# real hosted-runner timings, so if either package starts timing out again on
+# CI, widen the affected package's ceiling rather than reintroducing
+# individual test-name overrides.
 [[profile.ci.overrides]]
 filter = 'package(krikos-blobs)'
-slow-timeout = { period = "30s", terminate-after = 6 }
+slow-timeout = { period = "30s", terminate-after = 3 }
 
 [[profile.default.overrides]]
 filter = 'package(krikos-blobs)'
-slow-timeout = { period = "30s", terminate-after = 6 }
+slow-timeout = { period = "30s", terminate-after = 3 }
 
 # krikos-docs' sync and download tests are filesystem- and replica-heavy and
 # repeatedly exceed the generic 30-second bound on hosted runners — observed on
 # ubuntu and macOS, not only Windows. Naming individual tests proved to be
 # whack-a-mole: test_sync_many_authors_memory and test_download_policies also
 # timed out. Scope the exception to the package instead, keeping a finite
-# 180-second ceiling so a genuine hang still fails.
+# ceiling so a genuine hang still fails.
 [[profile.ci.overrides]]
 filter = 'package(krikos-docs)'
-# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
-# exceeding the test's own deadline reports its diagnostic rather than being
-# killed by the harness first.
-slow-timeout = { period = "30s", terminate-after = 6 }
+# 150s ceiling (down from 180s now that test_download_policies no longer
+# dials a real relay) — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so
+# that exceeding the test's own deadline reports its diagnostic rather than
+# being killed by the harness first. That 120s deadline guards genuine sync
+# convergence speed on slow CI hardware (raised from 60s after a 62.1s
+# convergence on a hosted Windows runner) and is unrelated to relay dialing,
+# so it was not changed by the hermetic-test conversion.
+slow-timeout = { period = "30s", terminate-after = 5 }
 
 [[profile.default.overrides]]
 filter = 'package(krikos-docs)'
-# 180s ceiling — must stay ABOVE the 120s TIMEOUT in tests/sync.rs so that
-# exceeding the test's own deadline reports its diagnostic rather than being
-# killed by the harness first.
-slow-timeout = { period = "30s", terminate-after = 6 }
+# 150s ceiling — see the profile.ci.overrides entry above for the same filter.
+slow-timeout = { period = "30s", terminate-after = 5 }
 
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'

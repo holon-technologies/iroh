@@ -771,7 +771,17 @@ async fn test_download_policies() -> Result<()> {
     const EXPECTED_B_DOWNLOADED: usize = 3;
 
     let mut rng = test_rng(b"sync_download_policies");
-    let nodes = spawn_nodes(2, &mut rng).await?;
+    // Use a locally-spawned relay instead of the default (real n0) relay servers:
+    // this test only needs *a* relay to exist for address exchange between the two
+    // nodes on the same host, not n0's actual deployment, and spawn_nodes()/test_node()
+    // default to `RelayMode::Default`, which reaches out over the real network.
+    let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
+    use crate::util::endpoint;
+    let ep_a = endpoint(SecretKey::from_bytes(&rng.random()), relay_map.clone(), None).await?;
+    let node_a = Node::memory(ep_a).spawn().await?;
+    let ep_b = endpoint(SecretKey::from_bytes(&rng.random()), relay_map.clone(), None).await?;
+    let node_b = Node::memory(ep_b).spawn().await?;
+    let nodes = vec![node_a, node_b];
     let clients = nodes.iter().map(|node| node.client()).collect::<Vec<_>>();
 
     let doc_a = clients[0].docs().create().await?;
