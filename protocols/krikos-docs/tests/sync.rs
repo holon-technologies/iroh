@@ -781,7 +781,7 @@ async fn test_download_policies() -> Result<()> {
     let node_a = Node::memory(ep_a).spawn().await?;
     let ep_b = endpoint(SecretKey::from_bytes(&rng.random()), relay_map.clone(), None).await?;
     let node_b = Node::memory(ep_b).spawn().await?;
-    let nodes = vec![node_a, node_b];
+    let nodes = [node_a, node_b];
     let clients = nodes.iter().map(|node| node.client()).collect::<Vec<_>>();
 
     let doc_a = clients[0].docs().create().await?;
