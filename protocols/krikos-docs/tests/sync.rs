@@ -777,9 +777,19 @@ async fn test_download_policies() -> Result<()> {
     // default to `RelayMode::Default`, which reaches out over the real network.
     let (relay_map, _relay_url, _guard) = krikos::test_utils::run_relay_server().await?;
     use crate::util::endpoint;
-    let ep_a = endpoint(SecretKey::from_bytes(&rng.random()), relay_map.clone(), None).await?;
+    let ep_a = endpoint(
+        SecretKey::from_bytes(&rng.random()),
+        relay_map.clone(),
+        None,
+    )
+    .await?;
     let node_a = Node::memory(ep_a).spawn().await?;
-    let ep_b = endpoint(SecretKey::from_bytes(&rng.random()), relay_map.clone(), None).await?;
+    let ep_b = endpoint(
+        SecretKey::from_bytes(&rng.random()),
+        relay_map.clone(),
+        None,
+    )
+    .await?;
     let node_b = Node::memory(ep_b).spawn().await?;
     let nodes = [node_a, node_b];
     let clients = nodes.iter().map(|node| node.client()).collect::<Vec<_>>();
