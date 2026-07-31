@@ -10,8 +10,10 @@ Peer-to-peer QUIC, dialed by public key.
 
 Krikos gives you an API for dialing by public key. You say "connect to that
 endpoint" and Krikos finds and maintains the fastest route for you — direct
-where hole-punching succeeds, relayed through an open ecosystem of public
-relay servers where it does not.
+where hole-punching succeeds, relayed through a relay server where it does
+not. The relay used by default is n0's production infrastructure, inherited
+from upstream; see [Relationship to upstream](#relationship-to-upstream) for
+what that means and how to point at a different relay instead.
 
 ## Quickstart
 
@@ -146,8 +148,9 @@ impl ProtocolHandler for Echo {
 - **QUIC streams, datagrams, and stream priorities.** Bidirectional and
   unidirectional streams, an unreliable datagram transport, and per-stream
   send priorities are all exposed directly.
-- **No head-of-line blocking.** Streams are multiplexed over one encrypted
-  QUIC connection, so a lost packet on one stream does not stall the others.
+- **No head-of-line blocking, inherent to QUIC.** Streams are multiplexed
+  over one encrypted QUIC connection, so a lost packet on one stream does
+  not stall the others.
 
 ## How it is verified
 
@@ -168,6 +171,34 @@ compatibility with upstream `v1.0.3` was deliberately preserved and is
 machine-guarded by [`krikos-relay/tests/wire_compat.rs`](krikos-relay/tests/wire_compat.rs)
 and [`scripts/tests/check-relay-compatibility.sh`](scripts/tests/check-relay-compatibility.sh).
 Upstream's copyright stands — see [License](#license) below.
+
+**The default relay and DNS endpoints are n0-operated production
+services.** The `N0` preset used throughout this README and in
+[`krikos/examples/echo.rs`](krikos/examples/echo.rs) resolves to n0's
+production relay servers — `use1-1.relay.n0.iroh.link`,
+`usw1-1.relay.n0.iroh.link`, `euc1-1.relay.n0.iroh.link`, and
+`aps1-1.relay.n0.iroh.link` — and to n0's production DNS discovery service,
+`dns.iroh.link` (see [`krikos/src/defaults.rs`](krikos/src/defaults.rs)).
+This is inherited unchanged from upstream, not infrastructure Krikos itself
+operates; see
+[`docs/release/krikos-migration.md`](docs/release/krikos-migration.md#everything-else-this-fork-depends-on-or-points-at)
+for why these hostnames were kept as-is rather than repointed.
+
+To use a different relay instead, configure the endpoint with a custom
+[`RelayMap`](krikos/src/endpoint/builder.rs) via `Builder::relay_mode`:
+
+```rust
+use krikos::{Endpoint, RelayMap, RelayMode, RelayUrl, endpoint::presets};
+
+let relay_url: RelayUrl = "https://relay.example.com".parse()?;
+let endpoint = Endpoint::builder(presets::N0)
+    .relay_mode(RelayMode::Custom(RelayMap::from(relay_url)))
+    .bind()
+    .await?;
+```
+
+See [`krikos-relay/README.md`](krikos-relay/README.md) for how to run your
+own relay server.
 
 For the full package mapping and what did and did not change, see the
 [Krikos migration guide](docs/release/krikos-migration.md) and

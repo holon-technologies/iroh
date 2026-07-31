@@ -29,8 +29,9 @@ tooling that consumes the trace schema.
   concrete need to provide these capabilities.
 
 See the crate-level API documentation for the capability contracts and
-[`docs/release/v2-migration.md`](../docs/release/v2-migration.md) for the Krikos
-architecture migration notes.
+[`docs/release/v2-migration.md`](../docs/release/v2-migration.md) for internal
+architecture-cut history that predates this crate's public 1.0.0 release —
+despite its title, it does not describe a prior public Krikos release.
 
 ## Documentation
 
