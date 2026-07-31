@@ -12,6 +12,7 @@
 
 - [Getting started](framework/getting-started.md) — using `krikos-app`, the experimental application layer over the v2 endpoint, blobs, gossip, and docs crates.
 - [Upstream protocol sync runbook](framework/upstream-sync.md) — how imported protocol packages (`krikos-blobs`, `krikos-gossip`, `krikos-docs`) are synced from their upstream release tags.
+- [Framework release gate](framework/release-gate.md) — the four approvals blocking `krikos-blobs`, `krikos-gossip`, `krikos-docs` and `krikos-app` from publication: what each requires, and how the gate is opened.
 
 ## Upstream protocol provenance
 

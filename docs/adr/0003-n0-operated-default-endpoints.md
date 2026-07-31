@@ -88,8 +88,12 @@ that these are inherited from upstream rather than operated by Krikos, cites
 
 - The dependency is disclosed by name in the README, so no user adopts it unknowingly.
 - `RelayMode::Custom` and the `Minimal` preset let any consumer opt out without forking.
-- The test suite no longer contributes load: the protocol-crate tests were made hermetic and now
-  connect only to a locally-spawned relay (see the `fix/hermetic-protocol-tests` work).
+- The test suite no longer contributes load. This took two passes: the first made the tests that
+  *blocked* on a relay handshake hermetic, and the second caught eight `krikos-blobs` tests that
+  merely *configured* n0's endpoints without blocking — fast and green, so they hid. A single one
+  of them opened 17 connections to all four n0 relay regions and `dns.iroh.link`. The protocol
+  tests now contact only a locally-spawned relay, or no relay at all where they dial over
+  loopback; this is verified by syscall trace, not by inspection.
 
 ### Revisiting
 

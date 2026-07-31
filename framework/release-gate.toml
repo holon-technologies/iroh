@@ -1,3 +1,12 @@
+# Blocks the four framework packages below from being published.
+#
+# What each approval requires, what evidence satisfies it, and who decides:
+# docs/framework/release-gate.md. Enforced by
+# scripts/check-framework-release-gate.py (--expect-closed in CI today).
+#
+# Do not flip an approval to true without recording its evidence, and do not
+# open the gate without also switching CI to --require-open -- see the
+# "Opening the gate" section of that document.
 schema_version = 1
 status = "blocked"
 
