@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["KRIKOS_TXT_NAME"],"enum":["EncodingError","ParseError"],"mod":["dns","endpoint_info","pkarr"]};
