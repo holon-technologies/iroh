@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_CUSTOM_ADDR_BYTES","MAX_ENDPOINT_ADDRS","MAX_ENDPOINT_ADDR_BYTES","MAX_RELAY_URL_BYTES"],"enum":["AddressLimitError","KeyParsingError","TransportAddr"],"struct":["AddressLimits","CustomAddr","EndpointAddr","PublicKey","RelayUrl","RelayUrlParseError","SecretKey","Signature","SignatureError","SignatureParsingError"],"type":["EndpointId"]};
