@@ -1,16 +1,24 @@
 # krikos-dns-server
 
-A server that functions as a [pkarr](https://github.com/Nuhvi/pkarr/) relay and
-[DNS](https://de.wikipedia.org/wiki/Domain_Name_System) server.
+Peer-to-peer QUIC, dialed by public key.
 
-This server compiles to a binary `krikos-dns-server`. It needs a config file, of
-which there are two examples included:
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](../LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](../LICENSE-APACHE)
 
-- [`config.dev.toml`](./config.dev.toml) - suitable for local development
-- [`config.prod.toml`](./config.prod.toml) - suitable for production, after
+`krikos-dns-server` is a server that functions as a
+[pkarr](https://github.com/Nuhvi/pkarr/) relay and
+[DNS](https://de.wikipedia.org/wiki/Domain_Name_System) server: the piece
+that [`krikos-dns`](../krikos-dns) clients publish to and resolve against
+for public-key-based address lookup.
+
+This crate compiles to a binary, `krikos-dns-server`. It needs a config
+file, of which there are two examples included:
+
+- [`config.dev.toml`](./config.dev.toml) — suitable for local development
+- [`config.prod.toml`](./config.prod.toml) — suitable for production, after
   adjusting the domain names and IP addresses
 
-The server will expose the following services:
+The server exposes the following services:
 
 - A DNS server listening on UDP and TCP for DNS queries
 - A HTTP and/or HTTPS server which provides the following routes:
@@ -18,8 +26,8 @@ The server will expose the following services:
   - `/dns-query`: Answer DNS queries over
     [DNS-over-HTTPS](https://datatracker.ietf.org/doc/html/rfc8484)
 
-All received and valid pkarr signed packets will be served over DNS. The pkarr
-packet origin will be appended with the origin as configured by this server.
+All received and valid pkarr signed packets are served over DNS. The pkarr
+packet origin is appended with the origin as configured by this server.
 
 ## Resource limits
 
@@ -49,18 +57,24 @@ rejections indicate either undersizing or a slow backing dependency. Alert on th
 fixed admission metrics for active DNS/HTTP work, capacity/rate rejections,
 bounded rate-limit entries, and store background failures.
 
-# License
+## Documentation
+
+See the [root README](../README.md) for what Krikos is, and
+[`docs/`](../docs/README.md) for architecture and testing documentation.
+
+## License
+
+Copyright 2025 N0, INC.
 
 This project is licensed under either of
 
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  https://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
+ * Apache License, Version 2.0, ([LICENSE-APACHE](../LICENSE-APACHE) or
+   https://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](../LICENSE-MIT) or
+   https://opensource.org/licenses/MIT)
 
 at your option.
 
-### Contribution
+## Contribution
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this project by you, as defined in the Apache-2.0 license,
-shall be dual licensed as above, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
