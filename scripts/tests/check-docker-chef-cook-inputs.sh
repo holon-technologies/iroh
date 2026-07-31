@@ -76,6 +76,7 @@ def covers(known, full_context, path):
 stages = {}
 current = None  # name of the stage currently being scanned
 failures = []
+cook_lines_seen = 0
 
 for lineno, raw in enumerate(dockerfile.read_text().splitlines(), start=1):
     line = raw.split("#", 1)[0]
@@ -117,6 +118,7 @@ for lineno, raw in enumerate(dockerfile.read_text().splitlines(), start=1):
         continue
 
     if cook_re.match(line):
+        cook_lines_seen += 1
         for p in patch_paths:
             if not covers(state["known"], state["full_context"], p):
                 failures.append(
@@ -124,6 +126,28 @@ for lineno, raw in enumerate(dockerfile.read_text().splitlines(), start=1):
                     f"without '{p}' (a [patch.crates-io] path target) present in this stage "
                     f"-- add a COPY for it before this line"
                 )
+
+# A Dockerfile with no `cargo chef cook` at all would otherwise make every
+# loop above a no-op and fall through to the "OK" print below having
+# checked nothing -- reporting success over an empty set. That's exactly
+# the anti-pattern this whole check exists to catch one level up: deleting
+# the cook step "fixes" a broken cook by discarding cargo-chef's caching
+# entirely (see the Commit 2 report, 2.2). This is a *different* case from
+# `not patch_paths` above (a legitimate "nothing to guard" when there are
+# no path patches to worry about) -- here patch_paths is non-empty, so the
+# absence of any cook line is itself the defect, not a reason to pass.
+if cook_lines_seen == 0:
+    print("FAIL")
+    print(
+        f"{dockerfile_rel}: no `cargo chef cook` line found anywhere in the file, but "
+        f"root Cargo.toml has {len(patch_paths)} [patch.crates-io] path target(s) "
+        f"({', '.join(patch_paths)}). cargo-chef's whole purpose is a cached dependency-only "
+        f"build via `cargo chef cook`; a Dockerfile using cargo-chef's `prepare`/recipe.json "
+        f"flow without a `cook` step has discarded the caching this file exists for -- that "
+        f"is not a fix, it's the defect this check is guarding against. Restore a "
+        f"`RUN cargo chef cook ...` step (with the patch paths COPY'd in before it)."
+    )
+    sys.exit(1)
 
 if failures:
     print("FAIL")
