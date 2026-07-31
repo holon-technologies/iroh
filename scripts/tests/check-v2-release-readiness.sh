@@ -63,21 +63,48 @@ for path in \
   require_file "$path"
 done
 
-version_manifests=(
-  krikos-base/Cargo.toml
-  krikos-runtime/Cargo.toml
-  krikos-resolver/Cargo.toml
-  krikos-dns/Cargo.toml
-  krikos-relay/Cargo.toml
-  krikos/Cargo.toml
-  krikos-dns-server/Cargo.toml
-  protocols/krikos-blobs/Cargo.toml
-  protocols/krikos-gossip/Cargo.toml
-  protocols/krikos-docs/Cargo.toml
-  framework/app/Cargo.toml
-  krikos/bench/Cargo.toml
-  krikos-sim/Cargo.toml
+# version_manifests enumerates every main-workspace member's Cargo.toml so
+# the loop below can assert its published version is exactly 1.0.0. Derived
+# from `cargo metadata` rather than hand-typed: a hand-typed list has
+# rotted out of sync with the workspace membership six separate times in
+# this repository.
+mapfile -t version_manifests < <(
+  cargo metadata --no-deps --format-version 1 --manifest-path "$repo_root/Cargo.toml" |
+    python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+members = set(data["workspace_members"])
+manifests = sorted(
+    pkg["manifest_path"]
+    for pkg in data["packages"]
+    if pkg["id"] in members
 )
+for manifest in manifests:
+    print(manifest)
+'
+)
+
+version_manifests_relative=()
+for manifest in "${version_manifests[@]}"; do
+  rel="${manifest#"$repo_root/"}"
+  # tools/determinism-checker is deliberately excluded here: it is
+  # independently versioned at 0.1.0 by design (an internal dev tool, not
+  # part of the Krikos 1.0.0 release train) and must not be forced to the
+  # workspace version. That is the project owner's decision, not an
+  # oversight for this check to correct.
+  if [[ "$rel" == "tools/determinism-checker/Cargo.toml" ]]; then
+    continue
+  fi
+  version_manifests_relative+=("$rel")
+done
+version_manifests=("${version_manifests_relative[@]}")
+
+# krikos-sim carries its own Cargo workspace and is excluded from the main
+# workspace's `members`, so `cargo metadata` above never surfaces it. It
+# still ships at the same 1.0.0 line and must be checked explicitly.
+version_manifests+=(krikos-sim/Cargo.toml)
 
 for path in "${version_manifests[@]}"; do
   if ! grep -Eq '^(version = "1\.0\.0"|version\.workspace = true)$' "$repo_root/$path"; then
