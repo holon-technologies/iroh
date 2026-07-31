@@ -497,6 +497,24 @@ pub async fn node_test_setup_fs(
     node_test_setup_with_events_fs(db_path, EventSender::DEFAULT).await
 }
 
+/// Builds an endpoint that contacts no external infrastructure.
+///
+/// The tests below dial an explicit [`krikos::EndpointAddr`] over loopback, so they
+/// need neither relay fallback nor discovery. Upstream used `presets::N0`, which
+/// points at n0's production relay and DNS deployment (staging under
+/// `KRIKOS_FORCE_STAGING_RELAYS`) and publishes a pkarr record for every endpoint
+/// bound — so a plain `cargo nextest run` emitted traffic to third-party
+/// infrastructure. Unlike the tests converted in `util::connection_pool`, these
+/// never call `endpoint.online()`, so they were fast rather than slow; the cost was
+/// silent external traffic, not wall-clock. `presets::Minimal` plus
+/// [`RelayMode::Disabled`] exercises the same code paths without leaving the machine.
+async fn hermetic_endpoint() -> TestResult<Endpoint> {
+    Ok(Endpoint::builder(presets::Minimal)
+        .relay_mode(RelayMode::Disabled)
+        .bind()
+        .await?)
+}
+
 pub async fn node_test_setup_with_events_fs(
     db_path: PathBuf,
     events: EventSender,
@@ -504,7 +522,7 @@ pub async fn node_test_setup_with_events_fs(
     let store = crate::store::fs::FsStore::load(&db_path).await?;
     let sp = MemoryLookup::new();
     let ep = Endpoint::builder(presets::Minimal)
-        .relay_mode(RelayMode::Default)
+        .relay_mode(RelayMode::Disabled)
         .address_lookup(sp.clone())
         .bind()
         .await?;
@@ -523,7 +541,7 @@ pub async fn node_test_setup_with_events_mem(
     let store = MemStore::new();
     let sp = MemoryLookup::new();
     let ep = Endpoint::builder(presets::Minimal)
-        .relay_mode(RelayMode::Default)
+        .relay_mode(RelayMode::Disabled)
         .address_lookup(sp.clone())
         .bind()
         .await?;
@@ -654,14 +672,14 @@ async fn node_serve_hash_seq() -> TestResult<()> {
     let hash_seq = tts.iter().map(|x| x.hash).collect::<HashSeq>();
     let root_tt = store.add_bytes(hash_seq).await?;
     let root = root_tt.hash;
-    let endpoint = Endpoint::bind(presets::N0).await?;
+    let endpoint = hermetic_endpoint().await?;
     let blobs = crate::net_protocol::BlobsProtocol::new(&store, None);
     let r1 = Router::builder(endpoint)
         .accept(crate::protocol::ALPN, blobs)
         .spawn();
     let addr1 = r1.endpoint().addr();
     info!("node addr: {addr1:?}");
-    let endpoint2 = Endpoint::bind(presets::N0).await?;
+    let endpoint2 = hermetic_endpoint().await?;
     let conn = endpoint2.connect(addr1, crate::protocol::ALPN).await?;
     let (hs, sizes) = get::request::get_hash_seq_and_sizes(&conn, &root, 1024, None).await?;
     println!("hash seq: {hs:?}");
@@ -686,14 +704,14 @@ async fn node_serve_blobs() -> TestResult<()> {
     for size in sizes {
         tts.push(store.add_bytes(test_data(size)).await?);
     }
-    let endpoint = Endpoint::bind(presets::N0).await?;
+    let endpoint = hermetic_endpoint().await?;
     let blobs = crate::net_protocol::BlobsProtocol::new(&store, None);
     let r1 = Router::builder(endpoint)
         .accept(crate::protocol::ALPN, blobs)
         .spawn();
     let addr1 = r1.endpoint().addr();
     info!("node addr: {addr1:?}");
-    let endpoint2 = Endpoint::bind(presets::N0).await?;
+    let endpoint2 = hermetic_endpoint().await?;
     let conn = endpoint2.connect(addr1, crate::protocol::ALPN).await?;
     for size in sizes {
         let expected = test_data(size);
@@ -727,14 +745,14 @@ async fn node_smoke_mem() -> TestResult<()> {
 async fn node_smoke(store: &Store) -> TestResult<()> {
     let tt = store.add_bytes(b"hello world".to_vec()).temp_tag().await?;
     let hash = tt.hash();
-    let endpoint = Endpoint::bind(presets::N0).await?;
+    let endpoint = hermetic_endpoint().await?;
     let blobs = crate::net_protocol::BlobsProtocol::new(store, None);
     let r1 = Router::builder(endpoint)
         .accept(crate::protocol::ALPN, blobs)
         .spawn();
     let addr1 = r1.endpoint().addr();
     info!("node addr: {addr1:?}");
-    let endpoint2 = Endpoint::bind(presets::N0).await?;
+    let endpoint2 = hermetic_endpoint().await?;
     let conn = endpoint2.connect(addr1, crate::protocol::ALPN).await?;
     let (size, stats) = get::request::get_unverified_size(&conn, &hash).await?;
     info!("size: {} stats: {:?}", size, stats);
