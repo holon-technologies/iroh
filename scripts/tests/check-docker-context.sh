@@ -90,6 +90,49 @@ PYEOF
 required_entries="${required_entries}
 dir .cargo"
 
+# --- Floor -----------------------------------------------------------------
+#
+# The completeness check below only proves the allowlist is a superset of
+# whatever `required_entries` says. An empty (or near-empty) derivation
+# would make that vacuously true -- "nothing required" reads as "everything
+# satisfied" -- and the loop below would print an "ok" with a suspiciously
+# small denominator instead of failing loudly. Guard against the derivation
+# itself silently collapsing (a python exception swallowed by a bad
+# heredoc, a renamed `cargo metadata` key, an accidentally-emptied `for`
+# loop) by asserting the derived set is non-empty and at least as large as
+# a floor computed independently: the number of workspace member packages
+# `cargo metadata` reports directly, via its own separate invocation, not
+# reused from the `required_entries` derivation above. `required_entries`
+# is always a strict superset of the raw member count (it also carries
+# Cargo.toml/Cargo.lock, patch paths, and Dockerfile COPY sources, and it
+# de-duplicates members that share a top-level directory), so this bound
+# holds today and remains meaningful if the workspace grows.
+workspace_member_count=$(cargo metadata --no-deps --locked --format-version 1 \
+  | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["packages"]))')
+
+if (( workspace_member_count <= 0 )); then
+  echo "FAIL: cargo metadata reported $workspace_member_count workspace member(s); the floor itself is broken" >&2
+  exit 1
+fi
+
+required_entry_count=$(grep -c . <<<"$required_entries")
+if (( required_entry_count == 0 )); then
+  echo "FAIL: derived allowlist requirement set is EMPTY -- this would make the completeness" >&2
+  echo "  check below pass vacuously ('nothing required' read as 'everything satisfied')." >&2
+  echo "  Something upstream of this point (cargo metadata, the [patch.crates-io] table," >&2
+  echo "  or the Dockerfile COPY scan) broke silently. Fix the derivation." >&2
+  exit 1
+fi
+if (( required_entry_count < workspace_member_count )); then
+  echo "FAIL: derived allowlist requirement set has only $required_entry_count entries," >&2
+  echo "  which is fewer than the $workspace_member_count workspace members cargo metadata" >&2
+  echo "  reports independently. The derivation is under-counting; fix it before trusting" >&2
+  echo "  the completeness check below." >&2
+  exit 1
+fi
+echo "ok: derived requirement set has $required_entry_count entries, at or above the" \
+     "$workspace_member_count-workspace-member floor"
+
 missing=()
 total=0
 while read -r kind name; do

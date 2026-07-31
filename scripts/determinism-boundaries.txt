@@ -434,11 +434,11 @@ external-state	krikos-sim/src/cli/shared.rs:275	let mut command = ProcessCommand
 external-state	krikos-sim/src/cli/shared.rs:299	let mut current = std::env::current_dir().map_err(CliError::Io)?;
 external-state	krikos-sim/src/cli/shared.rs:357	Ok(std::env::current_dir().map_err(CliError::Io)?.join(path))
 external-state	krikos-sim/src/cli/soak.rs:711	let mut file = OpenOptions::new()
-external-state	krikos-sim/src/corpus.rs:438	std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
-external-state	krikos-sim/src/corpus.rs:439	std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
-external-state	krikos-sim/src/corpus.rs:450	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
-external-state	krikos-sim/src/corpus.rs:451	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
-external-state	krikos-sim/src/corpus.rs:452	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
+external-state	krikos-sim/src/corpus.rs:498	std::fs::create_dir(root.path().join("a")).expect("first corpus entry");
+external-state	krikos-sim/src/corpus.rs:499	std::fs::create_dir(root.path().join("b")).expect("second corpus entry");
+external-state	krikos-sim/src/corpus.rs:510	std::fs::write(root.path().join("metadata.json"), b"{}").expect("metadata fixture");
+external-state	krikos-sim/src/corpus.rs:511	std::fs::write(root.path().join("scenario.json"), b"{}").expect("scenario fixture");
+external-state	krikos-sim/src/corpus.rs:512	std::fs::write(root.path().join("unexpected.json"), b"{}").expect("unexpected fixture");
 external-state	krikos-sim/tests/cli.rs:1017	let corpus = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:1038	let campaign = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))
 external-state	krikos-sim/tests/cli.rs:1119	let output = Command::new(env!("CARGO_BIN_EXE_cargo-sim"))

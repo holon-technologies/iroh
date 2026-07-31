@@ -16,6 +16,22 @@ RUN update-ca-certificates
 RUN apk add --no-cache musl-dev openssl-dev pkgconfig
 
 COPY --from=planner /krikos/recipe.json recipe.json
+
+# cargo chef's recipe only embeds manifests for workspace *members* (see
+# `cargo chef prepare`'s output). The [patch.crates-io] targets in the root
+# Cargo.toml (vendor/hickory-server-0.26.1, vendor/noq-1.1.0) are
+# deliberately excluded from the workspace -- they're vendored forks, not
+# our own crates -- so they never made it into recipe.json. Cargo still
+# reads their Cargo.toml (and compiles their real source) directly off disk
+# during dependency resolution, so `cook` needs them present. Copy just
+# those two directories, not the whole tree: this keeps them a distinct,
+# independently-cached layer that only invalidates when a vendored patch
+# actually changes, instead of collapsing into the full workspace COPY
+# below (which invalidates on every source edit and would defeat the
+# caching this stage exists for).
+COPY vendor/hickory-server-0.26.1 vendor/hickory-server-0.26.1
+COPY vendor/noq-1.1.0 vendor/noq-1.1.0
+
 # Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
 

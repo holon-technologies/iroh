@@ -24,9 +24,20 @@
 !integration-tests/
 !protocols/
 
-# Only the two crates referenced by [patch.crates-io] in the root Cargo.toml.
-# vendor/rustls-0.23.41 is patched in by krikos-sim and fuzz only, neither of
-# which this image builds.
+# docker/Dockerfile COPYs the two [patch.crates-io] crates into rust_builder
+# ahead of `cargo chef cook` (cargo reads their manifests directly off disk
+# during dependency resolution; see the comment there). Those COPY sources
+# are nested (vendor/<crate>), but check-docker-context.sh's COPY-derived
+# requirement only inspects the top-level path segment, so a bare `!vendor/`
+# is required here in addition to the two specific entries below. Re-exclude
+# the rest of vendor/ so that doesn't widen the context beyond what's
+# needed: vendor/rustls-0.23.41 is patched in by krikos-sim and fuzz only,
+# neither of which this image builds, and the *.patch files/README are
+# provenance docs, not build inputs.
+!vendor/
+vendor/rustls-0.23.41/
+vendor/*.patch
+vendor/README.md
 !vendor/hickory-server-0.26.1/
 !vendor/noq-1.1.0/
 
