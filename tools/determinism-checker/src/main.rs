@@ -244,6 +244,16 @@ fn source_files(root: &Path) -> Result<Vec<PathBuf>, DynError> {
             )
             .into());
         }
+        // The two error checks above catch a root that is missing or
+        // empty, but a root that scanned "successfully" still gave no
+        // positive record of what was actually found -- a partial scan
+        // (e.g. a root quietly relocated to hold only a handful of files)
+        // could only be inferred after the fact, not observed. Print one
+        // line per root so CI output is a visible manifest of what was
+        // scanned, not something a reader has to reconstruct.
+        println!(
+            "scanned determinism boundary source root: {source_root} ({found_in_root} Rust file(s))"
+        );
     }
     if files.is_empty() {
         return Err(format!("no Krikos Rust source roots found below {}", root.display()).into());

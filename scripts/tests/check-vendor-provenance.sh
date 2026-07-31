@@ -16,7 +16,7 @@ check() {
   local dir="vendor/$name-$ver" patch="vendor/$name-$ver.patch"
 
   echo "--- $name $ver"
-  curl -sL "https://static.crates.io/crates/$name/$name-$ver.crate" -o "$work/$name.crate"
+  curl -sL --fail "https://static.crates.io/crates/$name/$name-$ver.crate" -o "$work/$name.crate"
   tar xzf "$work/$name.crate" -C "$work"
   local pristine="$work/$name-$ver"
 

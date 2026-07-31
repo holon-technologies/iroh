@@ -1,9 +1,14 @@
 [changelog]
-# changelog header
-header = """
-# Changelog\n
-All notable changes to {{ get_env(name="CRATE_NAME", default="krikos") }} will be documented in this file.\n
-"""
+# `git cliff --prepend` re-renders `header` and inserts it above whatever is
+# already in the target file on EVERY run, not just the first. A non-empty
+# header here is therefore not a one-time file header: it is a duplicate `#
+# Changelog` on the second release, a triplicate on the third, and so on --
+# this is exactly how docs/history/CHANGELOG.md ended up with three `#
+# Changelog` H1s. Keep the header empty and let each changelog file (root
+# CHANGELOG.md, and every publishable crate's CHANGELOG.md) carry its own
+# static `# Changelog` heading and intro line once, in the file itself, where
+# repeated prepends only ever add `## [version]` sections below it.
+header = ""
 
 body = """
 {% if version %}\

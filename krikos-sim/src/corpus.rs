@@ -242,14 +242,10 @@ impl CorpusMetadata {
         if self.minimum_scenario_schema > SCENARIO_SCHEMA_VERSION
             || self.maximum_scenario_schema < SCENARIO_SCHEMA_VERSION
             || self.minimum_scenario_schema > self.maximum_scenario_schema
-            || self.minimum_simulator_version.as_str() > SIMULATOR_VERSION
-            || self
-                .maximum_simulator_version
-                .as_ref()
-                .is_some_and(|maximum| SIMULATOR_VERSION > maximum.as_str())
         {
             return Err(CorpusError::Incompatible(self.id.clone()));
         }
+        self.validate_simulator_version_range(SIMULATOR_VERSION)?;
         if let CorpusExpectation::ExpectedFailure { signature } = &self.expectation {
             let canonical_signature = signature
                 .to_canonical_json()
@@ -263,6 +259,70 @@ impl CorpusMetadata {
         }
         Ok(())
     }
+
+    /// Checks `[minimum_simulator_version, maximum_simulator_version]` against
+    /// `simulator_version` using numeric per-component comparison, not string
+    /// comparison. String comparison sorts "1.0.10" below "1.0.9", so a
+    /// naive `>` here can be wrong in either direction once any component
+    /// reaches two digits.
+    ///
+    /// Both sides fail CLOSED on a version string that cannot be parsed as
+    /// `MAJOR.MINOR.PATCH`: an unparsable `minimum_simulator_version` is
+    /// never treated as satisfied, and an unparsable
+    /// `maximum_simulator_version` is never treated as un-exceeded. The
+    /// previous string comparison instead had an ambient failure mode on
+    /// the maximum side (a wrong `>` result there *admits* an incompatible
+    /// corpus entry rather than rejecting a compatible one), which is the
+    /// direction that actually matters: silently running a scenario the
+    /// simulator no longer supports is worse than the reverse.
+    ///
+    /// Takes `simulator_version` as a parameter (rather than reading
+    /// `SIMULATOR_VERSION` directly) so tests can exercise the double-digit
+    /// comparison case end to end without depending on this crate's own
+    /// `Cargo.toml` version.
+    fn validate_simulator_version_range(&self, simulator_version: &str) -> Result<(), CorpusError> {
+        let minimum_satisfied =
+            match compare_simulator_versions(&self.minimum_simulator_version, simulator_version) {
+                Some(order) => order != std::cmp::Ordering::Greater,
+                None => false, // unparsable minimum: never treat as satisfied
+            };
+        let maximum_satisfied = match &self.maximum_simulator_version {
+            None => true,
+            Some(maximum) => {
+                match compare_simulator_versions(simulator_version, maximum) {
+                    Some(order) => order != std::cmp::Ordering::Greater,
+                    None => false, // unparsable maximum: never treat as satisfied
+                }
+            }
+        };
+        if minimum_satisfied && maximum_satisfied {
+            Ok(())
+        } else {
+            Err(CorpusError::Incompatible(self.id.clone()))
+        }
+    }
+}
+
+/// Parses a `MAJOR.MINOR.PATCH` version string into numeric components.
+/// Returns `None` for anything else (missing/extra components, non-numeric
+/// components, pre-release/build metadata suffixes) so callers can fail
+/// closed on malformed input instead of silently guessing via string
+/// comparison.
+fn parse_simulator_version(value: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = value.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next()?.parse::<u64>().ok()?;
+    let patch = parts.next()?.parse::<u64>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
+/// Compares two `MAJOR.MINOR.PATCH` version strings numerically,
+/// component by component. Returns `None` if either fails to parse.
+fn compare_simulator_versions(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    Some(parse_simulator_version(left)?.cmp(&parse_simulator_version(right)?))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -455,5 +515,96 @@ mod tests {
             .expect_err("the third file must exceed the injected limit");
 
         assert!(matches!(error, CorpusError::Unenumerated(_)));
+    }
+
+    #[test]
+    fn simulator_version_comparison_is_numeric_not_lexicographic() {
+        use std::cmp::Ordering;
+
+        // Lexicographically, "1.0.10" < "1.0.9" (the '1' byte loses to the
+        // '9' byte at the first differing position), which is backwards:
+        // 1.0.10 is the newer patch release. A real per-component
+        // comparison must get both directions right.
+        assert_eq!(
+            compare_simulator_versions("1.0.10", "1.0.9"),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            compare_simulator_versions("1.0.9", "1.0.10"),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            compare_simulator_versions("1.0.9", "1.0.9"),
+            Some(Ordering::Equal)
+        );
+
+        assert_eq!(parse_simulator_version("1.0.10"), Some((1, 0, 10)));
+        assert_eq!(parse_simulator_version("1.0"), None);
+        assert_eq!(parse_simulator_version("1.0.10.1"), None);
+        assert_eq!(parse_simulator_version("1.0.x"), None);
+    }
+
+    #[test]
+    fn minimum_simulator_version_double_digit_floor_is_enforced_numerically() {
+        let mut metadata = valid_metadata();
+        // A lexicographic ">" would read "1.0.10" > "1.0.9" as false (the
+        // '1' byte loses to the '9' byte), so the old check would have
+        // wrongly treated simulator 1.0.9 as satisfying this floor. It
+        // does not: 1.0.10 is numerically newer than 1.0.9.
+        metadata.minimum_simulator_version = "1.0.10".to_owned();
+        metadata.maximum_simulator_version = None;
+
+        assert!(matches!(
+            metadata.validate_simulator_version_range("1.0.9"),
+            Err(CorpusError::Incompatible(_))
+        ));
+        metadata
+            .validate_simulator_version_range("1.0.10")
+            .expect("simulator at exactly the floor satisfies it");
+        metadata
+            .validate_simulator_version_range("1.0.11")
+            .expect("simulator above the floor satisfies it");
+    }
+
+    #[test]
+    fn maximum_simulator_version_double_digit_ceiling_is_enforced_numerically_and_fails_closed() {
+        // This is the direction that fails OPEN under lexicographic
+        // comparison: "1.0.10" > "1.0.9" is lexicographically false, so
+        // the old check would have let simulator 1.0.10 run against a
+        // corpus entry capped at maximum 1.0.9 -- admitting an
+        // incompatible entry instead of rejecting it.
+        let mut metadata = valid_metadata();
+        metadata.minimum_simulator_version = "1.0.0".to_owned();
+        metadata.maximum_simulator_version = Some("1.0.9".to_owned());
+
+        assert!(matches!(
+            metadata.validate_simulator_version_range("1.0.10"),
+            Err(CorpusError::Incompatible(_))
+        ));
+        metadata
+            .validate_simulator_version_range("1.0.9")
+            .expect("simulator at exactly the ceiling satisfies it");
+        metadata
+            .validate_simulator_version_range("1.0.8")
+            .expect("simulator below the ceiling satisfies it");
+    }
+
+    #[test]
+    fn malformed_simulator_version_bounds_fail_closed() {
+        let mut metadata = valid_metadata();
+        metadata.minimum_simulator_version = "not-a-version".to_owned();
+        metadata.maximum_simulator_version = None;
+        assert!(matches!(
+            metadata.validate_simulator_version_range("1.0.0"),
+            Err(CorpusError::Incompatible(_))
+        ));
+
+        let mut metadata = valid_metadata();
+        metadata.minimum_simulator_version = "1.0.0".to_owned();
+        metadata.maximum_simulator_version = Some("not-a-version".to_owned());
+        assert!(matches!(
+            metadata.validate_simulator_version_range("1.0.0"),
+            Err(CorpusError::Incompatible(_))
+        ));
     }
 }

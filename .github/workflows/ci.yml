@@ -852,6 +852,8 @@ jobs:
         run: scripts/tests/check-action-pinning.sh
       - name: Docker build context is bounded
         run: scripts/tests/check-docker-context.sh
+      - name: docker/Dockerfile's cargo chef cook has its patch inputs
+        run: scripts/tests/check-docker-chef-cook-inputs.sh
       - name: Vendored trees match upstream plus patch
         run: scripts/tests/check-vendor-provenance.sh
       - name: ci-ok covers every job
