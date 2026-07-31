@@ -267,8 +267,8 @@ impl CorpusMetadata {
     /// reaches two digits.
     ///
     /// Both sides fail CLOSED on a version string that cannot be parsed as
-    /// `MAJOR.MINOR.PATCH`: an unparseable `minimum_simulator_version` is
-    /// never treated as satisfied, and an unparseable
+    /// `MAJOR.MINOR.PATCH`: an unparsable `minimum_simulator_version` is
+    /// never treated as satisfied, and an unparsable
     /// `maximum_simulator_version` is never treated as un-exceeded. The
     /// previous string comparison instead had an ambient failure mode on
     /// the maximum side (a wrong `>` result there *admits* an incompatible
@@ -284,14 +284,14 @@ impl CorpusMetadata {
         let minimum_satisfied =
             match compare_simulator_versions(&self.minimum_simulator_version, simulator_version) {
                 Some(order) => order != std::cmp::Ordering::Greater,
-                None => false, // unparseable minimum: never treat as satisfied
+                None => false, // unparsable minimum: never treat as satisfied
             };
         let maximum_satisfied = match &self.maximum_simulator_version {
             None => true,
             Some(maximum) => {
                 match compare_simulator_versions(simulator_version, maximum) {
                     Some(order) => order != std::cmp::Ordering::Greater,
-                    None => false, // unparseable maximum: never treat as satisfied
+                    None => false, // unparsable maximum: never treat as satisfied
                 }
             }
         };
