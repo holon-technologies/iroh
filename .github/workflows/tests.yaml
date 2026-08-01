@@ -116,10 +116,38 @@ jobs:
         run: |
           cargo nextest list --workspace ${{ env.FEATURES }} --lib --bins --tests --run-ignored ignored-only
 
+      # The `-E` filterset below only applies to the flaky sweep
+      # (`--run-ignored all`), which runs every #[ignore]d test. nextest cannot
+      # read the ignore REASON, so without it the sweep also runs tests ignored
+      # for reasons that are not flakiness. Those fail every single run, which
+      # made the daily sweep permanently red -- and an alarm that is always on
+      # cannot report a NEW flake, the only thing it exists for. It was red on
+      # 2026-07-29, -30 and -31.
+      #
+      # Excluded, because they are not flaky:
+      #   integration_mainline       dials the public BitTorrent mainline DHT;
+      #                              deliberately manual. Excluded by its
+      #                              binary, `mainline`.
+      #   downloader_get_many_smoke  ignored "todo" -- unimplemented.
+      #
+      # The 11 patchbay tests ignored "not yet passing" are already excluded by
+      # `default-filter = 'not binary(patchbay)'` in .config/nextest.toml, which
+      # still applies alongside -E (verified -- -E composes with it rather than
+      # replacing it).
+      #
+      # This is emitted by a GitHub expression rather than a shell variable on
+      # purpose: this step runs under pwsh on the windows matrix entries, where
+      # bash parameter expansion (`${VAR:+...}`) is not expansion at all -- pwsh
+      # reads it as an undefined variable and silently substitutes nothing, so
+      # the filter would quietly not apply on Windows. Single quotes survive
+      # both shells.
+      #
+      # scripts/tests/check-flaky-sweep-scope.sh keeps this list in step with
+      # the #[ignore] reasons in the tree.
       - name: run tests
         run: |
           mkdir -p output
-          cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --profile ci --run-ignored ${{ inputs.flaky && 'all' || 'default' }} ${{ inputs.flaky && '--verbose' || '' }} --no-fail-fast --message-format ${{ inputs.flaky && 'libtest-json' || 'human' }} > output/${{ matrix.name }}_${{ matrix.features }}_${{ matrix.rust }}.json
+          cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --profile ci --run-ignored ${{ inputs.flaky && 'all' || 'default' }} ${{ inputs.flaky && '-E ''not test(downloader_get_many_smoke) and not binary(mainline)''' || '' }} ${{ inputs.flaky && '--verbose' || '' }} --no-fail-fast --message-format ${{ inputs.flaky && 'libtest-json' || 'human' }} > output/${{ matrix.name }}_${{ matrix.features }}_${{ matrix.rust }}.json
         env:
           RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
           NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1

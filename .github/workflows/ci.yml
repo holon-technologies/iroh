@@ -134,6 +134,8 @@ jobs:
         run: scripts/tests/check-protocol-provenance.sh
       - name: Check tests do not contact n0 infrastructure
         run: scripts/tests/check-hermetic-tests.sh
+      - name: Check the flaky sweep watches exactly the flaky tests
+        run: scripts/tests/check-flaky-sweep-scope.sh
       - name: Check exact relay TLS provider bundles
         run: scripts/tests/check-relay-tls-features.sh
       - name: Check boundary checker contract
