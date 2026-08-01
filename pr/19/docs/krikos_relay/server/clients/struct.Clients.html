@@ -15,7 +15,7 @@ returning.</p>
 allowing callers to be notified of the disconnect.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.disconnect" class="method"><a class="src rightside" href="../../../src/krikos_relay/server/clients.rs.html#405-421">Source</a><h4 class="code-header">pub fn <a href="#method.disconnect" class="fn">disconnect</a>(
     &amp;self,
-    endpoint_id: <a class="type" href="../../../krikos_base/key/type.EndpointId.html" title="type krikos_base::key::EndpointId">EndpointId</a>,
+    endpoint_id: EndpointId,
     connection_id: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../struct.ConnectionId.html" title="struct krikos_relay::server::ConnectionId">ConnectionId</a>&gt;,
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Disconnects connections registered for <code>endpoint_id</code>.</p>
 <p>With <code>Some(connection_id)</code>, disconnects only that connection (active or
