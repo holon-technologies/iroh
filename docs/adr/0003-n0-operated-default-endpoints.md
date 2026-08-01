@@ -88,12 +88,25 @@ that these are inherited from upstream rather than operated by Krikos, cites
 
 - The dependency is disclosed by name in the README, so no user adopts it unknowingly.
 - `RelayMode::Custom` and the `Minimal` preset let any consumer opt out without forking.
-- The test suite no longer contributes load. This took two passes: the first made the tests that
-  *blocked* on a relay handshake hermetic, and the second caught eight `krikos-blobs` tests that
-  merely *configured* n0's endpoints without blocking — fast and green, so they hid. A single one
-  of them opened 17 connections to all four n0 relay regions and `dns.iroh.link`. The protocol
-  tests now contact only a locally-spawned relay, or no relay at all where they dial over
-  loopback; this is verified by syscall trace, not by inspection.
+- The test suite no longer contributes load. This took three passes, each of which fixed what it
+  looked at and left the rest. The first made hermetic the tests that *blocked* on a relay
+  handshake. The second caught eight `krikos-blobs` tests that merely *configured* n0's endpoints
+  without blocking — fast and green, so they hid; one opened 17 connections to all four n0 relay
+  regions and `dns.iroh.link`. The third caught twelve `krikos` endpoint tests whose own comments
+  said "without Address Lookup" while `presets::N0` attached a pkarr publisher regardless.
+
+  Measured by syscall trace rather than inspection: the `krikos` suite went from 32 external
+  connections to 20, and all 20 belong to one test. Excluding it, the other 153 tests open zero
+  connections beyond loopback.
+
+  What remains is deliberate: `simple_endpoint_id_based_connection_transfer` dials by endpoint ID,
+  which requires a real publish/resolve round trip against n0 staging. It is the end-to-end proof
+  of the headline capability, so it keeps its dependency and is the sole documented exemption.
+
+- `scripts/tests/check-hermetic-tests.sh` (CI) fails any test file that uses `presets::N0` or
+  `RelayMode::Default` outside that exemption. Three separate fixes were needed because nothing
+  checked; this is the check. It also fails on an unused exemption, so the allowed set cannot widen
+  by neglect.
 
 ### Revisiting
 

@@ -595,7 +595,7 @@ async fn endpoint_two_direct_only() -> Result {
     let ep1 = {
         let span = info_span!("server");
         let _guard = span.enter();
-        Endpoint::builder(presets::N0)
+        Endpoint::builder(presets::Minimal)
             .alpns(vec![TEST_ALPN.to_vec()])
             .relay_mode(RelayMode::Disabled)
             .bind()
@@ -604,7 +604,7 @@ async fn endpoint_two_direct_only() -> Result {
     let ep2 = {
         let span = info_span!("client");
         let _guard = span.enter();
-        Endpoint::builder(presets::N0)
+        Endpoint::builder(presets::Minimal)
             .alpns(vec![TEST_ALPN.to_vec()])
             .relay_mode(RelayMode::Disabled)
             .bind()
@@ -665,7 +665,7 @@ async fn endpoint_two_relay_only_becomes_direct() -> Result {
     ) -> Result<ConnectionError> {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
         let secret = SecretKey::from_bytes(&rng.random());
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -712,7 +712,7 @@ async fn endpoint_two_relay_only_becomes_direct() -> Result {
     ) -> Result {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1u64);
         let secret = SecretKey::from_bytes(&rng.random());
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -770,7 +770,7 @@ async fn endpoint_two_relay_only_no_ip() -> Result {
     ) -> Result<ConnectionError> {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
         let secret = SecretKey::from_bytes(&rng.random());
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -811,7 +811,7 @@ async fn endpoint_two_relay_only_no_ip() -> Result {
     async fn accept(relay_map: RelayMap, node_addr_tx: oneshot::Sender<EndpointAddr>) -> Result {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1u64);
         let secret = SecretKey::from_bytes(&rng.random());
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -867,7 +867,7 @@ async fn endpoint_two_direct_add_relay() -> Result {
         node_addr_rx: oneshot::Receiver<EndpointAddr>,
     ) -> Result<()> {
         let secret = SecretKey::from([0u8; 32]);
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -917,7 +917,7 @@ async fn endpoint_two_direct_add_relay() -> Result {
         node_addr_tx: oneshot::Sender<EndpointAddr>,
     ) -> Result<ConnectionError> {
         let secret = SecretKey::from([1u8; 32]);
-        let ep = Endpoint::builder(presets::N0)
+        let ep = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .alpns(vec![TEST_ALPN.to_vec()])
             .ca_tls_config(CaTlsConfig::insecure_skip_verify())
@@ -2100,7 +2100,7 @@ async fn test_closed_endpoint_behaviour() -> Result {
     // call endpoint.close
     // ensure methods behave in the expected way
     info!("Creating endpoint");
-    let ep = Endpoint::builder(presets::N0).bind().await?;
+    let ep = Endpoint::builder(presets::Minimal).bind().await?;
     let closed = ep.closed();
     info!("Closing endpoint");
     let now = Instant::now();
@@ -2205,7 +2205,7 @@ async fn test_closed_endpoint_behaviour() -> Result {
 #[tokio::test]
 #[traced_test]
 async fn endpoint_close_is_idempotent() -> Result {
-    let endpoint = Endpoint::builder(presets::N0).bind().await?;
+    let endpoint = Endpoint::builder(presets::Minimal).bind().await?;
 
     endpoint.close().await;
     tokio::time::timeout(Duration::from_secs(1), endpoint.close())
@@ -2219,7 +2219,7 @@ async fn endpoint_close_is_idempotent() -> Result {
 #[traced_test]
 async fn test_closed_endpoint_unpolled_accept_fut() -> Result {
     info!("Creating endpoint");
-    let ep = Endpoint::builder(presets::N0).bind().await?;
+    let ep = Endpoint::builder(presets::Minimal).bind().await?;
 
     info!("Get accept future");
     let accept_fut = ep.accept();
@@ -2241,7 +2241,7 @@ async fn test_closed_endpoint_unpolled_accept_fut() -> Result {
 #[traced_test]
 async fn test_closed_endpoint_polled_accept_fut() -> Result {
     info!("Creating endpoint");
-    let ep = Endpoint::builder(presets::N0).bind().await?;
+    let ep = Endpoint::builder(presets::Minimal).bind().await?;
 
     info!("Run an accept task");
     let ep2 = ep.clone();

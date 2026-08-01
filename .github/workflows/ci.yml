@@ -132,6 +132,8 @@ jobs:
         run: scripts/tests/check-workspace-architecture-fixtures.sh
       - name: Check protocol upstream provenance
         run: scripts/tests/check-protocol-provenance.sh
+      - name: Check tests do not contact n0 infrastructure
+        run: scripts/tests/check-hermetic-tests.sh
       - name: Check exact relay TLS provider bundles
         run: scripts/tests/check-relay-tls-features.sh
       - name: Check boundary checker contract
