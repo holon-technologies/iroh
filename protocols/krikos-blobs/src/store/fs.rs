@@ -1535,7 +1535,7 @@ pub mod tests {
         api::blobs::Bitfield,
         store::{
             KRIKOS_BLOCK_SIZE,
-            util::{SliceInfoExt, Tag, read_checksummed, tests::create_n0_bao},
+            util::{Tag, read_checksummed, tests::create_n0_bao},
         },
     };
 
