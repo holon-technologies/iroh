@@ -829,6 +829,20 @@ async fn test_download_policies() -> Result<()> {
 
     assert_eq!(key_hashes.len(), star_wars_movies.len() + lotr_movies.len());
 
+    // A hash can legitimately be reported downloaded by BOTH event arms: the
+    // engine emits ContentReady when a download completes (engine/live.rs,
+    // `on_download_ready`), and InsertRemote carries a `content_status` that is
+    // evaluated when the event is converted (engine.rs) -- so if the download
+    // finishes before its InsertRemote reaches the subscriber, that status
+    // reads Complete for content already announced by ContentReady. The two
+    // events mean different things and are not mutually exclusive; only the
+    // test assumed they were. Record each key once.
+    fn record(seen: &mut Vec<&'static str>, key: &'static str) {
+        if !seen.contains(&key) {
+            seen.push(key);
+        }
+    }
+
     let fut = async {
         use LiveEvent::*;
         let mut downloaded_a: Vec<&'static str> = Vec::new();
@@ -842,11 +856,11 @@ async fn test_download_policies() -> Result<()> {
                         InsertRemote { content_status, entry, .. } => {
                             synced_a += 1;
                             if let ContentStatus::Complete = content_status {
-                                downloaded_a.push(key_hashes.get(&entry.content_hash()).unwrap())
+                                record(&mut downloaded_a, key_hashes.get(&entry.content_hash()).unwrap())
                             }
                         },
                         ContentReady { hash } => {
-                            downloaded_a.push(key_hashes.get(&hash).unwrap());
+                            record(&mut downloaded_a, key_hashes.get(&hash).unwrap());
                         },
                         _ => {}
                     }
@@ -856,21 +870,26 @@ async fn test_download_policies() -> Result<()> {
                         InsertRemote { content_status, entry, .. } => {
                             synced_b += 1;
                             if let ContentStatus::Complete = content_status {
-                                downloaded_b.push(key_hashes.get(&entry.content_hash()).unwrap())
+                                record(&mut downloaded_b, key_hashes.get(&entry.content_hash()).unwrap())
                             }
                         },
                         ContentReady { hash } => {
-                            downloaded_b.push(key_hashes.get(&hash).unwrap());
+                            record(&mut downloaded_b, key_hashes.get(&hash).unwrap());
                         },
                         _ => {}
                     }
                 }
             }
 
-            if synced_a == EXPECTED_A_SYNCED
-                && downloaded_a.len() == EXPECTED_A_DOWNLOADED
-                && synced_b == EXPECTED_B_SYNCED
-                && downloaded_b.len() == EXPECTED_B_DOWNLOADED
+            // `>=`, not `==`: these counters only ever grow, so an exact
+            // comparison that is overshot once can never become true again and
+            // the loop spins to TIMEOUT. The assertions after this loop still
+            // check the exact contents, so an unexpected extra event now fails
+            // legibly instead of as a 120s timeout with no diagnosis.
+            if synced_a >= EXPECTED_A_SYNCED
+                && downloaded_a.len() >= EXPECTED_A_DOWNLOADED
+                && synced_b >= EXPECTED_B_SYNCED
+                && downloaded_b.len() >= EXPECTED_B_DOWNLOADED
             {
                 break;
             }
