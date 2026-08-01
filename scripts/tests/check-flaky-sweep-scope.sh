@@ -25,10 +25,25 @@ cd "$(dirname "$0")/../.."
 workflow=".github/workflows/tests.yaml"
 nextest_config=".config/nextest.toml"
 
-filter_line=$(grep -E '^\s*FLAKY_EXCLUDE:' "$workflow" || true)
+# The filterset is emitted by a GitHub expression on the nextest command line
+# (not a shell variable -- this step runs under pwsh on Windows, where bash
+# parameter expansion silently yields nothing). Grab that line.
+filter_line=$(grep -E "cargo nextest run .*-E ''not " "$workflow" || true)
 if [[ -z "$filter_line" ]]; then
-  echo "FAIL: no FLAKY_EXCLUDE filter found in $workflow" >&2
-  echo "  The sweep needs one, or it runs every ignored test and is red forever." >&2
+  echo "FAIL: no flaky-sweep -E filterset found on the nextest command in $workflow" >&2
+  echo "  Without it the sweep runs every ignored test and is red forever." >&2
+  echo "  Expected a \${{ inputs.flaky && '-E ''not ...''' || '' }} fragment." >&2
+  exit 1
+fi
+
+# A shell-expansion form would parse here but silently do nothing on Windows.
+# Comment lines are stripped first: the comment above that step documents this
+# exact hazard, and matching the documentation would be a false positive.
+if grep -vE '^[[:space:]]*#' "$workflow" | grep -qE '\$\{[A-Z_]+:[+-]'; then
+  echo "FAIL: $workflow uses bash parameter expansion (\${VAR:+...})." >&2
+  echo "  This step runs under pwsh on the windows matrix entries, which does" >&2
+  echo "  not expand it -- the value silently vanishes there. Emit the argument" >&2
+  echo "  from a \${{ }} GitHub expression instead." >&2
   exit 1
 fi
 
