@@ -46,3 +46,5 @@
 
 Project goals and current testing status live in [`GOAL.md`](../GOAL.md) at the
 repository root.
+
+<!-- CI control probe: isolating an i686 cross-test failure. Delete with this branch. -->
