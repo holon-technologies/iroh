@@ -119,10 +119,30 @@ jobs:
       - name: run tests
         run: |
           mkdir -p output
-          cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --profile ci --run-ignored ${{ inputs.flaky && 'all' || 'default' }} ${{ inputs.flaky && '--verbose' || '' }} --no-fail-fast --message-format ${{ inputs.flaky && 'libtest-json' || 'human' }} > output/${{ matrix.name }}_${{ matrix.features }}_${{ matrix.rust }}.json
+          cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --profile ci --run-ignored ${{ inputs.flaky && 'all' || 'default' }} ${FLAKY_EXCLUDE:+-E "$FLAKY_EXCLUDE"} ${{ inputs.flaky && '--verbose' || '' }} --no-fail-fast --message-format ${{ inputs.flaky && 'libtest-json' || 'human' }} > output/${{ matrix.name }}_${{ matrix.features }}_${{ matrix.rust }}.json
         env:
           RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
           NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
+          # `--run-ignored all` (the flaky sweep) runs every #[ignore]d test,
+          # but nextest cannot read the ignore REASON -- so it also runs tests
+          # ignored for reasons that have nothing to do with flakiness. Those
+          # fail every single run, which made the daily sweep permanently red
+          # and therefore incapable of reporting a NEW flake: an alarm that is
+          # always on reports nothing. It was red on 2026-07-29, -30 and -31.
+          #
+          # Exclude the ignores that are not flakiness:
+          #   integration_mainline      dials the public BitTorrent mainline
+          #                             DHT; deliberately manual (binary
+          #                             `mainline`, so exclude the binary).
+          #   downloader_get_many_smoke ignored "todo" -- unimplemented.
+          #
+          # The 11 patchbay tests ignored "not yet passing" are already out via
+          # `default-filter = 'not binary(patchbay)'` in .config/nextest.toml,
+          # which still applies alongside -E.
+          #
+          # scripts/tests/check-flaky-sweep-scope.sh keeps this list in step
+          # with the #[ignore] reasons in the tree.
+          FLAKY_EXCLUDE: ${{ inputs.flaky && 'not test(downloader_get_many_smoke) and not binary(mainline)' || '' }}
 
       - name: upload results
         if: ${{ failure() && inputs.flaky }}
