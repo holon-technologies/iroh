@@ -253,7 +253,6 @@ async fn sync_gossip_bulk() -> Result<()> {
 /// This tests basic sync and gossip with 3 peers.
 #[tokio::test]
 #[traced_test]
-#[ignore = "flaky"]
 async fn sync_full_basic() -> testresult::TestResult<()> {
     let mut rng = test_rng(b"sync_full_basic");
     let mut nodes = spawn_nodes(2, &mut rng).await?;
@@ -334,6 +333,13 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
     )
     .await;
 
+    // `content_status` is evaluated when the event is CONVERTED, not when the
+    // entry synced, so whether a download has started by then is a race. These
+    // matchers accepted only `Missing` and broke whenever it read `Incomplete`.
+    // Measured over 20 runs under CPU load: peer2's two InsertRemote matchers
+    // saw Incomplete 12/20 and 7/20 respectively; `Complete` never appeared.
+    // So "not yet complete" is a real assertion that holds, while the
+    // Missing/Incomplete split is pure timing. Match both.
     // peer0: assert events for entry received via gossip
     info!("peer0: wait for 2 events (gossip'ed entry from peer1)");
     assert_next(
@@ -341,7 +347,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
         TIMEOUT,
         vec![
             Box::new(
-                move |e| matches!(e, LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing, .. } if *from == peer1),
+                move |e| matches!(e, LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == peer1),
             ),
             Box::new(move |e| matches!(e, LiveEvent::ContentReady { hash } if *hash == hash1)),
         ],
@@ -375,10 +381,10 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
             Box::new(move |e| match_sync_finished(e, peer1)),
             // 2 InsertRemote events
             Box::new(
-                move |e| matches!(e, LiveEvent::InsertRemote { entry, content_status: ContentStatus::Missing, .. } if entry.content_hash() == hash0),
+                move |e| matches!(e, LiveEvent::InsertRemote { entry, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if entry.content_hash() == hash0),
             ),
             Box::new(
-                move |e| matches!(e, LiveEvent::InsertRemote { entry, content_status: ContentStatus::Missing, .. } if entry.content_hash() == hash1),
+                move |e| matches!(e, LiveEvent::InsertRemote { entry, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if entry.content_hash() == hash1),
             ),
             // 2 ContentReady events
             Box::new(move |e| matches!(e, LiveEvent::ContentReady { hash } if *hash == hash0)),
@@ -607,7 +613,6 @@ async fn test_sync_via_relay() -> Result<()> {
 
 #[tokio::test]
 #[traced_test]
-#[ignore = "flaky"]
 #[cfg(feature = "fs-store")]
 async fn sync_restart_node() -> Result<()> {
     use crate::util::endpoint;
@@ -656,7 +661,7 @@ async fn sync_restart_node() -> Result<()> {
         vec![
             match_event!(LiveEvent::NeighborUp(n) if *n == id2),
             match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_ok()),
-            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing, .. } if *from == id2),
+            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == id2),
             match_event!(LiveEvent::ContentReady { hash } if *hash == hash_a),
             match_event!(LiveEvent::PendingContentReady),
         ],
@@ -701,7 +706,7 @@ async fn sync_restart_node() -> Result<()> {
         vec![
             match_event!(LiveEvent::NeighborUp(n) if *n== id2),
             match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_ok()),
-            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing, .. } if *from == id2),
+            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == id2),
             match_event!(LiveEvent::ContentReady { hash } if *hash == hash_b),
         ],
         vec![
@@ -718,7 +723,7 @@ async fn sync_restart_node() -> Result<()> {
         &mut events1,
         Duration::from_secs(10),
         vec![
-            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing, .. } if *from == id2),
+            match_event!(LiveEvent::InsertRemote { from, content_status: ContentStatus::Missing | ContentStatus::Incomplete, .. } if *from == id2),
             match_event!(LiveEvent::ContentReady { hash } if *hash == hash_c),
         ],
         vec![
@@ -918,7 +923,6 @@ async fn test_download_policies() -> Result<()> {
 /// Test sync between many nodes with propagation through sync reports.
 #[tokio::test(flavor = "multi_thread")]
 #[traced_test]
-#[ignore = "flaky"]
 async fn sync_big() -> Result<()> {
     let mut rng = test_rng(b"sync_big");
     let n_nodes = std::env::var("NODES")
