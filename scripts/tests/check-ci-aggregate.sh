@@ -5,16 +5,20 @@
 #   1. Every job in ci.yml appears in ci-ok's `needs` list. Without this, a
 #      new job silently escapes the required status check.
 #
-#   2. No job other than ci-ok declares its own `needs:`. ci-ok treats a
-#      `skipped` dependency result as acceptable (several jobs legitimately
-#      skip via a `flaky-test` label guard). But in GitHub Actions, a job
-#      whose `needs:` dependency FAILED also reports `skipped` to anything
-#      that depends on it. If any job in this file ever gains a `needs:` on
-#      a sibling, a genuine failure downstream of it could report as
-#      `skipped` and ci-ok would silently accept it as green. Until ci-ok's
-#      result logic is revisited to tell "legitimately skipped" apart from
-#      "skipped because a dependency failed", no inter-job `needs:` may
-#      exist besides ci-ok's own.
+#   2. No job other than ci-ok declares its own `needs:`. This is now
+#      defence in depth rather than the sole protection -- see invariant 3 --
+#      but inter-job `needs:` still makes results harder to reason about,
+#      because GitHub reports `skipped` for a job whose dependency failed.
+#
+#   3. ci-ok's verdict step does not accept a `skipped` dependency result.
+#      It used to: the step read "succeeded or was skipped". That was a hole,
+#      because the only thing that skips a job in ci.yml is the `flaky-test`
+#      label, and that label suppresses SEVEN jobs including the entire
+#      `tests` suite. One label therefore turned the sole required check
+#      green while almost nothing ran, and a PR was nearly merged that way.
+#      The same acceptance also laundered a failed-dependency `skipped` into
+#      a pass. ci-ok now requires `success` from every dependency; this
+#      invariant stops that reverting quietly.
 #
 # Uses python3's PyYAML rather than yq: python3 is preinstalled everywhere
 # this needs to run. PyYAML is NOT preinstalled on stock GitHub-hosted
@@ -94,12 +98,32 @@ fi
 
 if [ -n "$needy" ]; then
   echo "FAIL: job(s) other than ci-ok declare their own needs: $(echo "$needy" | tr '\n' ' ')" >&2
-  echo "  ci-ok accepts a 'skipped' result as a legitimate flaky-test-label skip." >&2
-  echo "  But a job whose own needs: dependency failed also reports 'skipped' --" >&2
-  echo "  ci-ok cannot currently tell those apart, so it would silently accept a" >&2
-  echo "  real failure laundered through as 'skipped'. Revisit ci-ok's result" >&2
-  echo "  logic (distinguish a genuine skip from a needs-failure) before adding" >&2
-  echo "  any inter-job needs: to a job other than ci-ok." >&2
+  echo "  A job whose own needs: dependency failed reports 'skipped', which makes" >&2
+  echo "  results hard to reason about. ci-ok now requires 'success' from every" >&2
+  echo "  dependency, so such a job would correctly fail the aggregate -- but keep" >&2
+  echo "  the job graph flat so the reported reason stays truthful." >&2
+  status=1
+fi
+
+# Invariant 3: ci-ok must not accept a 'skipped' dependency as a pass.
+# Matching on the jq predicate rather than prose: the wording of the step name
+# can change without changing behaviour, but this comparison IS the behaviour.
+verdict=$(awk '/^  ci-ok:/{f=1} f' "$workflow")
+if [ -z "$verdict" ]; then
+  echo "FAIL: could not locate the ci-ok job in $workflow to inspect its verdict logic" >&2
+  status=1
+elif printf '%s' "$verdict" | grep -qE '\.value\.result[[:space:]]*!=[[:space:]]*"skipped"'; then
+  echo "FAIL: ci-ok treats a 'skipped' dependency result as acceptable." >&2
+  echo "  The only thing that skips a job in ci.yml is the 'flaky-test' label," >&2
+  echo "  which suppresses seven jobs including the entire tests suite. Accepting" >&2
+  echo "  'skipped' lets one label turn the sole required check green with almost" >&2
+  echo "  nothing run. Require 'success' from every dependency instead." >&2
+  status=1
+elif ! printf '%s' "$verdict" | grep -qE '\.value\.result[[:space:]]*!=[[:space:]]*"success"'; then
+  echo "FAIL: ci-ok's verdict step does not test dependencies against 'success'." >&2
+  echo "  Expected a jq select on .value.result != \"success\"; found neither that" >&2
+  echo "  nor the old 'skipped' acceptance. Check the step has not been rewritten" >&2
+  echo "  into something that cannot fail." >&2
   status=1
 fi
 

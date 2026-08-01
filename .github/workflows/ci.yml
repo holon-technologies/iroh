@@ -908,14 +908,37 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
-      - name: Assert every dependency succeeded or was skipped
+      # Every dependency must report `success`. A `skipped` result is NOT
+      # acceptable here, and treating it as such was a real hole: the only
+      # thing in this workflow that skips a job is the `flaky-test` label,
+      # which suppresses SEVEN jobs including the entire `tests` suite. That
+      # made one label enough to turn the sole required check green while
+      # almost nothing ran -- a PR was nearly merged that way. GitHub also
+      # reports `skipped` for a job whose own `needs:` dependency failed, so
+      # accepting `skipped` laundered genuine failures too (the reason
+      # check-ci-aggregate.sh forbids inter-job `needs:`).
+      #
+      # Requiring `success` collapses both cases: whatever the reason a job
+      # did not succeed, this check is red. The `flaky-test` label is a
+      # diagnostic tool (it drives flaky.yaml's --run-ignored sweep), never a
+      # merge path, so a labelled PR being red here is correct behaviour.
+      - name: Assert every dependency succeeded
         env:
           NEEDS_CONTEXT: ${{ toJSON(needs) }}
+          FLAKY_LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'flaky-test') }}
         run: |
-          failed=$(echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"')
-          if [ -n "$failed" ]; then
-            echo "Failing dependencies:" >&2
-            echo "$failed" >&2
+          not_success=$(echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | select(.value.result != "success") | "  \(.key): \(.value.result)"')
+          if [ -n "$not_success" ]; then
+            echo "::error::CI OK requires every job to succeed; these did not:" >&2
+            echo "$not_success" >&2
+            if [ "$FLAKY_LABELLED" = "true" ]; then
+              echo "" >&2
+              echo "  The 'flaky-test' label is applied to this PR. It skips seven jobs in" >&2
+              echo "  this workflow -- including the whole test suite -- and triggers" >&2
+              echo "  flaky.yaml to run the ignored flaky tests on purpose. It is for" >&2
+              echo "  investigating flaky tests, not for merging. Remove the label to get" >&2
+              echo "  a real verdict." >&2
+            fi
             exit 1
           fi
-          echo "All CI jobs succeeded or were skipped."
+          echo "All CI jobs succeeded."
