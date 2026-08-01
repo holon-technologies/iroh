@@ -231,22 +231,22 @@ clock-timer	krikos/src/endpoint/tests.rs:1295	tokio::time::sleep(Duration::from_
 clock-timer	krikos/src/endpoint/tests.rs:1306	tokio::time::sleep(Duration::from_millis(100)).await;
 clock-timer	krikos/src/endpoint/tests.rs:1584	let t0 = Instant::now();
 clock-timer	krikos/src/endpoint/tests.rs:1590	let t1 = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2040	tokio::time::timeout(Duration::from_secs(5), async {
-clock-timer	krikos/src/endpoint/tests.rs:2042	tokio::time::sleep(Duration::from_millis(10)).await
-clock-timer	krikos/src/endpoint/tests.rs:2106	let now = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2188	tokio::time::timeout(Duration::from_secs(1), async {
-clock-timer	krikos/src/endpoint/tests.rs:2211	tokio::time::timeout(Duration::from_secs(1), endpoint.close())
-clock-timer	krikos/src/endpoint/tests.rs:2228	let now = Instant::now();
-clock-timer	krikos/src/endpoint/tests.rs:2229	tokio::time::timeout(Duration::from_secs(5), ep.close())
-clock-timer	krikos/src/endpoint/tests.rs:2256	tokio::time::sleep(Duration::from_millis(10)).await;
-clock-timer	krikos/src/endpoint/tests.rs:2259	tokio::time::timeout(Duration::from_secs(5), ep.close())
-clock-timer	krikos/src/endpoint/tests.rs:2280	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2287	let res = tokio::time::timeout(Duration::from_millis(1000), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2293	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
-clock-timer	krikos/src/endpoint/tests.rs:2306	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
-clock-timer	krikos/src/endpoint/tests.rs:2312	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
-clock-timer	krikos/src/endpoint/tests.rs:2356	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
-clock-timer	krikos/src/endpoint/tests.rs:2380	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
+clock-timer	krikos/src/endpoint/tests.rs:2039	tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	krikos/src/endpoint/tests.rs:2041	tokio::time::sleep(Duration::from_millis(10)).await
+clock-timer	krikos/src/endpoint/tests.rs:2105	let now = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:2187	tokio::time::timeout(Duration::from_secs(1), async {
+clock-timer	krikos/src/endpoint/tests.rs:2210	tokio::time::timeout(Duration::from_secs(1), endpoint.close())
+clock-timer	krikos/src/endpoint/tests.rs:2227	let now = Instant::now();
+clock-timer	krikos/src/endpoint/tests.rs:2228	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	krikos/src/endpoint/tests.rs:2255	tokio::time::sleep(Duration::from_millis(10)).await;
+clock-timer	krikos/src/endpoint/tests.rs:2258	tokio::time::timeout(Duration::from_secs(5), ep.close())
+clock-timer	krikos/src/endpoint/tests.rs:2279	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2286	let res = tokio::time::timeout(Duration::from_millis(1000), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2292	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	krikos/src/endpoint/tests.rs:2305	let res = tokio::time::timeout(Duration::from_millis(500), ep.online()).await;
+clock-timer	krikos/src/endpoint/tests.rs:2311	tokio::time::timeout(Duration::from_millis(500), ep_clone.online()).await
+clock-timer	krikos/src/endpoint/tests.rs:2355	let auth_err: String = tokio::time::timeout(Duration::from_secs(5), async {
+clock-timer	krikos/src/endpoint/tests.rs:2379	tokio::time::timeout(Duration::from_secs(5), good_ep.online())
 clock-timer	krikos/src/endpoint/tests.rs:287	tokio::time::timeout(Duration::from_secs(10), async {
 clock-timer	krikos/src/endpoint/tests.rs:289	tokio::time::sleep(Duration::from_millis(10)).await;
 clock-timer	krikos/src/endpoint/tests.rs:400	let (server, client) = tokio::time::timeout(
@@ -933,12 +933,12 @@ spawn-task	krikos/src/endpoint/tests.rs:1236	let accept = tokio::spawn(async mov
 spawn-task	krikos/src/endpoint/tests.rs:1331	let server_task = tokio::spawn(async move {
 spawn-task	krikos/src/endpoint/tests.rs:1379	let server_task = tokio::task::spawn(async move {
 spawn-task	krikos/src/endpoint/tests.rs:1436	let server_task = tokio::spawn({
-spawn-task	krikos/src/endpoint/tests.rs:1907	let server_task = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:1910	let stats_task = tokio::spawn(collect_stats(conn.path_events()));
-spawn-task	krikos/src/endpoint/tests.rs:1921	let client_stats_task = tokio::spawn(collect_stats(conn.path_events()));
-spawn-task	krikos/src/endpoint/tests.rs:2248	let accept_task = tokio::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:2292	let task = tokio::task::spawn(async move {
-spawn-task	krikos/src/endpoint/tests.rs:2311	let task = tokio::task::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1906	let server_task = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:1909	let stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	krikos/src/endpoint/tests.rs:1920	let client_stats_task = tokio::spawn(collect_stats(conn.path_events()));
+spawn-task	krikos/src/endpoint/tests.rs:2247	let accept_task = tokio::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:2291	let task = tokio::task::spawn(async move {
+spawn-task	krikos/src/endpoint/tests.rs:2310	let task = tokio::task::spawn(async move {
 spawn-task	krikos/src/endpoint/tests.rs:330	let server = tokio::spawn(
 spawn-task	krikos/src/endpoint/tests.rs:360	let client = tokio::spawn(
 spawn-task	krikos/src/endpoint/tests.rs:437	let server = tokio::spawn(
