@@ -1865,7 +1865,6 @@ async fn test_bind_addr_prefix_len_0_not_default() -> Result {
     Ok(())
 }
 
-#[ignore = "flaky"]
 #[tokio::test]
 #[traced_test]
 async fn connect_via_relay_becomes_direct_and_sends_direct() -> Result {
