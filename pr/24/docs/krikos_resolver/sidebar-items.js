@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DNS_TIMEOUT","MAX_ADDRESS_RECORDS_PER_FAMILY"],"enum":["BuildError","DnsError","DnsProtocol"],"fn":["install_android_jni_context"],"struct":["Builder","DnsResolver","StaggeredError","TxtRecordData"],"trait":["DnsRuntime","Resolver"],"type":["BoxIter"]};
