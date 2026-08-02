@@ -510,7 +510,24 @@ where
             }
             Err(err) => {
                 self.metrics.send_packets_dropped.inc();
-                Err(err)
+                // A packet the encoder refuses is not this client's doing: packets on
+                // this queue come from other clients. Dropping it keeps the blast radius
+                // at one datagram, matching how every other forwarding failure is
+                // handled; returning the error would end *this* client's session and let
+                // any peer disconnect any other. Only genuine stream errors, which mean
+                // this connection is already broken, are fatal.
+                match &err {
+                    WriteFrameError::Stream {
+                        source:
+                            RelaySendError::EmptyPacket { .. }
+                            | RelaySendError::ExceedsMaxPacketSize { .. },
+                        ..
+                    } => {
+                        warn!("dropping undeliverable packet: {err:#}");
+                        Ok(())
+                    }
+                    _ => Err(err),
+                }
             }
         }
     }
@@ -780,6 +797,87 @@ mod tests {
             .std_context("send")?;
 
         done.cancel();
+        handle.await.std_context("join")?;
+        Ok(())
+    }
+
+    /// A packet that cannot be encoded must not end the receiving client's session.
+    ///
+    /// Packets on this queue were put there by *other* clients, so a packet the encoder
+    /// refuses is not this client's doing. Every other forwarding failure already
+    /// logs-and-continues; treating this one as fatal would let any peer disconnect any
+    /// other by sending it something unencodable. Drop the packet, keep the session.
+    #[tokio::test]
+    #[traced_test]
+    async fn undeliverable_packet_does_not_end_the_session() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(11);
+        let (send_queue_s, send_queue_r) = mpsc::channel(10);
+        let (message_s, message_r) = mpsc::channel(10);
+        let endpoint_id = SecretKey::from_bytes(&rng.random()).public();
+        let (io, io_rw) = tokio::io::duplex(1024);
+        let mut io_rw = Conn::test(io_rw, Default::default());
+        let stream = RelayedStream::test(io);
+        let clients = Clients::default();
+        let metrics = Arc::new(Metrics::default());
+        let actor = Actor {
+            stream,
+            timeout: Duration::from_secs(1),
+            packet_send_queue: send_queue_r,
+            message_send_queue: message_r,
+            guard: Some(OnDisconnectGuard::empty(endpoint_id)),
+            endpoint_id,
+            registered: false,
+            clients: clients.clone(),
+            client_counter: ClientCounter::new(clients.runtime().wall_clock()),
+            ping_tracker: PingTracker::default(),
+            metrics: metrics.clone(),
+            clock: clients.runtime().clock(),
+        };
+        let done = CancellationToken::new();
+        let io_done = done.clone();
+        let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+
+        // `RelayedStream` refuses to encode an empty datagram.
+        send_queue_s
+            .send(Packet {
+                src: endpoint_id,
+                data: Datagrams::from(&[][..]),
+            })
+            .await
+            .std_context("send")?;
+        // Queued behind it: if the actor survived, this still arrives.
+        let data = b"still connected";
+        send_queue_s
+            .send(Packet {
+                src: endpoint_id,
+                data: Datagrams::from(&data[..]),
+            })
+            .await
+            .std_context("send")?;
+
+        let frame = recv_frame(FrameType::RelayToClientDatagram, &mut io_rw)
+            .await
+            .anyerr()?;
+        assert_eq!(
+            frame,
+            RelayToClientMsg::Datagrams {
+                remote_endpoint_id: endpoint_id,
+                datagrams: data.to_vec().into()
+            }
+        );
+        assert!(
+            !handle.is_finished(),
+            "an undeliverable packet must not end the session"
+        );
+        assert_eq!(
+            metrics.send_packets_dropped.get(),
+            1,
+            "the undeliverable packet should be counted as dropped"
+        );
+
+        done.cancel();
+        drop(send_queue_s);
+        drop(message_s);
         handle.await.std_context("join")?;
         Ok(())
     }

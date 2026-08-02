@@ -549,10 +549,30 @@ impl ClientToRelayMsg {
                 ensure!(content.len() >= EndpointId::LENGTH, Error::InvalidFrame);
 
                 let dst_endpoint_id = cache.key_from_slice(&content[..EndpointId::LENGTH])?;
-                let datagrams = Datagrams::from_bytes(
-                    content.slice(EndpointId::LENGTH..),
-                    frame_type == FrameType::ClientToRelayDatagramBatch,
-                )?;
+                let is_batch = frame_type == FrameType::ClientToRelayDatagramBatch;
+                let datagrams =
+                    Datagrams::from_bytes(content.slice(EndpointId::LENGTH..), is_batch)?;
+
+                // Only accept what can be forwarded. The relay re-encodes this as a
+                // `RelayToClientMsg::Datagrams`, which carries its own frame type byte on
+                // top of the same payload, so the egress frame is larger than the one
+                // checked above. The egress encoder also refuses empty contents. Either
+                // refusal would surface on the *receiving* client's stream, i.e. on a
+                // peer that did nothing, so both have to be caught here at ingress.
+                ensure!(!datagrams.contents.is_empty(), Error::InvalidFrame);
+                let forwarded_len = if is_batch {
+                    FrameType::RelayToClientDatagramBatch.encoded_len()
+                } else {
+                    FrameType::RelayToClientDatagram.encoded_len()
+                } + EndpointId::LENGTH
+                    + datagrams.encoded_len();
+                ensure!(
+                    forwarded_len <= MAX_PACKET_SIZE,
+                    Error::FrameTooLarge {
+                        frame_len: forwarded_len
+                    }
+                );
+
                 Self::Datagrams {
                     dst_endpoint_id,
                     datagrams,
@@ -880,6 +900,59 @@ mod tests {
         assert_eq!(&encoded[5..9], &u32::MAX.to_be_bytes());
     }
 
+    /// Anything the ingress parser accepts must be re-encodable towards its destination.
+    ///
+    /// The relay forwards a `ClientToRelayMsg::Datagrams` on as a
+    /// `RelayToClientMsg::Datagrams`, which is one frame-type byte larger because it
+    /// carries the sender's id in place of the destination's. `RelayedStream::start_send`
+    /// refuses to encode an empty or oversized frame — and that refusal lands on the
+    /// *receiving* client, whose actor treats a send failure as fatal. So any frame the
+    /// ingress parser lets through but the egress encoder rejects is a frame one client
+    /// can aim at another. Accept only what can be forwarded.
+    #[test]
+    fn accepted_client_datagrams_are_re_encodable() {
+        let dst = SecretKey::from_bytes(&[7u8; 32]).public();
+        let src = SecretKey::from_bytes(&[8u8; 32]).public();
+        // The largest payload whose *ingress* frame still fits, and its neighbours: the
+        // egress frame is one byte longer, so the boundary cannot be the same.
+        let max_payload = MAX_PACKET_SIZE - EndpointId::LENGTH - 1 /* ECN */;
+        for len in [0, 1, max_payload - 1, max_payload] {
+            for is_batch in [false, true] {
+                let datagrams = Datagrams {
+                    ecn: None,
+                    segment_size: is_batch.then(|| NonZeroU16::new(1).unwrap()),
+                    contents: vec![0u8; len].into(),
+                };
+                let encoded = ClientToRelayMsg::Datagrams {
+                    dst_endpoint_id: dst,
+                    datagrams,
+                }
+                .write_to(Vec::new());
+                let Ok(ClientToRelayMsg::Datagrams { datagrams, .. }) =
+                    ClientToRelayMsg::from_bytes(encoded.into(), &KeyCache::test())
+                else {
+                    // Refused at ingress: nothing to forward, which is the safe outcome.
+                    continue;
+                };
+                assert!(
+                    !datagrams.contents.is_empty(),
+                    "accepted an empty datagram (len {len}, batch {is_batch}); \
+                     forwarding it fails on the receiver's stream"
+                );
+                let forwarded = RelayToClientMsg::Datagrams {
+                    remote_endpoint_id: src,
+                    datagrams,
+                };
+                assert!(
+                    forwarded.encoded_len() <= MAX_PACKET_SIZE,
+                    "accepted a datagram that does not fit once forwarded: \
+                     {} bytes (len {len}, batch {is_batch})",
+                    forwarded.encoded_len()
+                );
+            }
+        }
+    }
+
     /// A datagram frame must contain at least an EndpointId (32 bytes) after
     /// the frame type. A frame consisting only of the frame type byte used to
     /// panic when slicing the destination endpoint id.
@@ -932,7 +1005,10 @@ mod proptests {
         (
             ecn(),
             prop::option::of(MAX_PAYLOAD_SIZE / 20..MAX_PAYLOAD_SIZE),
-            vec(any::<u8>(), 0..MAX_PAYLOAD_SIZE),
+            // Non-empty: an empty datagram carries nothing and cannot be encoded towards
+            // a client, so the client-to-relay parser rejects it rather than handing the
+            // receiver's stream a frame it will refuse.
+            vec(any::<u8>(), 1..MAX_PAYLOAD_SIZE),
         )
             .prop_map(|(ecn, segment_size, data)| Datagrams {
                 ecn,
