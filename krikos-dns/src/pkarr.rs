@@ -130,6 +130,25 @@ impl SignedPacket {
         Self::from_bytes(&bytes)
     }
 
+    /// Assemble a signed packet from its parts, verifying it against `public_key`.
+    ///
+    /// Use this over [`SignedPacket::from_parts_unchecked`] whenever the parts come from
+    /// somewhere that does not itself bind them to the key being resolved, such as a DHT
+    /// response.
+    pub fn from_parts(
+        public_key: &[u8; 32],
+        signature: &[u8],
+        timestamp: Timestamp,
+        encoded_packet: &[u8],
+    ) -> Result<Self, SignedPacketVerifyError> {
+        let mut bytes = Vec::with_capacity(HEADER_SIZE + encoded_packet.len());
+        bytes.extend_from_slice(public_key);
+        bytes.extend_from_slice(signature);
+        bytes.extend_from_slice(&timestamp.to_be_bytes());
+        bytes.extend_from_slice(encoded_packet);
+        Self::from_bytes(&bytes)
+    }
+
     /// Parse a signed packet without verifying the signature.
     ///
     /// Still validates minimum length and DNS parsing.
