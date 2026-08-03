@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["FUZZ_MAX_CONFIG_BYTES","FUZZ_MAX_DOH_BYTES","FUZZ_MAX_PKARR_BYTES","RESOURCE_CANARY_UDP_HOLD_DURATION","RESOURCE_CANARY_UDP_HOLD_NAME"],"enum":["FuzzValidationOutcome"],"fn":["fuzz_config","fuzz_doh_request","fuzz_pkarr_body"]};
