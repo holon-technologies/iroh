@@ -307,7 +307,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
     .await;
 
     info!("peer0: wait for 2 events (join & accept sync finished from peer1)");
-    assert_next(
+    assert_next_ignoring(
         &mut events0,
         TIMEOUT,
         vec![
@@ -315,6 +315,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
             Box::new(move |e| match_sync_finished(e, peer1)),
             match_event!(LiveEvent::PendingContentReady),
         ],
+        redundant_live_events(peer1),
     )
     .await;
 
@@ -326,10 +327,11 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
         .await?;
     assert_latest(blobs1, &doc1, key1, value1).await;
     info!("peer1: wait for 1 event (local insert, and pendingcontentready)");
-    assert_next(
+    assert_next_ignoring(
         &mut events1,
         TIMEOUT,
         vec![match_event!(LiveEvent::InsertLocal { entry} if entry.content_hash() == hash1)],
+        redundant_live_events(peer0),
     )
     .await;
 
@@ -342,7 +344,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
     // Missing/Incomplete split is pure timing. Match both.
     // peer0: assert events for entry received via gossip
     info!("peer0: wait for 2 events (gossip'ed entry from peer1)");
-    assert_next(
+    assert_next_ignoring(
         &mut events0,
         TIMEOUT,
         vec![
@@ -351,6 +353,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
             ),
             Box::new(move |e| matches!(e, LiveEvent::ContentReady { hash } if *hash == hash1)),
         ],
+        redundant_live_events(peer1),
     ).await;
     assert_latest(blobs0, &doc0, key1, value1).await;
 
@@ -408,7 +411,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
     assert_latest(blobs2, &doc2, b"k2", b"v2").await;
 
     info!("peer0: wait for 2 events (join & accept sync finished from peer2)");
-    assert_next(
+    assert_next_ignoring(
         &mut events0,
         TIMEOUT,
         vec![
@@ -416,11 +419,12 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
             Box::new(move |e| match_sync_finished(e, peer2)),
             match_event!(LiveEvent::PendingContentReady),
         ],
+        redundant_live_events(peer2),
     )
     .await;
 
     info!("peer1: wait for 2 events (join & accept sync finished from peer2)");
-    assert_next(
+    assert_next_ignoring(
         &mut events1,
         TIMEOUT,
         vec![
@@ -428,6 +432,7 @@ async fn sync_full_basic() -> testresult::TestResult<()> {
             Box::new(move |e| match_sync_finished(e, peer2)),
             match_event!(LiveEvent::PendingContentReady),
         ],
+        redundant_live_events(peer2),
     )
     .await;
 
@@ -553,7 +558,11 @@ async fn test_sync_via_relay() -> Result<()> {
 
     assert_next_unordered_with_optionals(
         &mut events,
-        Duration::from_secs(2),
+        // This is the join, over a relay: the peers still have to complete their relay
+        // handshake before any of these events can happen. Two seconds was under that on
+        // a loaded runner, and the failure looked like a missing event rather than a
+        // slow one. Use the same budget as every other wait in this file.
+        TIMEOUT,
         vec![
             Box::new(move |e| matches!(e, LiveEvent::NeighborUp(n) if *n== node1_id)),
             Box::new(move |e| match_sync_finished(e, node1_id)),
@@ -565,7 +574,12 @@ async fn test_sync_via_relay() -> Result<()> {
             ),
             match_event!(LiveEvent::PendingContentReady),
         ],
-        vec![Box::new(move |e| match_sync_finished(e, node1_id))],
+        vec![
+            Box::new(move |e| match_sync_finished(e, node1_id)),
+            // A relayed connection can drop mid-sync; the engine retries, and the
+            // required matcher above still demands a successful sync and the entry.
+            match_event!(LiveEvent::SyncFinished(e) if e.peer == node1_id && e.result.is_err()),
+        ],
     )
     .await;
     let actual = blobs2
@@ -596,6 +610,8 @@ async fn test_sync_via_relay() -> Result<()> {
         vec![
             Box::new(move |e| match_sync_finished(e, node1_id)),
             Box::new(move |e| matches!(e, LiveEvent::PendingContentReady)),
+            // As above: the relayed connection may drop and the sync be retried.
+            match_event!(LiveEvent::SyncFinished(e) if e.peer == node1_id && e.result.is_err()),
         ],
     )
     .await;
@@ -712,6 +728,12 @@ async fn sync_restart_node() -> Result<()> {
         vec![
             match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_ok()),
             match_event!(LiveEvent::PendingContentReady),
+            // node1 has just restarted, so the first attempt to reach node2 can still
+            // land on the connection node2 held to the old process and fail
+            // ("Failed to close connection1"). Sync retries, and the required matcher
+            // above still demands a successful one plus the entry itself, so tolerating
+            // the failed attempt does not weaken what this asserts.
+            match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_err()),
         ]
     ).await;
     assert_latest(blobs1, &doc1, b"n2/b", b"b").await;
@@ -731,6 +753,8 @@ async fn sync_restart_node() -> Result<()> {
             match_event!(LiveEvent::PendingContentReady),
             match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_ok()),
             match_event!(LiveEvent::PendingContentReady),
+            // As above: a retried sync attempt against the restarted node may fail once.
+            match_event!(LiveEvent::SyncFinished(e) if e.peer == id2 && e.result.is_err()),
         ]
     ).await;
 
@@ -855,8 +879,23 @@ async fn test_download_policies() -> Result<()> {
         let mut synced_a = 0usize;
         let mut synced_b = 0usize;
         loop {
+            // Bind the whole `Result<Option<_>>`, not just the `Ok(Some(..))` shape. A
+            // refutable pattern that fails to match disables that branch for the rest of
+            // the `select!`, so a stream that ended or errored used to leave the loop
+            // waiting on the other one until the 120s timeout, reported only as
+            // "timeout elapsed" with nothing about how far it got. Fail where it breaks
+            // instead, and say what had been seen.
             tokio::select! {
-                Ok(Some(ev)) = events_a.try_next() => {
+                ev = events_a.try_next() => {
+                    let ev = match ev {
+                        Ok(Some(ev)) => ev,
+                        Ok(None) => bail!(
+                            "node a's event stream ended early \
+                             (synced_a={synced_a}, downloaded_a={downloaded_a:?}, \
+                              synced_b={synced_b}, downloaded_b={downloaded_b:?})"
+                        ),
+                        Err(err) => return Err(err).context("node a's event stream errored"),
+                    };
                     match ev {
                         InsertRemote { content_status, entry, .. } => {
                             synced_a += 1;
@@ -870,7 +909,16 @@ async fn test_download_policies() -> Result<()> {
                         _ => {}
                     }
                 }
-                Ok(Some(ev)) = events_b.try_next() => {
+                ev = events_b.try_next() => {
+                    let ev = match ev {
+                        Ok(Some(ev)) => ev,
+                        Ok(None) => bail!(
+                            "node b's event stream ended early \
+                             (synced_a={synced_a}, downloaded_a={downloaded_a:?}, \
+                              synced_b={synced_b}, downloaded_b={downloaded_b:?})"
+                        ),
+                        Err(err) => return Err(err).context("node b's event stream errored"),
+                    };
                     match ev {
                         InsertRemote { content_status, entry, .. } => {
                             synced_b += 1;
@@ -899,12 +947,12 @@ async fn test_download_policies() -> Result<()> {
                 break;
             }
         }
-        (downloaded_a, downloaded_b)
+        Ok((downloaded_a, downloaded_b))
     };
 
     let (downloaded_a, mut downloaded_b) = n0_future::time::timeout(TIMEOUT, fut)
         .await
-        .context("timeout elapsed")?;
+        .context("timeout elapsed")??;
 
     downloaded_b.sort();
     assert_eq!(downloaded_a, vec!["lotr/fellowship_of_the_ring"]);
@@ -1321,28 +1369,50 @@ fn apply_matchers<T>(item: &T, matchers: &mut Vec<Box<dyn Fn(&T) -> bool + Send>
     false
 }
 
-/// Receive the next `matchers.len()` elements from a stream and matches them against the functions
-/// in `matchers`, in order.
+/// Receive elements from a stream and match them against `matchers`, in order, skipping
+/// any event that matches one of `ignored` without consuming a matcher.
 ///
-/// Returns all received events.
+/// A live document emits events these ordered assertions do not care about and cannot
+/// keep from interleaving. The two seen in practice are a second `SyncFinished` — when
+/// the ticket-driven sync and the `NeighborUp`-driven sync both run, as the optional
+/// matchers in `sync_full_basic` already document — and a `PendingContentReady`
+/// whenever a download queue drains. Either one landing between two asserted events
+/// used to fail the whole test.
+///
+/// Skipping exactly the tolerated events keeps the order of the events under test
+/// asserted, which is what dropping to [`assert_next_unordered_with_optionals`] would
+/// give up. `matchers` takes precedence: an event that satisfies the next expected
+/// matcher is consumed by it even if it would also be ignorable, so a required
+/// `SyncFinished` in a sequence is still matched rather than skipped.
+///
+/// Returns the events that matched `matchers`.
 #[allow(clippy::type_complexity)]
-async fn assert_next<T: std::fmt::Debug + Clone>(
+async fn assert_next_ignoring<T: std::fmt::Debug + Clone>(
     mut stream: impl Stream<Item = Result<T>> + Unpin + Send,
     timeout: Duration,
     matchers: Vec<Box<dyn Fn(&T) -> bool + Send>>,
+    ignored: Vec<Box<dyn Fn(&T) -> bool + Send>>,
 ) -> Vec<T> {
     let fut = async {
         let mut items = vec![];
+        let mut skipped = vec![];
         for (i, f) in matchers.iter().enumerate() {
-            let item = stream
-                .try_next()
-                .await
-                .expect("event stream ended prematurely")
-                .expect("event stream errored");
-            if !(f)(&item) {
-                panic!("assertion failed for event {i} {item:?}");
+            loop {
+                let item = stream
+                    .try_next()
+                    .await
+                    .expect("event stream ended prematurely")
+                    .expect("event stream errored");
+                if (f)(&item) {
+                    items.push(item);
+                    break;
+                }
+                if ignored.iter().any(|g| g(&item)) {
+                    skipped.push(item);
+                    continue;
+                }
+                panic!("assertion failed for event {i} {item:?} (skipped: {skipped:?})");
             }
-            items.push(item);
         }
         items
     };
@@ -1428,6 +1498,25 @@ async fn assert_next_unordered_with_optionals<T: std::fmt::Debug + Clone>(
         panic!("Failed to receive or match all events: {err:?}");
     }
     events
+}
+
+/// The live events that may interleave with any asserted sequence involving `peer`.
+///
+/// A `SyncFinished` for `peer` because sync can legitimately run more than once — the
+/// ticket-driven run and the `NeighborUp`-driven run race, and either may also be
+/// retried after a transient connection failure, so the outcome is not constrained
+/// either. A `PendingContentReady` because it is emitted whenever a download queue
+/// drains, which is not tied to the entry a given assertion is waiting for.
+///
+/// Only for use as the `ignored` set of [`assert_next_ignoring`], where the expected
+/// matchers take precedence: this makes the events tolerated between the asserted ones,
+/// not accepted in their place.
+#[allow(clippy::type_complexity)]
+fn redundant_live_events(peer: PublicKey) -> Vec<Box<dyn Fn(&LiveEvent) -> bool + Send>> {
+    vec![
+        Box::new(move |e| matches!(e, LiveEvent::SyncFinished(ev) if ev.peer == peer)),
+        match_event!(LiveEvent::PendingContentReady),
+    ]
 }
 
 /// Asserts that the event is a [`LiveEvent::SyncFinished`] and that the contained [`SyncEvent`]
