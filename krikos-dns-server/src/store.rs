@@ -163,17 +163,30 @@ impl ZoneStore {
                 .as_async()
                 .get_mutable_most_recent(pubkey.as_bytes(), None)
                 .await;
-            if let Some(item) = maybe_item
-                && let Ok(packet) = mutable_item_to_signed_packet(&item)
-            {
-                debug!("DHT resolve successful {:?}", packet);
-                return self
-                    .cache
-                    .lock()
-                    .await
-                    .insert_and_resolve_dht(&packet, name, record_type);
+            match maybe_item {
+                // Keep the rejection distinguishable from a plain miss: a packet that
+                // was returned but does not verify against the key we asked for is the
+                // observable trace of an attempt to poison this resolver, and it is the
+                // only signal the verification produces.
+                Some(item) => match mutable_item_to_signed_packet(&item, pubkey) {
+                    Ok(packet) => {
+                        debug!("DHT resolve successful {:?}", packet);
+                        return self.cache.lock().await.insert_and_resolve_dht(
+                            &packet,
+                            name,
+                            record_type,
+                        );
+                    }
+                    Err(err) => {
+                        self.metrics.dht_packets_rejected.inc();
+                        warn!(
+                            pubkey = %pubkey.to_z32(),
+                            "DHT returned a packet that does not verify against the requested key: {err:#}"
+                        );
+                    }
+                },
+                None => debug!("DHT resolve failed"),
             }
-            debug!("DHT resolve failed");
         }
         Ok(None)
     }
@@ -215,17 +228,27 @@ fn finish_mainline_build(result: std::io::Result<Dht>) -> Result<Dht> {
     result.anyerr()
 }
 
-/// Convert a mainline [`MutableItem`] to a [`SignedPacket`].
+/// Convert a mainline [`MutableItem`] to a [`SignedPacket`], for the key we asked for.
+///
+/// `expected` is the key the lookup was issued for, and the packet is verified against
+/// it. This binding cannot be left to `mainline`: it checks a mutable item's signature
+/// against the key carried in the *response* and then stores the queried target
+/// verbatim, so all it establishes is that some key signed the value. Without the check
+/// here, any DHT node could answer a lookup with a packet signed under a key it
+/// controls, and those records would be re-served under the queried name.
 fn mutable_item_to_signed_packet(
     item: &MutableItem,
+    expected: &PublicKeyBytes,
 ) -> Result<SignedPacket, SignedPacketVerifyError> {
     let timestamp = u64::try_from(item.seq()).map_err(|_| {
         n0_error::e!(SignedPacketVerifyError::InvalidTimestamp {
             timestamp: item.seq(),
         })
     })?;
-    SignedPacket::from_parts_unchecked(
-        item.key(),
+    // Built from `expected` rather than `item.key()`, so a packet signed by any other
+    // key fails signature verification instead of being silently re-attributed.
+    SignedPacket::from_parts(
+        expected.as_bytes(),
         item.signature(),
         Timestamp::from_micros(timestamp),
         item.value(),
@@ -404,6 +427,41 @@ mod tests {
         Ok(())
     }
 
+    /// A DHT response must be bound to the key we asked for.
+    ///
+    /// `mainline` verifies a mutable item's signature against the key carried in the
+    /// response, not against the queried target, and stores the target verbatim — so
+    /// "signed by somebody" is all it guarantees. Any DHT node can therefore answer a
+    /// lookup for one key with a packet correctly signed under a key it controls. Were
+    /// that accepted, its records would be re-served under the queried name, which is
+    /// exactly the binding pkarr exists to provide.
+    #[test]
+    fn dht_item_signed_by_another_key_is_rejected() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        // A perfectly valid packet — just not the one that was asked for.
+        let attacker_packet = random_signed_packet(&mut rng)?;
+        let attacker_key = PublicKeyBytes::from_signed_packet(&attacker_packet);
+        // pkarr carries the packet timestamp as the BEP-0044 sequence number.
+        let item = MutableItem::new_signed_unchecked(
+            *attacker_key.as_bytes(),
+            attacker_packet.signature().to_bytes(),
+            attacker_packet.encoded_packet(),
+            i64::try_from(attacker_packet.timestamp().as_micros())
+                .expect("pkarr timestamp fits in a mainline sequence number"),
+            None,
+        );
+
+        // Resolved under the key that actually signed it: accepted.
+        mutable_item_to_signed_packet(&item, &attacker_key)
+            .expect("a packet signed by the key we asked for must be accepted");
+
+        // Resolved under someone else's key: refused.
+        let victim = PublicKeyBytes::from_signed_packet(&random_signed_packet(&mut rng)?);
+        mutable_item_to_signed_packet(&item, &victim)
+            .expect_err("a packet signed by an unrelated key must be refused");
+        Ok(())
+    }
+
     #[test]
     fn mainline_construction_failure_is_reported() {
         let error = finish_mainline_build(Err(std::io::Error::other(
@@ -419,16 +477,19 @@ mod tests {
     }
 
     #[test]
-    fn negative_mainline_sequence_is_rejected() {
-        let item = MutableItem::new_signed_unchecked([0; 32], [0; 64], &[], -1, None);
+    fn negative_mainline_sequence_is_rejected() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(2);
+        let key = PublicKeyBytes::from_signed_packet(&random_signed_packet(&mut rng)?);
+        let item = MutableItem::new_signed_unchecked(*key.as_bytes(), [0; 64], &[], -1, None);
 
-        let error = mutable_item_to_signed_packet(&item)
+        let error = mutable_item_to_signed_packet(&item, &key)
             .expect_err("negative mainline sequence must not wrap into a timestamp");
 
         assert!(matches!(
             error,
             SignedPacketVerifyError::InvalidTimestamp { timestamp: -1, .. }
         ));
+        Ok(())
     }
 
     fn random_signed_packet<R: CryptoRng + ?Sized>(rng: &mut R) -> Result<SignedPacket> {

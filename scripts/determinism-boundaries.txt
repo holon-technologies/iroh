@@ -19,8 +19,8 @@ clock-timer	krikos-dns-server/src/server.rs:161	let dns_result = tokio::time::ti
 clock-timer	krikos-dns-server/src/server.rs:165	let http_result = tokio::time::timeout_at(deadline, self.http_server.shutdown())
 clock-timer	krikos-dns-server/src/server.rs:169	let store_result = tokio::time::timeout_at(deadline, self.store.shutdown())
 clock-timer	krikos-dns-server/src/server.rs:174	tokio::time::timeout_at(deadline, server.shutdown())
-clock-timer	krikos-dns-server/src/store.rs:393	tokio::time::sleep(Duration::from_secs(1)).await;
-clock-timer	krikos-dns-server/src/store.rs:400	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	krikos-dns-server/src/store.rs:416	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	krikos-dns-server/src/store.rs:423	tokio::time::sleep(Duration::from_secs(1)).await;
 clock-timer	krikos-dns-server/src/store/signed_packets.rs:1007	tokio::time::timeout(SHUTDOWN_DEADLINE, store.shutdown())
 clock-timer	krikos-dns-server/src/store/signed_packets.rs:268	let timeout = tokio::time::sleep(self.options.max_batch_time.get());
 clock-timer	krikos-dns-server/src/store/signed_packets.rs:361	Timestamp::now().as_micros().saturating_sub(expiry_us),
@@ -30,10 +30,10 @@ clock-timer	krikos-dns-server/src/store/signed_packets.rs:683	tokio::time::sleep
 clock-timer	krikos-dns-server/src/store/signed_packets.rs:961	let drop_started = Instant::now();
 clock-timer	krikos-dns-server/src/store/signed_packets.rs:985	tokio::time::timeout(SHUTDOWN_DEADLINE, store.shutdown())
 clock-timer	krikos-dns-server/tests/publish_resolve.rs:77	std::time::SystemTime::now()
-clock-timer	krikos-dns/src/pkarr.rs:328	/// [`Timestamp::now`] is guaranteed to be strictly monotonic: it will never
-clock-timer	krikos-dns/src/pkarr.rs:336	/// Tracks the last timestamp returned by [`Timestamp::now`] to ensure monotonicity.
-clock-timer	krikos-dns/src/pkarr.rs:349	use n0_future::time::SystemTime;
-clock-timer	krikos-dns/src/pkarr.rs:350	let micros = SystemTime::now()
+clock-timer	krikos-dns/src/pkarr.rs:355	/// [`Timestamp::now`] is guaranteed to be strictly monotonic: it will never
+clock-timer	krikos-dns/src/pkarr.rs:363	/// Tracks the last timestamp returned by [`Timestamp::now`] to ensure monotonicity.
+clock-timer	krikos-dns/src/pkarr.rs:376	use n0_future::time::SystemTime;
+clock-timer	krikos-dns/src/pkarr.rs:377	let micros = SystemTime::now()
 clock-timer	krikos-dns/src/pkarr.rs:81	let timestamp = Timestamp::now();
 clock-timer	krikos-relay/src/defaults.rs:28	use n0_future::time::Duration;
 clock-timer	krikos-relay/src/ping_tracker.rs:5	use n0_future::time::Instant;
@@ -49,12 +49,12 @@ clock-timer	krikos-relay/src/quic.rs:678	let start = Instant::now();
 clock-timer	krikos-relay/src/server/admission.rs:107	last_refill: Instant::now(),
 clock-timer	krikos-relay/src/server/admission.rs:112	let now = Instant::now();
 clock-timer	krikos-relay/src/server/admission.rs:150	tokio::time::advance(std::time::Duration::from_millis(500)).await;
-clock-timer	krikos-relay/src/server/client.rs:1007	let res = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
-clock-timer	krikos-relay/src/server/client.rs:1013	tokio::time::sleep(Duration::from_secs(1)).await;
-clock-timer	krikos-relay/src/server/client.rs:1016	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
-clock-timer	krikos-relay/src/server/client.rs:816	tokio::time::advance(Duration::from_secs(21)).await;
-clock-timer	krikos-relay/src/server/client.rs:823	tokio::time::advance(Duration::from_secs(6)).await;
-clock-timer	krikos-relay/src/server/client.rs:996	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	krikos-relay/src/server/client.rs:1097	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	krikos-relay/src/server/client.rs:1108	let res = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
+clock-timer	krikos-relay/src/server/client.rs:1114	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	krikos-relay/src/server/client.rs:1117	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	krikos-relay/src/server/client.rs:917	tokio::time::advance(Duration::from_secs(21)).await;
+clock-timer	krikos-relay/src/server/client.rs:924	tokio::time::advance(Duration::from_secs(6)).await;
 clock-timer	krikos-relay/src/server/clients.rs:619	tokio::time::timeout(Duration::from_secs(1), async move {
 clock-timer	krikos-relay/src/server/clients.rs:624	tokio::time::sleep(Duration::from_millis(100)).await;
 clock-timer	krikos-relay/src/server/clients.rs:696	tokio::time::timeout(Duration::from_secs(1), {
@@ -841,8 +841,9 @@ spawn-task	krikos-relay/src/quic.rs:30	use tokio::{sync::Semaphore, task::JoinSe
 spawn-task	krikos-relay/src/quic.rs:619	let task = AbortOnDropHandle::new(tokio::spawn({
 spawn-task	krikos-relay/src/quic.rs:679	let server_task = tokio::spawn(
 spawn-task	krikos-relay/src/server.rs:51	task::{JoinError, JoinSet},
-spawn-task	krikos-relay/src/server/client.rs:719	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
-spawn-task	krikos-relay/src/server/client.rs:814	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:739	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:841	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:915	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
 spawn-task	krikos-relay/src/server/http_server/listener.rs:323	let task = tokio::task::spawn(
 spawn-task	krikos-relay/src/server/http_server/listener.rs:327	let mut set = tokio::task::JoinSet::new();
 spawn-task	krikos-relay/src/server/http_server/tests.rs:305	let handler_task = tokio::spawn(async move {
@@ -1002,8 +1003,8 @@ unordered-collection	krikos-dns/src/endpoint_info.rs:45	collections::{BTreeSet, 
 unordered-collection	krikos-dns/src/endpoint_info.rs:78	fn dedup<T: Eq + Hash + Clone>(items: &mut Vec<T>) -> HashSet<T> {
 unordered-collection	krikos-dns/src/endpoint_info.rs:80	let mut seen = HashSet::new();
 unordered-collection	krikos-relay/src/server/client.rs:4	collections::HashSet,
-unordered-collection	krikos-relay/src/server/client.rs:600	clients: HashSet<EndpointId>,
-unordered-collection	krikos-relay/src/server/client.rs:609	clients: HashSet::new(),
+unordered-collection	krikos-relay/src/server/client.rs:620	clients: HashSet<EndpointId>,
+unordered-collection	krikos-relay/src/server/client.rs:629	clients: HashSet::new(),
 unordered-collection	krikos-relay/src/server/clients.rs:12	use dashmap::DashMap;
 unordered-collection	krikos-relay/src/server/clients.rs:180	clients: DashMap::new(),
 unordered-collection	krikos-relay/src/server/clients.rs:181	sent_to: DashMap::new(),
