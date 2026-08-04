@@ -479,15 +479,24 @@ async fn push_is_rejected_when_disabled(
     // called `finish()`, but dropping the `Connection` at that point tears down the
     // still-in-flight stream and the receiver never finishes importing.
     let mut conns = Vec::new();
-    for target in [&deny, &allow] {
+    for (target, must_succeed) in [(&deny, false), (&allow, true)] {
         let conn = pusher
             .endpoint()
             .connect(target.endpoint().addr(), crate::ALPN)
             .await?;
-        pusher_store
+        let res = pusher_store
             .remote()
             .execute_push_sink(conn.clone(), request.clone(), Drain)
-            .await?;
+            .await;
+        // Whether the refusal reaches the pusher at all is a race, which is exactly why
+        // the property under test is store contents rather than this result: the
+        // provider resets the stream, and `execute_push_sink` only sees that if the
+        // reset lands before it has finished writing. Both outcomes are correct for the
+        // denying node. The permitting node must succeed, or the control below — the
+        // thing that proves a passing deny assertion is not vacuous — proves nothing.
+        if must_succeed {
+            res?;
+        }
         conns.push(conn);
     }
 
