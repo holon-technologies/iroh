@@ -67,6 +67,11 @@ pub struct Metrics {
     pub store_corrupt_rows: Counter,
     /// Number of packet-store actor or eviction failures.
     pub store_background_failures: Counter,
+    /// Number of DHT items discarded because they were not signed by the queried key.
+    ///
+    /// Anything but zero means someone is publishing forged items under a key this
+    /// server is asked to resolve.
+    pub dht_packets_rejected: Counter,
     /// Current number of zones in the main cache
     pub cache_zones: Gauge,
     /// Current number of zones in the DHT cache

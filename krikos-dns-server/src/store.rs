@@ -163,17 +163,30 @@ impl ZoneStore {
                 .as_async()
                 .get_mutable_most_recent(pubkey.as_bytes(), None)
                 .await;
-            if let Some(item) = maybe_item
-                && let Ok(packet) = mutable_item_to_signed_packet(&item, pubkey)
-            {
-                debug!("DHT resolve successful {:?}", packet);
-                return self
-                    .cache
-                    .lock()
-                    .await
-                    .insert_and_resolve_dht(&packet, name, record_type);
+            match maybe_item {
+                // Keep the rejection distinguishable from a plain miss: a packet that
+                // was returned but does not verify against the key we asked for is the
+                // observable trace of an attempt to poison this resolver, and it is the
+                // only signal the verification produces.
+                Some(item) => match mutable_item_to_signed_packet(&item, pubkey) {
+                    Ok(packet) => {
+                        debug!("DHT resolve successful {:?}", packet);
+                        return self.cache.lock().await.insert_and_resolve_dht(
+                            &packet,
+                            name,
+                            record_type,
+                        );
+                    }
+                    Err(err) => {
+                        self.metrics.dht_packets_rejected.inc();
+                        warn!(
+                            pubkey = %pubkey.to_z32(),
+                            "DHT returned a packet that does not verify against the requested key: {err:#}"
+                        );
+                    }
+                },
+                None => debug!("DHT resolve failed"),
             }
-            debug!("DHT resolve failed");
         }
         Ok(None)
     }

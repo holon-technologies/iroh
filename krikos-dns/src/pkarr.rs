@@ -135,9 +135,13 @@ impl SignedPacket {
     /// Use this over [`SignedPacket::from_parts_unchecked`] whenever the parts come from
     /// somewhere that does not itself bind them to the key being resolved, such as a DHT
     /// response.
+    /// Both fixed-size arrays: the wire layout is `public_key || signature || timestamp
+    /// || packet` at fixed offsets, so a signature of any other length would silently
+    /// carve the timestamp and the packet out of the wrong bytes and report a
+    /// signature-verification failure instead of a length error.
     pub fn from_parts(
         public_key: &[u8; 32],
-        signature: &[u8],
+        signature: &[u8; 64],
         timestamp: Timestamp,
         encoded_packet: &[u8],
     ) -> Result<Self, SignedPacketVerifyError> {
@@ -272,8 +276,12 @@ impl SignedPacket {
 
     /// Reconstruct a signed packet from its raw parts without verifying the signature.
     ///
-    /// This is useful for reconstructing a packet from storage or DHT mutable items
-    /// where the components are stored separately.
+    /// Only for parts that are already bound to the key they will be served under, such
+    /// as rows of a store this node wrote itself. Never for anything a peer supplied:
+    /// the parts of a DHT mutable item carry the *publisher's* key and signature, not
+    /// the key that was queried, so reassembling one here re-serves an attacker-signed
+    /// packet under the name that was looked up. Use [`SignedPacket::from_parts`] for
+    /// those, which verifies against the key you pass in.
     pub fn from_parts_unchecked(
         public_key: &[u8],
         signature: &[u8],
