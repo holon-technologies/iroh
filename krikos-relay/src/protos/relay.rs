@@ -913,11 +913,20 @@ mod tests {
     fn accepted_client_datagrams_are_re_encodable() {
         let dst = SecretKey::from_bytes(&[7u8; 32]).public();
         let src = SecretKey::from_bytes(&[8u8; 32]).public();
-        // The largest payload whose *ingress* frame still fits, and its neighbours: the
-        // egress frame is one byte longer, so the boundary cannot be the same.
-        let max_payload = MAX_PACKET_SIZE - EndpointId::LENGTH - 1 /* ECN */;
-        for len in [0, 1, max_payload - 1, max_payload] {
-            for is_batch in [false, true] {
+        // Number of frames that made it past the ingress parser, to prove the boundary
+        // lengths below were actually exercised rather than skipped by the `continue`.
+        let mut accepted = 0;
+        for is_batch in [false, true] {
+            // The largest payload whose *ingress* frame still fits, and its neighbours:
+            // the egress frame is one byte longer, so the boundary cannot be the same. A
+            // batch also carries a two-byte segment size, so its boundary sits two bytes
+            // lower; using the packed layout's boundary for both would push the batch
+            // cases past the plain `frame_len` check and never reach the new one.
+            let max_payload = MAX_PACKET_SIZE
+                - EndpointId::LENGTH
+                - 1 /* ECN */
+                - if is_batch { 2 /* segment size */ } else { 0 };
+            for len in [0, 1, max_payload - 1, max_payload] {
                 let datagrams = Datagrams {
                     ecn: None,
                     segment_size: is_batch.then(|| NonZeroU16::new(1).unwrap()),
@@ -934,6 +943,7 @@ mod tests {
                     // Refused at ingress: nothing to forward, which is the safe outcome.
                     continue;
                 };
+                accepted += 1;
                 assert!(
                     !datagrams.contents.is_empty(),
                     "accepted an empty datagram (len {len}, batch {is_batch}); \
@@ -951,6 +961,14 @@ mod tests {
                 );
             }
         }
+        // Per layout: `1` and `max_payload - 1` are forwardable, `0` is empty and
+        // `max_payload` overflows by the egress frame-type byte. If this count drops,
+        // the boundary arithmetic above has drifted and the cases that matter are being
+        // skipped instead of checked.
+        assert_eq!(
+            accepted, 4,
+            "expected both forwardable boundary lengths of both layouts to be accepted"
+        );
     }
 
     /// A datagram frame must contain at least an EndpointId (32 bytes) after
@@ -999,16 +1017,31 @@ mod proptests {
         })
     }
 
+    /// Any datagram, including an empty one.
+    ///
+    /// The relay-to-client direction has no non-empty rule — a relay can send a
+    /// zero-length datagram and the client will decode it — so that direction has to
+    /// keep generating them.
     fn datagrams() -> impl Strategy<Value = Datagrams> {
+        datagrams_of_len(0)
+    }
+
+    /// Datagrams a client is allowed to send to a relay.
+    ///
+    /// Non-empty: an empty datagram carries nothing and cannot be encoded towards a
+    /// client, so the client-to-relay parser rejects it rather than handing the
+    /// receiver's stream a frame it will refuse.
+    fn forwardable_datagrams() -> impl Strategy<Value = Datagrams> {
+        datagrams_of_len(1)
+    }
+
+    fn datagrams_of_len(min_len: usize) -> impl Strategy<Value = Datagrams> {
         // The max payload size (conservatively, since with segment_size = 0 we'd have slightly more space)
         const MAX_PAYLOAD_SIZE: usize = MAX_PACKET_SIZE - EndpointId::LENGTH - 1 /* ECN bytes */ - 2 /* segment size */;
         (
             ecn(),
             prop::option::of(MAX_PAYLOAD_SIZE / 20..MAX_PAYLOAD_SIZE),
-            // Non-empty: an empty datagram carries nothing and cannot be encoded towards
-            // a client, so the client-to-relay parser rejects it rather than handing the
-            // receiver's stream a frame it will refuse.
-            vec(any::<u8>(), 1..MAX_PAYLOAD_SIZE),
+            vec(any::<u8>(), min_len..MAX_PAYLOAD_SIZE),
         )
             .prop_map(|(ecn, segment_size, data)| Datagrams {
                 ecn,
@@ -1058,12 +1091,13 @@ mod proptests {
     }
 
     fn client_relay_frame() -> impl Strategy<Value = ClientToRelayMsg> {
-        let send_packet = (key(), datagrams()).prop_map(|(dst_endpoint_id, datagrams)| {
-            ClientToRelayMsg::Datagrams {
-                dst_endpoint_id,
-                datagrams,
-            }
-        });
+        let send_packet =
+            (key(), forwardable_datagrams()).prop_map(|(dst_endpoint_id, datagrams)| {
+                ClientToRelayMsg::Datagrams {
+                    dst_endpoint_id,
+                    datagrams,
+                }
+            });
         let ping = prop::array::uniform8(any::<u8>()).prop_map(ClientToRelayMsg::Ping);
         let pong = prop::array::uniform8(any::<u8>()).prop_map(ClientToRelayMsg::Pong);
         prop_oneof![send_packet, ping, pong]

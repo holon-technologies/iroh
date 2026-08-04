@@ -516,16 +516,19 @@ where
                 // handled; returning the error would end *this* client's session and let
                 // any peer disconnect any other. Only genuine stream errors, which mean
                 // this connection is already broken, are fatal.
+                //
+                // Both enums are `#[non_exhaustive]`, so the arms are arranged to make
+                // that invariant hold for variants that do not exist yet: a new
+                // `WriteFrameError` defaults to fatal, a new encode-side `SendError`
+                // defaults to a drop.
                 match &err {
-                    WriteFrameError::Stream {
-                        source:
-                            RelaySendError::EmptyPacket { .. }
-                            | RelaySendError::ExceedsMaxPacketSize { .. },
-                        ..
-                    } => {
-                        warn!("dropping undeliverable packet: {err:#}");
-                        Ok(())
-                    }
+                    WriteFrameError::Stream { source, .. } => match source {
+                        RelaySendError::StreamError { .. } => Err(err),
+                        _ => {
+                            warn!("dropping undeliverable packet: {err:#}");
+                            Ok(())
+                        }
+                    },
                     _ => Err(err),
                 }
             }
