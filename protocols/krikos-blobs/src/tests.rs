@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io, ops::Range, path::PathBuf};
+use std::{collections::HashSet, io, ops::Range, path::PathBuf, time::Duration};
 
 use bao_tree::ChunkRanges;
 use bytes::Bytes;
@@ -15,7 +15,10 @@ use tracing::info;
 
 use crate::{
     BlobFormat, Hash, HashAndFormat,
-    api::{Store, blobs::Bitfield},
+    api::{
+        Store,
+        blobs::{Bitfield, BlobStatus},
+    },
     get,
     hashseq::HashSeq,
     net_protocol::BlobsProtocol,
@@ -496,10 +499,26 @@ async fn push_is_rejected_when_disabled(
         test_data(size),
         "control: a node that permits pushes must receive the blob"
     );
-    assert!(
-        !deny_store.blobs().has(hash).await?,
-        "a push rejected by the event mask must not write to the receiving store"
-    );
+    // Nothing on the denying node is observable from here — a disabled request type
+    // emits no event, `execute_push_sink` does not wait for the receiver, and the
+    // provider imports on a detached task. Sampling `has` once could therefore run
+    // before an accepted push had landed and pass on a broken mask, so keep sampling
+    // for a while: an accepted push over loopback lands well inside this window.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        // `status`, not `has`: `has` is only true for a *complete* blob, so a rejection
+        // that arrived after some chunks had already been imported would leave
+        // attacker-chosen bytes in the store and still satisfy the assertion.
+        assert_eq!(
+            deny_store.blobs().status(hash).await?,
+            BlobStatus::NotFound,
+            "a push rejected by the event mask must not write to the receiving store"
+        );
+        if tokio::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 
     tokio::try_join!(pusher.shutdown(), deny.shutdown(), allow.shutdown())?;
     Ok(())
