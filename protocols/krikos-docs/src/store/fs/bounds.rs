@@ -70,30 +70,45 @@ impl RecordsBounds {
     /// selects nothing instead of reading it.
     pub fn clamp_to_namespace(self, ns: &NamespaceId) -> Self {
         let Self(start, end) = self;
-        // Both `namespace_start` and every caller's start are `Included`; the tighter of
-        // two lower bounds is the greater one. Unexpected shapes fall back to the
-        // namespace bound, which is never wider than what was asked for.
+        // `namespace_start` is always `Included`; the tighter of two lower bounds is the
+        // greater one, and at equal keys `Excluded` is the tighter shape. Only an
+        // `Unbounded` caller start has nothing to keep, and there the namespace bound is
+        // the answer.
         let start = match (start, Self::namespace_start(ns)) {
             (Bound::Included(remote), Bound::Included(ns_start)) => {
                 Bound::Included(remote.max(ns_start))
             }
+            (Bound::Excluded(remote), Bound::Included(ns_start)) if remote >= ns_start => {
+                Bound::Excluded(remote)
+            }
             (_, ns_start) => ns_start,
         };
         // `namespace_end` is `Excluded`, or `Unbounded` for the last namespace, in which
-        // case the remote's own end is already within it.
+        // case the caller's own end is already within it. An `Included` caller end below
+        // the namespace end is the tighter bound and has to be kept: replacing it would
+        // return the whole namespace for what was asked as a single key.
         let end = match (end, Self::namespace_end(ns)) {
             (Bound::Excluded(remote), Bound::Excluded(ns_end)) => {
                 Bound::Excluded(remote.min(ns_end))
             }
+            (Bound::Included(remote), Bound::Excluded(ns_end)) if remote < ns_end => {
+                Bound::Included(remote)
+            }
             (Bound::Excluded(remote), Bound::Unbounded) => Bound::Excluded(remote),
+            (Bound::Included(remote), Bound::Unbounded) => Bound::Included(remote),
             (_, ns_end) => ns_end,
         };
         // The intersection is empty whenever the range covers only foreign namespaces.
         // Normalize that to a range selecting nothing, as inverted bounds are not a
         // valid query.
-        if let (Bound::Included(s), Bound::Excluded(e)) = (&start, &end)
-            && s >= e
-        {
+        let is_empty = match (&start, &end) {
+            (Bound::Included(s), Bound::Excluded(e))
+            | (Bound::Excluded(s), Bound::Excluded(e))
+            | (Bound::Excluded(s), Bound::Included(e)) => s >= e,
+            (Bound::Included(s), Bound::Included(e)) => s > e,
+            _ => false,
+        };
+        if is_empty {
             let empty = (ns.to_bytes(), [0u8; 32], Bytes::new());
             return Self(Bound::Included(empty.clone()), Bound::Excluded(empty));
         }

@@ -1072,10 +1072,28 @@ mod tests {
         let author = store.new_author(&mut rand::rng())?;
 
         let ours = NamespaceSecret::new(&mut rand::rng());
-        let theirs = NamespaceSecret::new(&mut rand::rng());
+        // One foreign namespace on each side of ours. Namespace ids are random, so a
+        // single neighbour lands below or above by chance and only covers the clamp
+        // facing it: a broken start clamp leaks a lower neighbour, a broken end clamp a
+        // higher one. With one of each, both are caught on every run.
+        let (mut lower, mut higher) = (None, None);
+        while lower.is_none() || higher.is_none() {
+            let candidate = NamespaceSecret::new(&mut rand::rng());
+            match candidate.id().cmp(&ours.id()) {
+                Ordering::Less => drop(lower.get_or_insert(candidate)),
+                Ordering::Greater => drop(higher.get_or_insert(candidate)),
+                Ordering::Equal => {}
+            }
+        }
+        let theirs = [
+            lower.expect("lower namespace"),
+            higher.expect("higher namespace"),
+        ];
         store.new_replica(ours.clone())?;
-        store.new_replica(theirs.clone())?;
-        for ns in [&ours, &theirs] {
+        for ns in &theirs {
+            store.new_replica(ns.clone())?;
+        }
+        for ns in [&ours, &theirs[0], &theirs[1]] {
             let mut wrapper = StoreInstance::new(ns.id(), &mut store);
             let id = RecordIdentifier::new(ns.id(), author.id(), b"key");
             let entry = Entry::new(id, Record::current_from_data(b"value"));
@@ -1089,21 +1107,36 @@ mod tests {
         let max = RecordIdentifier::new(NamespaceId::from(&[255u8; 32]), author.id(), b"");
 
         let mut wrapper = StoreInstance::new(ours.id(), &mut store);
-        for (label, range) in [
-            ("less", Range::new(min.clone(), max.clone())),
-            ("greater", Range::new(max.clone(), min.clone())),
-            ("equal", Range::new(min.clone(), min.clone())),
+        // How many of our own entries each range must still return. Clamping that
+        // over-shoots — an inverted comparison, a fallback arm substituting the wrong
+        // bound — yields an empty range, which leaks nothing and would satisfy the
+        // negative check below on its own. `get_fingerprint` delegates to `get_range`,
+        // so an always-empty range silently stops sync from ever converging.
+        for (label, range, ours_expected) in [
+            // Spans the whole table; clamped, that is all of our namespace.
+            ("less", Range::new(min.clone(), max.clone()), 1),
+            // Wrapping range: everything *outside* `[min, max)`, which within our
+            // namespace is nothing.
+            ("greater", Range::new(max.clone(), min.clone()), 0),
+            // Identity range: the whole replica, no remote bounds involved.
+            ("equal", Range::new(min.clone(), min.clone()), 1),
         ] {
-            let leaked = wrapper
+            let namespaces = wrapper
                 .get_range(range)?
                 .map(|entry| entry.map(|e| e.namespace()))
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .filter(|ns| *ns != ours.id())
+                .collect::<Result<Vec<_>>>()?;
+            let leaked = namespaces
+                .iter()
+                .filter(|ns| **ns != ours.id())
                 .collect::<Vec<_>>();
             assert!(
                 leaked.is_empty(),
                 "{label} range leaked entries from another namespace: {leaked:?}"
+            );
+            assert_eq!(
+                namespaces.len(),
+                ours_expected,
+                "{label} range returned the wrong number of entries from our own namespace"
             );
         }
         Ok(())
