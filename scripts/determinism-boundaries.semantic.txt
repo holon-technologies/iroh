@@ -541,6 +541,7 @@ spawn-task	krikos-relay/src/quic.rs	tests::test_qad_client_closes_unresponsive_f
 spawn-task	krikos-relay/src/quic.rs	tests::test_qad_connect_delayed	tokio::spawn	1
 spawn-task	krikos-relay/src/server/client.rs	tests::client_actor_survives_production_keepalive_horizon_when_polled	tokio::task::spawn	1
 spawn-task	krikos-relay/src/server/client.rs	tests::test_client_actor_basic	tokio::task::spawn	1
+spawn-task	krikos-relay/src/server/client.rs	tests::undeliverable_packet_does_not_end_the_session	tokio::task::spawn	1
 spawn-task	krikos-relay/src/server/http_server/listener.rs	impl<ServerBuilder>::spawn	tokio::task::spawn	1
 spawn-task	krikos-relay/src/server/http_server/tests.rs	test_server_basic	tokio::spawn	1
 spawn-task	krikos-relay/src/server/http_server/tests.rs	test_server_basic	tokio::spawn	2
