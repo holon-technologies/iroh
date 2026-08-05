@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["krikos",[]],["krikos_blobs",[["impl <a class=\"trait\" href=\"krikos/protocol/trait.ProtocolHandler.html\" title=\"trait krikos::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"krikos_blobs/struct.BlobsProtocol.html\" title=\"struct krikos_blobs::BlobsProtocol\">BlobsProtocol</a>",0]]],["krikos_docs",[["impl <a class=\"trait\" href=\"krikos/protocol/trait.ProtocolHandler.html\" title=\"trait krikos::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"krikos_docs/protocol/struct.Docs.html\" title=\"struct krikos_docs::protocol::Docs\">Docs</a>",0]]],["krikos_gossip",[["impl <a class=\"trait\" href=\"krikos/protocol/trait.ProtocolHandler.html\" title=\"trait krikos::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"krikos_gossip/net/struct.Gossip.html\" title=\"struct krikos_gossip::net::Gossip\">Gossip</a>",0]]],["krikos_local_first_app_tests",[["impl <a class=\"trait\" href=\"krikos/protocol/trait.ProtocolHandler.html\" title=\"trait krikos::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"krikos_local_first_app_tests/struct.Echo.html\" title=\"struct krikos_local_first_app_tests::Echo\">Echo</a>",0]]],["local_first_notes",[["impl <a class=\"trait\" href=\"krikos/protocol/trait.ProtocolHandler.html\" title=\"trait krikos::protocol::ProtocolHandler\">ProtocolHandler</a> for <a class=\"struct\" href=\"local_first_notes/struct.Echo.html\" title=\"struct local_first_notes::Echo\">Echo</a>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[13,306,295,297,327,294]}
