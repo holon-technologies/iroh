@@ -825,13 +825,19 @@ impl Remote {
 /// Wait for the provider's verdict on a push we have finished sending.
 ///
 /// The push protocol carries no response payload, so the provider's half of the stream
-/// is used purely as an acknowledgement: it is closed cleanly when the push was accepted
-/// and handled, and reset with a [`ProgressError`] code when it was refused — by the
-/// event mask, by an interceptor, or by a rate limit.
+/// is used purely as an acknowledgement: it is closed cleanly when the push was accepted,
+/// and reset with a [`ProgressError`] code when it was refused — by the event mask, by an
+/// interceptor, or by a rate limit.
 ///
-/// This is why the caller must not stop that stream. Waiting on it also makes a push
-/// synchronous with respect to the receiver: `execute_push` now returns once the blob
-/// has actually landed, rather than once the last byte has been handed to the socket.
+/// This is why the caller must not stop that stream.
+///
+/// Acceptance is the only thing this reports, and it is decided before any data is
+/// stored. The provider resets its half from `handle_read_request_result`, which runs on
+/// the request itself; `into_reader` then syncs and drops that half — a clean end of
+/// stream — before `handle_push_impl` writes anything. A failure *during* the transfer is
+/// signalled the other way, as a `stop` on our send stream, which we may already have
+/// finished by the time it arrives. So a clean end of stream here means the receiver took
+/// the request, not that the blob is durably stored.
 ///
 /// A provider from before this acknowledgement existed simply drops its half without
 /// writing, which arrives as a clean end of stream and is read as acceptance — the same
