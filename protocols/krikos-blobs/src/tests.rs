@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io, ops::Range, path::PathBuf, time::Duration};
+use std::{collections::HashSet, io, ops::Range, path::PathBuf};
 
 use bao_tree::ChunkRanges;
 use bytes::Bytes;
@@ -454,13 +454,11 @@ async fn two_nodes_push_blobs_mem() -> TestResult<()> {
 /// writes to the local store, so an unauthorized peer must not be able to place blobs of
 /// its choosing into ours.
 ///
-/// The pusher cannot observe the refusal: `execute_push_sink` stops its receive stream
-/// and returns `Stats::default()` unconditionally, and the provider handles each stream
-/// in a detached task, so a rejection never surfaces as a connection- or call-level
-/// error. The property under test is therefore the one that actually matters — the blob
-/// must not land in the receiving store. `allow` is a control: pushing the same blob to
-/// a node that permits pushes proves the push path works in this setup, so a passing
-/// "denied" assertion cannot be an artifact of a push that never happened.
+/// Two things are asserted, because either alone can pass vacuously: the push must fail
+/// for the pusher, and the blob must not be in the receiving store. `allow` is the
+/// control — pushing the same blob to a node that permits pushes proves the push path
+/// works in this setup, so a failing "denied" push cannot be an artifact of a push that
+/// never happened.
 async fn push_is_rejected_when_disabled(
     pusher: Router,
     pusher_store: &Store,
@@ -479,7 +477,7 @@ async fn push_is_rejected_when_disabled(
     // called `finish()`, but dropping the `Connection` at that point tears down the
     // still-in-flight stream and the receiver never finishes importing.
     let mut conns = Vec::new();
-    for (target, must_succeed) in [(&deny, false), (&allow, true)] {
+    for (label, target, should_succeed) in [("deny", &deny, false), ("allow", &allow, true)] {
         let conn = pusher
             .endpoint()
             .connect(target.endpoint().addr(), crate::ALPN)
@@ -488,46 +486,31 @@ async fn push_is_rejected_when_disabled(
             .remote()
             .execute_push_sink(conn.clone(), request.clone(), Drain)
             .await;
-        // Whether the refusal reaches the pusher at all is a race, which is exactly why
-        // the property under test is store contents rather than this result: the
-        // provider resets the stream, and `execute_push_sink` only sees that if the
-        // reset lands before it has finished writing. Both outcomes are correct for the
-        // denying node. The permitting node must succeed, or the control below — the
-        // thing that proves a passing deny assertion is not vacuous — proves nothing.
-        if must_succeed {
-            res?;
-        }
+        assert_eq!(
+            res.is_ok(),
+            should_succeed,
+            "{label}: push result was {res:?}"
+        );
         conns.push(conn);
     }
 
-    // The permissive node completing its push bounds the wait for the denying one:
-    // both were pushed over loopback, the denying one first.
+    // No polling window is needed for either store any more: a push is acknowledged, so
+    // by the time the permitting node's push returned `Ok` it had finished importing,
+    // and by the time the denying node's push returned `Err` it had already decided.
     allow_count_rx.changed().await?;
     assert_eq!(
         allow_store.get_bytes(hash).await?,
         test_data(size),
         "control: a node that permits pushes must receive the blob"
     );
-    // Nothing on the denying node is observable from here — a disabled request type
-    // emits no event, `execute_push_sink` does not wait for the receiver, and the
-    // provider imports on a detached task. Sampling `has` once could therefore run
-    // before an accepted push had landed and pass on a broken mask, so keep sampling
-    // for a while: an accepted push over loopback lands well inside this window.
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
-    loop {
-        // `status`, not `has`: `has` is only true for a *complete* blob, so a rejection
-        // that arrived after some chunks had already been imported would leave
-        // attacker-chosen bytes in the store and still satisfy the assertion.
-        assert_eq!(
-            deny_store.blobs().status(hash).await?,
-            BlobStatus::NotFound,
-            "a push rejected by the event mask must not write to the receiving store"
-        );
-        if tokio::time::Instant::now() >= deadline {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+    // `status`, not `has`: `has` is only true for a *complete* blob, so a rejection that
+    // arrived after some chunks had already been imported would leave attacker-chosen
+    // bytes in the store and still satisfy the assertion.
+    assert_eq!(
+        deny_store.blobs().status(hash).await?,
+        BlobStatus::NotFound,
+        "a push rejected by the event mask must not write to the receiving store"
+    );
 
     tokio::try_join!(pusher.shutdown(), deny.shutdown(), allow.shutdown())?;
     Ok(())

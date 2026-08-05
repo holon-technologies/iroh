@@ -37,8 +37,8 @@ use crate::{
     hashseq::{HashSeq, HashSeqIter},
     limits::PROGRESS_QUEUE_CAPACITY,
     protocol::{
-        ChunkRangesSeq, GetManyRequest, GetRequest, MAX_MESSAGE_SIZE, ObserveItem, ObserveRequest,
-        PushRequest, Request, RequestType,
+        ChunkRangesSeq, ERR_LIMIT, ERR_PERMISSION, GetManyRequest, GetRequest, MAX_MESSAGE_SIZE,
+        ObserveItem, ObserveRequest, PushRequest, Request, RequestType,
     },
     provider::events::{ClientResult, ProgressError},
     store::KRIKOS_BLOCK_SIZE,
@@ -607,8 +607,11 @@ impl Remote {
             payload_bytes_sent: 0,
             sender: progress,
         };
-        // we are not going to need this!
-        recv.stop(0u32.into()).anyerr()?;
+        // The receive half is kept open, and read at the end. It carries no data, but a
+        // provider that refuses the push resets it with the reason code
+        // (`handle_read_request_result` -> `writer.reset(e.code())`), and that reset is
+        // the only signal a refusal produces. Stopping this stream here -- before the
+        // request had even been written -- is what made a refused push report success.
         // write the request. Unlike for reading, we can just serialize it sync using postcard.
         let request = write_push_request(request, &mut send).await?;
         let mut request_ranges = request.ranges.iter_infinite();
@@ -623,6 +626,7 @@ impl Remote {
         if request.ranges.is_blob() {
             // we are done
             send.finish().anyerr()?;
+            push_accepted(&mut recv).await?;
             return Ok(Default::default());
         }
         let hash_seq = self.store().get_bytes(root).await?;
@@ -638,6 +642,7 @@ impl Remote {
             }
         }
         send.finish().anyerr()?;
+        push_accepted(&mut recv).await?;
         Ok(Default::default())
     }
 
@@ -815,6 +820,70 @@ impl Remote {
         trace!(?stats, "get hash seq done");
         Ok(stats)
     }
+}
+
+/// Wait for the provider's verdict on a push we have finished sending.
+///
+/// The push protocol carries no response payload, so the provider's half of the stream
+/// is used purely as an acknowledgement: it is closed cleanly when the push was accepted
+/// and handled, and reset with a [`ProgressError`] code when it was refused — by the
+/// event mask, by an interceptor, or by a rate limit.
+///
+/// This is why the caller must not stop that stream. Waiting on it also makes a push
+/// synchronous with respect to the receiver: `execute_push` now returns once the blob
+/// has actually landed, rather than once the last byte has been handed to the socket.
+///
+/// A provider from before this acknowledgement existed simply drops its half without
+/// writing, which arrives as a clean end of stream and is read as acceptance — the same
+/// answer such a provider gave before.
+async fn push_accepted(recv: &mut krikos::endpoint::RecvStream) -> Result<()> {
+    // Scoped, not a module import: `RecvStreamExt` also carries a
+    // `read_length_prefixed` that would become ambiguous with the one the observe path
+    // above resolves today.
+    use krikos::endpoint::ReadError;
+
+    use crate::util::RecvStreamExt;
+
+    let err = match recv.expect_eof().await {
+        Ok(()) => return Ok(()),
+        Err(err) => err,
+    };
+    let reset = err
+        .get_ref()
+        .and_then(|e| e.downcast_ref::<ReadError>())
+        .and_then(|e| match e {
+            ReadError::Reset(code) => Some(code),
+            _ => None,
+        });
+    let Some(code) = reset else {
+        // Not a verdict at all: the connection died, or the stream produced data no
+        // push provider is supposed to send.
+        return Err(e!(PushError::Io, err).into());
+    };
+    let reason = if *code == ERR_PERMISSION {
+        "the receiver does not accept pushes from us".to_string()
+    } else if *code == ERR_LIMIT {
+        "the receiver is rate limiting us".to_string()
+    } else {
+        format!("the receiver rejected the push, code {code}")
+    };
+    Err(e!(PushError::Refused, AnyError::from_string(reason)).into())
+}
+
+/// Why a push did not complete.
+#[allow(missing_docs)]
+#[non_exhaustive]
+#[stack_error(derive, add_meta)]
+pub enum PushError {
+    /// The receiver refused the push. It has stored nothing.
+    #[error("push refused by the receiver")]
+    Refused { source: AnyError },
+    /// The acknowledgement could not be read.
+    #[error("failed to read the push acknowledgement")]
+    Io {
+        #[error(std_err)]
+        source: io::Error,
+    },
 }
 
 /// Failures for a get operation
