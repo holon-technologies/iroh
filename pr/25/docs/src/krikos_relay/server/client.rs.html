@@ -545,7 +545,7 @@
 <a href=#545 id=545 data-nosnippet>545</a>            <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(frame)) =&gt; frame,
 <a href=#546 id=546 data-nosnippet>546</a>            <span class="comment">// A frame we cannot decode costs this client one datagram, not its session.
 <a href=#547 id=547 data-nosnippet>547</a>            // It is relaying for every peer it is talking to, so tearing the connection
-<a href=#548 id=548 data-nosnippet>548</a>            // down over one unparseable frame is far out of proportion — and it is the
+<a href=#548 id=548 data-nosnippet>548</a>            // down over one unparsable frame is far out of proportion — and it is the
 <a href=#549 id=549 data-nosnippet>549</a>            // mirror of `send_packet`, which already drops rather than disconnects when
 <a href=#550 id=550 data-nosnippet>550</a>            // the *encoder* refuses. Only a broken stream is fatal, because then there
 <a href=#551 id=551 data-nosnippet>551</a>            // is nothing left to keep.
@@ -904,7 +904,7 @@
 <a href=#904 id=904 data-nosnippet>904</a>    <span class="doccomment">/// A frame the server cannot decode must not end the sending client's session.
 <a href=#905 id=905 data-nosnippet>905</a>    ///
 <a href=#906 id=906 data-nosnippet>906</a>    /// The client is relaying for every peer it is talking to, so disconnecting it over
-<a href=#907 id=907 data-nosnippet>907</a>    /// one unparseable frame loses all of that instead of one datagram. This is the
+<a href=#907 id=907 data-nosnippet>907</a>    /// one unparsable frame loses all of that instead of one datagram. This is the
 <a href=#908 id=908 data-nosnippet>908</a>    /// mirror of `undeliverable_packet_does_not_end_the_session`, which covers the same
 <a href=#909 id=909 data-nosnippet>909</a>    /// property on the encode side.
 <a href=#910 id=910 data-nosnippet>910</a>    ///
