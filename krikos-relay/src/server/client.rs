@@ -542,7 +542,23 @@ where
     ) -> Result<(), HandleFrameError> {
         trace!(?maybe_frame, "handle incoming frame");
         let frame = match maybe_frame {
-            Some(frame) => frame?,
+            Some(Ok(frame)) => frame,
+            // A frame we cannot decode costs this client one datagram, not its session.
+            // It is relaying for every peer it is talking to, so tearing the connection
+            // down over one unparsable frame is far out of proportion — and it is the
+            // mirror of `send_packet`, which already drops rather than disconnects when
+            // the *encoder* refuses. Only a broken stream is fatal, because then there
+            // is nothing left to keep.
+            //
+            // Nothing bounds how many of these a client may send, deliberately: the
+            // read side is already rate limited, so a client sending malformed frames
+            // gets no more of this server than one sending valid ones.
+            Some(Err(err @ RelayRecvError::Proto { .. })) => {
+                self.metrics.recv_frames_invalid.inc();
+                warn!("dropping undecodable frame: {err:#}");
+                return Ok(());
+            }
+            Some(Err(err)) => return Err(err.into()),
             None => return Err(e!(HandleFrameError::StreamTerminated)),
         };
 
@@ -876,6 +892,84 @@ mod tests {
             metrics.send_packets_dropped.get(),
             1,
             "the undeliverable packet should be counted as dropped"
+        );
+
+        done.cancel();
+        drop(send_queue_s);
+        drop(message_s);
+        handle.await.std_context("join")?;
+        Ok(())
+    }
+
+    /// A frame the server cannot decode must not end the sending client's session.
+    ///
+    /// The client is relaying for every peer it is talking to, so disconnecting it over
+    /// one unparsable frame loses all of that instead of one datagram. This is the
+    /// mirror of `undeliverable_packet_does_not_end_the_session`, which covers the same
+    /// property on the encode side.
+    ///
+    /// The frame is written straight onto the wire, because a conforming client cannot
+    /// produce one: `Conn::start_send` refuses to encode an empty datagram, which is
+    /// exactly why only a buggy or hostile peer sends it.
+    #[tokio::test]
+    #[traced_test]
+    async fn undecodable_frame_does_not_end_the_session() -> Result {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(23);
+        let (send_queue_s, send_queue_r) = mpsc::channel(10);
+        let (message_s, message_r) = mpsc::channel(10);
+        let endpoint_id = SecretKey::from_bytes(&rng.random()).public();
+        let dst = SecretKey::from_bytes(&rng.random()).public();
+        let (io, io_rw) = tokio::io::duplex(1024);
+        let mut io_rw = Conn::test(io_rw, Default::default());
+        let stream = RelayedStream::test(io);
+        let clients = Clients::default();
+        let metrics = Arc::new(Metrics::default());
+        let actor = Actor {
+            stream,
+            timeout: Duration::from_secs(1),
+            packet_send_queue: send_queue_r,
+            message_send_queue: message_r,
+            guard: Some(OnDisconnectGuard::empty(endpoint_id)),
+            endpoint_id,
+            registered: false,
+            clients: clients.clone(),
+            client_counter: ClientCounter::new(clients.runtime().wall_clock()),
+            ping_tracker: PingTracker::default(),
+            metrics: metrics.clone(),
+            clock: clients.runtime().clock(),
+        };
+        let done = CancellationToken::new();
+        let io_done = done.clone();
+        let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+
+        // A datagram frame with empty contents: well formed enough to reach the parser,
+        // rejected by it because the relay could not forward it on.
+        let undecodable = ClientToRelayMsg::Datagrams {
+            dst_endpoint_id: dst,
+            datagrams: Datagrams::from(&[][..]),
+        }
+        .write_to(Vec::new());
+        // Straight onto the byte sink, under `Conn`'s own encoder.
+        io_rw
+            .conn
+            .send(bytes::Bytes::from(undecodable))
+            .await
+            .anyerr()?;
+
+        // Queued behind it: if the session survived, this still gets answered.
+        let payload = [3u8; 8];
+        io_rw.send(ClientToRelayMsg::Ping(payload)).await?;
+        let frame = recv_frame(FrameType::Pong, &mut io_rw).await.anyerr()?;
+        assert_eq!(frame, RelayToClientMsg::Pong(payload));
+
+        assert!(
+            !handle.is_finished(),
+            "an undecodable frame must not end the session"
+        );
+        assert_eq!(
+            metrics.recv_frames_invalid.get(),
+            1,
+            "the undecodable frame should be counted"
         );
 
         done.cancel();

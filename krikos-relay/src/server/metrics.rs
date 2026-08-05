@@ -46,6 +46,15 @@ pub struct Metrics {
     #[metrics(help = "Number of 'send' packets dropped.")]
     pub send_packets_dropped: Counter,
 
+    /// Frames received from a client that could not be decoded, and were dropped.
+    ///
+    /// The client stays connected. A frame this server cannot parse is one datagram lost,
+    /// not a broken connection, and the sending client is usually relaying for several
+    /// peers at once. Sustained growth here means a client is sending frames this server
+    /// does not accept — a version mismatch or a bug on its side.
+    #[metrics(help = "Number of frames received from a client that could not be decoded.")]
+    pub recv_frames_invalid: Counter,
+
     /// Intended to count sent frames other than datagrams, but currently unused (never incremented).
     #[metrics(help = "Number of packets sent that were not 'send' packets")]
     pub other_packets_sent: Counter,

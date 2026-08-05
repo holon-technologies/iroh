@@ -49,12 +49,12 @@ clock-timer	krikos-relay/src/quic.rs:678	let start = Instant::now();
 clock-timer	krikos-relay/src/server/admission.rs:107	last_refill: Instant::now(),
 clock-timer	krikos-relay/src/server/admission.rs:112	let now = Instant::now();
 clock-timer	krikos-relay/src/server/admission.rs:150	tokio::time::advance(std::time::Duration::from_millis(500)).await;
-clock-timer	krikos-relay/src/server/client.rs:1097	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
-clock-timer	krikos-relay/src/server/client.rs:1108	let res = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
-clock-timer	krikos-relay/src/server/client.rs:1114	tokio::time::sleep(Duration::from_secs(1)).await;
-clock-timer	krikos-relay/src/server/client.rs:1117	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
-clock-timer	krikos-relay/src/server/client.rs:917	tokio::time::advance(Duration::from_secs(21)).await;
-clock-timer	krikos-relay/src/server/client.rs:924	tokio::time::advance(Duration::from_secs(6)).await;
+clock-timer	krikos-relay/src/server/client.rs:1011	tokio::time::advance(Duration::from_secs(21)).await;
+clock-timer	krikos-relay/src/server/client.rs:1018	tokio::time::advance(Duration::from_secs(6)).await;
+clock-timer	krikos-relay/src/server/client.rs:1191	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
+clock-timer	krikos-relay/src/server/client.rs:1202	let res = tokio::time::timeout(Duration::from_millis(100), stream.next()).await;
+clock-timer	krikos-relay/src/server/client.rs:1208	tokio::time::sleep(Duration::from_secs(1)).await;
+clock-timer	krikos-relay/src/server/client.rs:1211	let recv_frame = tokio::time::timeout(Duration::from_millis(500), stream.next())
 clock-timer	krikos-relay/src/server/clients.rs:619	tokio::time::timeout(Duration::from_secs(1), async move {
 clock-timer	krikos-relay/src/server/clients.rs:624	tokio::time::sleep(Duration::from_millis(100)).await;
 clock-timer	krikos-relay/src/server/clients.rs:696	tokio::time::timeout(Duration::from_secs(1), {
@@ -841,9 +841,10 @@ spawn-task	krikos-relay/src/quic.rs:30	use tokio::{sync::Semaphore, task::JoinSe
 spawn-task	krikos-relay/src/quic.rs:619	let task = AbortOnDropHandle::new(tokio::spawn({
 spawn-task	krikos-relay/src/quic.rs:679	let server_task = tokio::spawn(
 spawn-task	krikos-relay/src/server.rs:51	task::{JoinError, JoinSet},
-spawn-task	krikos-relay/src/server/client.rs:739	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
-spawn-task	krikos-relay/src/server/client.rs:841	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
-spawn-task	krikos-relay/src/server/client.rs:915	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:1009	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:755	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:857	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
+spawn-task	krikos-relay/src/server/client.rs:943	let handle = tokio::task::spawn(async move { actor.run(io_done).await });
 spawn-task	krikos-relay/src/server/http_server/listener.rs:323	let task = tokio::task::spawn(
 spawn-task	krikos-relay/src/server/http_server/listener.rs:327	let mut set = tokio::task::JoinSet::new();
 spawn-task	krikos-relay/src/server/http_server/tests.rs:305	let handler_task = tokio::spawn(async move {
@@ -1003,8 +1004,8 @@ unordered-collection	krikos-dns/src/endpoint_info.rs:45	collections::{BTreeSet, 
 unordered-collection	krikos-dns/src/endpoint_info.rs:78	fn dedup<T: Eq + Hash + Clone>(items: &mut Vec<T>) -> HashSet<T> {
 unordered-collection	krikos-dns/src/endpoint_info.rs:80	let mut seen = HashSet::new();
 unordered-collection	krikos-relay/src/server/client.rs:4	collections::HashSet,
-unordered-collection	krikos-relay/src/server/client.rs:620	clients: HashSet<EndpointId>,
-unordered-collection	krikos-relay/src/server/client.rs:629	clients: HashSet::new(),
+unordered-collection	krikos-relay/src/server/client.rs:636	clients: HashSet<EndpointId>,
+unordered-collection	krikos-relay/src/server/client.rs:645	clients: HashSet::new(),
 unordered-collection	krikos-relay/src/server/clients.rs:12	use dashmap::DashMap;
 unordered-collection	krikos-relay/src/server/clients.rs:180	clients: DashMap::new(),
 unordered-collection	krikos-relay/src/server/clients.rs:181	sent_to: DashMap::new(),
