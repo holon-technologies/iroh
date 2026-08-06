@@ -93,6 +93,19 @@ slow-timeout = { period = "30s", terminate-after = 3 }
 filter = 'package(krikos-identity) & binary(store_conformance) & test(=evicted_lineage_conflict_is_authenticated_from_durable_sources)'
 slow-timeout = { period = "30s", terminate-after = 3 }
 
+# This interchange conformance test intentionally builds 257 fully authenticated
+# provider and audit records to cross the 256-item chunk boundary, then repeats
+# assembly over reordered and tampered variants. It takes roughly 55s in isolation
+# and exceeded the generic ceiling on a contended Ubuntu runner. Retain a finite
+# 150s ceiling for this exact boundary test.
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(provider_wire_formats) & test(=provider_interchange_assembles_out_of_order_and_rejects_tampering)'
+slow-timeout = { period = "30s", terminate-after = 5 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(provider_wire_formats) & test(=provider_interchange_assembles_out_of_order_and_rejects_tampering)'
+slow-timeout = { period = "30s", terminate-after = 5 }
+
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'
