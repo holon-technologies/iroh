@@ -42,9 +42,9 @@ jobs:
     - uses: ./.github/actions/sccache-probe
 
     - name: Generate Docs
-      run: cargo doc --workspace --all-features --no-deps
+      run: cargo doc --locked --workspace --all-features --no-deps
       env:
-        RUSTDOCFLAGS: --cfg krikos_docsrs
+        RUSTDOCFLAGS: "-Dwarnings --cfg krikos_docsrs"
 
     - name: Deploy Docs to Preview Branch
       uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453  # v4

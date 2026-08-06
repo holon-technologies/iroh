@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "entries": [
+    {
+      "id": "identity/authority-lifecycle",
+      "scenario_file": "authority-lifecycle.json",
+      "seed": "2222222222222222222222222222222222222222222222222222222222222222",
+      "expectation": { "terminal": "success" },
+      "reviewed": true
+    },
+    {
+      "id": "identity/network-storage-provider",
+      "scenario_file": "network-storage-provider.json",
+      "seed": "1111111111111111111111111111111111111111111111111111111111111111",
+      "expectation": { "terminal": "success" },
+      "reviewed": true
+    }
+  ]
+}

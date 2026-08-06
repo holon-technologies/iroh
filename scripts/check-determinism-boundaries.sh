@@ -75,7 +75,16 @@ fi
 
 source_roots=()
 missing_roots=()
-for candidate in krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim; do
+for candidate in \
+  krikos \
+  krikos-base \
+  krikos-resolver \
+  krikos-dns \
+  krikos-dns-server \
+  krikos-relay \
+  krikos-runtime \
+  krikos-sim \
+  protocols/krikos-identity; do
   if [[ -d "$repo_root/$candidate" ]]; then
     source_roots+=("$candidate")
   else
@@ -94,8 +103,7 @@ if [[ ${#source_roots[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Every root above is a real Cargo package directory (see
-# scripts/rename-map.toml, dir_renamed = true); Cargo requires a `[lib]` or
+# Every root above is a real Cargo package directory. Cargo requires a `[lib]` or
 # `[[bin]]` entry point in at least one `.rs` file for such a package to
 # build, so a root that exists but contains zero `.rs` files is never
 # legitimate here -- only a symptom of a botched rename (e.g. a `git mv`

@@ -14,6 +14,21 @@
 - [Upstream protocol sync runbook](framework/upstream-sync.md) — how imported protocol packages (`krikos-blobs`, `krikos-gossip`, `krikos-docs`) are synced from their upstream release tags.
 - [Framework release gate](framework/release-gate.md) — the four approvals blocking `krikos-blobs`, `krikos-gossip`, `krikos-docs` and `krikos-app` from publication: what each requires, and how the gate is opened.
 
+## Account identity and authorization
+
+- [Identity protocol profile](../protocols/krikos-identity/README.md) — the normative v1
+  foundational, account-control, synchronization, and network-envelope profile currently documented
+  by the crate, including its codepoints, common bounds, and feature boundary.
+- [Security and deployment](../protocols/krikos-identity/docs/security-and-deployment.md) — threat
+  model, invariants, deployment profiles, migration rules, and external release gates.
+- [Provider operations](../protocols/krikos-identity/docs/provider-operations.md) — persistence,
+  recovery, compaction, auditing, incident procedure, and the normative bounded provider-portability
+  wire appendix.
+- [Design-to-evidence map](../protocols/krikos-identity/docs/design-evidence.md) — implementation,
+  test, model, simulation, fuzz, and interoperability evidence.
+- [Identity stable-release gate](../protocols/krikos-identity/docs/release-gate.md) — the six
+  independently evidenced approvals that keep `krikos-identity` unpublished.
+
 ## Upstream protocol provenance
 
 - [Commit maps](upstream/commit-maps/) — old-to-new commit ID mappings recorded when each imported protocol package's history was rewritten into this monorepo.

@@ -867,7 +867,7 @@ mod tests {
     #[test]
     #[allow(deprecated)] // Constructs an old oversized value to test bounded deserialization.
     fn endpoint_addr_deserialization_rejects_excessive_address_count() {
-        let key = crate::SecretKey::generate().public();
+        let key = crate::SecretKey::from_bytes(&[0x41; 32]).public();
         let addrs = (0..35)
             .map(|port| TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 10_000 + port))));
         let legacy = EndpointAddr::from_parts(key, addrs);
@@ -881,7 +881,7 @@ mod tests {
 
     #[test]
     fn public_field_mutation_is_detected_by_validation() {
-        let key = crate::SecretKey::generate().public();
+        let key = crate::SecretKey::from_bytes(&[0x42; 32]).public();
         let mut addr = EndpointAddr::new(key);
         for port in 0..=MAX_ENDPOINT_ADDRS {
             let port = u16::try_from(port).expect("test address count fits in u16");
@@ -901,7 +901,7 @@ mod tests {
         assert!(CustomAddr::try_from_parts(1, &[0_u8; MAX_CUSTOM_ADDR_BYTES]).is_ok());
         assert!(CustomAddr::try_from_parts(1, &[0_u8; MAX_CUSTOM_ADDR_BYTES + 1]).is_err());
 
-        let key = crate::SecretKey::generate().public();
+        let key = crate::SecretKey::from_bytes(&[0x43; 32]).public();
         let maximum_count = (0..MAX_ENDPOINT_ADDRS).map(|port| {
             let port = u16::try_from(port).expect("test address count fits in u16");
             TransportAddr::Ip(SocketAddr::from(([127, 0, 0, 1], 20_000 + port)))

@@ -1,6 +1,6 @@
 # Krikos Determinism and Testability Audit
 
-Status: Living audit reviewed through deterministic tooling closure, 2026-07-26
+Status: Living audit reviewed through identity protocol integration, 2026-08-05
 
 ## Scope
 
@@ -24,17 +24,17 @@ The audit is based on source, test, manifest, and workflow inspection. Re-run th
 
 ```bash
 rg -n 'tokio::spawn|tokio::task::spawn|n0_future::task::spawn|task::spawn' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 rg -n 'tokio::time|n0_future::time|Instant::now|SystemTime::now' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 rg -n 'rand::random|rand::rng\(\)|thread_rng|OsRng|getrandom|with_jitter' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 rg -n '(UdpSocket|TcpListener)::bind|resolve_host|lookup_|netmon::|interfaces::|portmapper' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 rg -n 'std::fs|tokio::fs|std::env|env::var|Command::new|thread::spawn|spawn_blocking' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 rg -n 'HashMap|HashSet|FxHashMap|FxHashSet' \
-  krikos krikos-base krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim --glob '*.rs'
+  krikos krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim protocols/krikos-identity --glob '*.rs'
 
 scripts/tests/check-determinism-boundaries.sh
 scripts/tests/check-determinism-semantic.sh
@@ -69,6 +69,43 @@ The authoritative stable review identity is `scripts/determinism-boundaries.sema
 literals, resolves file-local `use` aliases, and records category, path, enclosing owner, API, and
 same-owner ordinal. Source-line movement alone therefore does not create semantic drift. Both
 inventories fail closed together; parse failure or drift requires explicit review and `--update`.
+
+The 2026-08-05 identity protocol integration adds `protocols/krikos-identity` to both inventories;
+the fixture tests now fail if that root disappears or if `getrandom::fill`, including a qualified
+entropy function passed as a value, is not classified. Identity's default deterministic core has
+no ambient entropy dependency. Every operating-system entropy convenience constructor is behind
+the explicit `os-rng` feature and has an injected `*_with_rng` or material-taking counterpart.
+Those `getrandom::fill` occurrences are intentional **Production randomness**: entropy failure is
+typed, partial artifacts are not returned, and deterministic vectors and simulation do not enable
+or call those paths.
+
+The optional identity `net` adapter owns its child tasks in a bounded `JoinSet` and applies one
+finite shutdown timeout after cancellation. Task scheduling and that deadline are
+**Behavioral randomness in the production-runtime adapter**, isolated from canonical transition
+logic and the deterministic identity simulator. The adjacent relay-only, admission, and shutdown
+timeouts/sleep are **Acceptable nondeterminism in regression-test orchestration**. The provider
+concurrency threads likewise exist only in a linearizability regression. The lexical
+`lookup_handles_*` test-name match is a false positive; it performs no network or host lookup.
+
+Identity redb validation opens only an explicit caller-selected path behind `fs-store` or
+`provider-store`; the provider-auditor example reads an explicit operator-selected artifact.
+These are **Acceptable nondeterminism in explicit persistence and executable orchestration**, not
+inputs to the deterministic transition core. Identity simulator canonicalization, bounded
+artifact reads/writes, temporary directories, and child CLI processes are also
+**Acceptable nondeterminism in executable or regression-test orchestration**: canonical bytes and
+hashes are validated before replay, and host filesystem or process order cannot affect a scenario
+after construction. Adding the scenario input-size regression moved only the later test-orchestration
+line numbers; the lexical baseline was refreshed after the checker classified that change as pure
+line drift, without any new boundary occurrence.
+
+The same refresh classifies two non-identity deltas. `Builder::bind` passing
+`SecretKey::generate` as a function value is the existing secure default **Production
+randomness** boundary, newly visible to the semantic checker; simulation supplies an explicit
+key. The transfer example's finite write deadline is **Acceptable nondeterminism in a manual/CI
+example**, outside deterministic execution. Endpoint connection timer/task rows and
+`krikos-base`'s `rand::random` row only moved. Four test-only `SecretKey::generate` calls were
+replaced by fixed keys, reducing test nondeterminism; the new `os-rng` crate-doc match is prose,
+not executable code.
 
 The 2026-07-21 Stage 1 review added the `krikos-runtime` production adapters and moved existing Krikos occurrences as context plumbing and tests were introduced. `TokioClock` and `SystemWallClock` are classified as production implementations behind injectable clock traits; `RootSeed::random` is the single production behavioral-seed boundary; and `EndpointConfig::rng_seed` is now supplied from the explicit per-endpoint `endpoint/<id>/noq` decision stream. Endpoint identities, TLS token keys, and QUIC reset keys continue to use cryptographic entropy and were not routed through behavioral decisions.
 
@@ -145,8 +182,9 @@ files through one 64 MiB bounded reader. Corpus enumeration rejects the first en
 and the first per-entry file above its exact two-file schema; replay validates that the declared
 chunk count equals the finite indexed chunk set before iterating. These are **Acceptable
 nondeterminism in simulator process orchestration** and cannot affect a simulated protocol
-decision. The occurrence checker now recognizes imported `File::open` and `OpenOptions` spellings
-as external-state boundaries, closing a prior manifest blind spot. New fixture writes are
+decision. Identity scenario parsing additionally rejects an encoded input above 4 MiB before JSON
+deserialization. The occurrence checker now recognizes imported `File::open` and `OpenOptions`
+spellings as external-state boundaries, closing a prior manifest blind spot. New fixture writes are
 **Acceptable nondeterminism in regression-test orchestration**; other changed rows are line
 movement from routing reads through the bounded helper.
 

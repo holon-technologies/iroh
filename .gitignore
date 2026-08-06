@@ -2,6 +2,8 @@
 # crates are bumped by directory rename, and an anchored rule silently
 # stops matching when that happens.
 target/
+__pycache__/
+*.py[cod]
 
 /fuzz/artifacts
 /logs
@@ -17,3 +19,8 @@ krikos.config.toml
 
 # Agent scratch workspace (ledgers, briefs, review packages).
 .superpowers/
+
+# Treat new Markdown files as opt-in so agent-generated notes do not clutter
+# the repository. Existing tracked documentation remains tracked; add a narrow
+# `!path/to/file.md` exception here when a new Markdown file should be kept.
+*.md

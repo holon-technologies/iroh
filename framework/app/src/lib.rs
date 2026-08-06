@@ -10,6 +10,8 @@ mod config;
 mod data_root;
 mod error;
 mod identity;
+#[cfg(feature = "identity")]
+mod identity_protocol;
 mod lifecycle;
 mod protocol_registry;
 mod standard_bundle;
@@ -27,6 +29,8 @@ pub use error::{
     StandardStartStage, StartupError, WaitError,
 };
 pub use identity::{FileIdentityStore, IdentityPolicy, IdentityStore, MemoryIdentityStore};
+#[cfg(feature = "identity")]
+pub use identity_protocol::IdentityProtocolComponent;
 pub use lifecycle::{
     AppBuilder, Component, ComponentContext, ComponentFuture, ConfiguredApp, LifecycleState,
     StartedComponent,

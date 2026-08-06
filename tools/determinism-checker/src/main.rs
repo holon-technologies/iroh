@@ -17,7 +17,7 @@ use syn::{
     visit::{self, Visit},
 };
 
-const SOURCE_ROOTS: [&str; 8] = [
+const SOURCE_ROOTS: [&str; 9] = [
     "krikos",
     "krikos-base",
     "krikos-resolver",
@@ -26,12 +26,12 @@ const SOURCE_ROOTS: [&str; 8] = [
     "krikos-relay",
     "krikos-runtime",
     "krikos-sim",
+    "protocols/krikos-identity",
 ];
 const MAX_SOURCE_FILES: usize = 20_000;
 const MAX_SOURCE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_OCCURRENCES: usize = 100_000;
-// Every entry in SOURCE_ROOTS is a real Cargo package directory (see
-// scripts/rename-map.toml, dir_renamed = true), and Cargo requires a `[lib]`
+// Every entry in SOURCE_ROOTS is a real Cargo package directory, and Cargo requires a `[lib]`
 // or `[[bin]]` entry point in at least one `.rs` file for such a package to
 // build at all -- so zero `.rs` files below an *existing* root is never
 // legitimate for this specific list, only a symptom of a botched rename
@@ -435,6 +435,14 @@ impl<'ast> Visit<'ast> for BoundaryVisitor {
     fn visit_expr_path(&mut self, node: &'ast ExprPath) {
         if node.qself.is_none() {
             let path = self.resolve(&node.path);
+            // Call expressions record their callee in `visit_expr_call`. A qualified
+            // path that appears as a value (for example, an entropy function passed
+            // into a helper) has no call node of its own and must be inventoried here.
+            // Bare local values are deliberately excluded: names such as `timeout`
+            // and `random` do not identify an ambient API without a qualified path.
+            if path.contains("::") {
+                self.record_api(path.clone());
+            }
             if path.ends_with("::OsRng") || path == "OsRng" {
                 self.record_type(path);
             }
@@ -474,7 +482,7 @@ fn classify_api(api: &str) -> Vec<&'static str> {
     {
         categories.push("clock-timer");
     }
-    if matches!(
+    if (matches!(
         last,
         "random"
             | "rng"
@@ -486,7 +494,8 @@ fn classify_api(api: &str) -> Vec<&'static str> {
     ) && (api.contains("rand")
         || api.contains("getrandom")
         || api.contains("SecretKey")
-        || api.starts_with("<method>"))
+        || api.starts_with("<method>")))
+        || (last == "fill" && api.contains("getrandom"))
     {
         categories.push("entropy-random");
     }

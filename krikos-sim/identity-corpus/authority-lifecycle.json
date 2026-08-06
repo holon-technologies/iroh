@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "id": "identity/authority-lifecycle",
+  "actions": [
+    {
+      "id": "authorize-device-7",
+      "at_nanos": 0,
+      "action": { "kind": "authorize_device", "device": 7, "approvals": [1] }
+    },
+    {
+      "id": "authorize-device-8",
+      "at_nanos": 1,
+      "action": { "kind": "authorize_device", "device": 8, "approvals": [1] }
+    },
+    {
+      "id": "revoke-device-7",
+      "at_nanos": 2,
+      "action": { "kind": "revoke_device", "device": 7, "approvals": [1] }
+    },
+    {
+      "id": "publish-device-revocation",
+      "at_nanos": 3,
+      "action": { "kind": "publish_revocation", "subject": "device:7" }
+    },
+    {
+      "id": "change-policy",
+      "at_nanos": 4,
+      "action": { "kind": "change_policy", "required_weight": 2, "approvals": [1, 2] }
+    },
+    {
+      "id": "fork-left",
+      "at_nanos": 5,
+      "action": {
+        "kind": "fork_proposal",
+        "fork": "authority-fork",
+        "branch": "left",
+        "approvals": [1, 2],
+        "operation": { "kind": "add_controller", "controller": 3, "weight": 1 }
+      }
+    },
+    {
+      "id": "fork-right",
+      "at_nanos": 5,
+      "action": {
+        "kind": "fork_proposal",
+        "fork": "authority-fork",
+        "branch": "right",
+        "approvals": [1, 2],
+        "operation": { "kind": "change_policy", "required_weight": 2 }
+      }
+    },
+    {
+      "id": "resolve-fork",
+      "at_nanos": 6,
+      "action": {
+        "kind": "resolve_fork",
+        "fork": "authority-fork",
+        "selected_branch": "right",
+        "approvals": [1, 2],
+        "revoked_controllers": [],
+        "revoked_devices": []
+      }
+    },
+    {
+      "id": "recover",
+      "at_nanos": 7,
+      "action": {
+        "kind": "recover",
+        "controllers": [
+          { "controller": 9, "weight": 2 },
+          { "controller": 10, "weight": 1 }
+        ],
+        "required_weight": 2
+      }
+    },
+    {
+      "id": "authorize-post-recovery-device",
+      "at_nanos": 8,
+      "action": { "kind": "authorize_device", "device": 11, "approvals": [9] }
+    },
+    {
+      "id": "revoke-controller-10",
+      "at_nanos": 9,
+      "action": { "kind": "revoke_controller", "controller": 10, "approvals": [9] }
+    },
+    {
+      "id": "publish-controller-revocation",
+      "at_nanos": 10,
+      "action": { "kind": "publish_revocation", "subject": "controller:10" }
+    },
+    {
+      "id": "migration-begin",
+      "at_nanos": 11,
+      "action": { "kind": "migration", "phase": "begin", "approvals": [9] }
+    },
+    {
+      "id": "migration-activate",
+      "at_nanos": 12,
+      "action": { "kind": "migration", "phase": "activate", "approvals": [9] }
+    },
+    {
+      "id": "migration-complete",
+      "at_nanos": 13,
+      "action": { "kind": "migration", "phase": "complete", "approvals": [9] }
+    },
+    {
+      "id": "rotate-group-key",
+      "at_nanos": 14,
+      "action": { "kind": "rotate_group_key", "approvals": [9] }
+    },
+    {
+      "id": "offline-validation",
+      "at_nanos": 15,
+      "action": { "kind": "offline_validate" }
+    },
+    {
+      "id": "social-edge",
+      "at_nanos": 16,
+      "action": { "kind": "social_relationship" }
+    }
+  ]
+}

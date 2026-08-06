@@ -1102,7 +1102,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multikey() {
-        /// Uses the blanket impl of [`RangeKey]` for `T: AsRef<[u8]>` in this module.
+        /// Uses the blanket impl of [`RangeKey`] for `T: AsRef<[u8]>` in this module.
         #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
         struct Multikey {
             author: [u8; 4],

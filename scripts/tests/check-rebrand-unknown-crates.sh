@@ -80,6 +80,11 @@ ALLOWLIST = {
     "krikos_blobs_docsrs": "krikos-blobs' own per-crate variant of the krikos_docsrs cfg flag above, not a crate",
     "krikos_loom": "this fork's own tokio-rs/loom-testing cfg flag (Cargo.toml's [lints]), not a crate",
     "krikos_ref": "a GitHub Actions workflow input/env name (the netsim runner's pinned ref), not a crate",
+    "krikos-provider-generation-v1": "the redb provider-generation table family name, not a crate",
+    "krikos-provider-prepared-v1": "the redb provider prepared-append table family name, not a crate",
+    "krikos-provider-audit-metadata-v2": "the redb provider-audit metadata table name, not a crate",
+    "krikos-provider-audit-records-v2": "the redb provider-audit record table name, not a crate",
+    "krikos-provider-audit-v1": "the explicitly rejected legacy redb provider-audit table name, not a crate",
 }
 
 # --- Step 2/3: scan tracked .md/.rs files for backtick/bracket-quoted krikos tokens -------

@@ -40,8 +40,11 @@ GitHub release, or container.
 - [ ] Formatting, clippy, docs, MSRV, dependency policy, all feature variants,
   minimal versions, Windows, macOS, Android, Wasm, cross, and Wine jobs are
   green on the exact candidate commit.
-- [ ] All nine bounded fuzz smoke targets are green on the candidate: the five platform targets,
-  application manifest and protocol registration, blob tickets, and document tickets.
+- [ ] All eighteen bounded fuzz smoke targets are green on the candidate: the five platform
+  targets; application manifest and protocol registration; blob and document tickets; and
+  `identity_foundation`, `identity_schema`, `identity_capability`, `identity_merkle`,
+  `identity_state`, `identity_pairing`, `identity_sync`, `identity_provider`, and
+  `identity_semantics`.
 - [ ] Deterministic simulation contracts, corpus, campaigns, replay, daily soak,
   and the five fixed-seed nightly scenarios are green.
 - [ ] The local-first application model fixture, docs migration tests, direct and forced-relay
@@ -89,6 +92,26 @@ GitHub release, or container.
   tag and commit, retain licenses and migrations, document the fork delta, and rerun bidirectional
   compatibility before integration.
 
+## Identity stable-release gate
+
+- [ ] `protocols/krikos-identity/release-gate.toml` remains blocked for the platform v2 release, and
+  `python3 scripts/check-identity-release-gate.py --expect-closed` proves the crate retains
+  `publish = false`, workspace membership, exclusion from the publishable package order, and
+  inclusion in the external-types skip list.
+- [ ] The gate remains separate from the exact four-package framework gate. Repository-owned tests,
+  models, vectors, and operational documentation do not satisfy its external approvals by
+  themselves.
+- [ ] Repository-owned identity acceptance is green on the immutable candidate: the reviewed
+  feature/dependency matrix, canonical wire/vector inventory and interoperability validation,
+  deterministic model, bounded simulation/fuzz corpus, persistent account/provider recovery and
+  reopen behavior, six-handler network integration, and documentation/API/workspace gates. This
+  evidence is necessary but does not set any external approval.
+- [ ] Before a stable `krikos-identity` publication, every approval and evidence requirement in
+  `protocols/krikos-identity/docs/release-gate.md` is complete:
+  `third_party_security_audit`, `independently_maintained_interoperability`,
+  `production_provider_diversity`, `protocol_governance`, `public_api_semver_baseline`, and
+  `persistent_schema_support`.
+
 ## Repository and publication authority
 
 - [ ] Required checks and branch protection/rulesets are configured for the
@@ -99,6 +122,9 @@ GitHub release, or container.
 - [ ] Before any experimental framework publication, a repository owner separately approves all
   four package names, registry ownership, public API baseline, and persistent-data schema support
   commitments and opens the machine-readable framework gate.
+- [ ] Before any stable identity publication, the designated security, protocol, operations, API,
+  and storage owners approve their evidence, a repository owner authorizes publication, and the
+  identity gate passes in `--require-open` mode.
 - [ ] The `krikos-noq` and `krikos-hickory-server` crates.io names are claimed by
   an authorized Holon publisher before dependent Krikos crates are published.
 - [ ] A repository owner explicitly authorizes the immutable `v1.0.0` tag,

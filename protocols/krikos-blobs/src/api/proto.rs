@@ -8,8 +8,8 @@
 //! and responses. The enum containing the full requests is [`Command`]. These are the
 //! commands you will have to handle in a store actor handler.
 //!
-//! This crate provides a file system based store implementation, [`crate::store::fs::FsStore`],
-//! as well as a mutable in-memory store and an immutable in-memory store.
+//! With the `fs-store` feature, this crate provides the filesystem-based `FsStore`, as well as a
+//! mutable in-memory store and an immutable in-memory store.
 //!
 //! The file system store is quite complex and optimized, so to get started take a look at
 //! the much simpler memory store.

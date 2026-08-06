@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "id": "identity/network-storage-provider",
+  "actions": [
+    {
+      "id": "partition",
+      "at_nanos": 0,
+      "action": { "kind": "partition" }
+    },
+    {
+      "id": "delay",
+      "at_nanos": 1,
+      "action": { "kind": "delivery_fault", "fault": "delay" }
+    },
+    {
+      "id": "reorder",
+      "at_nanos": 1,
+      "action": { "kind": "delivery_fault", "fault": "reorder" }
+    },
+    {
+      "id": "loss",
+      "at_nanos": 2,
+      "action": { "kind": "delivery_fault", "fault": "loss" }
+    },
+    {
+      "id": "duplicate",
+      "at_nanos": 3,
+      "action": { "kind": "delivery_fault", "fault": "duplicate" }
+    },
+    {
+      "id": "heal",
+      "at_nanos": 4,
+      "action": { "kind": "heal" }
+    },
+    {
+      "id": "authorize-device",
+      "at_nanos": 5,
+      "action": { "kind": "authorize_device", "device": 40, "approvals": [1] }
+    },
+    {
+      "id": "crash",
+      "at_nanos": 6,
+      "action": { "kind": "crash", "replica": 1 }
+    },
+    {
+      "id": "reopen-storage-loss",
+      "at_nanos": 7,
+      "action": { "kind": "reopen", "replica": 1, "storage_loss": true }
+    },
+    {
+      "id": "provider-outage",
+      "at_nanos": 8,
+      "action": { "kind": "provider_outage" }
+    },
+    {
+      "id": "outage-sensitive-probe",
+      "at_nanos": 9,
+      "action": { "kind": "sensitive_probe" }
+    },
+    {
+      "id": "provider-equivocation",
+      "at_nanos": 10,
+      "action": { "kind": "provider_equivocation" }
+    },
+    {
+      "id": "equivocation-sensitive-probe",
+      "at_nanos": 11,
+      "action": { "kind": "sensitive_probe" }
+    },
+    {
+      "id": "provider-restore",
+      "at_nanos": 12,
+      "action": { "kind": "provider_restore" }
+    },
+    {
+      "id": "offline-validation",
+      "at_nanos": 13,
+      "action": { "kind": "offline_validate" }
+    },
+    {
+      "id": "social-edge",
+      "at_nanos": 14,
+      "action": { "kind": "social_relationship" }
+    }
+  ]
+}

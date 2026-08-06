@@ -1,0 +1,31 @@
+# Blocks only krikos-identity from a stable registry release. The four-package
+# framework gate remains separate and unchanged.
+#
+# Evidence requirements, decision authority, and the coordinated opening
+# procedure are documented in docs/release-gate.md. CI currently invokes
+# scripts/check-identity-release-gate.py --expect-closed.
+schema_version = 1
+status = "blocked"
+
+[package]
+name = "krikos-identity"
+path = "protocols/krikos-identity"
+
+[approvals]
+third_party_security_audit = false
+independently_maintained_interoperability = false
+production_provider_diversity = false
+protocol_governance = false
+public_api_semver_baseline = false
+persistent_schema_support = false
+
+# Each approval needs at least one non-empty, reviewable evidence reference
+# before it can become true. References may be repository paths or immutable
+# external report identifiers.
+[evidence]
+third_party_security_audit = []
+independently_maintained_interoperability = []
+production_provider_diversity = []
+protocol_governance = []
+public_api_semver_baseline = []
+persistent_schema_support = []

@@ -15,6 +15,10 @@ use krikos_blobs::{BlobsProtocol, api::Store as BlobsStore};
 use krikos_docs::protocol::Docs;
 use krikos_gossip::net::Gossip;
 
+#[cfg(feature = "identity")]
+use crate::identity_protocol::{
+    IDENTITY_PROTOCOL_COUNT, IdentityProtocolComponent, is_identity_alpn,
+};
 use crate::{
     AppBuilder, AppConfig, Application, ApplicationMetrics, Component, ComponentContext,
     ComponentError, ComponentFuture, DataRoot, FileIdentityStore, IdentityPolicy, IdentityStore,
@@ -65,6 +69,8 @@ pub struct StandardBundleBuilder {
     ca_tls_config: Option<CaTlsConfig>,
     config: AppConfig,
     custom_protocols: ProtocolRegistry,
+    #[cfg(feature = "identity")]
+    identity_protocols: Option<IdentityProtocolComponent>,
 }
 
 impl StandardBundleBuilder {
@@ -80,6 +86,8 @@ impl StandardBundleBuilder {
             ca_tls_config: None,
             config,
             custom_protocols,
+            #[cfg(feature = "identity")]
+            identity_protocols: None,
         }
     }
 
@@ -137,6 +145,16 @@ impl StandardBundleBuilder {
         }
         self.custom_protocols.register(alpn, handler)?;
         Ok(self)
+    }
+
+    /// Installs the six account-identity handlers on the bundle's already-resolved endpoint.
+    ///
+    /// The supplied account component does not load, replace, or persist the endpoint secret.
+    #[cfg(feature = "identity")]
+    #[must_use]
+    pub fn identity_protocols(mut self, component: IdentityProtocolComponent) -> Self {
+        self.identity_protocols = Some(component);
+        self
     }
 
     /// Starts stores and networking in dependency order and publishes only a complete handle.
@@ -243,6 +261,10 @@ impl StandardBundleBuilder {
             &gossip,
             &docs,
             self.custom_protocols,
+            #[cfg(feature = "identity")]
+            self.identity_protocols,
+            #[cfg(feature = "identity")]
+            &endpoint,
         );
         if registry_result.is_err() {
             cleanup_without_router(&endpoint, &blobs, &gossip, Some(&docs)).await;
@@ -304,10 +326,31 @@ impl StandardBundleBuilder {
                 "application configuration is invalid",
             )
         })?;
-        let total = self
+        let standard_total = self
             .custom_protocols
             .len()
-            .saturating_add(STANDARD_PROTOCOL_COUNT);
+            .checked_add(STANDARD_PROTOCOL_COUNT)
+            .ok_or_else(|| {
+                StandardStartError::new(
+                    StandardStartStage::ProtocolRegistry,
+                    "protocol count overflowed",
+                )
+            })?;
+        #[cfg(feature = "identity")]
+        let total = if self.identity_protocols.is_some() {
+            standard_total
+                .checked_add(IDENTITY_PROTOCOL_COUNT)
+                .ok_or_else(|| {
+                    StandardStartError::new(
+                        StandardStartStage::ProtocolRegistry,
+                        "identity protocol count overflowed",
+                    )
+                })?
+        } else {
+            standard_total
+        };
+        #[cfg(not(feature = "identity"))]
+        let total = standard_total;
         if total > self.config.protocol_limit {
             return Err(StandardStartError::new(
                 StandardStartStage::ProtocolRegistry,
@@ -331,10 +374,16 @@ fn register_all_protocols(
     gossip: &Gossip,
     docs: &Docs,
     custom: ProtocolRegistry,
+    #[cfg(feature = "identity")] identity: Option<IdentityProtocolComponent>,
+    #[cfg(feature = "identity")] endpoint: &Endpoint,
 ) -> Result<(), RegistryError> {
     protocols.register(krikos_blobs::ALPN, BlobsProtocol::new(blobs, None))?;
     protocols.register(krikos_gossip::ALPN, gossip.clone())?;
     protocols.register(krikos_docs::ALPN, docs.clone())?;
+    #[cfg(feature = "identity")]
+    if let Some(identity) = identity {
+        identity.register(endpoint, protocols)?;
+    }
     for (alpn, handler) in custom.into_handlers() {
         protocols.register_dyn(alpn, handler)?;
     }
@@ -387,7 +436,16 @@ async fn cleanup_without_router(
 }
 
 fn is_standard_alpn(alpn: &[u8]) -> bool {
-    alpn == krikos_blobs::ALPN || alpn == krikos_docs::ALPN || alpn == krikos_gossip::ALPN
+    alpn == krikos_blobs::ALPN || alpn == krikos_docs::ALPN || alpn == krikos_gossip::ALPN || {
+        #[cfg(feature = "identity")]
+        {
+            is_identity_alpn(alpn)
+        }
+        #[cfg(not(feature = "identity"))]
+        {
+            false
+        }
+    }
 }
 
 #[derive(Debug)]

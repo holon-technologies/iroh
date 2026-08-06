@@ -43,18 +43,18 @@ serde_test = "1"
 
 [features]
 default = ["relay"]
-key = [
+key = ["os-rng"]
+key-types = [
   "dep:curve25519-dalek",
   "dep:ed25519-dalek",
   "dep:url",
   "dep:derive_more",
   "dep:data-encoding",
   "dep:data-encoding-macro",
-  "dep:rand",
-  "dep:getrandom",
   "dep:zeroize",
   "relay",
 ]
+os-rng = ["key-types", "dep:rand", "dep:getrandom"]
 relay = [
   "dep:url",
   "dep:derive_more",

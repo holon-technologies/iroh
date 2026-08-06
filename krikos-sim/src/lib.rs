@@ -41,6 +41,7 @@ mod trace;
 pub mod engine;
 pub mod evidence;
 pub mod execution;
+pub mod identity;
 pub mod model;
 #[path = "operations_api.rs"]
 pub mod operations;

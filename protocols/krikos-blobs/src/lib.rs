@@ -7,9 +7,9 @@
 //! It implements a [protocol] for streaming content-addressed data transfer using
 //! [BLAKE3] verified streaming.
 //!
-//! It also provides a [store] module for storage of blobs and outboards,
-//! as well as a [persistent](crate::store::fs) and a [memory](crate::store::mem)
-//! store implementation.
+//! It also provides a [store] module for storage of blobs and outboards, including a
+//! [memory](crate::store::mem) implementation and, with the `fs-store` feature, a persistent
+//! filesystem implementation.
 //!
 //! To implement a server, the [provider] module provides helpers for handling
 //! connections and individual requests given a store.

@@ -7,12 +7,15 @@ checker="$repo_root/scripts/check-determinism-semantic.sh"
 fixture_root=$(mktemp -d)
 trap 'rm -rf "$fixture_root"' EXIT
 
-mkdir -p "$fixture_root/krikos/src" "$fixture_root/scripts"
+mkdir -p \
+  "$fixture_root/krikos/src" \
+  "$fixture_root/protocols/krikos-identity/src" \
+  "$fixture_root/scripts"
 # The Rust checker's SOURCE_ROOTS list is fixed; every root must exist below
 # --root and contain at least one .rs file, or it now errors loudly
 # (neither a missing root nor a present-but-empty root may silently narrow
-# the scan). Only krikos/ carries the fixture content the assertions below
-# exercise -- the rest each get one trivial placeholder .rs file so they
+# the scan). Krikos and the identity protocol carry the fixture content
+# exercised below; the rest each get one trivial placeholder .rs file so they
 # satisfy the per-root minimum without contributing any boundary
 # occurrences.
 placeholder_roots=(krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-runtime krikos-sim)
@@ -21,6 +24,7 @@ for placeholder in "${placeholder_roots[@]}"; do
   printf '%s\n' '// placeholder crate root for the fixture' > "$fixture_root/$placeholder/src/lib.rs"
 done
 source_file="$fixture_root/krikos/src/lib.rs"
+identity_source="$fixture_root/protocols/krikos-identity/src/lib.rs"
 baseline="$fixture_root/scripts/determinism-boundaries.semantic.txt"
 
 printf '%s\n' \
@@ -28,6 +32,10 @@ printf '%s\n' \
   'const NOTE: &str = "tokio::spawn(async {})";' \
   'pub fn timestamp() { let _ = WallClock::now(); }' \
   > "$source_file"
+printf '%s\n' \
+  'pub fn secure_entropy(bytes: &mut [u8]) { let _ = getrandom::fill(bytes); }' \
+  'pub fn secure_entropy_reference() { let _fill = getrandom::fill; }' \
+  > "$identity_source"
 
 "$checker" --update --root "$fixture_root" --baseline "$baseline"
 "$checker" --check --root "$fixture_root" --baseline "$baseline"
@@ -38,6 +46,14 @@ if ! grep -Fq $'clock-timer\tkrikos/src/lib.rs\ttimestamp\tstd::time::SystemTime
 fi
 if grep -Fq 'spawn-task' "$baseline"; then
   echo "semantic checker treated string content as executable Rust" >&2
+  exit 1
+fi
+if ! grep -Fq $'entropy-random\tprotocols/krikos-identity/src/lib.rs\tsecure_entropy\tgetrandom::fill\t1' "$baseline"; then
+  echo "semantic checker did not scan identity or classify getrandom::fill" >&2
+  exit 1
+fi
+if ! grep -Fq $'entropy-random\tprotocols/krikos-identity/src/lib.rs\tsecure_entropy_reference\tgetrandom::fill\t1' "$baseline"; then
+  echo "semantic checker did not classify an entropy function used as a value" >&2
   exit 1
 fi
 

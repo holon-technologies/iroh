@@ -133,7 +133,7 @@ impl ProbePlan {
     }
 
     /// Adds a [`ProbeSet`] if it contains probes and the protocol indicated in
-    /// the [`ProbeSet] matches a protocol in our set of [`Probe`]s.
+    /// the [`ProbeSet`] matches a protocol in our set of [`Probe`]s.
     fn add_if_enabled(&mut self, protocols: &BTreeSet<Probe>, set: ProbeSet) {
         if !set.is_empty() && protocols.contains(&set.proto) {
             self.set.insert(set);

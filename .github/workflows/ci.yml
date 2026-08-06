@@ -19,7 +19,7 @@ env:
   RUST_BACKTRACE: 1
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
-  MSRV: "1.91"
+  MSRV: "1.91.0"
   SCCACHE_CACHE_SIZE: "10G"
   KRIKOS_FORCE_STAGING_RELAYS: "1"
 
@@ -38,24 +38,38 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           fetch-depth: 0
-      - name: Install Rust stable
+      - name: Install identity MSRV toolchain
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
+        with:
+          toolchain: ${{ env.MSRV }}
       - name: Prove experimental publication gate is closed
         run: python3 scripts/check-framework-release-gate.py --expect-closed
+      - name: Prove identity stable-release gate is closed
+        run: python3 scripts/check-identity-release-gate.py --expect-closed
       - name: Inspect provisional package layouts
         run: scripts/check-framework-package-layout.sh
+      - name: Check identity Rust 1.91.0 feature and dependency matrix
+        run: scripts/check-identity-feature-matrix.sh
       - name: Test framework lifecycle, persistence, and fuzz facades
-        run: cargo test -p krikos-app --all-features
+        run: cargo test --locked -p krikos-app --all-features
+      - name: Check deterministic identity interoperability vectors
+        run: scripts/check-identity-interop-vectors.sh
+      - name: Check complete identity canonical decoder inventory
+        run: scripts/check-identity-wire-inventory.sh
+      - name: Check normative identity documentation links
+        run: scripts/check-identity-doc-links.py
       - name: Replay imported persistent-store migrations
-        run: cargo test -p krikos-docs migration
+        run: cargo test --locked -p krikos-docs migration
       - name: Test direct and local-relay two-node acceptance
-        run: cargo test -p krikos-local-first-app-tests --test two_node
+        run: cargo test --locked -p krikos-local-first-app-tests --test two_node
       - name: Check blobs v0.103 bidirectional interoperability
         run: scripts/tests/check-blobs-v0-interop.sh
       - name: Check gossip v0.101 bidirectional interoperability
         run: scripts/tests/check-gossip-v0-interop.sh
       - name: Check local-first CI contract
         run: scripts/tests/check-local-first-framework-ci.sh
+      - name: Check identity stable-release gate contract
+        run: scripts/tests/check-identity-release-gate.sh
 
   fuzz_smoke:
     name: Fuzz smoke (${{ matrix.target }})
@@ -78,6 +92,15 @@ jobs:
           - app_protocol_registration
           - blob_ticket
           - doc_ticket
+          - identity_foundation
+          - identity_schema
+          - identity_capability
+          - identity_merkle
+          - identity_state
+          - identity_pairing
+          - identity_sync
+          - identity_provider
+          - identity_semantics
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -116,8 +139,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - name: Install Rust stable
+      - name: Install Rust 1.91.0
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
+        with:
+          toolchain: "1.91.0"
       - name: Install sccache
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
         continue-on-error: true
@@ -188,23 +213,27 @@ jobs:
       - name: Check relay V1/V2 golden compatibility
         run: scripts/tests/check-relay-compatibility.sh --golden
       - name: Test runtime capability contracts
-        run: cargo test -p krikos-runtime
+        run: cargo test --locked -p krikos-runtime
       - name: Test generic resolver contracts
-        run: cargo test -p krikos-resolver --all-features
+        run: cargo test --locked -p krikos-resolver --all-features
       - name: Test manifest, trace, and replay contracts
-        run: cargo test --manifest-path krikos-sim/Cargo.toml
+        run: cargo test --locked --manifest-path krikos-sim/Cargo.toml
+      - name: Check identity account-control model
+        run: scripts/check-identity-model.sh
+      - name: Replay reviewed identity corpus
+        run: cargo run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- identity corpus-test krikos-sim/identity-corpus
       - name: Validate simulation operations and cross-backend parity policy
-        run: cargo test --manifest-path krikos-sim/Cargo.toml --test operations --test parity
+        run: cargo test --locked --manifest-path krikos-sim/Cargo.toml --test operations --test parity
       - name: Execute the complete reviewed regression corpus
-        run: cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- corpus test krikos-sim/corpus
+        run: cargo run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- corpus test krikos-sim/corpus
       - name: Test Krikos runtime adapter
-        run: cargo test -p krikos --lib runtime --all-features
+        run: cargo test --locked -p krikos --lib runtime --all-features
       - name: Check native minimal feature graph
-        run: cargo check -p krikos --no-default-features
+        run: cargo check --locked -p krikos --no-default-features
       - name: Check simulation code quality
         run: |
-          cargo clippy -p krikos-runtime -p krikos --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path krikos-sim/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --locked -p krikos-runtime -p krikos --all-targets --all-features -- -D warnings
+          cargo clippy --locked --manifest-path krikos-sim/Cargo.toml --all-targets --all-features -- -D warnings
 
   simulation_gate:
     name: Deterministic simulation change gate
@@ -685,7 +714,7 @@ jobs:
       RUSTFLAGS: ""
       RUSTC_WRAPPER: "sccache"
       SCCACHE_GHA_ENABLED: "on"
-      RUSTDOCFLAGS: --cfg docsrs
+      RUSTDOCFLAGS: "-Dwarnings --cfg krikos_docsrs"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
@@ -698,8 +727,8 @@ jobs:
 
       - name: Docs
         run: |
-          cargo doc --workspace --all-features --no-deps --document-private-items
-          cargo doc --manifest-path krikos-sim/Cargo.toml --all-features --no-deps --document-private-items
+          cargo doc --locked --workspace --all-features --no-deps --document-private-items
+          cargo doc --locked --manifest-path krikos-sim/Cargo.toml --all-features --no-deps --document-private-items
 
   clippy_check:
     timeout-minutes: 30
@@ -762,6 +791,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c  # master
         with:
           toolchain: ${{ env.MSRV }}
+          components: clippy
       - name: Install sccache
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696  # v0.0.10
         continue-on-error: true
@@ -769,23 +799,39 @@ jobs:
 
       - name: Check MSRV all features
         run: |
-          cargo "+$MSRV" check --workspace --all-targets --all-features
+          cargo "+$MSRV" check --locked --workspace --all-targets --all-features
+
+      - name: Test identity at MSRV
+        run: |
+          cargo "+$MSRV" test --locked -p krikos-identity --no-default-features --all-targets
+          cargo "+$MSRV" test --locked -p krikos-identity --all-features --all-targets
+
+      - name: Lint identity at MSRV
+        run: |
+          cargo "+$MSRV" clippy --locked -p krikos-identity --no-default-features --all-targets -- -D warnings
+          cargo "+$MSRV" clippy --locked -p krikos-identity --all-features --all-targets -- -D warnings
+
+      - name: Check identity documentation at MSRV
+        run: |
+          RUSTDOCFLAGS='-Dwarnings' cargo "+$MSRV" doc --locked -p krikos-identity --all-features --no-deps
+          cargo "+$MSRV" test --locked -p krikos-identity --no-default-features --doc
+          cargo "+$MSRV" test --locked -p krikos-identity --all-features --doc
 
       - name: Check MSRV — simulator
         run: |
-          cargo "+$MSRV" check --manifest-path krikos-sim/Cargo.toml --all-targets --all-features
+          cargo "+$MSRV" check --locked --manifest-path krikos-sim/Cargo.toml --all-targets --all-features
 
       - name: Check MSRV — blobs v0.103 interop
         run: |
-          cargo "+$MSRV" check --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml --all-targets --all-features
+          cargo "+$MSRV" check --locked --manifest-path compat/iroh-blobs-v0-103-interop/Cargo.toml --all-targets --all-features
 
       - name: Check MSRV — gossip v0.101 interop
         run: |
-          cargo "+$MSRV" check --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml --all-targets --all-features
+          cargo "+$MSRV" check --locked --manifest-path compat/iroh-gossip-v0-101-interop/Cargo.toml --all-targets --all-features
 
       - name: Check MSRV — relay v1 interop
         run: |
-          cargo "+$MSRV" check --manifest-path compat/relay-v1-interop/Cargo.toml --all-targets --all-features
+          cargo "+$MSRV" check --locked --manifest-path compat/relay-v1-interop/Cargo.toml --all-targets --all-features
 
   cargo_deny:
     timeout-minutes: 30

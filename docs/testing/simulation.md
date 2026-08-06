@@ -99,9 +99,97 @@ cargo run --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- --help
 ```
 
 The stable command surface is `run`, `campaign`, `soak`, `gate-select`, `replay`, `minimize`,
-`corpus`, `explain`, and `parity`. Stage 6 activates deterministic execution across direct IP,
+`corpus`, `explain`, `parity`, and `identity`. Stage 6 activates deterministic execution across direct IP,
 NAT/firewall, discovery, mobility, relay lifecycle, relay/direct paths, and seeded production-task
 ready ordering.
+
+### Identity hardening lane
+
+The identity lane has a separate strict schema because account-control operations are not network
+topology actions. It still uses the same `Kernel`, seeded ready-task scheduler, injected virtual
+clock, `RootSeed`, trace schema, source-bound manifest, and immutable artifact store. Every action,
+including a fault-only or rejected action, is a kernel-owned task and evaluates all twelve Section
+36 invariants. A report is invalid unless each invariant counter equals the executed step count.
+Scenario validation rejects zero identities or weights, duplicate or oversized authority lists,
+unsatisfied or arithmetically unrepresentable recovery declarations, excess fork branches,
+undeclared fork-resolution targets, and replica/provider bounds before the kernel is constructed.
+The simulator-only `section36_fault` action mutates independently captured oracle evidence; it
+exists solely to exercise invariant failure capture and is visibly retained in canonical scenarios
+and replay artifacts.
+
+An action defaults to a required-success terminal, which is omitted from canonical JSON. A
+semantically invalid transition may instead declare an `expectation` with terminal
+`model_rejection` and one exact stable model-error discriminant. Only the exact declared rejection
+is classified as a correct non-product terminal. An unmarked or mismatched model error, or a
+declared rejection that unexpectedly succeeds, remains a product failure; semantically impossible
+expectation/action pairings are rejected during scenario validation. Correct expected rejections
+write a versioned `identity-rejection-report.json` with exact report and trace evidence and replay
+through that terminal. They are never confirmed, action-deletion minimized, labeled as product
+failures, or staged for corpus promotion.
+
+The invariant observations distinguish the transition that first exposes a fork from later actions
+that retain its complete head set. Provider/storage faults and freshness probes may run while the
+fork remains visible, and only an explicit authorized resolution may reduce it. Offline validation
+must report the exact captured `sequence/epoch` basis (or `no_basis` while forked), and the model's
+persisted state contains no ordinary-account private-key inventory. The invariant oracle carries a
+transient typed recipient set, initialized empty, only so the negative-control mutation can prove
+that forbidden private-key replication would be detected; that set is neither model authority nor
+durable simulator inventory.
+
+The two reviewed corpus histories have distinct fixed seeds and jointly cover partition/heal,
+delay/reorder/loss/duplicate, concurrent children and explicit fork resolution, crash/reopen with
+storage loss, provider outage/equivocation, recovery, controller and device revocation, migration,
+and group-recipient rotation. Corpus loading rejects extra files, duplicate IDs or seeds,
+unreviewed entries, ID mismatch, and incomplete coverage. Confirmed failures are minimized only by
+bounded action deletion, and a candidate is retained only when it reproduces the exact normalized
+failure class and evidence digest.
+
+Failure-bundle schema v2 indexes the original and minimized scenarios, terminal reports, raw
+traces, normalized traces, confirmation record, signature, and complete reduction transcript.
+Replay executes both scenarios twice, requires their exact common signature/report/trace evidence,
+checks canonical scenario digests, and reconstructs every deletion candidate through the real
+runner. Recomputing the file index cannot make a substituted original scenario, confirmation
+digest, or candidate digest semantically valid. Promotion records the verified artifact-index root
+and remains unreviewed until an explicit corpus review.
+
+This minimized promotion lifecycle applies only to identity scenario-runner product-failure
+terminals. Differential checks use an explicit retained `RootSeed` (the fixed CI seed is shown
+below), while the formal checker is deterministic and seedless; those two lanes fail CI with their
+bounded witness and are reproduced by their exact command rather than being action-deletion
+minimized.
+
+Run a scenario, replay its report plus raw and normalized traces byte-for-byte, check the corpus,
+and compare a generated production/reference history with:
+
+```bash
+cargo +1.91.0 run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- identity run \
+  krikos-sim/identity-corpus/network-storage-provider.json \
+  --seed 8181818181818181818181818181818181818181818181818181818181818181 \
+  --artifacts /tmp/krikos-identity-run
+
+cargo +1.91.0 run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- identity replay \
+  /tmp/krikos-identity-run/manifest.json
+
+cargo +1.91.0 run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- identity corpus-test \
+  krikos-sim/identity-corpus
+
+cargo +1.91.0 run --locked --manifest-path krikos-sim/Cargo.toml --bin cargo-sim -- identity differential \
+  --seed 7373737373737373737373737373737373737373737373737373737373737373
+```
+
+The executable reference model owns its controller, device, policy, fork, recovery, migration, and
+group-recipient transitions. It cannot import production identity code; a source-inventory test
+enforces that only the differential adapter may do so. Migration observations come from production
+lifecycle and checkpoint crypto commitments, including successful new-suite and rejected old-suite
+probes after retirement. Group recipients come from the production post-state distribution
+snapshot and deterministic key wrapping, not from the expected model projection.
+
+This lane substitutes deterministic test cryptography and records that fidelity exception. It
+does not claim external provider realism, external TLC execution, independent language
+interoperability, or a production security audit. Encoded scenario inputs are rejected above 4 MiB
+before JSON deserialization and are further bounded to 256 actions and 60 seconds of virtual time;
+the model, queue, replica, provider, kernel event, task, trace, corpus, minimizer, and formal-state
+collections all have explicit fail-closed bounds.
 
 Run either checked-in Stage 2 scenario with an explicit behavioral seed:
 

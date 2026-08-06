@@ -37,10 +37,11 @@ workspace.
 | `krikos-relay` | Relay client, server, shared wire protocol, and sessions | `krikos-base`, `krikos-resolver`, `krikos-runtime` |
 | `krikos` | Public endpoint and connection orchestration | `krikos-base`, `krikos-dns`, `krikos-resolver`, `krikos-relay`, `krikos-runtime` |
 | `krikos-dns-server` | Deployable endpoint DNS and pkarr service | `krikos-base`, `krikos-dns`, `krikos-resolver`; `krikos` only for dev/tests |
+| `krikos-identity` | Deterministic account identity, authorization, recovery, and transparency protocol; optional storage/network adapters | `krikos-base`, optionally `krikos` |
 | `krikos-blobs` | Content-addressed storage and transfer protocol | `krikos` |
 | `krikos-gossip` | Topic-based broadcast protocol | `krikos-base`, optionally `krikos` |
 | `krikos-docs` | Local-first documents, capabilities, persistence, and synchronization | `krikos`, `krikos-base`, `krikos-blobs`, `krikos-gossip` |
-| `krikos-app` | Experimental application lifecycle and standard local-first bundle | `krikos`, `krikos-base`, `krikos-blobs`, `krikos-gossip`, `krikos-docs` |
+| `krikos-app` | Experimental application lifecycle, standard local-first bundle, and opt-in account-identity protocol composition | `krikos`, `krikos-base`, `krikos-blobs`, `krikos-gossip`, `krikos-docs`, optionally `krikos-identity` |
 | `krikos-bench` | Non-published benchmarks and resource canaries | public packages it exercises |
 | `determinism-checker` | Non-published source-boundary checker | no production package may depend on it |
 | `krikos-sim` | Deterministic model, execution, evidence, and operations | production packages; never the reverse |
@@ -147,10 +148,30 @@ independent siblings in the graph, while this order gives packaging a stable seq
 package naming, registry ownership, a public API baseline, and the supported persistent-data
 schema. A platform v2 release cannot open this gate as a side effect.
 
-`krikos-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`, and
-`key` also enables `relay` because key-facing endpoint/address types require relay URL support.
-Consumers seeking the smallest value-type build must use `default-features = false` and then select
-only the required features.
+`krikos-identity` is also unpublished, but it is not one of those four imported framework-release
+packages. Its repository-owned acceptance evidence must be green on the stable candidate: the
+feature/dependency boundary, checked wire/vector inventory, deterministic model, bounded
+fuzz/simulation corpus, persistent-provider recovery, network integration, and documentation/API
+gates. That evidence is necessary but does not satisfy the six independent release approvals:
+third-party security audit, independently maintained interoperability, production provider
+diversity, protocol governance, public API/SemVer baseline, and persistent-schema support. The
+optional `krikos-app` component registers its six account-identity ALPNs on the existing endpoint;
+it does not move endpoint-secret persistence into the account store.
+
+`krikos-base` keeps its existing feature-weight contract for this cut: `default` enables `relay`.
+The deterministic `key-types` feature exposes key, signature, endpoint-identifier, and address
+types, including their relay/URL value types, without enabling `rand` or `getrandom`. `os-rng` adds
+those entropy dependencies and `SecretKey::generate`; the legacy `key` feature remains a
+compatibility alias for `os-rng`. `krikos-identity` disables `krikos-base` defaults and requests only
+`key-types`; its own default feature set is empty, and only its explicit `os-rng` feature enables its
+direct optional `getrandom` dependency. The `fs-store`, `net`, and `provider-store` integrations do
+not imply `os-rng`.
+
+The repository gate [`scripts/check-identity-feature-matrix.sh`](../scripts/check-identity-feature-matrix.sh)
+compiles the reviewed identity feature combinations and rejects forbidden dependencies in the
+no-default normal dependency tree. It invokes
+[`scripts/tests/check-identity-os-rng-boundary.sh`](../scripts/tests/check-identity-os-rng-boundary.sh)
+to keep the manifest, source gates, explicit-RNG APIs, and ambient-entropy boundary aligned.
 
 ## Vendored dependency boundary
 
