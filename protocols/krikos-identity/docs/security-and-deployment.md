@@ -122,7 +122,7 @@ access-controlled audit records.
 
 ## Security-critical invariants
 
-Every integration must preserve all twelve source-design invariants:
+Every integration must preserve all twelve identity invariants:
 
 1. An account is not an endpoint or device.
 2. No ordinary account private key is copied to every device.
@@ -337,8 +337,8 @@ residual gate, not a pass.
 
 ## Frozen v1 product decisions
 
-The design document lists choices that had to be made before a stable wire profile could exist.
-Version 1 resolves them as follows; changing a wire-significant answer requires an authorized
+The stable wire profile requires explicit choices for each of the following questions. Version 1
+resolves them as follows; changing a wire-significant answer requires an authorized
 protocol upgrade rather than reinterpretation of existing bytes.
 
 | Design question | Version 1 decision |
