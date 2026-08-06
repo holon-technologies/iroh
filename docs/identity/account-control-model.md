@@ -35,8 +35,8 @@ This is a deliberately finite abstraction, not a proof for arbitrary controller 
 controller instance preserves the policy distinctions relevant to weighted authorization: a
 single high-weight controller, a coalition of low-weight controllers with equal total weight, an
 insufficient low-weight approval, old-policy authorization of a proposed lower threshold, and
-satisfiability after revocation and recovery. Controller and approval identity, active/revoked
-disjointness, weighted sums, retained thresholds, one-versus-two heads, and predecessor
+satisfiability after revocation and recovery. Controller and approval identity, disjoint active
+and revoked sets, weighted sums, retained thresholds, one-versus-two heads, and predecessor
 cardinality are modeled. Cryptographic validity, recovery-delay evidence construction, event
 bytes, storage, networking, and unbounded populations are outside this formal abstraction and are
 covered by the production/differential/simulation lanes.

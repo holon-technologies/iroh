@@ -16,13 +16,13 @@ CARGO_TARGET_DIR="$doc_target" cargo "+$toolchain" doc \
   --no-deps \
   --document-private-items
 
-implementors="$doc_target/doc/krikos_identity/codec/sealed/trait.CanonicalCodec.html"
-[[ -f "$implementors" ]] || {
-  printf 'missing rustdoc CanonicalCodec implementor inventory: %s\n' "$implementors" >&2
+implementers="$doc_target/doc/krikos_identity/codec/sealed/trait.CanonicalCodec.html"
+[[ -f "$implementers" ]] || {
+  printf 'missing rustdoc CanonicalCodec implementer inventory: %s\n' "$implementers" >&2
   exit 1
 }
 
-grep -o 'id="impl-CanonicalCodec-for-[^"]*"' "$implementors" \
+grep -o 'id="impl-CanonicalCodec-for-[^"]*"' "$implementers" \
   | sed 's/id="impl-CanonicalCodec-for-//; s/"$//' \
   | sort -u > "$scratch/implemented"
 
