@@ -1,0 +1,2 @@
+window.ALL_CRATES = ["bulk","determinism_checker","krikos","krikos_app","krikos_base","krikos_bench","krikos_blobs","krikos_dns","krikos_dns_server","krikos_docs","krikos_gossip","krikos_identity","krikos_local_first_app_tests","krikos_relay","krikos_resolver","krikos_runtime","local_first_notes","resource_canary","sim"];
+//{"start":21,"fragment_lengths":[6,22,9,13,14,15,15,13,20,14,16,18,31,15,18,17,20,18,6]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CHECKPOINT_ALPN","PAIRING_ALPN","PROPOSAL_ALPN","RECOVERY_ALPN","SYNC_ALPN","TRANSPARENCY_GOSSIP_ALPN"],"fn":["authorize_endpoint_stream"],"struct":["AuthorizedEndpointStream","CheckpointDeviceEndpoint"],"trait":["IdentityBlobStore","IdentityDiscovery","IdentityGossip","IdentityStream","IdentityTransport","VerifiedCheckpointView"]};
