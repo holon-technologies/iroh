@@ -351,7 +351,7 @@ clock-timer	krikos/tests/patchbay/degrade.rs:117	let result = tokio::time::timeo
 clock-timer	krikos/tests/patchbay/util.rs:368	tokio::time::timeout(timeout, async {
 clock-timer	krikos/tests/patchbay/util.rs:396	tokio::time::timeout(timeout, async {
 clock-timer	krikos/tests/patchbay/util.rs:416	tokio::time::timeout(timeout, async {
-clock-timer	protocols/krikos-identity/src/net/mod.rs:298	match tokio::time::timeout(SHUTDOWN_TIMEOUT, drain).await {
+clock-timer	protocols/krikos-identity/src/net/mod.rs:297	match tokio::time::timeout(SHUTDOWN_TIMEOUT, drain).await {
 clock-timer	protocols/krikos-identity/tests/net_contracts.rs:1074	tokio::time::timeout(
 clock-timer	protocols/krikos-identity/tests/net_contracts.rs:1080	tokio::time::timeout(std::time::Duration::from_secs(2), router.shutdown())
 clock-timer	protocols/krikos-identity/tests/net_contracts.rs:1108	tokio::time::timeout(std::time::Duration::from_secs(2), router.shutdown())
@@ -405,10 +405,10 @@ entropy-random	krikos/src/test_utils/test_transport.rs:634	let s1 = SecretKey::g
 entropy-random	krikos/src/test_utils/test_transport.rs:635	let s2 = SecretKey::generate();
 entropy-random	krikos/tests/patchbay/util.rs:397	let data: [u8; 8] = rand::random();
 entropy-random	protocols/krikos-identity/src/key_wrap.rs:946	let (ephemeral_secret, nonce) = generate_wrap_randomness_with(getrandom::fill)?;
-entropy-random	protocols/krikos-identity/src/pairing.rs:207	getrandom::fill(&mut random_secret[..]).map_err(|_| IdentityError::EntropyUnavailable)?;
-entropy-random	protocols/krikos-identity/src/pairing.rs:208	getrandom::fill(&mut ephemeral_secret[..])
-entropy-random	protocols/krikos-identity/src/pairing.rs:210	getrandom::fill(&mut nonce).map_err(|_| IdentityError::EntropyUnavailable)?;
-entropy-random	protocols/krikos-identity/src/pairing.rs:703	getrandom::fill(&mut bytes[..]).map_err(|_| IdentityError::EntropyUnavailable)?;
+entropy-random	protocols/krikos-identity/src/pairing.rs:206	getrandom::fill(&mut random_secret[..]).map_err(|_| IdentityError::EntropyUnavailable)?;
+entropy-random	protocols/krikos-identity/src/pairing.rs:207	getrandom::fill(&mut ephemeral_secret[..])
+entropy-random	protocols/krikos-identity/src/pairing.rs:209	getrandom::fill(&mut nonce).map_err(|_| IdentityError::EntropyUnavailable)?;
+entropy-random	protocols/krikos-identity/src/pairing.rs:702	getrandom::fill(&mut bytes[..]).map_err(|_| IdentityError::EntropyUnavailable)?;
 entropy-random	protocols/krikos-identity/src/privacy.rs:2065	getrandom::fill(&mut salt).map_err(|_| IdentityError::EntropyUnavailable)?;
 entropy-random	protocols/krikos-identity/src/privacy.rs:2066	getrandom::fill(&mut wrapping_nonce).map_err(|_| IdentityError::EntropyUnavailable)?;
 entropy-random	protocols/krikos-identity/src/privacy.rs:2067	getrandom::fill(&mut content_nonce).map_err(|_| IdentityError::EntropyUnavailable)?;
@@ -506,53 +506,53 @@ external-state	krikos-sim/tests/cli.rs:974	let campaign = Command::new(env!("CAR
 external-state	krikos-sim/tests/corpus_campaign.rs:285	let path = std::env::temp_dir().join(format!("krikos-sim-{label}-{}", std::process::id()));
 external-state	krikos-sim/tests/coverage.rs:612	std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative))
 external-state	krikos-sim/tests/failure_replay.rs:210	std::env::temp_dir().join(format!("krikos-sim-failure-{label}-{}", std::process::id()));
-external-state	krikos-sim/tests/identity.rs:1289	for entry in std::fs::read_dir(source).unwrap() {
-external-state	krikos-sim/tests/identity.rs:1294	let text = std::fs::read_to_string(entry.path()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1329	let corpus_output = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1343	let formal_output = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1364	let run = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1377	let replay = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1413	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1536	let run = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1562	let replay = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1598	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1600	let run = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1614	let mut noncanonical = std::fs::read(&report_path).unwrap();
-external-state	krikos-sim/tests/identity.rs:1616	std::fs::write(&report_path, noncanonical).unwrap();
-external-state	krikos-sim/tests/identity.rs:1618	let replay = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1659	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1661	let run = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1692	IdentityScenario::from_json(&std::fs::read(artifacts.join("scenario.json")).unwrap())
-external-state	krikos-sim/tests/identity.rs:1697	let replay = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1709	let promote = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1723	serde_json::from_slice(&std::fs::read(candidate.join("entry.json")).unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1746	std::fs::create_dir(&tampered).unwrap();
-external-state	krikos-sim/tests/identity.rs:1747	for artifact in std::fs::read_dir(&artifacts).unwrap() {
-external-state	krikos-sim/tests/identity.rs:1749	std::fs::copy(artifact.path(), tampered.join(artifact.file_name())).unwrap();
-external-state	krikos-sim/tests/identity.rs:1752	let mut bytes = std::fs::read(&target_path).unwrap();
-external-state	krikos-sim/tests/identity.rs:1754	std::fs::write(&target_path, bytes).unwrap();
-external-state	krikos-sim/tests/identity.rs:1755	let rejected = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1765	std::fs::write(
-external-state	krikos-sim/tests/identity.rs:1771	let rejected = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1785	serde_json::from_slice(&std::fs::read(&confirmation_path).unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1789	std::fs::write(&confirmation_path, confirmation_bytes).unwrap();
-external-state	krikos-sim/tests/identity.rs:1791	let rejected = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1805	serde_json::from_slice(&std::fs::read(&minimization_path).unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1809	std::fs::write(&minimization_path, minimization_bytes).unwrap();
-external-state	krikos-sim/tests/identity.rs:1811	let rejected = std::process::Command::new(binary)
-external-state	krikos-sim/tests/identity.rs:1822	std::fs::create_dir(&promoted_corpus).unwrap();
-external-state	krikos-sim/tests/identity.rs:1825	std::fs::copy(checked_in.join(name), promoted_corpus.join(name)).unwrap();
-external-state	krikos-sim/tests/identity.rs:1827	std::fs::copy(
-external-state	krikos-sim/tests/identity.rs:1833	serde_json::from_slice(&std::fs::read(checked_in.join("manifest.json")).unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1840	std::fs::write(
-external-state	krikos-sim/tests/identity.rs:1848	std::fs::write(
-external-state	krikos-sim/tests/identity.rs:1859	std::fs::write(
-external-state	krikos-sim/tests/identity.rs:1868	std::fs::create_dir(target).unwrap();
-external-state	krikos-sim/tests/identity.rs:1869	for artifact in std::fs::read_dir(source).unwrap() {
-external-state	krikos-sim/tests/identity.rs:1871	std::fs::copy(artifact.path(), target.join(artifact.file_name())).unwrap();
-external-state	krikos-sim/tests/identity.rs:1878	serde_json::from_slice(&std::fs::read(&index_path).unwrap()).unwrap();
-external-state	krikos-sim/tests/identity.rs:1879	let bytes = std::fs::read(root.join(name)).unwrap();
-external-state	krikos-sim/tests/identity.rs:1883	std::fs::write(index_path, index_bytes).unwrap();
+external-state	krikos-sim/tests/identity.rs:1298	for entry in std::fs::read_dir(source).unwrap() {
+external-state	krikos-sim/tests/identity.rs:1303	let text = std::fs::read_to_string(entry.path()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1338	let corpus_output = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1352	let formal_output = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1373	let run = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1386	let replay = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1422	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1545	let run = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1571	let replay = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1607	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1609	let run = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1623	let mut noncanonical = std::fs::read(&report_path).unwrap();
+external-state	krikos-sim/tests/identity.rs:1625	std::fs::write(&report_path, noncanonical).unwrap();
+external-state	krikos-sim/tests/identity.rs:1627	let replay = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1668	std::fs::write(&scenario_path, scenario.to_canonical_json().unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1670	let run = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1701	IdentityScenario::from_json(&std::fs::read(artifacts.join("scenario.json")).unwrap())
+external-state	krikos-sim/tests/identity.rs:1706	let replay = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1718	let promote = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1732	serde_json::from_slice(&std::fs::read(candidate.join("entry.json")).unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1755	std::fs::create_dir(&tampered).unwrap();
+external-state	krikos-sim/tests/identity.rs:1756	for artifact in std::fs::read_dir(&artifacts).unwrap() {
+external-state	krikos-sim/tests/identity.rs:1758	std::fs::copy(artifact.path(), tampered.join(artifact.file_name())).unwrap();
+external-state	krikos-sim/tests/identity.rs:1761	let mut bytes = std::fs::read(&target_path).unwrap();
+external-state	krikos-sim/tests/identity.rs:1763	std::fs::write(&target_path, bytes).unwrap();
+external-state	krikos-sim/tests/identity.rs:1764	let rejected = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1774	std::fs::write(
+external-state	krikos-sim/tests/identity.rs:1780	let rejected = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1794	serde_json::from_slice(&std::fs::read(&confirmation_path).unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1798	std::fs::write(&confirmation_path, confirmation_bytes).unwrap();
+external-state	krikos-sim/tests/identity.rs:1800	let rejected = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1814	serde_json::from_slice(&std::fs::read(&minimization_path).unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1818	std::fs::write(&minimization_path, minimization_bytes).unwrap();
+external-state	krikos-sim/tests/identity.rs:1820	let rejected = std::process::Command::new(binary)
+external-state	krikos-sim/tests/identity.rs:1831	std::fs::create_dir(&promoted_corpus).unwrap();
+external-state	krikos-sim/tests/identity.rs:1834	std::fs::copy(checked_in.join(name), promoted_corpus.join(name)).unwrap();
+external-state	krikos-sim/tests/identity.rs:1836	std::fs::copy(
+external-state	krikos-sim/tests/identity.rs:1842	serde_json::from_slice(&std::fs::read(checked_in.join("manifest.json")).unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1849	std::fs::write(
+external-state	krikos-sim/tests/identity.rs:1857	std::fs::write(
+external-state	krikos-sim/tests/identity.rs:1868	std::fs::write(
+external-state	krikos-sim/tests/identity.rs:1877	std::fs::create_dir(target).unwrap();
+external-state	krikos-sim/tests/identity.rs:1878	for artifact in std::fs::read_dir(source).unwrap() {
+external-state	krikos-sim/tests/identity.rs:1880	std::fs::copy(artifact.path(), target.join(artifact.file_name())).unwrap();
+external-state	krikos-sim/tests/identity.rs:1887	serde_json::from_slice(&std::fs::read(&index_path).unwrap()).unwrap();
+external-state	krikos-sim/tests/identity.rs:1888	let bytes = std::fs::read(root.join(name)).unwrap();
+external-state	krikos-sim/tests/identity.rs:1892	std::fs::write(index_path, index_bytes).unwrap();
 external-state	krikos-sim/tests/trace.rs:184	let path = std::env::temp_dir().join(format!(
 external-state	krikos/bench/build.rs:3	use std::env;
 external-state	krikos/bench/build.rs:6	let profile = env::var("PROFILE").expect("Cargo always sets PROFILE for build scripts");
@@ -588,8 +588,8 @@ external-state	krikos/tests/patchbay/nat.rs:141	let Some(output) = std::env::var
 external-state	krikos/tests/patchbay/nat.rs:170	let mut file = OpenOptions::new()
 external-state	protocols/krikos-identity/examples/provider_auditor.rs:20	fs::File::open(path)?
 external-state	protocols/krikos-identity/src/redb_guard.rs:40	File::open(path)
-external-state	protocols/krikos-identity/tests/provider_persistence.rs:1767	threads.push(thread::spawn(move || {
-external-state	protocols/krikos-identity/tests/provider_persistence.rs:1812	duplicate_threads.push(thread::spawn(move || {
+external-state	protocols/krikos-identity/tests/provider_persistence.rs:1768	threads.push(thread::spawn(move || {
+external-state	protocols/krikos-identity/tests/provider_persistence.rs:1813	duplicate_threads.push(thread::spawn(move || {
 network-environment	krikos-dns-server/examples/resolve.rs:51	let addr = tokio::net::lookup_host(host)
 network-environment	krikos-dns-server/examples/resolve.rs:77	resolver.lookup_by_id(&endpoint_id, origin_domain).await?
 network-environment	krikos-dns-server/examples/resolve.rs:79	Command::Domain { domain } => resolver.lookup_by_domain_name(&domain).await?,
@@ -1074,13 +1074,13 @@ spawn-task	krikos/src/test_utils.rs:319	tokio::spawn(async move {
 spawn-task	krikos/src/test_utils/test_transport.rs:529	let connect = tokio::spawn({
 spawn-task	krikos/tests/integration.rs:59	task::spawn({
 spawn-task	krikos/tests/patchbay/util.rs:437	tokio::spawn(
-spawn-task	protocols/krikos-identity/src/net/mod.rs:18	task::JoinSet,
-spawn-task	protocols/krikos-identity/src/net/mod.rs:233	tasks: JoinSet<Result<(), IdentityError>>,
-spawn-task	protocols/krikos-identity/src/net/mod.rs:242	tasks: JoinSet::new(),
+spawn-task	protocols/krikos-identity/src/net/mod.rs:17	task::JoinSet,
+spawn-task	protocols/krikos-identity/src/net/mod.rs:232	tasks: JoinSet<Result<(), IdentityError>>,
+spawn-task	protocols/krikos-identity/src/net/mod.rs:241	tasks: JoinSet::new(),
 spawn-task	protocols/krikos-identity/tests/net_contracts.rs:1316	let mut tasks = JoinSet::new();
 spawn-task	protocols/krikos-identity/tests/net_contracts.rs:40	task::JoinSet,
-spawn-task	protocols/krikos-identity/tests/provider_persistence.rs:1767	threads.push(thread::spawn(move || {
-spawn-task	protocols/krikos-identity/tests/provider_persistence.rs:1812	duplicate_threads.push(thread::spawn(move || {
+spawn-task	protocols/krikos-identity/tests/provider_persistence.rs:1768	threads.push(thread::spawn(move || {
+spawn-task	protocols/krikos-identity/tests/provider_persistence.rs:1813	duplicate_threads.push(thread::spawn(move || {
 unordered-collection	krikos-dns/src/endpoint_info.rs:45	collections::{BTreeSet, HashSet},
 unordered-collection	krikos-dns/src/endpoint_info.rs:78	fn dedup<T: Eq + Hash + Clone>(items: &mut Vec<T>) -> HashSet<T> {
 unordered-collection	krikos-dns/src/endpoint_info.rs:80	let mut seen = HashSet::new();
