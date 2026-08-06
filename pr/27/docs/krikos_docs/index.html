@@ -86,7 +86,7 @@ shall be dual licensed as above, without any additional terms or conditions.
 Multi-dimensional key-value documents with an efficient synchronization protocol</p>
 <p>The crate operates on <a href="sync/struct.Replica.html" title="struct krikos_docs::sync::Replica">Replicas</a>. A replica contains an unlimited number of
 <a href="sync/struct.Entry.html" title="struct krikos_docs::sync::Entry">Entries</a>. Each entry is identified by a key, its author, and the replica’s
-namespace. Its value is the <a href="krikos_blobs::Hash">32-byte BLAKE3 hash</a>
+namespace. Its value is the <a href="../krikos_blobs/hash/struct.Hash.html" title="struct krikos_blobs::hash::Hash">32-byte BLAKE3 hash</a>
 of the entry’s content data, the size of this content data, and a timestamp.
 The content data itself is not stored or transferred through a replica.</p>
 <p>All entries in a replica are signed with two keypairs:</p>
