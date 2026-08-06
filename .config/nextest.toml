@@ -86,11 +86,11 @@ slow-timeout = { period = "30s", terminate-after = 5 }
 # exceeded the generic 30s ceiling twice on a contended macOS runner. Keep the
 # exception exact and finite so a genuine hang still fails.
 [[profile.ci.overrides]]
-filter = 'package(krikos-identity) & binary(store_conformance) & test(evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+filter = 'package(krikos-identity) & binary(store_conformance) & test(=evicted_lineage_conflict_is_authenticated_from_durable_sources)'
 slow-timeout = { period = "30s", terminate-after = 3 }
 
 [[profile.default.overrides]]
-filter = 'package(krikos-identity) & binary(store_conformance) & test(evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+filter = 'package(krikos-identity) & binary(store_conformance) & test(=evicted_lineage_conflict_is_authenticated_from_durable_sources)'
 slow-timeout = { period = "30s", terminate-after = 3 }
 
 [[profile.default.overrides]]
