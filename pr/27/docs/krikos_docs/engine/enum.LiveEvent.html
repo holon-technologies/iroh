@@ -8,7 +8,7 @@
         content_status: <a class="enum" href="../sync/enum.ContentStatus.html" title="enum krikos_docs::sync::ContentStatus">ContentStatus</a>,
     },
     ContentReady {
-        hash: <a class="struct" href="../../krikos_blobs/hash/struct.Hash.html" title="struct krikos_blobs::hash::Hash">Hash</a>,
+        hash: Hash,
     },
     PendingContentReady,
     NeighborUp(<a class="struct" href="../../krikos_base/key/struct.PublicKey.html" title="struct krikos_base::key::PublicKey">PublicKey</a>),
@@ -22,7 +22,7 @@
 </div></div><div class="sub-variant-field"><span id="variant.InsertRemote.field.entry" class="section-header"><a href="#variant.InsertRemote.field.entry" class="anchor field">§</a><code>entry: <a class="struct" href="../sync/struct.Entry.html" title="struct krikos_docs::sync::Entry">Entry</a></code></span><div class="docblock"><p>The inserted entry.</p>
 </div></div><div class="sub-variant-field"><span id="variant.InsertRemote.field.content_status" class="section-header"><a href="#variant.InsertRemote.field.content_status" class="anchor field">§</a><code>content_status: <a class="enum" href="../sync/enum.ContentStatus.html" title="enum krikos_docs::sync::ContentStatus">ContentStatus</a></code></span><div class="docblock"><p>If the content is available at the local node</p>
 </div></div></div><section id="variant.ContentReady" class="variant"><a href="#variant.ContentReady" class="anchor">§</a><h3 class="code-header">ContentReady</h3></section><div class="docblock"><p>The content of an entry was downloaded and is now available at the local node</p>
-</div><div class="sub-variant" id="variant.ContentReady.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.ContentReady.field.hash" class="section-header"><a href="#variant.ContentReady.field.hash" class="anchor field">§</a><code>hash: <a class="struct" href="../../krikos_blobs/hash/struct.Hash.html" title="struct krikos_blobs::hash::Hash">Hash</a></code></span><div class="docblock"><p>The content hash of the newly available entry content</p>
+</div><div class="sub-variant" id="variant.ContentReady.fields"><h4>Fields</h4><div class="sub-variant-field"><span id="variant.ContentReady.field.hash" class="section-header"><a href="#variant.ContentReady.field.hash" class="anchor field">§</a><code>hash: Hash</code></span><div class="docblock"><p>The content hash of the newly available entry content</p>
 </div></div></div><section id="variant.PendingContentReady" class="variant"><a href="#variant.PendingContentReady" class="anchor">§</a><h3 class="code-header">PendingContentReady</h3></section><div class="docblock"><p>All pending content is now ready.</p>
 <p>This event signals that all queued content downloads from the last sync run have either
 completed or failed.</p>
