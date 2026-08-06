@@ -2,16 +2,15 @@
 
 mod protocol;
 
+use std::{future::Future, sync::Arc};
+
+use krikos::endpoint::Connection;
 pub use protocol::{
     AuthorizedCheckpointRequest, AuthorizedProposalRequest, AuthorizedSyncRequest,
     DenyIdentityProtocolService, EndpointAuthorizationRequest, IdentityProtocolAck,
     IdentityProtocolHandler, IdentityProtocolHandlers, IdentityProtocolKind, IdentityProtocolReply,
     IdentityProtocolService, IdentityServiceOutcome, ServiceRejectionCode,
 };
-
-use std::{future::Future, sync::Arc};
-
-use krikos::endpoint::Connection;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     sync::{OwnedSemaphorePermit, Semaphore},

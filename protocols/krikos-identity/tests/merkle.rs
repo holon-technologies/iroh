@@ -1,6 +1,6 @@
-use krikos_identity::limits::MAX_MERKLE_SET_LEAVES;
 use krikos_identity::{
     CanonicalWire, Digest, HashAlgorithm, IdentityError,
+    limits::MAX_MERKLE_SET_LEAVES,
     merkle::{
         MerkleConsistencyProof, MerkleInclusionProof, MerkleNeighbor, MerkleNonMembershipProof,
         MerkleSet, MerkleSetKey, MerkleSetLeaf, empty_merkle_root,

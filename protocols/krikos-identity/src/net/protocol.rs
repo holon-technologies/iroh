@@ -16,6 +16,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
+use super::{
+    PairingEndpointRole, framed_network_bytes, pairing_binding_from_connection, read_bounded_frame,
+    write_bounded_frame,
+};
 use crate::{
     AccountId, AccountStore, AuthenticatedTransportBinding, CanonicalWire, CheckpointId, CursorKey,
     DeviceAuthorizationProposal, DeviceId, Digest, HashAlgorithm, IdentityError, PairingTicket,
@@ -31,11 +35,6 @@ use crate::{
         AuthorizedEndpointStream, CHECKPOINT_ALPN, PAIRING_ALPN, PROPOSAL_ALPN, RECOVERY_ALPN,
         SYNC_ALPN, TRANSPARENCY_GOSSIP_ALPN, VerifiedCheckpointView, authorize_endpoint_stream,
     },
-};
-
-use super::{
-    PairingEndpointRole, framed_network_bytes, pairing_binding_from_connection, read_bounded_frame,
-    write_bounded_frame,
 };
 
 const REQUEST_COMMITMENT_CONTEXT: &str = "KRIKOS-ID/network-request-commitment/v1";

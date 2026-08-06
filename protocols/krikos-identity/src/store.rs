@@ -3,9 +3,6 @@
 #[cfg(feature = "fs-store")]
 mod redb;
 
-#[cfg(feature = "fs-store")]
-pub use redb::RedbAccountStore;
-
 use std::{
     collections::BTreeMap,
     future::Future,
@@ -13,6 +10,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+#[cfg(feature = "fs-store")]
+pub use redb::RedbAccountStore;
 use serde::Serialize;
 
 use crate::{

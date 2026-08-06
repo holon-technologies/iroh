@@ -11,15 +11,17 @@ use std::{
 };
 
 use krikos_base::SecretKey;
-use krikos_identity::merkle::{
-    MerkleConsistencyProof, MerkleInclusionProof, MerkleNonMembershipProof, MerkleSetLeaf,
+use krikos_identity::{
+    merkle::{
+        MerkleConsistencyProof, MerkleInclusionProof, MerkleNonMembershipProof, MerkleSetLeaf,
+    },
+    net::{
+        AuthorizedCheckpointRequest, AuthorizedProposalRequest, AuthorizedSyncRequest,
+        EndpointAuthorizationRequest, IdentityProtocolAck, IdentityProtocolKind,
+        IdentityProtocolReply, IdentityServiceOutcome,
+    },
+    *,
 };
-use krikos_identity::net::{
-    AuthorizedCheckpointRequest, AuthorizedProposalRequest, AuthorizedSyncRequest,
-    EndpointAuthorizationRequest, IdentityProtocolAck, IdentityProtocolKind, IdentityProtocolReply,
-    IdentityServiceOutcome,
-};
-use krikos_identity::*;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 

@@ -1,11 +1,12 @@
 //! Chain-neutral opaque provider anchoring boundary.
 
+use serde::{Deserialize, Serialize};
+
 use super::{ProviderCompactionManifest, provider_commitment};
 use crate::{
     Digest, HashAlgorithm, IdentityError, StoreFuture,
     codec::{decode_wire, encode_wire, sealed::CanonicalCodec},
 };
-use serde::{Deserialize, Serialize};
 
 const MAX_ANCHOR_EVIDENCE_BYTES: usize = 16 * 1024;
 const PROVIDER_ANCHOR_COMMITMENT_DOMAIN: &[u8] = b"KRIKOS-ID/provider-anchor-commitment/v1";

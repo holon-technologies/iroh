@@ -4,15 +4,14 @@ use std::collections::BTreeMap;
 #[cfg(feature = "fs-store")]
 use std::{path::Path, sync::Arc};
 
+#[cfg(feature = "fs-store")]
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
+
+use super::NonceConsumeResult;
 use crate::{
     IdentityError, PairingNonceKey, PairingNonceStore, Timestamp,
     limits::MAX_PAIRING_NONCE_TOMBSTONES,
 };
-
-use super::NonceConsumeResult;
-
-#[cfg(feature = "fs-store")]
-use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
 #[cfg(feature = "fs-store")]
 const PAIRING_NONCE_TABLE: TableDefinition<&[u8], &[u8]> =

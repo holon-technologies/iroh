@@ -4,11 +4,10 @@ use std::fmt;
 
 mod nonce_store;
 
+use krikos_base::{PublicKey as Ed25519PublicKey, Signature as Ed25519Signature};
 pub use nonce_store::MemoryPairingNonceStore;
 #[cfg(feature = "fs-store")]
 pub use nonce_store::RedbPairingNonceStore;
-
-use krikos_base::{PublicKey as Ed25519PublicKey, Signature as Ed25519Signature};
 use rand_core::TryCryptoRng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeTuple};
 use x25519_dalek::{PublicKey as X25519PublicKey, SharedSecret, StaticSecret};

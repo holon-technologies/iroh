@@ -9,12 +9,11 @@ use std::{
 use krikos_runtime::{RootSeed, TraceEvent};
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtifactStore, RunManifest, bounded_io::read_file, normalized_trace_json};
-
 use super::{
     IdentityCoverage, IdentityFailedRunRecord, IdentityRunOutcome, IdentityRunReport,
     IdentityScenario, IdentityScenarioError, IdentityScenarioRunner,
 };
+use crate::{ArtifactStore, RunManifest, bounded_io::read_file, normalized_trace_json};
 
 /// Strict identity corpus manifest schema.
 pub const IDENTITY_CORPUS_SCHEMA_VERSION: u16 = 2;

@@ -1,11 +1,10 @@
 //! Bounded, versioned streaming interchange for complete provider recovery archives.
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-
-#[cfg(test)]
-use std::cell::Cell;
 
 use super::{
     MAX_PROVIDER_COMPACTION_MANIFESTS, MemoryProviderStore, ProviderCheckpointBundleWire,

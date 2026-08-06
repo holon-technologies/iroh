@@ -1,5 +1,7 @@
 //! Bounded in-memory provider-log generation and proof serving.
 
+use serde::Serialize;
+
 use crate::{
     AccountId, Extensions, IdentityError, InclusionReceipt, ProtocolSignature, ProviderDescriptor,
     ProviderEquivocationEvidence, ProviderHeadBody, ProviderKeyVersion, ProviderLogEntryBody,
@@ -7,7 +9,6 @@ use crate::{
     limits::{MAX_HISTORY_PAGE_EVENTS, MAX_MERKLE_LOG_LEAVES, MAX_PROVIDER_ACCOUNT_RESPONSE_BYTES},
     merkle::{AppendOnlyMerkleLog, MerkleConsistencyProof},
 };
-use serde::Serialize;
 
 /// Signing boundary used by a provider log without exposing key storage to the log engine.
 pub trait ProviderHeadSigner {

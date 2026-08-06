@@ -1,10 +1,12 @@
 #![no_main]
 
-use krikos_identity::net::{
-    AuthorizedCheckpointRequest, AuthorizedProposalRequest, AuthorizedSyncRequest,
-    EndpointAuthorizationRequest, IdentityProtocolAck, IdentityProtocolReply,
+use krikos_identity::{
+    CanonicalWire, SyncCursor, SyncFrame, SyncRequest, SyncResponse,
+    net::{
+        AuthorizedCheckpointRequest, AuthorizedProposalRequest, AuthorizedSyncRequest,
+        EndpointAuthorizationRequest, IdentityProtocolAck, IdentityProtocolReply,
+    },
 };
-use krikos_identity::{CanonicalWire, SyncCursor, SyncFrame, SyncRequest, SyncResponse};
 use libfuzzer_sys::fuzz_target;
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4 * 1024 * 1024 + 1;

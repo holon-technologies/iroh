@@ -1,6 +1,9 @@
-use std::convert::Infallible;
-use std::fmt;
+use std::{convert::Infallible, fmt};
 
+use krikos_base::SecretKey;
+use rand_core::{TryCryptoRng, TryRng};
+
+use super::{AuthenticatedTransportAdapter, AuthenticatedTransportFacts, TransportExporterValue};
 use crate::{
     AccountId, AgreementSecretKey, AuthenticatedTransportBinding, CanonicalWire,
     ConfirmationParticipant, ConnectionEphemeralSecret, DeviceAuthorizationProposal,
@@ -11,10 +14,6 @@ use crate::{
     PairingSessionId, PairingTicket, PairingTicketRequest, PairingTicketSecrets, PresenceProof,
     ProtocolSignature, ProtocolVersion, SigningPublicKey, Timestamp,
 };
-use krikos_base::SecretKey;
-use rand_core::{TryCryptoRng, TryRng};
-
-use super::{AuthenticatedTransportAdapter, AuthenticatedTransportFacts, TransportExporterValue};
 
 struct TestAuthenticatedTransportAdapter {
     facts: AuthenticatedTransportFacts,

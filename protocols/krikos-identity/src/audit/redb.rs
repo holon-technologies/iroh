@@ -1,12 +1,11 @@
 //! Redb persistence for provider audit journals.
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::{
     path::Path,
     sync::{Arc, Mutex, MutexGuard},
 };
-
-#[cfg(test)]
-use std::cell::Cell;
 
 use redb::{
     Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition, TableHandle,

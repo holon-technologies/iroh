@@ -13,7 +13,7 @@ const MAX_CONTROLLER_WEIGHT: u8 = 2;
 const MAX_POLICY_WEIGHT: u8 = 4;
 const MAX_FORMAL_ATTEMPTS_PER_STATE: usize = 128;
 
-/// Six required design Section 31.7 properties.
+/// Six required account-control properties.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FormalProperty {

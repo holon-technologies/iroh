@@ -2,6 +2,9 @@
 
 use std::{fmt, sync::Arc};
 
+use krikos_base::{PublicKey, Signature};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
 use crate::{
     AccountId, BlindingSecret, CheckpointId, ControlPolicy, ControlPolicyId, ControllerDescriptor,
     ControllerId, ControllerWeight, DeviceId, Digest, Epoch, EventId, Extensions, ForkId,
@@ -18,8 +21,6 @@ use crate::{
     schema::BoundedVec,
     types::{HashDomain, hash_bytes},
 };
-use krikos_base::{PublicKey, Signature};
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 /// Frozen Merkle-set type tag for one non-circular blinded guardian-grant leaf.
 pub const GUARDIAN_GRANT_LEAF_TYPE_TAG: u16 = 1;

@@ -34,8 +34,8 @@ use krikos_identity::{
     transport::{CheckpointDeviceEndpoint, VerifiedCheckpointView, authorize_endpoint_stream},
 };
 use rand_core::{TryCryptoRng, TryRng};
-use tokio::io::{AsyncWriteExt, duplex, sink};
 use tokio::{
+    io::{AsyncWriteExt, duplex, sink},
     sync::{Notify, Semaphore, oneshot},
     task::JoinSet,
 };

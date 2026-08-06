@@ -1,3 +1,10 @@
+#[cfg(feature = "provider-store")]
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Barrier},
+    thread,
+};
+
 use krikos_base::SecretKey;
 use krikos_identity::{
     AccountGenesis, AccountId, AccountOperation, AccountState, AdmissionEvidence,
@@ -28,12 +35,6 @@ use krikos_identity::{
 };
 #[cfg(feature = "provider-store")]
 use redb::{Database, ReadableTable, TableDefinition};
-#[cfg(feature = "provider-store")]
-use std::{
-    collections::BTreeSet,
-    sync::{Arc, Barrier},
-    thread,
-};
 
 #[cfg(feature = "provider-store")]
 const TEST_PROVIDER_COMMITTED_TABLE: TableDefinition<&[u8], &[u8]> =

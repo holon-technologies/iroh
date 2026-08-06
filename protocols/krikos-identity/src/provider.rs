@@ -1,12 +1,11 @@
 //! Crash-safe provider-log state machines and bounded proof-serving contracts.
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, MutexGuard},
 };
-
-#[cfg(test)]
-use std::cell::Cell;
 
 use serde::{Deserialize, Serialize};
 
@@ -123,7 +122,6 @@ pub use interchange::{
     ProviderGenerationExportAssembler, ProviderGenerationExportChunk,
     ProviderGenerationExportManifest, ProviderRecoveryExportManifest,
 };
-
 #[cfg(feature = "provider-store")]
 pub use redb::RedbProviderStore;
 

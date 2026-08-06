@@ -16,11 +16,9 @@ use krikos_identity::{
     ProviderLogId, ProviderPolicy, ProviderPolicyVersion, ProviderQuorum, ProviderRecoveryExport,
     ProviderRecoveryExportManifest, RecoveryAuthority, RecoveryPolicy, RecoveryPolicyVersion,
     RequiredWeight, SignedEventIntentApproval, SignedProviderHead, SigningPublicKey, Timestamp,
-    authorize_provider_append, verify_event_intent_admission,
+    authorize_provider_append, limits::MAX_MERKLE_LOG_LEAVES, verify_event_intent_admission,
 };
 use serde::{Deserialize, Serialize};
-
-use krikos_identity::limits::MAX_MERKLE_LOG_LEAVES;
 
 fn typed_id<T: CanonicalWire>(fill: u8) -> T {
     let digest = Digest::new(HashAlgorithm::Blake3_256, [fill; 32]);

@@ -1,18 +1,21 @@
 use krikos_runtime::RootSeed;
-use krikos_sim::evidence::{
-    ArtifactStore, BackendCapabilities, CryptoMode, DeterminismGrade, MANIFEST_SCHEMA_VERSION,
-    RunBudgets, RunManifest, SIMULATOR_VERSION, SourceIdentity, TraceComparisonMode,
-};
-use krikos_sim::identity::{
-    AccountControlModel, ApplyDisposition, ControllerId, DeviceId, DifferentialError, EventId,
-    ExpectedModelRejection, ForkResolution, ForkScenarioOperation, FormalMutation, FormalProperty,
-    IdentityAction, IdentityArtifactBundle, IdentityCorpus, IdentityDeliveryFault, IdentityEvent,
-    IdentityFailureClass, IdentityFailureSignature, IdentityMinimizer, IdentityOperation,
-    IdentityRejectionClass, IdentityRunOutcome, IdentityScenario, IdentityScenarioAction,
-    IdentityScenarioError, IdentityScenarioRunner, MAX_IDENTITY_SCENARIO_BYTES, MigrationPhase,
-    MigrationState, ModelController, ModelError, ModelPolicy, RecoveryController, RecoveryPlan,
-    Section36Mutation, check_account_control_model, check_formal_mutation,
-    replay_identity_artifacts, run_differential_history,
+use krikos_sim::{
+    evidence::{
+        ArtifactStore, BackendCapabilities, CryptoMode, DeterminismGrade, MANIFEST_SCHEMA_VERSION,
+        RunBudgets, RunManifest, SIMULATOR_VERSION, SourceIdentity, TraceComparisonMode,
+    },
+    identity::{
+        AccountControlModel, ApplyDisposition, ControllerId, DeviceId, DifferentialError, EventId,
+        ExpectedModelRejection, ForkResolution, ForkScenarioOperation, FormalMutation,
+        FormalProperty, IdentityAction, IdentityArtifactBundle, IdentityCorpus,
+        IdentityDeliveryFault, IdentityEvent, IdentityFailureClass, IdentityFailureSignature,
+        IdentityInvariantMutation, IdentityMinimizer, IdentityOperation, IdentityRejectionClass,
+        IdentityRunOutcome, IdentityScenario, IdentityScenarioAction, IdentityScenarioError,
+        IdentityScenarioRunner, MAX_IDENTITY_SCENARIO_BYTES, MigrationPhase, MigrationState,
+        ModelController, ModelError, ModelPolicy, RecoveryController, RecoveryPlan,
+        check_account_control_model, check_formal_mutation, replay_identity_artifacts,
+        run_differential_history,
+    },
 };
 
 fn controller(id: u16, weight: u16) -> ModelController {
@@ -841,10 +844,10 @@ fn real_identity_runner_invariant_failure_has_stable_evidence_trace_and_report()
             )
             .unwrap(),
             IdentityAction::new(
-                "section36-fault",
+                "invariant-fault",
                 1,
-                IdentityScenarioAction::Section36Fault {
-                    mutation: Section36Mutation::AccountIsDevice,
+                IdentityScenarioAction::InvariantFault {
+                    mutation: IdentityInvariantMutation::AccountIsDevice,
                 },
             )
             .unwrap(),
@@ -853,6 +856,9 @@ fn real_identity_runner_invariant_failure_has_stable_evidence_trace_and_report()
         ],
     )
     .unwrap();
+    let canonical: serde_json::Value =
+        serde_json::from_slice(&scenario.to_canonical_json().unwrap()).unwrap();
+    assert_eq!(canonical["actions"][1]["action"]["kind"], "invariant_fault");
     let seed = RootSeed::new([0xa4; 32]);
 
     let first = IdentityScenarioRunner::run_detailed(&scenario, seed).unwrap();
@@ -872,55 +878,58 @@ fn real_identity_runner_invariant_failure_has_stable_evidence_trace_and_report()
 }
 
 #[test]
-fn every_section36_oracle_rejects_its_real_runner_counterexample() {
+fn every_identity_invariant_oracle_rejects_its_real_runner_counterexample() {
     for (mutation, invariant) in [
-        (Section36Mutation::AccountIsDevice, "account_is_not_device"),
         (
-            Section36Mutation::OrdinaryPrivateKeyReplication,
+            IdentityInvariantMutation::AccountIsDevice,
+            "account_is_not_device",
+        ),
+        (
+            IdentityInvariantMutation::OrdinaryPrivateKeyReplication,
             "no_ordinary_private_key_replication",
         ),
         (
-            Section36Mutation::DeviceNotIndependentlyRevocable,
+            IdentityInvariantMutation::DeviceNotIndependentlyRevocable,
             "device_independently_revocable",
         ),
         (
-            Section36Mutation::PriorPolicyBypass,
+            IdentityInvariantMutation::PriorPolicyBypass,
             "prior_policy_authorization",
         ),
         (
-            Section36Mutation::AccountIdentityChanged,
+            IdentityInvariantMutation::AccountIdentityChanged,
             "stable_account_identity",
         ),
         (
-            Section36Mutation::ProviderCreatedState,
+            IdentityInvariantMutation::ProviderCreatedState,
             "provider_cannot_create_state",
         ),
         (
-            Section36Mutation::SocialRelationshipCreatedAuthority,
+            IdentityInvariantMutation::SocialRelationshipCreatedAuthority,
             "social_no_implicit_authority",
         ),
         (
-            Section36Mutation::PublishedRevocationUndiscoverable,
+            IdentityInvariantMutation::PublishedRevocationUndiscoverable,
             "published_revocation_discoverability",
         ),
         (
-            Section36Mutation::OfflineValidationWithoutBasis,
+            IdentityInvariantMutation::OfflineValidationWithoutBasis,
             "offline_validation_has_basis",
         ),
         (
-            Section36Mutation::SensitiveActionDidNotFailClosed,
+            IdentityInvariantMutation::SensitiveActionDidNotFailClosed,
             "sensitive_actions_fail_closed",
         ),
         (
-            Section36Mutation::RevokedDeviceReceivedGroupKey,
+            IdentityInvariantMutation::RevokedDeviceReceivedGroupKey,
             "revoked_device_excluded_from_group_keys",
         ),
         (
-            Section36Mutation::ConflictSilentlyMerged,
+            IdentityInvariantMutation::ConflictSilentlyMerged,
             "conflicts_detected_not_merged",
         ),
     ] {
-        let scenario = section36_mutation_scenario(mutation);
+        let scenario = identity_invariant_mutation_scenario(mutation);
         let outcome = IdentityScenarioRunner::run_with_invariant_mutation(
             &scenario,
             RootSeed::new([0xc6; 32]),
@@ -1018,16 +1027,16 @@ fn retained_fork_allows_a_sensitive_probe_to_fail_closed_without_a_false_oracle_
     assert_eq!(record.report.final_state.heads.len(), 1);
 }
 
-fn section36_mutation_scenario(mutation: Section36Mutation) -> IdentityScenario {
+fn identity_invariant_mutation_scenario(mutation: IdentityInvariantMutation) -> IdentityScenario {
     let actions = match mutation {
-        Section36Mutation::AccountIsDevice
-        | Section36Mutation::OrdinaryPrivateKeyReplication
-        | Section36Mutation::AccountIdentityChanged
-        | Section36Mutation::SocialRelationshipCreatedAuthority => vec![
+        IdentityInvariantMutation::AccountIsDevice
+        | IdentityInvariantMutation::OrdinaryPrivateKeyReplication
+        | IdentityInvariantMutation::AccountIdentityChanged
+        | IdentityInvariantMutation::SocialRelationshipCreatedAuthority => vec![
             IdentityAction::new("social", 0, IdentityScenarioAction::SocialRelationship).unwrap(),
         ],
-        Section36Mutation::DeviceNotIndependentlyRevocable
-        | Section36Mutation::RevokedDeviceReceivedGroupKey => vec![
+        IdentityInvariantMutation::DeviceNotIndependentlyRevocable
+        | IdentityInvariantMutation::RevokedDeviceReceivedGroupKey => vec![
             IdentityAction::new(
                 "authorize-device",
                 0,
@@ -1047,7 +1056,7 @@ fn section36_mutation_scenario(mutation: Section36Mutation) -> IdentityScenario 
             )
             .unwrap(),
         ],
-        Section36Mutation::PriorPolicyBypass => vec![
+        IdentityInvariantMutation::PriorPolicyBypass => vec![
             IdentityAction::new(
                 "add-controller",
                 0,
@@ -1059,11 +1068,11 @@ fn section36_mutation_scenario(mutation: Section36Mutation) -> IdentityScenario 
             )
             .unwrap(),
         ],
-        Section36Mutation::ProviderCreatedState => vec![
+        IdentityInvariantMutation::ProviderCreatedState => vec![
             IdentityAction::new("provider-outage", 0, IdentityScenarioAction::ProviderOutage)
                 .unwrap(),
         ],
-        Section36Mutation::PublishedRevocationUndiscoverable => vec![
+        IdentityInvariantMutation::PublishedRevocationUndiscoverable => vec![
             IdentityAction::new(
                 "authorize-device",
                 0,
@@ -1091,15 +1100,15 @@ fn section36_mutation_scenario(mutation: Section36Mutation) -> IdentityScenario 
             )
             .unwrap(),
         ],
-        Section36Mutation::OfflineValidationWithoutBasis => vec![
+        IdentityInvariantMutation::OfflineValidationWithoutBasis => vec![
             IdentityAction::new("offline", 0, IdentityScenarioAction::OfflineValidate).unwrap(),
         ],
-        Section36Mutation::SensitiveActionDidNotFailClosed => vec![
+        IdentityInvariantMutation::SensitiveActionDidNotFailClosed => vec![
             IdentityAction::new("provider-outage", 0, IdentityScenarioAction::ProviderOutage)
                 .unwrap(),
             IdentityAction::new("probe", 1, IdentityScenarioAction::SensitiveProbe).unwrap(),
         ],
-        Section36Mutation::ConflictSilentlyMerged => vec![
+        IdentityInvariantMutation::ConflictSilentlyMerged => vec![
             IdentityAction::new(
                 "left",
                 0,
@@ -1127,7 +1136,7 @@ fn section36_mutation_scenario(mutation: Section36Mutation) -> IdentityScenario 
             .unwrap(),
         ],
     };
-    IdentityScenario::new(format!("identity/section36-{mutation:?}"), actions).unwrap()
+    IdentityScenario::new(format!("identity/invariant-{mutation:?}"), actions).unwrap()
 }
 
 #[test]
@@ -1644,10 +1653,10 @@ fn identity_cli_confirms_minimizes_replays_and_stages_a_real_failure_for_review(
             )
             .unwrap(),
             IdentityAction::new(
-                "section36-fault",
+                "invariant-fault",
                 1,
-                IdentityScenarioAction::Section36Fault {
-                    mutation: Section36Mutation::AccountIsDevice,
+                IdentityScenarioAction::InvariantFault {
+                    mutation: IdentityInvariantMutation::AccountIsDevice,
                 },
             )
             .unwrap(),
@@ -1692,7 +1701,7 @@ fn identity_cli_confirms_minimizes_replays_and_stages_a_real_failure_for_review(
         IdentityScenario::from_json(&std::fs::read(artifacts.join("scenario.json")).unwrap())
             .unwrap();
     assert_eq!(minimized.actions().len(), 1);
-    assert_eq!(minimized.actions()[0].id(), "section36-fault");
+    assert_eq!(minimized.actions()[0].id(), "invariant-fault");
 
     let replay = std::process::Command::new(binary)
         .args(["identity", "replay"])

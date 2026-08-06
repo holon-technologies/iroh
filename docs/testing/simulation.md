@@ -108,12 +108,12 @@ ready ordering.
 The identity lane has a separate strict schema because account-control operations are not network
 topology actions. It still uses the same `Kernel`, seeded ready-task scheduler, injected virtual
 clock, `RootSeed`, trace schema, source-bound manifest, and immutable artifact store. Every action,
-including a fault-only or rejected action, is a kernel-owned task and evaluates all twelve Section
-36 invariants. A report is invalid unless each invariant counter equals the executed step count.
+including a fault-only or rejected action, is a kernel-owned task and evaluates all twelve identity
+invariants. A report is invalid unless each invariant counter equals the executed step count.
 Scenario validation rejects zero identities or weights, duplicate or oversized authority lists,
 unsatisfied or arithmetically unrepresentable recovery declarations, excess fork branches,
 undeclared fork-resolution targets, and replica/provider bounds before the kernel is constructed.
-The simulator-only `section36_fault` action mutates independently captured oracle evidence; it
+The simulator-only `invariant_fault` action mutates independently captured oracle evidence; it
 exists solely to exercise invariant failure capture and is visibly retained in canonical scenarios
 and replay artifacts.
 

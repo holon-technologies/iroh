@@ -5,16 +5,15 @@ use std::path::Path;
 use krikos_runtime::{RootSeed, TraceEvent};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ArtifactStore, ReplayIdentity, RunManifest, bounded_io::read_file, normalized_trace_json,
-};
-
 use super::{
     IdentityFailedRunRecord, IdentityFailureConfirmation, IdentityFailureReport,
     IdentityFailureSignature, IdentityMinimizationResult, IdentityMinimizer,
     IdentityRejectedRunRecord, IdentityRejectionEvidence, IdentityRunOutcome, IdentityRunRecord,
     IdentityRunReport, IdentityScenario, IdentityScenarioRunner,
     corpus::MAX_IDENTITY_MINIMIZATION_ATTEMPTS, verify_identity_failure_artifacts,
+};
+use crate::{
+    ArtifactStore, ReplayIdentity, RunManifest, bounded_io::read_file, normalized_trace_json,
 };
 
 const IDENTITY_REJECTION_ARTIFACT_SCHEMA_VERSION: u16 = 1;

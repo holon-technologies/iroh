@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::{
+    MemoryProviderStore, ProviderGenerationExport, ProviderRecoveryExport,
+    provider_audit_artifact_commitment, provider_commitment, provider_recovery_commitment,
+    rebuild_checkpoint_index, retained_provider_evidence_commitment,
+};
 use crate::{
     AccountGenesis, AuthorizedEvent, CheckpointId, Digest, HashAlgorithm, IdentityError,
     InclusionReceipt, OperationKind, ProviderAuditArtifact, ProviderDescriptor, ProviderId,
@@ -10,12 +15,6 @@ use crate::{
     codec::{decode_wire, encode_wire, sealed::CanonicalCodec},
     limits::MAX_MERKLE_LOG_LEAVES,
     schema::BoundedVec,
-};
-
-use super::{
-    MemoryProviderStore, ProviderGenerationExport, ProviderRecoveryExport,
-    provider_audit_artifact_commitment, provider_commitment, provider_recovery_commitment,
-    rebuild_checkpoint_index, retained_provider_evidence_commitment,
 };
 
 const MAX_PROVIDER_AUDIT_ARTIFACTS: usize = 65_536;

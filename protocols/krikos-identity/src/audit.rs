@@ -1,9 +1,8 @@
 //! Durable, generation-scoped provider-head auditing.
 
-use std::sync::{Arc, Mutex, MutexGuard};
-
 #[cfg(test)]
 use std::cell::Cell;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +11,6 @@ use crate::{
     ProviderHeadAuditDisposition, ProviderHeadAuditor, ProviderLogId, SignedProviderHead,
     limits::MAX_RETRIES, merkle::MerkleConsistencyProof,
 };
-
 #[cfg(feature = "provider-store")]
 use crate::{
     codec::{decode_wire, encode_wire},

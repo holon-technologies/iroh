@@ -1,4 +1,4 @@
-//! Kernel-owned deterministic identity scenarios and Section 36 invariant accounting.
+//! Kernel-owned deterministic identity scenarios and identity invariant accounting.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -9,16 +9,15 @@ use std::{
 use krikos_runtime::{ClockSleep, RootSeed, TaskKind, TraceContext, TraceEvent, TraceEventKind};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Kernel, KernelConfig, KernelResourceLimits, KernelSchedulerSnapshot, KernelTaskSnapshot,
-    Quiescence, TraceBuffer,
-};
-
 use super::{
     AccountControlModel, AccountModelSnapshot, ControllerId, DeviceId, DeviceLifecycle, EventId,
     ForkResolution, IdentityEvent, IdentityOperation, ModelController, ModelError, ModelPolicy,
     RecoveryPlan,
     model::{MAX_MODEL_CONTROLLERS, MAX_MODEL_DEVICES, MAX_MODEL_FORK_HEADS},
+};
+use crate::{
+    Kernel, KernelConfig, KernelResourceLimits, KernelSchedulerSnapshot, KernelTaskSnapshot,
+    Quiescence, TraceBuffer,
 };
 
 /// Strict identity-scenario schema version.
@@ -272,8 +271,8 @@ pub enum IdentityScenarioAction {
     OfflineValidate,
     /// Create a social edge with no account-control authority.
     SocialRelationship,
-    /// Simulator-only evidence fault used to prove one Section 36 oracle and failure workflow.
-    Section36Fault { mutation: Section36Mutation },
+    /// Simulator-only fault used to prove one identity-invariant oracle and failure workflow.
+    InvariantFault { mutation: IdentityInvariantMutation },
 }
 
 /// One scheduled action with a stable identity and absolute virtual deadline.
@@ -562,7 +561,7 @@ impl IdentityCoverage {
 /// Per-invariant evaluation counters emitted after every action.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Section36Counters {
+pub struct IdentityInvariantCounters {
     pub account_is_not_device: u64,
     pub no_ordinary_private_key_replication: u64,
     pub device_independently_revocable: u64,
@@ -577,8 +576,8 @@ pub struct Section36Counters {
     pub conflicts_detected_not_merged: u64,
 }
 
-impl Section36Counters {
-    /// Every Section 36 invariant must be evaluated once per executed action.
+impl IdentityInvariantCounters {
+    /// Every identity invariant must be evaluated once per executed action.
     pub fn all_checked_at_each_step(self, steps: usize) -> bool {
         let Ok(expected) = u64::try_from(steps) else {
             return false;
@@ -602,10 +601,10 @@ impl Section36Counters {
     }
 }
 
-/// Deliberate observation mutation used to prove each Section 36 oracle is live.
+/// Deliberate observation mutation used to prove each identity-invariant oracle is live.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Section36Mutation {
+pub enum IdentityInvariantMutation {
     AccountIsDevice,
     OrdinaryPrivateKeyReplication,
     DeviceNotIndependentlyRevocable,
@@ -671,7 +670,7 @@ pub struct IdentityRunReport {
     pub steps: Vec<IdentityStepReport>,
     pub final_state: AccountModelSnapshot,
     pub coverage: IdentityCoverage,
-    pub invariants: Section36Counters,
+    pub invariants: IdentityInvariantCounters,
     pub delivery: IdentityDeliveryReport,
     pub scheduler: KernelSchedulerSnapshot,
     pub tasks: Vec<KernelTaskSnapshot>,
@@ -698,7 +697,7 @@ pub enum IdentityFailureClass {
     Model,
     /// A scenario action violated its declared transition contract.
     Execution,
-    /// A Section 36 postcondition failed.
+    /// An identity-invariant postcondition failed.
     Invariant,
     /// Checked arithmetic exhausted a declared bound.
     Arithmetic,
@@ -866,7 +865,7 @@ impl IdentityScenarioRunner {
     pub fn run_with_invariant_mutation(
         scenario: &IdentityScenario,
         seed: RootSeed,
-        mutation: Section36Mutation,
+        mutation: IdentityInvariantMutation,
     ) -> Result<IdentityRunOutcome, IdentityScenarioError> {
         Self::run_configured(scenario, seed, Some(mutation))
     }
@@ -874,7 +873,7 @@ impl IdentityScenarioRunner {
     fn run_configured(
         scenario: &IdentityScenario,
         seed: RootSeed,
-        mutation: Option<Section36Mutation>,
+        mutation: Option<IdentityInvariantMutation>,
     ) -> Result<IdentityRunOutcome, IdentityScenarioError> {
         scenario.validate()?;
         let trace = Arc::new(
@@ -1056,15 +1055,15 @@ struct ScenarioWorld {
     durable_revocations: BTreeSet<String>,
     externally_discoverable: BTreeSet<String>,
     coverage: IdentityCoverage,
-    invariants: Section36Counters,
+    invariants: IdentityInvariantCounters,
     steps: Vec<IdentityStepReport>,
     rejection: Option<IdentityRejectionEvidence>,
     failure: Option<IdentityFailureEvidence>,
-    invariant_mutation: Option<Section36Mutation>,
+    invariant_mutation: Option<IdentityInvariantMutation>,
 }
 
 #[derive(Debug)]
-struct Section36Observation {
+struct IdentityInvariantObservation {
     after: AccountModelSnapshot,
     action: IdentityScenarioAction,
     action_succeeded: bool,
@@ -1075,24 +1074,24 @@ struct Section36Observation {
     account_modeled_as_device: bool,
 }
 
-impl Section36Observation {
+impl IdentityInvariantObservation {
     fn apply_mutation(
         &mut self,
-        mutation: Section36Mutation,
+        mutation: IdentityInvariantMutation,
         before: &AccountModelSnapshot,
         before_environment: &IdentityEnvironmentSnapshot,
     ) -> Result<bool, IdentityScenarioError> {
         let applied = match mutation {
-            Section36Mutation::AccountIsDevice => {
+            IdentityInvariantMutation::AccountIsDevice => {
                 self.account_modeled_as_device = true;
                 true
             }
-            Section36Mutation::OrdinaryPrivateKeyReplication => {
+            IdentityInvariantMutation::OrdinaryPrivateKeyReplication => {
                 self.ordinary_private_key_recipients
                     .insert(DeviceId::new(1));
                 true
             }
-            Section36Mutation::DeviceNotIndependentlyRevocable => {
+            IdentityInvariantMutation::DeviceNotIndependentlyRevocable => {
                 let IdentityScenarioAction::RevokeDevice { device, .. } = &self.action else {
                     return Ok(false);
                 };
@@ -1104,14 +1103,14 @@ impl Section36Observation {
                     .insert(DeviceId::new(*device), DeviceLifecycle::Active);
                 true
             }
-            Section36Mutation::PriorPolicyBypass => {
+            IdentityInvariantMutation::PriorPolicyBypass => {
                 self.action_succeeded && clear_action_approvals(&mut self.action)
             }
-            Section36Mutation::AccountIdentityChanged => {
+            IdentityInvariantMutation::AccountIdentityChanged => {
                 self.after.account_id = [0x22_u8; 32];
                 true
             }
-            Section36Mutation::ProviderCreatedState => {
+            IdentityInvariantMutation::ProviderCreatedState => {
                 if !matches!(
                     &self.action,
                     IdentityScenarioAction::ProviderOutage
@@ -1127,7 +1126,7 @@ impl Section36Observation {
                     .ok_or(IdentityScenarioError::ArithmeticOverflow)?;
                 true
             }
-            Section36Mutation::SocialRelationshipCreatedAuthority => {
+            IdentityInvariantMutation::SocialRelationshipCreatedAuthority => {
                 if !matches!(&self.action, IdentityScenarioAction::SocialRelationship) {
                     return Ok(false);
                 }
@@ -1138,7 +1137,7 @@ impl Section36Observation {
                     .ok_or(IdentityScenarioError::ArithmeticOverflow)?;
                 true
             }
-            Section36Mutation::PublishedRevocationUndiscoverable => {
+            IdentityInvariantMutation::PublishedRevocationUndiscoverable => {
                 let IdentityScenarioAction::PublishRevocation { subject } = &self.action else {
                     return Ok(false);
                 };
@@ -1148,7 +1147,7 @@ impl Section36Observation {
                 self.durable_revocations.remove(subject);
                 true
             }
-            Section36Mutation::OfflineValidationWithoutBasis => {
+            IdentityInvariantMutation::OfflineValidationWithoutBasis => {
                 if !matches!(&self.action, IdentityScenarioAction::OfflineValidate) {
                     return Ok(false);
                 }
@@ -1159,7 +1158,7 @@ impl Section36Observation {
                 };
                 true
             }
-            Section36Mutation::SensitiveActionDidNotFailClosed => {
+            IdentityInvariantMutation::SensitiveActionDidNotFailClosed => {
                 let sensitive_is_unsafe = !before_environment.provider_available
                     || !before_environment.provider_consistent
                     || before.forked;
@@ -1171,7 +1170,7 @@ impl Section36Observation {
                 self.outcome = "allowed".into();
                 true
             }
-            Section36Mutation::RevokedDeviceReceivedGroupKey => {
+            IdentityInvariantMutation::RevokedDeviceReceivedGroupKey => {
                 let IdentityScenarioAction::RevokeDevice { device, .. } = &self.action else {
                     return Ok(false);
                 };
@@ -1184,7 +1183,7 @@ impl Section36Observation {
                 }
                 true
             }
-            Section36Mutation::ConflictSilentlyMerged => {
+            IdentityInvariantMutation::ConflictSilentlyMerged => {
                 if !self.after.forked || self.outcome != "forkdetected" {
                     return Ok(false);
                 }
@@ -1198,7 +1197,9 @@ impl Section36Observation {
 }
 
 impl ScenarioWorld {
-    fn new(invariant_mutation: Option<Section36Mutation>) -> Result<Self, IdentityScenarioError> {
+    fn new(
+        invariant_mutation: Option<IdentityInvariantMutation>,
+    ) -> Result<Self, IdentityScenarioError> {
         let controllers = vec![
             ModelController::new(ControllerId::new(1), 1)?,
             ModelController::new(ControllerId::new(2), 1)?,
@@ -1223,7 +1224,7 @@ impl ScenarioWorld {
             durable_revocations: BTreeSet::new(),
             externally_discoverable: BTreeSet::new(),
             coverage: IdentityCoverage::default(),
-            invariants: Section36Counters::default(),
+            invariants: IdentityInvariantCounters::default(),
             steps: Vec::new(),
             rejection: None,
             failure: None,
@@ -1424,7 +1425,7 @@ impl ScenarioWorld {
         action_succeeded: bool,
         outcome: &str,
     ) -> Result<Vec<String>, IdentityScenarioError> {
-        let mut observation = Section36Observation {
+        let mut observation = IdentityInvariantObservation {
             after: self.model.snapshot(),
             action: action.clone(),
             action_succeeded,
@@ -1573,7 +1574,7 @@ impl ScenarioWorld {
         }
         Ok(results
             .into_iter()
-            .map(|(name, _)| format!("section36/{name}"))
+            .map(|(name, _)| format!("identity_invariant/{name}"))
             .collect())
     }
 
@@ -1862,7 +1863,7 @@ fn execute_action(
             }
         }
         IdentityScenarioAction::SocialRelationship => Ok("no_authority".into()),
-        IdentityScenarioAction::Section36Fault { mutation } => {
+        IdentityScenarioAction::InvariantFault { mutation } => {
             world.invariant_mutation = Some(*mutation);
             Ok("fault_injected".into())
         }
@@ -1906,7 +1907,7 @@ impl IdentityCoverage {
             | IdentityScenarioAction::PublishRevocation { .. }
             | IdentityScenarioAction::OfflineValidate
             | IdentityScenarioAction::SocialRelationship
-            | IdentityScenarioAction::Section36Fault { .. } => {}
+            | IdentityScenarioAction::InvariantFault { .. } => {}
         }
     }
 }
@@ -2123,7 +2124,7 @@ fn validate_action_semantics(
         | IdentityScenarioAction::PublishRevocation { .. }
         | IdentityScenarioAction::OfflineValidate
         | IdentityScenarioAction::SocialRelationship
-        | IdentityScenarioAction::Section36Fault { .. } => {}
+        | IdentityScenarioAction::InvariantFault { .. } => {}
     }
     Ok(())
 }
@@ -2290,7 +2291,7 @@ fn action_name(action: &IdentityScenarioAction) -> &'static str {
         IdentityScenarioAction::PublishRevocation { .. } => "publish_revocation",
         IdentityScenarioAction::OfflineValidate => "offline_validate",
         IdentityScenarioAction::SocialRelationship => "social_relationship",
-        IdentityScenarioAction::Section36Fault { .. } => "section36_fault",
+        IdentityScenarioAction::InvariantFault { .. } => "invariant_fault",
     }
 }
 
@@ -2318,7 +2319,7 @@ fn action_approvals(action: &IdentityScenarioAction) -> Option<&[u16]> {
         | IdentityScenarioAction::PublishRevocation { .. }
         | IdentityScenarioAction::OfflineValidate
         | IdentityScenarioAction::SocialRelationship
-        | IdentityScenarioAction::Section36Fault { .. } => None,
+        | IdentityScenarioAction::InvariantFault { .. } => None,
     }
 }
 
@@ -2346,7 +2347,7 @@ fn clear_action_approvals(action: &mut IdentityScenarioAction) -> bool {
         | IdentityScenarioAction::PublishRevocation { .. }
         | IdentityScenarioAction::OfflineValidate
         | IdentityScenarioAction::SocialRelationship
-        | IdentityScenarioAction::Section36Fault { .. } => return false,
+        | IdentityScenarioAction::InvariantFault { .. } => return false,
     };
     if approvals.is_empty() {
         return false;
@@ -2418,7 +2419,7 @@ pub enum IdentityScenarioError {
     ExpectedRejection(String),
     #[error("identity scenario execution failed: {0}")]
     Execution(String),
-    #[error("Section 36 invariant failed: {0}")]
+    #[error("identity invariant failed: {0}")]
     Invariant(String),
     #[error("identity scenario arithmetic overflow")]
     ArithmeticOverflow,
