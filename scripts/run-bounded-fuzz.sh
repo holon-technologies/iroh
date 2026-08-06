@@ -230,21 +230,47 @@ reject_managed_tree_symlinks() {
   local path="$1"
   local phase="$2"
   local failure_file="${3:-}"
-  local symlink
+  local attempt output line
+  local saw_disappearing unexpected
 
   if [[ ! -e "$path" && ! -L "$path" ]]; then
     return 0
   fi
-  symlink="$(find "$path" -ignore_readdir_race -type l -print -quit)" || {
-    write_budget_failure "$failure_file" \
-      "could not inspect managed fuzz tree $phase: $path"
-    return 1
-  }
-  if [[ -n "$symlink" ]]; then
-    write_budget_failure "$failure_file" \
-      "managed fuzz write tree contains a symlink $phase: $symlink"
-    return 1
-  fi
+
+  for attempt in 1 2 3; do
+    if output="$(LC_ALL=C find "$path" -ignore_readdir_race -type l -print -quit 2>&1)"; then
+      if [[ -n "$output" ]]; then
+        write_budget_failure "$failure_file" \
+          "managed fuzz write tree contains a symlink $phase: $output"
+        return 1
+      fi
+      return 0
+    fi
+
+    saw_disappearing=0
+    unexpected=0
+    while IFS= read -r line; do
+      if [[ "$line" == "find: '$path/"*"': No such file or directory" ]]; then
+        saw_disappearing=1
+      else
+        unexpected=1
+      fi
+    done <<<"$output"
+
+    if (( saw_disappearing == 0 || unexpected == 1 )); then
+      [[ -z "$output" ]] || printf '%s\n' "$output" >&2
+      write_budget_failure "$failure_file" \
+        "could not inspect managed fuzz tree $phase: $path"
+      return 1
+    fi
+    # Cargo can remove a temporary descendant while find traverses target/.
+    # Require a later complete traversal instead of accepting a partial scan.
+  done
+
+  [[ -z "$output" ]] || printf '%s\n' "$output" >&2
+  write_budget_failure "$failure_file" \
+    "could not inspect managed fuzz tree $phase: $path"
+  return 1
 }
 
 reject_managed_artifact_aliases() {

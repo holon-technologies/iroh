@@ -306,6 +306,17 @@ if [[ -n "${MOCK_FIND_RACE_PATH:-}" && "$path" == "$MOCK_FIND_RACE_PATH" ]]; the
     printf "find: '%s/transient-entry': No such file or directory\n" "$path" >&2
     exit 1
   fi
+  if [[ -n "${MOCK_FIND_RACE_MARKER:-}" && ! -e "$MOCK_FIND_RACE_MARKER" ]]; then
+    : > "$MOCK_FIND_RACE_MARKER"
+    printf "find: '%s/transient-entry': No such file or directory\n" "$path" >&2
+    /usr/bin/find "$@"
+    exit 1
+  fi
+  if [[ "${MOCK_FIND_RACE_ALWAYS:-}" == 1 ]]; then
+    printf "find: '%s/transient-entry': No such file or directory\n" "$path" >&2
+    /usr/bin/find "$@"
+    exit 1
+  fi
 fi
 exec /usr/bin/find "$@"
 EOF
@@ -746,13 +757,36 @@ fi
 
 rm -rf -- "$fixture_root/artifacts"
 mkdir -p "$fixture_root/artifacts"
-rm -f "$fixture_root/cargo-started"
+rm -f "$fixture_root/cargo-started" "$fixture_root/find-race-observed"
 if ! env "${common_fixture_env[@]}" MOCK_FUZZ_MODE=clean \
   MOCK_FIND_RACE_PATH="$repo_root/fuzz/target" \
+  MOCK_FIND_RACE_MARKER="$fixture_root/find-race-observed" \
   "$runner" --seconds 1 --target doh_extract --artifacts "$fixture_root/artifacts" \
   >"$fixture_root/find-race.log" 2>&1; then
   printf '%s\n' 'runner treated a disappearing find entry as a permanent traversal failure' >&2
   cat "$fixture_root/find-race.log" >&2
+  exit 1
+fi
+[[ -f "$fixture_root/find-race-observed" ]] || {
+  printf '%s\n' 'find race fixture did not exercise the disappearing-entry path' >&2
+  exit 1
+}
+
+rm -rf -- "$fixture_root/artifacts"
+mkdir -p "$fixture_root/artifacts"
+rm -f "$fixture_root/cargo-started"
+if env "${common_fixture_env[@]}" MOCK_FUZZ_MODE=clean \
+  MOCK_FIND_RACE_PATH="$repo_root/fuzz/target" \
+  MOCK_FIND_RACE_ALWAYS=1 \
+  "$runner" --seconds 1 --target doh_extract --artifacts "$fixture_root/artifacts" \
+  >"$fixture_root/persistent-find-race.log" 2>&1; then
+  printf '%s\n' 'runner accepted a persistently incomplete find traversal' >&2
+  exit 1
+fi
+grep -Fq -- 'could not inspect managed fuzz tree before setup' \
+  "$fixture_root/persistent-find-race.log"
+if [[ -f "$fixture_root/cargo-started" ]]; then
+  printf '%s\n' 'runner started cargo after persistently incomplete find traversals' >&2
   exit 1
 fi
 
