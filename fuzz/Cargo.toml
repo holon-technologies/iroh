@@ -13,11 +13,15 @@ krikos-dns-server = { path = "../krikos-dns-server", default-features = false, f
 krikos-relay = { path = "../krikos-relay", default-features = false, features = ["fuzzing"] }
 krikos-base = { path = "../krikos-base", default-features = false, features = ["key"] }
 krikos-gossip = { path = "../protocols/krikos-gossip", default-features = false }
+krikos-identity = { path = "../protocols/krikos-identity", default-features = false, features = ["net", "provider-store"] }
 krikos-app = { path = "../framework/app", features = ["fuzzing"] }
 krikos-blobs = { path = "../protocols/krikos-blobs", default-features = false }
 krikos-docs = { path = "../protocols/krikos-docs", default-features = false }
 libfuzzer-sys = "0.4"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
+tempfile = "3.20"
+futures-lite = "2"
+rand_core = { version = "0.10", default-features = false }
 
 [workspace]
 members = ["."]
@@ -86,6 +90,69 @@ bench = false
 [[bin]]
 name = "doc_ticket"
 path = "fuzz_targets/doc_ticket.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_foundation"
+path = "fuzz_targets/identity_foundation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_schema"
+path = "fuzz_targets/identity_schema.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_capability"
+path = "fuzz_targets/identity_capability.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_merkle"
+path = "fuzz_targets/identity_merkle.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_state"
+path = "fuzz_targets/identity_state.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_pairing"
+path = "fuzz_targets/identity_pairing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_sync"
+path = "fuzz_targets/identity_sync.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_provider"
+path = "fuzz_targets/identity_provider.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identity_semantics"
+path = "fuzz_targets/identity_semantics.rs"
 test = false
 doc = false
 bench = false

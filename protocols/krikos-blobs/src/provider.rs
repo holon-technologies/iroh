@@ -2,7 +2,7 @@
 //!
 //! Note that while using this API directly is fine, the standard way
 //! to provide data is to just register a [`crate::BlobsProtocol`] protocol
-//! handler with an [`krikos::Endpoint`](krikos::protocol::Router).
+//! handler with a [`krikos::protocol::Router`].
 use std::{fmt::Debug, future::Future, io};
 
 use bao_tree::ChunkRanges;
@@ -252,10 +252,10 @@ impl WriteProgress for WriterContext {
     }
 }
 
-/// Wrapper for a [`noq::SendStream`] with additional per request information.
+/// Wrapper for a [`SendStream`] with additional per-request information.
 #[derive(Debug)]
 pub struct ProgressWriter<W: SendStream = DefaultWriter> {
-    /// The noq::SendStream to write to
+    /// The send stream to write to.
     pub inner: W,
     pub(crate) context: WriterContext,
 }

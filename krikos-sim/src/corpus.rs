@@ -217,7 +217,7 @@ impl CorpusMetadata {
             || self.scenario_file != "scenario.json"
             || self.provenance.is_empty()
             || self.minimum_simulator_version.is_empty()
-            || !self.issue.as_ref().is_some_and(|issue| !issue.is_empty())
+            || self.issue.as_ref().is_none_or(|issue| issue.is_empty())
         {
             return Err(CorpusError::InvalidMetadata(self.id.clone()));
         }

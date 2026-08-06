@@ -1054,7 +1054,7 @@ impl FourTuple {
         }
     }
 
-    /// Returns the [`FourTuple] for a noq network path by looking up QUIC-mapped addresses.
+    /// Returns the [`FourTuple`] for a noq network path by looking up QUIC-mapped addresses.
     pub(super) fn from_noq(
         noq_four_tuple: noq::FourTuple,
         relay_mapped_addrs: &AddrMap<(RelayUrl, EndpointId), RelayMappedAddr>,

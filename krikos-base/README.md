@@ -12,6 +12,11 @@ Krikos crates: keys, addresses, and other foundations that
 Most applications should depend on [`krikos`](../krikos), not on this crate
 directly.
 
+The deterministic `key-types` feature exposes key, signature, endpoint-identifier, and address
+types without an operating-system randomness dependency. `os-rng` adds the
+`SecretKey::generate` convenience API, while the existing `key` feature remains a compatibility
+aggregate for `key-types` plus `os-rng`.
+
 ## Documentation
 
 See the [root README](../README.md) for what Krikos is, and

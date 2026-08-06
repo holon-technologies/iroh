@@ -6,8 +6,9 @@
 # allows yanking but never deletion — which is the accepted cost of holding a
 # name. See docs/adr/0002-krikos-rebrand.md.
 #
-# Requires a crates.io token: `cargo login` first. Run with --dry-run to see
-# exactly what would be published without contacting the registry.
+# Publishing requires a crates.io token (`cargo login`). `--dry-run` never
+# publishes, but it still queries crates.io to distinguish available names from
+# names that are already registered.
 set -euo pipefail
 
 names=(
@@ -22,6 +23,7 @@ names=(
   krikos-blobs
   krikos-docs
   krikos-gossip
+  krikos-identity
   krikos-sim
   krikos-noq
   krikos-hickory-server

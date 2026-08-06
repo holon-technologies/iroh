@@ -22,7 +22,7 @@ const ADDR_PREFIXL: u8 = 0xfd;
 /// The Global ID used in n0's Unique Local Addresses.
 const ADDR_GLOBAL_ID: [u8; 5] = [0x15, 0x07, 0x0a, 0x51, 0x0b];
 
-/// The Subnet ID for [`RelayMappedAddr]: fd15:70a:510b:1::/64.
+/// The Subnet ID for [`RelayMappedAddr`]: fd15:70a:510b:1::/64.
 const RELAY_MAPPED_SUBNET: [u8; 2] = [0x00, 0x01];
 
 /// The Subnet ID for [`CustomMappedAddr`]: fd15:70a:510b:3::/64.

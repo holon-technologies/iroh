@@ -1374,7 +1374,7 @@ impl State {
         }
     }
 
-    /// Returns the [`transports::FourTuple] for a path.
+    /// Returns the [`transports::FourTuple`] for a path.
     fn transport_tuple_for_path(&self, path: &noq::Path) -> Option<transports::FourTuple> {
         let noq_network_path = path.network_path().ok()?;
         transports::FourTuple::from_noq(
@@ -1826,7 +1826,7 @@ impl Future for OnClosed {
     }
 }
 
-/// Converts an iterator of [`TransportAddr'] into an iterator of [`transports::Addr`].
+/// Converts an iterator of [`TransportAddr`] into an iterator of [`transports::Addr`].
 fn to_transports_addr(
     endpoint_id: EndpointId,
     addrs: impl IntoIterator<Item = TransportAddr>,

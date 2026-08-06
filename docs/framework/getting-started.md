@@ -74,6 +74,23 @@ two-node flow. The acceptance package runs that architecture directly and throug
 including restart, read-capability enforcement, content verification, idempotent resync, and a
 custom ALPN.
 
+## Opt-in account identity protocols
+
+Enable `krikos-app`'s `identity` feature and supply an `IdentityProtocolComponent` when the
+application needs Krikos account pairing, sync, proposals, checkpoints, transparency gossip, or
+recovery on the standard endpoint. The component receives an account `AccountStore`, service
+callbacks, a verified-checkpoint view, and a cursor key, then registers the six versioned identity
+ALPNs under the bundle's existing supervisor. It is default-deny until the supplied service
+authorizes an operation.
+
+The two identity stores have deliberately different owners. `krikos-app::IdentityStore` persists
+the endpoint transport secret used to establish connections. The `krikos_identity::AccountStore`
+supplied to `IdentityProtocolComponent` persists account-control source records and effects; it
+never receives that endpoint secret. See `framework/app/examples/identity.rs` for the minimal
+ephemeral composition and the identity crate's
+[`security and deployment guide`](../../protocols/krikos-identity/docs/security-and-deployment.md)
+before enabling mutating service callbacks.
+
 ## Lower-level composition
 
 Applications that need a different lifecycle may use `krikos-blobs`, `krikos-gossip`, or `krikos-docs`

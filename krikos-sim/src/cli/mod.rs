@@ -37,6 +37,7 @@ use crate::{
 mod campaign;
 mod corpus;
 mod gate;
+mod identity;
 mod parity;
 mod replay;
 mod run;
@@ -46,6 +47,7 @@ mod soak;
 use campaign::*;
 use corpus::*;
 use gate::*;
+use identity::*;
 use parity::*;
 use replay::*;
 use run::*;
@@ -222,6 +224,11 @@ enum Command {
     },
     /// Explain a manifest or trace artifact.
     Explain { artifact: PathBuf },
+    /// Check deterministic identity scenarios, differential histories, and the formal model.
+    Identity {
+        #[command(subcommand)]
+        operation: IdentityCommand,
+    },
     /// Export or compare backend-neutral semantic parity fixtures.
     Parity {
         #[command(subcommand)]
@@ -263,6 +270,46 @@ enum ParityCommand {
         actual: PathBuf,
         #[arg(long)]
         output: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum IdentityCommand {
+    /// Run one strict identity scenario and write immutable replay artifacts.
+    Run {
+        scenario: PathBuf,
+        /// Lowercase 32-byte hexadecimal root seed.
+        #[arg(long)]
+        seed: String,
+        /// Fresh immutable artifact directory.
+        #[arg(long)]
+        artifacts: PathBuf,
+        /// Hard action-deletion attempt budget used only after a confirmed failure.
+        #[arg(long, default_value_t = 1_024)]
+        max_minimization_attempts: u64,
+    },
+    /// Re-run an identity artifact bundle and require byte-exact report and traces.
+    Replay { manifest: PathBuf },
+    /// Validate and replay the complete reviewed identity corpus.
+    CorpusTest { path: PathBuf },
+    /// Run the hermetic bounded account-control checker.
+    ModelCheck,
+    /// Run one deterministic implementation/reference history.
+    Differential {
+        /// Lowercase 32-byte hexadecimal root seed.
+        #[arg(long)]
+        seed: String,
+    },
+    /// Replay a minimized failure and stage an unreviewed permanent-corpus candidate.
+    PromotionCandidate {
+        /// Failure bundle manifest produced by `identity run`.
+        manifest: PathBuf,
+        /// Fresh directory for `scenario.json` and pending `entry.json`.
+        #[arg(long)]
+        output: PathBuf,
+        /// Human-review issue or audit reference recorded in promotion evidence.
+        #[arg(long)]
+        issue: String,
     },
 }
 
@@ -362,6 +409,7 @@ pub fn run(args: impl IntoIterator<Item = OsString>) -> Result<(), CliError> {
         } => execute_minimize(&manifest, output.as_deref(), resume, max_attempts),
         Command::Corpus { operation, path } => execute_corpus(&operation, path.as_deref()),
         Command::Explain { artifact } => execute_explain(&artifact),
+        Command::Identity { operation } => execute_identity(operation),
         Command::Parity { operation } => match operation {
             ParityCommand::Export {
                 case,

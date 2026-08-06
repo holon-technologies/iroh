@@ -3,6 +3,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+toolchain="${KRIKOS_IDENTITY_TOOLCHAIN:-1.91.0}"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
@@ -10,12 +11,14 @@ packages=(
   protocols/krikos-blobs
   protocols/krikos-gossip
   protocols/krikos-docs
+  protocols/krikos-identity
   framework/app
 )
 
 for package in "${packages[@]}"; do
   listing="$scratch/${package//\//-}.txt"
-  cargo package \
+  cargo "+$toolchain" package \
+    --locked \
     --list \
     --allow-dirty \
     --manifest-path "$repo_root/$package/Cargo.toml" \

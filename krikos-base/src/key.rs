@@ -301,7 +301,7 @@ impl SecretKey {
         PublicKey(CompressedEdwardsY(key))
     }
 
-    /// Generate a new [`SecretKey`] with a randomness generator.
+    /// Generate a new [`SecretKey`] using operating-system entropy.
     ///
     /// This uses the default random number generator from the `rand` crate.
     /// If you want to customize how the randomness is generated, use
@@ -315,6 +315,8 @@ impl SecretKey {
     /// // Use it to generate the 32 bytes that make up a secret key.
     /// let secret_key = SecretKey::from_bytes(&rng.random());
     /// ```
+    #[cfg(feature = "os-rng")]
+    #[cfg_attr(krikos_docsrs, doc(cfg(feature = "os-rng")))]
     pub fn generate() -> Self {
         Self::from_bytes(&rand::random())
     }
@@ -498,7 +500,6 @@ fn decode_base32_hex(s: &str) -> Result<[u8; 32], KeyParsingError> {
 #[cfg(test)]
 mod tests {
     use data_encoding::HEXLOWER;
-    use rand::{RngExt, SeedableRng};
 
     use super::*;
 
@@ -532,8 +533,7 @@ mod tests {
 
     #[test]
     fn test_from_str() {
-        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0u64);
-        let key = SecretKey::from_bytes(&rng.random());
+        let key = SecretKey::from_bytes(&[0x41; 32]);
         assert_eq!(
             SecretKey::from_str(&HEXLOWER.encode(&key.to_bytes()))
                 .unwrap()
@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     fn signature_postcard() {
-        let key = SecretKey::generate();
+        let key = SecretKey::from_bytes(&[0x42; 32]);
         let signature = key.sign(b"hello world");
         let bytes = postcard::to_stdvec(&signature).unwrap();
         let signature2: Signature = postcard::from_bytes(&bytes).unwrap();

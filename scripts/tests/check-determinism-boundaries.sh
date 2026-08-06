@@ -7,12 +7,16 @@ checker="$repo_root/scripts/check-determinism-boundaries.sh"
 fixture_root=$(mktemp -d)
 trap 'rm -rf "$fixture_root"' EXIT
 
-mkdir -p "$fixture_root/krikos/src" "$fixture_root/krikos-runtime/src" "$fixture_root/scripts"
+mkdir -p \
+  "$fixture_root/krikos/src" \
+  "$fixture_root/krikos-runtime/src" \
+  "$fixture_root/protocols/krikos-identity/src" \
+  "$fixture_root/scripts"
 # The checker's SOURCE_ROOTS list is fixed; every root must exist below
 # --root and contain at least one .rs file, or the checker now errors
 # loudly (neither a missing root nor a present-but-empty root may silently
-# narrow the scan). Only krikos/ and krikos-runtime/ carry the fixture
-# content the assertions below exercise -- the rest each get one trivial
+# narrow the scan). Krikos, krikos-runtime, and the identity protocol carry
+# the fixture content exercised below; the rest each get one trivial
 # placeholder .rs file so they satisfy the per-root minimum without
 # contributing any boundary occurrences.
 placeholder_roots=(krikos-base krikos-resolver krikos-dns krikos-dns-server krikos-relay krikos-sim)
@@ -23,12 +27,21 @@ done
 baseline="$fixture_root/scripts/determinism-boundaries.txt"
 source_file="$fixture_root/krikos/src/lib.rs"
 runtime_source="$fixture_root/krikos-runtime/src/lib.rs"
+identity_source="$fixture_root/protocols/krikos-identity/src/lib.rs"
 
 printf '%s\n' 'pub fn deterministic() {}' > "$source_file"
 printf '%s\n' 'pub fn runtime_capability() {}' > "$runtime_source"
+printf '%s\n' \
+  'pub fn secure_entropy(bytes: &mut [u8]) { getrandom::fill(bytes).unwrap(); }' \
+  > "$identity_source"
 
 "$checker" --update --root "$fixture_root" --baseline "$baseline"
 "$checker" --check --root "$fixture_root" --baseline "$baseline"
+
+if ! grep -Fq $'entropy-random\tprotocols/krikos-identity/src/lib.rs:1\tpub fn secure_entropy(bytes: &mut [u8]) { getrandom::fill(bytes).unwrap(); }' "$baseline"; then
+  echo "updated baseline does not include the identity protocol source root" >&2
+  exit 1
+fi
 
 printf '%s\n' 'pub fn detached() { tokio::spawn(async {}); }' >> "$source_file"
 

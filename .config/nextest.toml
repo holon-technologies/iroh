@@ -79,6 +79,65 @@ filter = 'package(krikos-docs)'
 # 150s ceiling — see the profile.ci.overrides entry above for the same filter.
 slow-timeout = { period = "30s", terminate-after = 5 }
 
+# This conformance test must cross the exact 256-entry lineage-retention boundary
+# before proving that a late branch is authenticated from durable events. Batching
+# removes repeated store-clone overhead, but the remaining signature verification
+# and durable lineage reconstruction still take roughly 15-20s in isolation and
+# exceeded the generic 30s ceiling twice on a contended macOS runner. Keep the
+# exception exact and finite so a genuine hang still fails.
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(store_conformance) & test(=evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(store_conformance) & test(=evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+# This interchange conformance test intentionally builds 257 fully authenticated
+# provider and audit records to cross the 256-item chunk boundary, then repeats
+# assembly over reordered and tampered variants. It takes roughly 55s in isolation
+# and exceeded the generic ceiling on a contended Ubuntu runner. Retain a finite
+# 150s ceiling for this exact boundary test.
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(provider_wire_formats) & test(=provider_interchange_assembles_out_of_order_and_rejects_tampering)'
+slow-timeout = { period = "30s", terminate-after = 5 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(provider_wire_formats) & test(=provider_interchange_assembles_out_of_order_and_rejects_tampering)'
+slow-timeout = { period = "30s", terminate-after = 5 }
+
+# These all-feature durability tests intentionally perform repeated authenticated
+# redb commits and crash/reopen validation. The recovery test reconciles rotation,
+# publication, and notification effects across every durable boundary; the
+# provider tests exercise competing four-stage appends and retain fork rejection
+# after reopen. They are deterministic and bounded, but repeatedly crossed the
+# generic 30s ceiling on contended Ubuntu and Windows runners. Keep each exception
+# exact and finite at 90s so unrelated identity tests still fail at the generic
+# ceiling.
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(operational_recovery) & test(=finalized_recovery_effects_reconcile_across_every_durable_boundary)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(operational_recovery) & test(=finalized_recovery_effects_reconcile_across_every_durable_boundary)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(provider_persistence) & test(=concurrent_redb_appends_are_linearizable_and_duplicate_idempotent)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(provider_persistence) & test(=concurrent_redb_appends_are_linearizable_and_duplicate_idempotent)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(provider_persistence) & test(=redb_checkpoint_index_reopens_without_selecting_a_longer_fork)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(provider_persistence) & test(=redb_checkpoint_index_reopens_without_selecting_a_longer_fork)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'

@@ -105,7 +105,7 @@ name = "krikos-sim"
 path = "krikos-sim"
 workspace = "sim"
 layer = "tooling"
-allowed_normal = ["krikos", "krikos-relay", "krikos-runtime"]
+allowed_normal = ["krikos", "krikos-base", "krikos-identity", "krikos-relay", "krikos-runtime"]
 allowed_dev = []
 
 [[packages]]
@@ -125,6 +125,14 @@ allowed_normal = ["krikos", "krikos-base"]
 allowed_dev = ["krikos"]
 
 [[packages]]
+name = "krikos-identity"
+path = "protocols/krikos-identity"
+workspace = "root"
+layer = "protocol"
+allowed_normal = ["krikos", "krikos-base"]
+allowed_dev = ["krikos"]
+
+[[packages]]
 name = "krikos-docs"
 path = "protocols/krikos-docs"
 workspace = "root"
@@ -137,7 +145,7 @@ name = "krikos-app"
 path = "framework/app"
 workspace = "root"
 layer = "framework"
-allowed_normal = ["krikos", "krikos-base", "krikos-blobs", "krikos-docs", "krikos-gossip"]
+allowed_normal = ["krikos", "krikos-base", "krikos-blobs", "krikos-docs", "krikos-gossip", "krikos-identity"]
 allowed_dev = []
 
 [[packages]]

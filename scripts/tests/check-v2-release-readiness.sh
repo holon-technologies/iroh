@@ -47,10 +47,14 @@ for path in \
   scripts/tests/check-v2-semver-policy.sh \
   scripts/tests/check-release-fork-boundary.sh \
   scripts/tests/check-local-first-framework-ci.sh \
+  scripts/tests/check-identity-release-gate.sh \
   scripts/check-framework-release-gate.py \
+  scripts/check-identity-release-gate.py \
   scripts/check-framework-package-layout.sh \
   scripts/verify-release-packages.sh \
   framework/release-gate.toml \
+  protocols/krikos-identity/release-gate.toml \
+  protocols/krikos-identity/docs/release-gate.md \
   docs/framework/upstream-sync.md \
   docs/release/v2-migration.md \
   docs/release/v2-release-checklist.md \
@@ -138,6 +142,7 @@ for lock_path in sys.argv[1:]:
             "krikos-dns-server",
             "krikos-docs",
             "krikos-gossip",
+            "krikos-identity",
             "krikos-relay",
             "krikos-runtime",
             "krikos-resolver",
@@ -168,6 +173,19 @@ done
 
 require_text scripts/run-bounded-fuzz.sh 'fuzz_toolchain="${KRIKOS_FUZZ_TOOLCHAIN:-nightly-2026-07-19}"'
 require_text scripts/run-bounded-fuzz.sh 'cargo "+$fuzz_toolchain" fuzz run'
+require_text docs/release/v2-release-checklist.md 'All eighteen bounded fuzz smoke targets'
+for target in \
+  identity_foundation \
+  identity_schema \
+  identity_capability \
+  identity_merkle \
+  identity_state \
+  identity_pairing \
+  identity_sync \
+  identity_provider \
+  identity_semantics; do
+  require_text docs/release/v2-release-checklist.md "$target"
+done
 
 nightly="$repo_root/.github/workflows/simulation-nightly.yml"
 if grep -Eq '^[[:space:]]+seed: [0-9a-f]{64}[[:space:]]*$' "$nightly"; then
@@ -251,9 +269,17 @@ require_text .github/workflows/ci.yml 'scripts/tests/check-release-fork-boundary
 require_text .github/workflows/ci.yml 'scripts/run-v2-semver-checks.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-v2-semver-policy.sh'
 require_text .github/workflows/ci.yml 'scripts/tests/check-local-first-framework-ci.sh'
+require_text .github/workflows/ci.yml 'python3 scripts/check-identity-release-gate.py --expect-closed'
+require_text .github/workflows/ci.yml 'scripts/tests/check-identity-release-gate.sh'
+require_text .github/workflows/release.yml 'python3 scripts/check-identity-release-gate.py --expect-closed'
+require_text scripts/test-local-first-framework.sh 'python3 scripts/check-identity-release-gate.py --expect-closed'
+require_text scripts/check-framework-package-layout.sh '  protocols/krikos-identity'
+require_text scripts/reserve-crate-names.sh '  krikos-identity'
 require_text Makefile.toml '"framework/app"'
 require_text Makefile.toml '"protocols/krikos-blobs"'
 require_text Makefile.toml '[tasks.local-first-framework]'
+require_text Makefile.toml '[tasks.identity-release-gate]'
+require_text Makefile.toml '"protocols/krikos-identity"'
 require_text .github/workflows/tests.yaml 'runs-on: windows-2022'
 require_text .github/workflows/tests.yaml 'toolchain: nightly-2026-07-19'
 postcard_override_count=$(grep -Fc -- 'update -p postcard-derive --precise 0.2.2' \
@@ -286,6 +312,7 @@ if grep -Fq -- 'cargo-semver-checks-action' "$repo_root/.github/workflows/ci.yml
 fi
 require_text .github/workflows/release.yml 'scripts/verify-release-packages.sh'
 require_text .github/workflows/release.yml 'scripts/check-framework-release-gate.py --expect-closed'
+require_text docs/release/v2-release-checklist.md 'protocols/krikos-identity/release-gate.toml'
 require_text scripts/verify-release-packages.sh 'krikos-noq krikos-hickory-server krikos-base krikos-runtime krikos-resolver krikos-dns krikos-relay krikos krikos-dns-server'
 require_text docs/release/v2-migration.md 'PkarrRelayClient::new'
 require_text docs/release/v2-migration.md 'krikos_resolver::Builder::build'

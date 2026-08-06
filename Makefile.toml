@@ -15,6 +15,7 @@ CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = [
   "protocols/krikos-blobs",
   "protocols/krikos-docs",
   "protocols/krikos-gossip",
+  "protocols/krikos-identity",
   "tools/determinism-checker",
 ]
 
@@ -52,3 +53,9 @@ description = "Prove provisional protocol/framework packages remain unpublished"
 workspace = false
 command = "python3"
 args = ["scripts/check-framework-release-gate.py", "--expect-closed"]
+
+[tasks.identity-release-gate]
+description = "Prove krikos-identity remains outside the stable publication set"
+workspace = false
+command = "python3"
+args = ["scripts/check-identity-release-gate.py", "--expect-closed"]

@@ -5,13 +5,12 @@
 //!
 //! The entry point for the api is the [`Store`] struct. There are several ways
 //! to obtain a `Store` instance: it is available via [`Deref`]
-//! from the different store implementations
-//! (e.g. [`MemStore`](crate::store::mem::MemStore)
-//! and [`FsStore`](crate::store::fs::FsStore)) as well as on the
+//! from the different store implementations (e.g. [`MemStore`](crate::store::mem::MemStore) and,
+//! with the `fs-store` feature, `FsStore`) as well as on the
 //! [`BlobsProtocol`](crate::BlobsProtocol) krikos protocol handler.
 //!
-//! You can also [`connect`](Store::connect) to a remote store that is listening
-//! to rpc requests.
+//! With the `rpc` feature, you can also use `Store::connect` to connect to a remote store that is
+//! listening for RPC requests.
 use std::{io, ops::Deref};
 
 use bao_tree::io::EncodeError;

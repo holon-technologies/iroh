@@ -154,7 +154,7 @@ pub struct GcConfig {
 
 /// Returned from [`ProtectCb`].
 ///
-/// See [`GcConfig::add_protected] for details.
+/// See [`GcConfig::add_protected`] for details.
 #[derive(Debug)]
 pub enum ProtectOutcome {
     /// Continue with the garbage collection run.
@@ -165,7 +165,7 @@ pub enum ProtectOutcome {
 
 /// The type of the garbage collection callback.
 ///
-/// See [`GcConfig::add_protected] for details.
+/// See [`GcConfig::add_protected`] for details.
 pub type ProtectCb = Arc<
     dyn for<'a> Fn(
             &'a mut HashSet<Hash>,

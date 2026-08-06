@@ -31,6 +31,12 @@ for text in "${required[@]}"; do
   fi
 done
 
+contracts_job=$(sed -n '/^  simulation_contracts:/,/^  simulation_gate:/p' "$workflow")
+if ! grep -Fq -- 'components: clippy' <<<"$contracts_job"; then
+  echo "simulation contracts job must install clippy before running its code-quality checks" >&2
+  exit 1
+fi
+
 gate_job=$(sed -n '/^  simulation_gate:/,/^  cross_build:/p' "$workflow")
 if grep -Eq -- '--seeds ["'\'']?[0-9]+\.\.[0-9]+' <<<"$gate_job"; then
   echo "change gate must not contain fixed exploratory seed ranges" >&2

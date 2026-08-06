@@ -1,9 +1,9 @@
 //! Store implementations
 //!
 //! Use the [`mem`] store for sharing a small amount of mutable data,
-//! the [`readonly_mem`] store for sharing static data, and the [`fs`] store
-//! for when you want to efficiently share more than the available memory and
-//! have access to a writeable filesystem.
+//! the [`readonly_mem`] store for sharing static data, and, with the `fs-store` feature, the `fs`
+//! store for when you want to efficiently share more than the available memory and have access to
+//! a writeable filesystem.
 use bao_tree::BlockSize;
 #[cfg(feature = "fs-store")]
 #[cfg_attr(krikos_blobs_docsrs, doc(cfg(feature = "fs-store")))]

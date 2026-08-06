@@ -19,3 +19,8 @@ vendor/** -text
 docs/history/CHANGELOG_old.md linguist-generated
 **/Cargo.lock linguist-generated
 docs/testing/resource-canary/** linguist-generated
+
+# Canonical identity fixtures and fuzz corpora are byte strings, even when a
+# particular seed happens to be valid UTF-8. Never normalize or text-diff them.
+protocols/krikos-identity/tests/vectors/*.bin binary linguist-generated
+fuzz/corpus/identity_*/* binary linguist-generated

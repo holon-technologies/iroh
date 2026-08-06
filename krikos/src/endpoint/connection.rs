@@ -451,13 +451,18 @@ fn conn_from_noq_conn(
 
     // Register this connection with the socket.
     let fut = ep.inner.register_connection(info.endpoint_id, conn.clone());
+    let local_endpoint_id = ep.id();
 
     // Check hooks
     let inner = ep.inner.clone();
     Ok(async move {
         let paths = fut.await?;
         let conn = Connection {
-            data: HandshakeCompletedData { info, paths },
+            data: HandshakeCompletedData {
+                info,
+                paths,
+                local_endpoint_id,
+            },
             inner: conn,
         };
 
@@ -862,6 +867,7 @@ pub struct Connection<State: ConnectionState = HandshakeCompleted> {
 pub struct HandshakeCompletedData {
     info: StaticInfo,
     paths: PathStateReceiver,
+    local_endpoint_id: EndpointId,
 }
 
 /// Static info from a completed TLS handshake.
@@ -1243,6 +1249,14 @@ impl Connection<HandshakeCompleted> {
     /// [`PublicKey`]: krikos_base::PublicKey
     pub fn remote_id(&self) -> EndpointId {
         self.data.info.endpoint_id
+    }
+
+    /// Returns the locally owned endpoint ID that created or accepted this connection.
+    ///
+    /// Unlike a caller-supplied endpoint hint, this value is captured from the owning endpoint
+    /// when the completed connection is registered.
+    pub fn local_id(&self) -> EndpointId {
+        self.data.local_endpoint_id
     }
 
     /// Returns the currently open network paths for this connection.

@@ -23,7 +23,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   SCCACHE_CACHE_SIZE: "10G"
-  CRATES_LIST: "krikos,krikos-app,krikos-base,krikos-bench,krikos-blobs,krikos-dns,krikos-dns-server,krikos-docs,krikos-gossip,krikos-relay,krikos-resolver,krikos-runtime"
+  CRATES_LIST: "krikos,krikos-app,krikos-base,krikos-bench,krikos-blobs,krikos-dns,krikos-dns-server,krikos-docs,krikos-gossip,krikos-identity,krikos-relay,krikos-resolver,krikos-runtime"
   KRIKOS_FORCE_STAGING_RELAYS: "1"
   NEXTEST_VERSION: "0.9.80"
 
