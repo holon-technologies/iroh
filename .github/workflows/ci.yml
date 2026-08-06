@@ -42,6 +42,10 @@ jobs:
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4  # stable
         with:
           toolchain: ${{ env.MSRV }}
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
       - name: Prove experimental publication gate is closed
         run: python3 scripts/check-framework-release-gate.py --expect-closed
       - name: Prove identity stable-release gate is closed

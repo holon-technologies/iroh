@@ -44,6 +44,12 @@ require_text .github/workflows/ci.yml 'scripts/check-framework-release-gate.py -
 require_text .github/workflows/ci.yml 'scripts/check-identity-interop-vectors.sh'
 require_text .github/workflows/ci.yml 'scripts/check-identity-wire-inventory.sh'
 require_line .github/workflows/ci.yml '^[[:space:]]*run:[[:space:]]+scripts/check-identity-doc-links\.py[[:space:]]*$'
+local_first_job=$(sed -n '/^  local_first_framework:/,/^  fuzz_smoke:/p' \
+  "$repo_root/.github/workflows/ci.yml")
+if ! grep -Fq -- 'sudo apt-get install --yes ripgrep' <<<"$local_first_job"; then
+  printf '%s\n' 'local-first framework CI job does not install ripgrep for identity inventory' >&2
+  exit 1
+fi
 require_text .github/workflows/ci.yml 'RUSTDOCFLAGS: "-Dwarnings --cfg krikos_docsrs"'
 require_text .github/workflows/ci.yml 'cargo doc --locked --workspace --all-features --no-deps --document-private-items'
 require_text .github/workflows/ci.yml 'cargo "+$MSRV" test --locked -p krikos-identity --no-default-features --all-targets'
