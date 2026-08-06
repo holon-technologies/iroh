@@ -817,22 +817,35 @@ fn evicted_lineage_conflict_is_authenticated_from_durable_sources() {
     let store = MemoryAccountStore::new();
     let initial = block_on(store.create_account(genesis)).unwrap();
     let initial_revision = initial.revision().clone();
-    let mut snapshot = initial;
-    for version in 1_u64..=257 {
+    let mut projected_state = initial.state().clone();
+    let mut durable_events = Vec::with_capacity(256);
+    for version in 1_u64..=256 {
         let policy =
             ProviderPolicy::local_only(ProviderPolicyVersion::new(version), Extensions::default())
                 .unwrap();
         let event = authorized_operation(
-            snapshot.state(),
+            &projected_state,
             &signer,
             AccountOperation::ChangeProviderPolicy(policy),
             version,
         );
-        snapshot = block_on(store.commit_event(snapshot.revision().clone(), event))
-            .unwrap()
-            .snapshot()
-            .clone();
+        projected_state.validate_and_apply(&event).unwrap();
+        durable_events.push(event);
     }
+    let batch = block_on(store.commit_events(initial_revision.clone(), durable_events)).unwrap();
+    assert_eq!(batch.outcomes().len(), 256);
+    let policy =
+        ProviderPolicy::local_only(ProviderPolicyVersion::new(257), Extensions::default()).unwrap();
+    let event = authorized_operation(
+        batch.snapshot().state(),
+        &signer,
+        AccountOperation::ChangeProviderPolicy(policy),
+        257,
+    );
+    let snapshot = block_on(store.commit_event(batch.snapshot().revision().clone(), event))
+        .unwrap()
+        .snapshot()
+        .clone();
     let [durable_tip] = snapshot.revision().heads() else {
         panic!("linear durable history must have one tip");
     };

@@ -79,6 +79,20 @@ filter = 'package(krikos-docs)'
 # 150s ceiling — see the profile.ci.overrides entry above for the same filter.
 slow-timeout = { period = "30s", terminate-after = 5 }
 
+# This conformance test must cross the exact 256-entry lineage-retention boundary
+# before proving that a late branch is authenticated from durable events. Batching
+# removes repeated store-clone overhead, but the remaining signature verification
+# and durable lineage reconstruction still take roughly 15-20s in isolation and
+# exceeded the generic 30s ceiling twice on a contended macOS runner. Keep the
+# exception exact and finite so a genuine hang still fails.
+[[profile.ci.overrides]]
+filter = 'package(krikos-identity) & binary(store_conformance) & test(evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'package(krikos-identity) & binary(store_conformance) & test(evicted_lineage_conflict_is_authenticated_from_durable_sources)'
+slow-timeout = { period = "30s", terminate-after = 3 }
+
 [[profile.default.overrides]]
 filter = 'test(::run_in_isolation::)'
 test-group = 'run-in-isolation'
