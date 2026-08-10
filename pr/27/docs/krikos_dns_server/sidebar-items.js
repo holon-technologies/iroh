@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["config","test_utils"],"struct":["Metrics","Server"]};

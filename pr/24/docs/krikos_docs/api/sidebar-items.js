@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ImportFileProgressItem"],"mod":["protocol"],"struct":["Doc","DocsApi","ImportFileOutcome","ImportFileProgress"],"type":["RpcError","RpcResult"]};

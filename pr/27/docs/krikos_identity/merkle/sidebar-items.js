@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["empty_merkle_root"],"struct":["AppendOnlyMerkleLog","MerkleConsistencyProof","MerkleInclusionProof","MerkleNeighbor","MerkleNonMembershipProof","MerkleSet","MerkleSetKey","MerkleSetLeaf"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["fuzz_manifest","fuzz_protocol_registration"],"struct":["RegistryFuzzOutcome"]};
